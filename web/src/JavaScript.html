@@ -180,7 +180,7 @@
         var wasInTransit = !!(state.voyage && state.voyage.inTransit);
         state.voyage = res.voyage;
         state.voyage._at = Date.now();
-        if (wasInTransit && !res.voyage.inTransit) { loadState(); return; }
+        if (wasInTransit && !res.voyage.inTransit) { arriveSmooth_(); return; }
         schedulePreciseArrival_();
         if (combatSceneOpen) return;
         renderScene();
@@ -262,6 +262,7 @@
   }
 
   function applyFreshState_(s2) {
+    if (arrivalFade_) { arrivalFade_ = false; setTimeout(function () { var f = document.getElementById('sceneFade'); if (f) f.classList.remove('on'); }, 120); }
     if (!s2.appearance && state && state.appearance && state.player && s2.player && state.player.characterName === s2.player.characterName) s2.appearance = state.appearance;
     state = s2;
     stateFresh = true;
@@ -1957,7 +1958,11 @@
       '<p class="muted small" style="text-align:center;">Panel ini diperbarui otomatis. Menu lain tetap bisa dibuka, tapi Market &amp; Library terkunci sampai kapal merapat.</p>');
   }
 
-  /** LATENCY: layar langsung berganti ke laut (optimistis), server dikonfirmasi di belakang. */
+  /** LATENCY: layar langsung berganti ke laut (optimistis), server dikonfirmasi di belakang.
+   *  Tide v15: (1) menunggu jual-beli yang masih antre selesai dulu (serial lewat enqueueTx_),
+   *  (2) kalau jawaban server tidak jelas (koneksi putus, tab ditidurkan HP), status ASLI di server
+   *  dicek dulu - kapal yang ternyata sudah berangkat tidak lagi "dikembalikan" ke pulau. */
+  var SAIL_HARD_ERR_ = /tidak dikenali|sudah berada di kota|lokasi pemain|kota asal|buat kapten|tidak ditemukan/i;
   function doSetSail(cityId) {
     if (!canAct_() || txPending || !state.city) return;
     txPending = true; voySeq++;
@@ -1967,27 +1972,63 @@
     closeModal();
     renderSidebar(); renderScene();
     showToast('Sauh diangkat! Layar terkembang menuju ' + (o ? o.name : cityName_(cityId)) + '.', 'success');
-    beginSync_();
-    google.script.run
-      .withSuccessHandler(function () {
-        txPending = false; voySeq++;
-        var seq = voySeq;
-        google.script.run.withSuccessHandler(function (res) {
-          endSync_();
-          if (seq !== voySeq) return;
-          if (res && res.voyage && res.voyage.inTransit) { state.voyage = res.voyage; state.voyage._at = Date.now(); renderSidebar(); renderScene(); schedulePreciseArrival_(); saveSnap_(); }
-          else loadState();
-        }).withFailureHandler(function () { endSync_(); if (state.voyage) state.voyage._optimistic = false; loadState(); }).api_pollVoyage();
-      })
-      .withFailureHandler(function (err) {
-        txPending = false; endSync_(); voySeq++;
-        // Server bilang kapal SUDAH berlayar (mis. klik ganda / tab lain) -> sinkronkan, jangan kembali ke pulau.
-        if (/sudah dalam perjalanan|dicegat bajak laut/i.test(String(err && err.message))) { if (state.voyage) state.voyage._optimistic = false; loadState(); return; }
-        state.voyage = prevVoyage;
-        renderSidebar(); renderScene();
-        showToast('Gagal berlayar: ' + err.message, 'error');
-      })
-      .api_setSail(cityId);
+    function adopt(v) { state.voyage = v; state.voyage._at = Date.now(); renderSidebar(); renderScene(); schedulePreciseArrival_(); saveSnap_(); }
+    function revert(msg) { state.voyage = prevVoyage; renderSidebar(); renderScene(); showToast('Gagal berlayar: ' + msg, 'error'); }
+    // Tanya server: apakah kapal benar-benar sedang berlayar?
+    function verify(notSailing, tries) {
+      var seq = voySeq;
+      google.script.run.withSuccessHandler(function (res) {
+        if (seq !== voySeq) return;
+        if (res && res.voyage && res.voyage.inTransit) adopt(res.voyage); else notSailing(res);
+      }).withFailureHandler(function () {
+        if (seq !== voySeq) return;
+        if (tries > 0) setTimeout(function () { verify(notSailing, tries - 1); }, 1500);
+        else { if (state.voyage) state.voyage._optimistic = false; loadState(); }
+      }).api_pollVoyage();
+    }
+    enqueueTx_(function (done) {
+      google.script.run
+        .withSuccessHandler(function () {
+          txPending = false; voySeq++; done();
+          verify(function () { loadState(); }, 3);
+        })
+        .withFailureHandler(function (err) {
+          txPending = false; voySeq++; done();
+          var m = String((err && err.message) || err || '');
+          if (/sudah dalam perjalanan|dicegat bajak laut/i.test(m)) { verify(function () { loadState(); }, 3); return; }
+          if (SAIL_HARD_ERR_.test(m)) { revert(m); return; }
+          verify(function () { revert(m); }, 3);
+        })
+        .api_setSail(cityId);
+    });
+  }
+
+  /* Rekonsiliasi: kalau layar & server tidak sepakat (mis. HP ditidurkan saat berangkat),
+   * ikuti server. Ringan: 1 api_pollVoyage tiap 15 detik di pelabuhan + saat tab kembali aktif. */
+  var lastReconcile_ = 0;
+  function reconcileVoyage_(force) {
+    if (!bootDone || !state || !state.player || txPending || !txIdle_() || combatSceneOpen || departing_) return;
+    if (state.voyage && state.voyage.inTransit) { if (force) pollVoyage_(); return; }
+    if (!force && Date.now() - lastReconcile_ < 15000) return;
+    lastReconcile_ = Date.now();
+    var seq = voySeq;
+    google.script.run.withSuccessHandler(function (res) {
+      if (seq !== voySeq || txPending || !res || !res.voyage || !state) return;
+      if (res.voyage.inTransit && !(state.voyage && state.voyage.inTransit)) loadState();
+    }).withFailureHandler(function () {}).api_pollVoyage();
+  }
+  setInterval(function () { if (!document.hidden) reconcileVoyage_(false); }, 5000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(function () { reconcileVoyage_(true); }, 400); });
+
+  /* Kedatangan yang mulus: layar memudar, data kota tujuan dimuat, lalu kapal merapat (scene.arrive). */
+  var arrivalFade_ = false;
+  function arriveSmooth_() {
+    var fade = document.getElementById('sceneFade');
+    if (fade && !document.hidden && !arrivalFade_) {
+      arrivalFade_ = true; fade.classList.add('on');
+      setTimeout(function () { if (arrivalFade_) { arrivalFade_ = false; fade.classList.remove('on'); } }, 5000);
+      setTimeout(loadState, 380);
+    } else loadState();
   }
 
   function formatMinutes(mins) {
@@ -4136,7 +4177,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v14';
+  TIDE_VERSION = 'Tide v15';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
