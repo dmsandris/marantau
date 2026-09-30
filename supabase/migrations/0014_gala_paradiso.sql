@@ -156,7 +156,7 @@ begin
       end if;
     end if;
     v_story := (array[
-      'Pak Tua Karto terbatuk sambil menyeruput kopi pahitnya. "Gala? Anak Minang yang dulu berlayar dengan hati berbunga-bunga itu? Ya, ya... Malam itu kapalnya dirampok. Perampoknya membawa lari sebuah kotak kecil, dan Gala menangis seperti anak kecil. Aku cuma ingat satu hal: perampok itu berlayar ke tempat kabut tak pernah pergi dan pohon lebih tua dari kerajaan."',
+      'Pak Tua Karto terbatuk sambil menyeruput kopi pahitnya. "Gala? Anak Minang yang dulu berlayar pulang dengan wajah paling bahagia sedunia itu? Anak lelakinya baru lahir waktu itu. Ya, ya... Malam itu kapalnya dirampok. Perampoknya membawa lari sebuah kotak kecil, hadiah yang ia siapkan untuk putranya, dan Gala menangis seperti anak kecil. Aku cuma ingat satu hal: perampok itu berlayar ke tempat kabut tak pernah pergi dan pohon lebih tua dari kerajaan."',
       'Nenek tersenyum lebar. "Cerdas, seperti Gala waktu muda. Perampok itu melempar jangkar di sini tiga malam, mabuk dan berteriak soal kotak berbentuk hati. Lalu ia pergi ke kota yang sudah runtuh untuk menjual rahasianya. Carilah catatannya di arsip ibu kota lama."',
       'Di antara kertas lapuk Arsip Nusantara kamu menemukan buku pelabuhan dari tahun badai besar. Satu baris ditulis dengan tinta merah: "Kapal hitam milik MR. GAP. Muatan: satu kotak hati - TIDAK DIJUAL. Tujuan: TooGood." Mr. GAP... nama yang bahkan tak berani disebut Uda Gala. Berlayarlah menuju TooGood. Dia yang akan menemukanmu.'
     ])[v_step];

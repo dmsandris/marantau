@@ -33,6 +33,11 @@ jobs:
         run: |
           args=""
           for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
-          psql "$DB" -v ON_ERROR_STOP=1 --single-transaction -q $args
+          ok=0
+          for try in 1 2 3; do
+            if psql "$DB" -v ON_ERROR_STOP=1 --single-transaction -q -c "set lock_timeout = '8s'" $args; then ok=1; break; fi
+            echo "::warning::Percobaan $try gagal (mungkin bentrok dengan pemain online), ulangi..."; sleep $((try * 10))
+          done
+          [ "$ok" = 1 ] || exit 1
           psql "$DB" -At -c "select 'Endpoint aktif: ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'api_%'"
           psql "$DB" -q -c "notify pgrst, 'reload schema'"
