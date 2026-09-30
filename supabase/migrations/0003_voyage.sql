@@ -528,7 +528,7 @@ begin
   ship := coalesce(game.ship_json(p_pid), '{}'::jsonb);
   stats := coalesce(game.stats_json(p_pid), '{}'::jsonb);
   select archetype into v_arch from game.players where player_id = p_pid;
-  outlaw := p_dest = 'toogood';
+  outlaw := p_dest = 'toogood' and not coalesce(game.toogood_freed(p_pid), false);
 
   chance := game.cfg_num('PirateEncounterBaseChance', 12);
   if game.voy_num(ship -> 'Condition') < game.voy_damage_threshold(p_pid) then
@@ -1014,6 +1014,7 @@ begin
     final_msg := (r ->> 'message') || ' ' || coalesce(boss_res ->> 'message', '');
   -- Menang: peluang peta harta (peluang + pemberian item ditangani kontrak game.treasure_drop)
   elsif final_result = 'won' then
+    perform game.quest_combat_won(pid);
     drop_res := game.treasure_drop(pid, lvl);
     if drop_res is not null and jsonb_typeof(drop_res) = 'object' then
       drop_name := coalesce(drop_res ->> 'name', drop_res ->> 'Name');
@@ -1075,7 +1076,8 @@ begin
     'look', game.ship_default_look(p.archetype) || coalesce(p.ship_look, '{}'::jsonb),
     'up', jsonb_build_object('speed', game.voy_abs_step(u -> 'speed'), 'cargo', game.voy_abs_step(u -> 'cargo'),
       'condition', game.voy_abs_step(u -> 'condition'), 'cannons', game.voy_abs_step(u -> 'cannons')),
-    'name', coalesce(v_name, 'The Wandering Gull'));
+    'name', coalesce(v_name, 'The Wandering Gull'),
+    'legend', game.ship_legend(p_pid));
 end $$;
 
 -- Simpan tampilan kapal (gratis) + nama kapal. a = [look, shipName]
@@ -1088,6 +1090,7 @@ declare
   v_out jsonb := '{}'::jsonb; k text; v text;
 begin
   if v_me.archetype = '' then raise exception 'Buat kapten dulu.'; end if;
+  if game.ship_locked(v_me.player_id) is not null then raise exception '%', game.ship_locked(v_me.player_id); end if;
   if jsonb_typeof(v_in) <> 'object' then raise exception 'Data tampilan kapal tidak valid.'; end if;
   foreach k in array array['hull', 'trim', 'sail', 'flag', 'emblemColor'] loop
     v := lower(coalesce(v_in ->> k, ''));

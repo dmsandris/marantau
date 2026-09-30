@@ -46,7 +46,8 @@ begin
     'meta', v_me.meta,
     'username', coalesce(v_me.username, ''),
     'unlocks', game.player_unlocks(v_pid),
-    'gala', game.gala_state(v_pid)
+    'gala', game.gala_state(v_pid),
+    'toogood', game.toogood_state(v_pid)
   );
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru

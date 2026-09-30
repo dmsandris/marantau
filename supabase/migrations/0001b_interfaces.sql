@@ -181,3 +181,18 @@ language sql stable as $$ select null::jsonb $$;
 -- Penyembuhan kapal di Paradiso (null = tidak di Paradiso)
 create or replace function game.paradiso_tick(p_pid uuid) returns jsonb
 language sql stable as $$ select null::jsonb $$;
+
+-- [misi Pembebasan TooGood / 0015] -------------------------------------
+create or replace function game.toogood_freed(p_pid uuid) returns boolean
+language sql stable as $$ select false $$;
+create or replace function game.toogood_state(p_pid uuid) returns jsonb
+language sql stable as $$ select null::jsonb $$;
+-- Dipanggil setiap kali pemain memenangkan pertempuran biasa (bukan bos)
+create or replace function game.quest_combat_won(p_pid uuid) returns void
+language plpgsql as $$ begin null; end $$;
+-- Kapal legenda sementara ('pearl') atau null
+create or replace function game.ship_legend(p_pid uuid) returns text
+language sql stable as $$ select null::text $$;
+-- Pesan bila tampilan/nama kapal sedang terkunci (null = bebas)
+create or replace function game.ship_locked(p_pid uuid) returns text
+language sql stable as $$ select null::text $$;

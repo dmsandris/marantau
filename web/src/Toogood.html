@@ -1,0 +1,422 @@
+<script>
+/* =====================================================================
+ * Tide v12 - MISI "PEMBEBASAN TOOGOOD"
+ * zafachmie (Arsip Gelap) -> 3 surat gubernur -> Jendral Tedsky di IKN -> diburu ->
+ * Teh Euis -> dwi de'clown (malam) -> Buku Ikan 14/14 -> kode sandi -> Black Pearl ->
+ * kabarkan 5 gubernur -> Tedsky ditangkap -> TooGood merdeka.
+ * Server: 0015_toogood_quest.sql (api_toogoodQuest)   Seni: Cinema.html (MTCine)
+ * ===================================================================== */
+var QT = (function () {
+  var N = {
+    zafa: { name: 'zafachmie', title: 'Penjaga Arsip Gelap', ap: { fem: 0, skin: 4, hair: 0, hairStyle: 5, facial: 3, head: 'none', eyes: 1, seed: 90909, role: 'pustakawan', age: 0.5 }, fat: true },
+    euis: { name: 'Teh Euis', title: 'Ajudan Benteng Kapten', ap: { fem: 1, skin: 1, hair: 0, hairStyle: 0, facial: 0, head: 'none', eyes: 2, seed: 31313, role: 'saudagar', age: 0.35 } },
+    dwi: { name: "dwi de'clown", title: "Bartender Malam Black's Alley", ap: { fem: 0, skin: 2, hair: 2, hairStyle: 3, facial: 0, head: 'none', eyes: 0, seed: 70707, role: 'lapau', age: 0.4 }, clown: true },
+    daeng: { name: 'Daeng Sore', title: "Bartender Siang Black's Alley", ap: { fem: 0, skin: 3, hair: 0, hairStyle: 0, facial: 1, head: 'none', eyes: 1, seed: 51515, role: 'lapau', age: 0.6 } },
+    tedsky: { name: 'Jendral Tedsky', title: 'Utusan Pemerintah Dunia', ap: { fem: 0, skin: 1, hair: 4, hairStyle: 2, facial: 4, head: 'none', eyes: 0, seed: 13131, role: 'syahbandar', age: 0.8 }, medals: true }
+  };
+  var GOV_CITIES = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'paradiso'];
+  var GOV_ASK = {
+    sunda_empire: 'Surat pengusiran? Sunda Empire tak pernah menandatangani apa pun dengan tangan kosong. Tapi kudengar rumah-rumah di TooGood rata dengan tanah. Bawakan <b>12 Tools</b> &mdash; akan kukirim bersama suratku untuk membangun kembali rumah mereka.',
+    joungjava: 'Tanda tangan Residen itu mahal, Kapten. Dewan bangsawan baru mau mengangguk setelah jamuan yang layak. Bawakan <b>8 Silk</b> untuk jamuan itu.',
+    bjorneo: 'Orang Bjorneo percaya pada perbuatan, bukan kertas. Tenggelamkan <b>2 kapal bajak laut</b>, lalu kembali ke sini. Baru kita bicara soal tanda tangan.',
+    skitraw: 'Mengusir penyamun butuh kapal, kapal butuh biaya. Sumbangkan <b>5.000 gold</b> untuk kas armada pembebasan, dan tanda tanganku milikmu.',
+    paradiso: 'Paradiso tak pernah ikut politik, Kapten... tapi pesta kemerdekaan butuh bumbu! Bawakan <b>10 Spices</b> untuk dapur pesta, dan stempelku kupinjamkan.'
+  };
+  var GOV_INFORM = {
+    sunda_empire: 'Tedsky?! Selama ini kami mengirim pajak restorasi ke tangannya! Genderang perang Sunda Empire akan ditabuh malam ini.',
+    joungjava: 'Surat bersegel ini... tulisan tangan Tedsky, tak salah lagi. Para bangsawan Joungjava akan mengirim armada terbaiknya.',
+    bjorneo: 'Orang Bjorneo tidak memaafkan pengkhianat. Kapal-kapal ulin kami berangkat saat air pasang.',
+    skitraw: 'Demi rendang dan kehormatan Skitraw! Armada kami siap &mdash; dan kabari Uda Gala, dia pasti ingin ikut.',
+    paradiso: 'Pesta ditunda! Semua yacht Paradiso berlayar ke IKN. Setelah itu... pesta dua kali lipat!'
+  };
+  var OBJ = ['', '', 'Bawa ketiga surat ke pemerintah dunia di <b>Monumen Restorasi, IKN</b>.',
+    'Kau diburu! Berlayar ke <b>TooGood</b> dan ceritakan semuanya kepada <b>zafachmie</b> di Arsip Gelap.',
+    'Minta kode sandi kepada <b>Teh Euis</b> di <b>Benteng Kapten</b>, TooGood.',
+    "Temui <b>dwi de'clown</b> di <b>Black's Alley</b>, TooGood. Ia hanya bekerja saat <b>malam</b>.",
+    '', 'Ketukkan kode sandi di pintu gua bawah <b>Dok Kering, TooGood</b>.', '',
+    'Tedsky ditangkap! Pulanglah ke <b>zafachmie</b> di TooGood.'];
+  var STEP_NAME = ['', 'Surat gubernur', 'Menghadap IKN', 'Lapor zafachmie', 'Teh Euis', "dwi de'clown", 'Buku Ikan', 'Kode sandi', 'Kabarkan kebenaran', 'Pulang ke TooGood'];
+
+  function st() { return (state && state.toogood) || null; }
+  function step() { var t = st(); return t ? t.step : -1; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function night() { var f = dayFrac_(); return f >= 0.72 || f < 0.04; }
+  function minsToNight() { var f = dayFrac_(), len = state.dayLengthMinutes || 60; return Math.max(1, Math.round((((0.72 - f) % 1 + 1) % 1) * len)); }
+  function faceOf(n) { return MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'], fat: n.fat, clown: n.clown, medals: n.medals }); }
+  function speech(n, text, extra, title) {
+    return '<div class="qg-card"><div class="qg-face">' + faceOf(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(title || n.title) + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function actions(btns) { return '<div class="qg-actions">' + btns + '</div>'; }
+  function insert(html) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    if (c.querySelector('.qt-wrap')) return null;
+    var anchor = c.querySelector('.qg-wrap') || c.querySelector('.npc') || c.querySelector('.ph');
+    var wrap = document.createElement('div'); wrap.className = 'qt-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function call(action, arg, ok, btn) {
+    if (btn) btn.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      if (r && r.toogood && state) state.toogood = r.toogood;
+      ok(r || {});
+    }).withFailureHandler(function (e) { if (btn) btn.disabled = false; showToast(e.message, 'error'); }).api_toogoodQuest(action, arg || '');
+  }
+  // Cerita berhalaman di dalam kartu: pages = [html...], selesai -> done(w)
+  function pages(w, n, list, lastBtns, bind, title) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1;
+      w.innerHTML = speech(n, list[i], actions(last ? lastBtns : '<button class="btn btn-gold" data-qt="next">Lanjut &nbsp;' + ic('compass') + '</button>') +
+        '<div class="qt-dots">' + list.map(function (_, k) { return '<i class="' + (k === i ? 'on' : '') + '"></i>'; }).join('') + '</div>', title);
+      au_('page');
+      if (!last) on(w, '[data-qt=next]', function () { i++; show(); }); else bind(w);
+    }
+    show();
+  }
+  function seal(txt) {
+    return '<svg class="qt-seal" viewBox="0 0 64 64" width="54" height="54"><circle cx="32" cy="32" r="26" fill="#9b2320"/><path d="M32 4 l5 7 8-3 1 8 8 1-3 8 7 5-7 5 3 8-8 1-1 8-8-3-5 7-5-7-8 3-1-8-8-1 3-8-7-5 7-5-3-8 8-1 1-8 8 3z" fill="#b62c26" opacity=".75"/>' +
+      '<circle cx="32" cy="32" r="16" fill="none" stroke="#f0c9a0" stroke-width="1.6" opacity=".7"/><text x="32" y="37" text-anchor="middle" font-family="Georgia,serif" font-size="13" font-weight="700" fill="#f7e2c2">' + esc_(txt) + '</text></svg>';
+  }
+
+  /* ---------- NPC kota yang diganti misi ---------- */
+  function npc(city, role) {
+    var t = st(); if (!t) return null;
+    var s = t.step, freed = t.freed;
+    if (city === 'toogood') {
+      if (role === 'pustakawan') return freed ? Object.assign({}, N.euis, { title: 'Penjaga Perpustakaan Rakyat' }) : N.zafa;
+      if (role === 'syahbandar') return freed ? Object.assign({}, N.zafa, { title: 'Gubernur TooGood' }) : N.euis;
+      if (role === 'lapau') return night() ? N.dwi : N.daeng;
+    }
+    if (city === 'ikn' && role === 'syahbandar' && s < 9) return N.tedsky;
+    return null;
+  }
+
+  /* ---------- jurnal (panel Tasks) ---------- */
+  function objective(t) {
+    if (t.step === 1) {
+      return 'Kumpulkan <b>3 surat pengusiran</b> dari gubernur. Temui mereka di <b>Governor\'s Estate</b> tiap pulau &mdash; masing-masing punya tugas kecil untukmu.' +
+        '<div class="qt-chips">' + GOV_CITIES.map(function (c) { var ok = t.letters.indexOf(c) >= 0; return '<span class="qt-chip' + (ok ? ' ok' : (t.tasks[c] ? ' now' : '')) + '">' + (ok ? ic('check') : '') + esc_(cityName_(c)) + '</span>'; }).join('') + '</div>' +
+        '<div class="qt-prog">Surat: <b>' + t.letters.length + '/3</b></div>';
+    }
+    if (t.step === 6) return 'Lengkapi <b>Buku Ikan</b> sampai penuh, lalu temui dwi de\'clown lagi saat malam. <div class="qt-prog">Buku Ikan: <b>' + t.book.found + '/' + t.book.total + '</b></div>';
+    if (t.step === 8) {
+      return 'Nakhodai <b>Black Pearl</b> ke Governor\'s Estate tiap pulau dan kabarkan kejahatan Jendral Tedsky.' +
+        '<div class="qt-chips">' + t.informTargets.map(function (c) { var ok = t.informed.indexOf(c) >= 0; return '<span class="qt-chip' + (ok ? ' ok' : '') + '">' + (ok ? ic('check') : '') + esc_(cityName_(c)) + '</span>'; }).join('') + '</div>' +
+        '<div class="qt-prog">Gubernur terkabari: <b>' + t.informed.length + '/' + t.informTargets.length + '</b></div>';
+    }
+    return OBJ[t.step] || '';
+  }
+  function journal() {
+    var t = st(); if (!t || t.step < 1 || t.step > 9) return '';
+    var steps = '';
+    for (var i = 1; i <= 9; i++) steps += '<li class="' + (i < t.step ? 'done' : i === t.step ? 'now' : '') + '"><span class="ms-dot">' + (i < t.step ? ic('check') : '') + '</span><span>' + STEP_NAME[i] + '</span></li>';
+    return '<div class="qg-journal qt-journal"><div class="qg-jh">' + ic('skull') + ' <b>Misi: Pembebasan TooGood</b><span class="legend-tag">sekali seumur hidup</span></div>' +
+      (t.hunted ? '<div class="qt-hunted">' + ic('alert') + ' Kepalamu dihargai Jendral Tedsky &mdash; <b>setiap pelayaran akan dicegat bajak laut</b>.</div>' : '') +
+      '<ol class="qg-steps qt-steps">' + steps + '</ol><div class="qg-obj">' + objective(t) + '</div></div>';
+  }
+
+  /* ---------- Arsip Gelap: zafachmie ---------- */
+  function decorLibrary() {
+    var t = st(); if (!t || cid() !== 'toogood' || !docked()) return;
+    var s = t.step, w;
+    if (s === 0) {
+      w = insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('book') + '</div><div><b>Pria raksasa di balik tumpukan arsip menatapmu lama.</b><br><span class="muted small">"Kau... kapten yang menenggelamkan Mr. GAP?"</span></div><button class="btn btn-gold" data-qt="listen">Dengarkan kisahnya</button></div>');
+      on(w, '[data-qt=listen]', function () { offer(w); });
+    } else if (s === 3) {
+      w = insert(speech(N.zafa, 'zafachmie berdiri begitu melihatmu masuk, menyenggol rak hingga debu beterbangan. "Kapten! Kabarnya kau diusir dari IKN dan setiap perompak di laut memburumu. Apa yang terjadi?"',
+        actions('<button class="btn btn-gold" data-qt="tell">' + ic('chat') + '&nbsp; Ceritakan soal Tedsky</button>')));
+      on(w, '[data-qt=tell]', function (b) {
+        call('zafa', '', function () {
+          pages(w, N.zafa, [
+            'Kau meletakkan surat bersegel Tedsky di mejanya. zafachmie membacanya sekali, dua kali... lalu tangannya yang sebesar dayung mengepal. "<b>Tedsky.</b> Jadi selama dua puluh tahun, tangan di balik semua api ini adalah tangan pemerintah dunia sendiri."',
+            '"Dengar baik-baik, Kapten. Leluhurku, para pemimpin TooGood, meninggalkan sebuah <b>kapal perang legenda</b> di gua rahasia di bawah tebing pulau ini. Tak ada perompak yang berani mendekatinya. Pintunya dikunci dengan <b>kode sandi</b>."',
+            '"Aku sendiri tak tahu kodenya. Tapi <b>Teh Euis</b> di <b>Benteng Kapten</b> pernah menjaga kunci-kunci tua pulau ini. Temui dia. Dengan kapal itu, suara kita akan didengar seluruh Mare Nusantara."'
+          ], '<button class="btn btn-gold" data-qt="ok">' + ic('compass') + '&nbsp; Ke Benteng Kapten</button>', function (w2) { on(w2, '[data-qt=ok]', function () { showToast('Temui Teh Euis di Benteng Kapten.', 'success'); openPanel('tasks'); }); });
+        }, b);
+      });
+    } else if (s === 9) {
+      w = insert(speech(N.zafa, 'Genderang terdengar dari pelabuhan. zafachmie menunggumu di ambang pintu arsip, matanya basah. "Kabar itu sudah sampai, Kapten. Tedsky... benar-benar dirantai?"',
+        actions('<button class="btn btn-gold" data-qt="free">' + ic('star') + '&nbsp; TooGood merdeka!</button>')));
+      on(w, '[data-qt=free]', function (b) { call('zafa', '', function (r) { finale(r); }, b); });
+    } else if (s === 10) {
+      insert(speech(Object.assign({}, N.euis, { title: 'Penjaga Perpustakaan Rakyat' }), 'Teh Euis merapikan buku sambil bersenandung. "Selamat datang di Perpustakaan Rakyat, Kapten! Ternyata menjaga buku jauh lebih seru daripada menjaga benteng... dan dwi suka kubacakan puisi."'));
+    } else if (s >= 1) {
+      var hint = ['', 'Kumpulkan tiga surat itu, Kapten. Gubernur mana pun, asal tiga.', 'Tiga surat! Bawa ke pemerintah dunia di IKN. Semoga mereka mau mendengar.', '', 'Sudah bertemu Teh Euis di Benteng Kapten?', "Teh Euis menolak? Hmm... cari tahu dengan siapa dia berkencan.", 'Buku Ikan? Itu pasti syarat si dwi. Dia memang aneh... tapi hatinya baik.', 'Kau punya kodenya! Pergilah ke Dok Kering.', 'Black Pearl! Ayahku bilang kapal itu menari di atas ombak. Sekarang kabarkan kejahatan Tedsky ke semua gubernur!'][s] || '';
+      insert(speech(N.zafa, hint) + journal());
+    }
+  }
+  function offer(w) {
+    pages(w, N.zafa, [
+      'Pria itu besar sekali &mdash; kursinya berderit tiap kali ia bergerak. "Namaku <b>zafachmie</b>. Seluruh Black\'s Alley membicarakanmu, Kapten. Kau menenggelamkan Mr. GAP. Duduklah... aku ingin bercerita."',
+      '"Aku lahir dari garis para pemimpin TooGood, keturunan <b>ras Buccaneer</b> &mdash; manusia bertubuh besar yang konon berdarah raksasa. Pemerintah Dunia menyebut darah kami \'dosa besar\' dan memburu kami. Saat asal-usulku ketahuan, aku baru empat tahun. Aku dan orang tuaku dirantai, dijadikan budak para penyamun di <b>Moramora</b>."',
+      '"Ayah dan ibuku tak bertahan. Sebelum pergi, ayah membisikkan legenda <b>Sun God Nika</b>, Dewa Pembebasan, yang kelak datang menari mengikuti tabuhan genderang kebebasan. Cerita itulah yang membuatku tetap hidup."',
+      '"Umur sembilan, aku dibawa ke TooGood &mdash; jadi buruan dalam permainan berburu manusia para penyamun. Di sana aku bertemu dua budak lain, <b>Andry Ivankov</b> dan gadis kecil bernama <b>Marlya</b>. Kami kabur saat bajak laut Mr. GAP menyerbu pulau ini... dan sejak malam itu TooGood tak pernah pulih."',
+      '"Dua puluh tahun aku bertahan di sini, menjaga arsip dan menjaga rakyatku dari pencuri dan penyamun. Mr. GAP sudah tenggelam &mdash; tapi kaki tangannya masih berkuasa. Aku butuh <b>surat pengusiran</b> yang disahkan <b>minimal tiga gubernur</b>, lalu kita bawa ke pemerintah dunia. Maukah kau membantuku membebaskan TooGood?"'
+    ], '<button class="btn btn-gold" data-qt="acc">' + ic('skull') + '&nbsp; Aku akan membebaskan TooGood!</button><button class="btn btn-ghost-ink" data-qt="later">Nanti dulu</button>', function (w2) {
+      on(w2, '[data-qt=acc]', function (b) { call('accept', '', function () { au_('unfurl'); showToast('Misi dimulai: Pembebasan TooGood', 'success'); renderLibrary(); }, b); });
+      on(w2, '[data-qt=later]', function () { renderLibrary(); });
+    });
+  }
+
+  /* ---------- Benteng Kapten / Governor's Estate / Monumen Restorasi ---------- */
+  function decorTasks() {
+    var t = st(); if (!t || !docked()) return;
+    var c = cid(), s = t.step, w;
+    if (c === 'toogood') {
+      if (s === 4) {
+        w = insert(speech(N.euis, 'Seorang perempuan berkebaya memeriksa daftar penjaga di gerbang benteng. Ia melirikmu dari ujung kaki sampai ujung kepala. "Ada perlu apa, Kapten?"',
+          actions('<button class="btn btn-gold" data-qt="ask">' + ic('chat') + '&nbsp; Minta kode sandi gua</button>')));
+        on(w, '[data-qt=ask]', function (b) {
+          call('euis', '', function () {
+            au_('error');
+            w.innerHTML = speech(N.euis, '<p>"Kode sandi? <i>Ha!</i>" Teh Euis melipat tangannya. "Aku bekerja untuk gubernur TooGood &mdash; siapa pun dia &mdash; dan aku <b>tidak akan mengkhianatinya</b>. Tak ada kode untukmu."</p>' +
+              '<p>"Sudah, pergi sana, cepat. Malam ini aku ada kencan dengan <b>dwi de\'clown</b> di <b>Black\'s Alley</b>, dan aku belum dandan!"</p>') +
+              '<div class="qg-next">' + ic('cup') + ' Siapa itu dwi de\'clown? Coba cari di <b>Black\'s Alley</b> &mdash; saat <b>malam</b>.</div>';
+          }, b);
+        });
+      } else if (s === 10) {
+        insert(speech(Object.assign({}, N.zafa, { title: 'Gubernur TooGood' }), 'Gubernur zafachmie tertawa lebar menyambutmu. "Pahlawan TooGood datang! Rakyat sudah menamai jalan utama dengan namamu, Kapten. Black Pearl berpatroli tiap malam &mdash; tak ada lagi penyamun yang berani mendekat."'));
+      } else if (s >= 1 && s <= 9) insert(journal());
+      return;
+    }
+    if (c === 'ikn' && s === 2) { decorIkn(); return; }
+    if (GOV_CITIES.indexOf(c) >= 0 && (s === 1 || s === 8)) { decorGov(c, t); return; }
+    if (s >= 1 && s <= 9) insert(journal());
+  }
+  function govNpc() { var n = npc_('syahbandar'); return { name: n.name, title: 'Gubernur ' + cityName_(cid()), ap: n.ap }; }
+  function govNeed(c, t) {
+    var g = t.govs[c], have = t.progress ? t.progress[c] : 0;
+    if (g.kind === 'deliver') return { txt: g.qty + '&times; ' + esc_(capitalize_(g.item)), have: have, ok: have >= g.qty, prog: 'Di palkamu: <b>' + have + '/' + g.qty + '</b>' };
+    if (g.kind === 'gold') return { txt: formatGold(g.qty) + ' gold', have: have, ok: have >= g.qty, prog: 'Gold-mu: <b>' + formatGold(have) + '</b>' };
+    return { txt: g.qty + ' kemenangan', have: have, ok: have >= g.qty, prog: 'Kapal bajak laut ditenggelamkan: <b>' + have + '/' + g.qty + '</b>' };
+  }
+  function decorGov(c, t) {
+    var n = govNpc(), w;
+    if (t.step === 8) {
+      if (t.informed.indexOf(c) >= 0) { insert(speech(n, 'Armada kami sedang bersiap berlayar ke IKN, Kapten. Kabarkan juga gubernur lainnya!') + journal()); return; }
+      w = insert(speech(n, 'Gubernur terperanjat melihat kapal hitam raksasa berlabuh di pelabuhannya. "Black Pearl?! Kapal legenda TooGood... Kapten, apa yang terjadi?"',
+        actions('<button class="btn btn-gold" data-qt="inf">' + ic('scroll') + '&nbsp; Kabarkan kejahatan Tedsky</button>')));
+      on(w, '[data-qt=inf]', function (b) {
+        call('inform', '', function (r) {
+          au_('unfurl');
+          if (r.arrest) { arrest(); return; }
+          w.innerHTML = speech(n, '<p>Kau menunjukkan surat bersegel Tedsky dan buku setoran para penyamun.</p><p>"' + GOV_INFORM[c] + '"</p>') +
+            '<div class="qg-next">' + ic('compass') + ' Gubernur terkabari: <b>' + r.toogood.informed.length + '/' + r.toogood.informTargets.length + '</b></div>';
+        }, b);
+      });
+      return;
+    }
+    // langkah 1: surat pengusiran
+    if (t.letters.indexOf(c) >= 0) { insert(speech(n, 'Suratku sudah di tanganmu, Kapten. Semoga TooGood segera bebas.') + journal()); return; }
+    if (t.letters.length >= 3) return;
+    if (!t.tasks[c]) {
+      w = insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('scroll') + '</div><div><b>Surat pengusiran penyamun TooGood</b><br><span class="muted small">Minta gubernur ' + esc_(cityName_(c)) + ' menandatanganinya (' + t.letters.length + '/3).</span></div><button class="btn btn-gold" data-qt="ask">Minta tanda tangan</button></div>');
+      on(w, '[data-qt=ask]', function (b) { call('gov', '', function () { au_('page'); w.remove(); decorTasks(); }, b); });
+      return;
+    }
+    var need = govNeed(c, t);
+    w = insert(speech(n, GOV_ASK[c], '<div class="qt-need">' + ic('scroll') + ' Syarat: <b>' + need.txt + '</b> &middot; ' + need.prog + '</div>' +
+      actions('<button class="btn btn-gold" data-qt="give"' + (need.ok ? '' : ' disabled') + '>' + ic('check') + '&nbsp; ' + (t.govs[c].kind === 'wins' ? 'Laporkan kemenangan' : t.govs[c].kind === 'gold' ? 'Sumbangkan' : 'Serahkan') + '</button>')));
+    on(w, '[data-qt=give]', function (b) {
+      call('gov', '', function (r) {
+        au_('victory');
+        if (r.newGold != null) { state.player.gold = r.newGold; renderSidebar(); }
+        refreshCargoQuiet_();
+        w.innerHTML = speech(n, '<div class="qt-sealrow">' + seal('TG') + '</div><p>Gubernur menekan stempel lilin merah di bawah surat pengusiran. "Sudah. Atas nama ' + esc_(cityName_(c)) + ', penyamun TooGood harus angkat kaki."</p>') +
+          '<div class="qg-next">' + ic('scroll') + ' Surat terkumpul: <b>' + r.count + '/3</b>' + (r.count >= 3 ? ' &mdash; bawa ke <b>Monumen Restorasi, IKN</b>!' : '') + '</div>';
+        if (r.count >= 3) showToast('Tiga surat terkumpul! Menghadaplah ke pemerintah dunia di IKN.', 'success');
+      }, b);
+    });
+  }
+  function decorIkn() {
+    var w = insert(speech(N.tedsky, 'Seorang jendral berseragam putih penuh tanda jasa menyambutmu di bawah patung Garuda. "Kapten dari TooGood? Aku Jendral Tedsky, utusan pemerintah dunia. Apa yang kau bawa?"',
+      actions('<button class="btn btn-gold" data-qt="give">' + ic('scroll') + '&nbsp; Serahkan tiga surat</button>')));
+    on(w, '[data-qt=give]', function () {
+      pages(w, N.tedsky, [
+        'Tedsky membaca ketiga surat itu perlahan. Senyumnya tipis. "Tiga gubernur... mengesankan. Tunggu di sini, Kapten. Aku akan mengambil stempel pemerintah dunia." Ia keluar ruangan.',
+        'Di mejanya tergeletak sebuah buku besar yang terbuka: <i>"Setoran TooGood &mdash; Mr. GAP &amp; kawan-kawan. Tiga puluh persen untuk J.T."</i> Di bawahnya, sepucuk surat bersegel: <blockquote class="qg-clue">"Jaga TooGood tetap terbakar. Selama pulau itu kacau, dana restorasi terus mengalir &mdash; dan darah Buccaneer tak akan pernah bangkit lagi. &mdash; J. Tedsky"</blockquote>Kau menyelipkan surat itu ke balik bajumu.',
+        'Pintu dibanting. Tedsky berdiri di ambang, wajahnya merah padam. "Tikus pelabuhan! Kau melihat terlalu banyak!" Ia berteriak ke para penjaga: "<b>Usir dia dari IKN!</b> Dan kabarkan ke setiap perompak di Mare Nusantara: <b>seribu keping emas untuk kepala kapten ini!</b>"'
+      ], '<button class="btn btn-danger qt-run" data-qt="run">' + ic('anchor') + '&nbsp; Lari ke kapal!</button>', function (w2) {
+        on(w2, '[data-qt=run]', function (b) {
+          call('ikn', '', function () {
+            au_('unfurl');
+            showToast('Kau diusir dari IKN! Kapal berlayar ke TooGood... dan para perompak mulai memburumu.', 'error');
+            closeModal(); loadState();
+          }, b);
+        });
+      }, 'Dalang kekacauan TooGood');
+    });
+  }
+
+  /* ---------- Black's Alley: Daeng Sore (siang) / dwi de'clown (malam) ---------- */
+  function decorTavern() {
+    var t = st(); if (!t || cid() !== 'toogood' || !docked()) return;
+    var s = t.step, w;
+    if (s < 5 || s > 7) return;
+    if (!night()) {
+      insert(speech(N.daeng, 'Cari dwi? Dia cuma kerja malam, Kapten. Siang begini aku yang jaga bar. Mau kopi tubruk dulu sambil menunggu?',
+        '<div class="qt-need">' + ic('moon') + ' Malam tiba sekitar <b>' + minsToNight() + ' menit</b> lagi (waktu nyata).</div>'));
+      return;
+    }
+    if (s === 5) {
+      w = insert(speech(N.dwi, 'Bartender berhidung merah memutar gelas di ujung jarinya, lalu menangkapnya tanpa melihat. "Selamat malam, Kapten. Kau punya wajah orang yang sedang mencari kunci. Euis bilang ada kapten ganteng merusak kencan kami... itu kau?"',
+        actions('<button class="btn btn-gold" data-qt="ask">' + ic('chat') + '&nbsp; Tanyakan kode sandi gua</button>')));
+      on(w, '[data-qt=ask]', function (b) {
+        call('dwi', '', function (r) {
+          pages(w, N.dwi, [
+            'dwi de\'clown berhenti tersenyum. Ia menutup pintu bar, lalu membuka tirai di belakang rak botol &mdash; dindingnya penuh lukisan: laut, badai, seorang pria raksasa menari di bawah matahari.',
+            '"Aku dan zafachmie itu <b>saudara seiman</b>, Kapten. Kami percaya <b>lukisan bisa mencegah kiamat</b>. Setiap goresan kuas menahan dunia satu hari lagi dari keruntuhan. Aku tahu kode gua itu... dan letak kapalnya."',
+            '"Tapi seorang pelukis butuh pengamat yang sabar. Buktikan kesabaranmu: <b>lengkapi Buku Ikan-mu, empat belas dari empat belas</b>. Laut yang sabar akan mengajarimu. Setelah itu, datanglah lagi saat malam."'
+          ], '<button class="btn btn-gold" data-qt="fish">' + ic('fish') + '&nbsp; Pergi memancing</button><button class="btn" data-qt="ok">Baik</button>', function (w2) {
+            on(w2, '[data-qt=fish]', function () { openPanel('fishing'); });
+            on(w2, '[data-qt=ok]', function () { renderTavern(); });
+            var bk = r.book || t.book;
+            w2.insertAdjacentHTML('beforeend', '<div class="qt-need">' + ic('book') + ' Buku Ikan: <b>' + bk.found + '/' + bk.total + '</b></div>');
+          });
+        }, b);
+      });
+    } else if (s === 6) {
+      var bk = t.book;
+      w = insert(speech(N.dwi, bk.found >= bk.total ? '"Kau datang lagi... dan matamu seperti mata nelayan tua. Tunjukkan bukumu, Kapten."' : '"Buku Ikan-mu belum penuh, Kapten. Laut masih menyimpan rahasia untukmu."',
+        '<div class="qt-need">' + ic('book') + ' Buku Ikan: <b>' + bk.found + '/' + bk.total + '</b></div>' +
+        actions(bk.found >= bk.total ? '<button class="btn btn-gold" data-qt="show">' + ic('book') + '&nbsp; Tunjukkan Buku Ikan</button>' : '<button class="btn btn-gold" data-qt="fish">' + ic('fish') + '&nbsp; Memancing lagi</button>')));
+      on(w, '[data-qt=fish]', function () { openPanel('fishing'); });
+      on(w, '[data-qt=show]', function (b) {
+        call('dwi', '', function (r) {
+          if (r.needBook) { showToast('Buku Ikan belum lengkap (' + r.book.found + '/' + r.book.total + ').', 'error'); renderTavern(); return; }
+          au_('victory');
+          w.innerHTML = speech(N.dwi, '<p>dwi membolak-balik bukumu, halaman demi halaman, lalu tersenyum lebar di balik riasannya. "Empat belas dari empat belas. Kau memang sabar." Ia mendekat dan berbisik:</p>' +
+            '<div class="qt-code">' + esc_(r.code) + '</div>' +
+            '<p>"Di bawah <b>Dok Kering</b> ada pintu besi yang tertutup lumut. Ketukkan kode itu. Yang menunggumu di baliknya adalah <b>Black Pearl</b> &mdash; kapal perang legenda leluhur TooGood."</p>',
+            actions('<button class="btn btn-gold" data-qt="dock">' + ic('wrench') + '&nbsp; Ke Dok Kering</button>'));
+          on(w, '[data-qt=dock]', function () { openPanel('ship'); });
+        }, b);
+      });
+    } else {
+      insert(speech(N.dwi, '"Kodenya sudah kuberikan, Kapten. Dok Kering. Pintu besi. Jangan salah ketik &mdash; dinding gua itu tak punya selera humor."'));
+    }
+  }
+
+  /* ---------- Dok Kering: pintu gua ---------- */
+  function decorShip() {
+    var t = st(); if (!t || !docked()) return;
+    if (cid() === 'toogood' && t.step === 7) {
+      var w = insert('<div class="qg-callout qt-door"><div class="qg-callout-ico">' + ic('anchor') + '</div><div><b>Pintu besi berlumut di bawah Dok Kering.</b><br><span class="muted small">Ada ukiran huruf di permukaannya. Ketukkan kode sandinya.</span>' +
+        '<div class="qt-codeform"><input id="qtCode" class="look-name" maxlength="32" placeholder="kode sandi" autocomplete="off"><button class="btn btn-gold" data-qt="open">Buka</button></div></div></div>');
+      if (!w) return;
+      var inp = w.querySelector('#qtCode');
+      var go = function (b) {
+        call('unlock', inp.value, function (r) {
+          if (r.wrong) { au_('error'); inp.value = ''; inp.classList.add('qt-shake'); setTimeout(function () { inp.classList.remove('qt-shake'); }, 500); showToast('Pintu besi tak bergeming.', 'error'); if (b) b.disabled = false; return; }
+          revealPearl(r);
+        }, b);
+      };
+      on(w, '[data-qt=open]', go);
+      inp.onkeydown = function (e) { if (e.key === 'Enter') go(w.querySelector('[data-qt=open]')); };
+    }
+  }
+  // Editor tampilan kapal dikunci selama memakai Black Pearl
+  wrap_('renderShipLook_', function () {
+    var t = st(), el = document.getElementById('shipLookSection'); if (!t || !t.pearl || !el) return;
+    el.innerHTML = '<div class="card qt-pearlcard"><canvas id="qtPearlPrev"></canvas><div><b>Black Pearl</b><br><span class="muted small">Kapal perang legenda TooGood &mdash; dipinjam sampai misi zafachmie selesai. Tidak bisa dicat ulang atau diganti nama.</span></div></div>';
+    var cv = document.getElementById('qtPearlPrev'); if (!cv) return;
+    var d = window.devicePixelRatio || 1; cv.width = 220 * d; cv.height = 150 * d;
+    var x = cv.getContext('2d'); x.scale(d, d); MTShip.draw(x, 118, 118, 0.68, MTShip.pearlOpts({ dir: 1, t: 0 }));
+  });
+
+  /* ---------- sinematik ---------- */
+  function cine(kind, slides, done) {
+    var ov = document.createElement('div'); ov.className = 'qt-cine';
+    ov.innerHTML = '<canvas></canvas><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = window.MTCine ? MTCine.play(ov.querySelector('canvas'), kind) : function () {};
+    var i = 0, txt = ov.querySelector('.qt-captext'), btn = ov.querySelector('.qt-capbtn .btn');
+    function show() {
+      txt.classList.remove('in'); void txt.offsetWidth;
+      txt.innerHTML = slides[i]; txt.classList.add('in');
+      btn.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai';
+    }
+    btn.onclick = function () { au_('page'); if (++i < slides.length) show(); else { stop(); ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450); if (done) done(); } };
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(show, 900);
+  }
+
+  function showModal(html) { currentPanel = null; setModal_(html); document.getElementById('modalOverlay').classList.add('open'); }
+  function revealPearl(r) {
+    au_('victory'); metaBump_('blackpearl');
+    if (r.ship) patchShip_(r.ship, r.visual);
+    closeModal();
+    cine('pearl', [
+      'Pintu besi berderit terbuka. Air laut menyerbu masuk, dan angin dingin berembus dari dalam gua yang gelap...',
+      'Dari balik kabut muncul sebuah kapal perang hitam legam &mdash; tiga tiang menjulang, layar-layar gelap berkibar, dua baris meriam berjajar di tiap sisinya.',
+      'Meriam-meriamnya menggelegar memberi salam. Inilah <b>BLACK PEARL</b>, kapal perang legenda leluhur TooGood &mdash; kini di bawah komandomu.',
+      'Nakhodai Black Pearl ke <b>lima gubernur</b> dan kabarkan kejahatan Jendral Tedsky. Para perompak bayarannya masih memburumu &mdash; biarkan mereka merasakan meriam legenda!'
+    ], function () {
+      var s = r.ship || state.ship;
+      showModal(panelHeader_('anchor', 'Black Pearl', 'Kapal perang legenda &middot; dipinjam') +
+        '<div class="qg-rewards"><div class="qg-reward">' + ic('anchor') + '<div><b>Black Pearl</b><span>Speed ' + esc_(s.Speed) + ' &middot; Kondisi ' + esc_(Math.round(s.Condition)) + '/' + esc_(s.EffectiveMaxCondition) + ' &middot; bonus meriam ' + esc_(s.CannonBonusPercent) + '% &middot; amunisi ' + esc_(s.MaxCannonAmmo) + '</span></div></div>' +
+        '<div class="qg-reward">' + ic('scroll') + '<div><b>Tugas berikutnya</b><span>Kabarkan kejahatan Tedsky ke Sunda Empire, Joungjava, Bjorneo, Skitraw, dan Paradiso</span></div></div></div>' +
+        '<div class="qg-actions"><button class="btn btn-gold" onclick="openPanel(\'setsail\')">' + ic('compass') + '&nbsp; Berlayar</button><button class="btn" onclick="closeModal()">Tutup</button></div>');
+      loadState();
+    });
+  }
+  function arrest() {
+    closeModal();
+    cine('arrest', [
+      'Kabar menyebar secepat angin. Lima armada &mdash; <b>Sunda Empire, Joungjava, Bjorneo, Skitraw, dan Paradiso</b> &mdash; mengepung pelabuhan IKN saat senja.',
+      'Jendral Tedsky mencoba kabur dengan kapal perangnya... tapi di mulut teluk, <b>Black Pearl</b> sudah menunggu dengan seluruh meriamnya terarah.',
+      'Bendera putih naik perlahan. <b>Jendral Tedsky ditangkap</b> dan dirantai di bawah patung Garuda &mdash; kejahatannya dibacakan di hadapan seluruh Mare Nusantara.',
+      'Para perompak bayarannya lari tunggang-langgang. Tak ada lagi yang memburumu. Pulanglah ke <b>TooGood</b> &mdash; zafachmie menunggumu.'
+    ], function () { showToast('Jendral Tedsky ditangkap! Kembali ke zafachmie di TooGood.', 'success'); loadState(); });
+  }
+  function finale(r) {
+    if (r.ship) patchShip_(r.ship, r.visual);
+    if (r.newGold != null) state.player.gold = r.newGold;
+    metaBump_('toogoodquest'); au_('victory');
+    closeModal();
+    cine('liberation', [
+      'Asap hitam yang menggantung di atas TooGood selama dua puluh tahun akhirnya tersibak. Untuk pertama kalinya, matahari pagi menyentuh atap-atap pulau ini.',
+      'Warga keluar dari rumah-rumah mereka. Genderang ditabuh &mdash; dan zafachmie, pria raksasa itu, menari seperti anak kecil. "Ayahku benar, Kapten... <b>genderang kebebasan itu nyata</b>."',
+      '"Rakyat memintaku menjadi <b>gubernur</b>, dan Teh Euis akan menjaga perpustakaan. Dan Black Pearl... maafkan aku. Kapal itu harus tinggal di sini untuk menjaga kedamaian TooGood. Kapalmu sudah kami rawat hingga prima."',
+      '"Terimalah <b>100.000 gold</b> ini. Tidak ada emas yang cukup untuk membalas budimu &mdash; tapi TooGood tak akan pernah melupakan namamu. Terima kasih, sahabatku. Dari lubuk hati yang paling dalam."'
+    ], function () {
+      showModal(panelHeader_('star', 'Pembebasan TooGood', 'Misi selesai') +
+        speech(Object.assign({}, N.zafa, { title: 'Gubernur TooGood' }), '"Pelabuhan ini selalu terbuka untukmu, Kapten. Merapatlah kapan saja &mdash; tukang kami akan merawat kapalmu, gratis."') +
+        '<div class="qg-rewards"><div class="qg-reward">' + ic('coins') + '<div><b>100.000 gold</b><span>Hadiah dan terima kasih dari zafachmie</span></div></div>' +
+        '<div class="qg-reward paradiso">' + ic('star') + '<div><b>TooGood merdeka</b><span>Pulau damai tanpa penyamun &mdash; kapal pulih +1 kondisi tiap 5 detik saat merapat</span></div></div>' +
+        '<div class="qg-reward">' + ic('anchor') + '<div><b>Kapalmu kembali</b><span>' + esc_(r.ship ? r.ship.ShipName : '') + ' &mdash; kondisi prima</span></div></div></div>' +
+        '<div class="qg-actions"><button class="btn btn-gold" onclick="closeModal()">Lihat TooGood</button></div>');
+      showToast('TooGood merdeka! +100.000 gold', 'success');
+      loadState();
+    });
+  }
+
+  /* ---------- pertempuran: pemburu Tedsky ---------- */
+  wrap_('openCombatScene_', function () {
+    var e = state && state.voyage && state.voyage.encounter; if (!e || !e.hunter) return;
+    var lb = document.getElementById('combatLogBox');
+    if (lb && (e.round || 1) <= 1) lb.innerHTML = '<p><b>' + esc_(e.enemyName) + ':</b> "Jendral Tedsky membayar seribu keping emas untuk kepalamu, Kapten. Jangan salahkan kami!"</p>';
+  });
+
+  /* ---------- TooGood merdeka (tampilan per pemain) ---------- */
+  var FREED_FLAVOR = 'Pulau yang baru merdeka - dijaga Black Pearl dan Gubernur zafachmie. Pelabuhan damai, dan kapal yang merapat dirawat hingga pulih.';
+  var FREED_LORE = ['Dua puluh tahun kami menunggu pagi seperti ini.', 'Gubernur zafachmie menari lagi semalam di alun-alun. Lantainya retak, hahaha!', 'Black Pearl berpatroli tiap malam. Penyamun? Tak ada yang berani.', 'Kata dwi, lukisan barunya menahan kiamat seratus tahun lagi.'];
+  function patchFreed(s) {
+    if (!s || !s.toogood || !s.toogood.freed) return;
+    var fix = function (c) { return c && c.CityId === 'toogood' ? Object.assign({}, c, { Type: 'Freed', TypeFlavor: FREED_FLAVOR }) : c; };
+    if (s.city) s.city = fix(s.city);
+    if (s.cities) s.cities = s.cities.map(fix);
+    if (window.CITY_LORE) CITY_LORE.toogood = FREED_LORE;
+  }
+  wrap_('applyFreshState_', null, function (s2) { try { patchFreed(s2); } catch (e) {} });
+
+  var DECOR = { tasks: decorTasks, tavern: decorTavern, library: decorLibrary, ship: decorShip };
+  wrap_('setModal_', function () { var f = DECOR[currentPanel]; if (f) try { f(); } catch (e) { console.warn('[QT]', e); } });
+
+  return { npc: npc, journal: journal, N: N, cine: cine };
+})();
+</script>

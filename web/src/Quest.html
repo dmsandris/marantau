@@ -205,7 +205,8 @@ var QG = (function () {
   function healLoop() {
     clearTimeout(healT);
     healT = setTimeout(healLoop, 5000);
-    if (!state || !state.ship || cid() !== 'paradiso' || !docked() || healBusy || document.hidden) return;
+    var healHere = cid() === 'paradiso' || (cid() === 'toogood' && state && state.toogood && state.toogood.freed);
+    if (!state || !state.ship || !healHere || !docked() || healBusy || document.hidden) return;
     var s = state.ship;
     if ((s.Condition || 0) >= (s.EffectiveMaxCondition || 100)) return;
     healBusy = true;
@@ -214,7 +215,7 @@ var QG = (function () {
       if (!r || !r.tick || !r.ship) return;
       if (r.tick.healed > 0) {
         patchShip_(r.ship); floatHeal(r.tick.healed);
-        if (!healToasted) { healToasted = true; showToast('Mata air panas Paradiso memulihkan kapalmu (+1 kondisi tiap 5 detik).', 'success'); }
+        if (!healToasted) { healToasted = true; showToast(cid() === 'toogood' ? 'Tukang TooGood merawat kapalmu (+1 kondisi tiap 5 detik).' : 'Mata air panas Paradiso memulihkan kapalmu (+1 kondisi tiap 5 detik).', 'success'); }
         if (r.tick.full) showToast('Kapalmu pulih sempurna!', 'success');
       }
     }).withFailureHandler(function () { healBusy = false; }).api_paradisoTick();

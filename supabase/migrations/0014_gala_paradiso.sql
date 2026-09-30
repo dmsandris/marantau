@@ -92,7 +92,7 @@ create or replace function game.player_unlocks(p_pid uuid) returns jsonb
 language sql stable as $$ select case when game.gala_step(p_pid) >= 6 then '["paradiso"]'::jsonb else '[]'::jsonb end $$;
 
 -- Mr. GAP menunggu di rute menuju TooGood saat langkah 4
-create or replace function game.quest_boss_encounter(p_pid uuid, p_dest text) returns jsonb
+create or replace function game.gala_boss_encounter(p_pid uuid, p_dest text) returns jsonb
 language plpgsql stable as $$
 declare ship jsonb; ammo numeric;
 begin
@@ -107,7 +107,7 @@ begin
     'maxAmmo', ammo, 'ammoRemaining', ammo, 'round', 1);
 end $$;
 
-create or replace function game.quest_boss_defeated(p_pid uuid) returns jsonb
+create or replace function game.gala_boss_defeated(p_pid uuid) returns jsonb
 language plpgsql as $$
 begin
   if game.gala_step(p_pid) <> 4 then return null; end if;
@@ -117,6 +117,12 @@ begin
     'message', 'Kapal hitam Mr. GAP tenggelam perlahan. Di kabinnya kru menemukan 10.000 gold dan sebuah kotak kecil berbentuk hati. Di tutupnya terukir: "Chafik is My One Piece". Bawa kotak itu pulang ke Uda Gala di Skitraw.',
     'item', jsonb_build_object('id', 'kotak_hati', 'name', 'Kotak Hati', 'text', 'Chafik is My One Piece'));
 end $$;
+
+-- Kontrak umum (0015 menambah misi lain di sini)
+create or replace function game.quest_boss_encounter(p_pid uuid, p_dest text) returns jsonb
+language sql as $$ select game.gala_boss_encounter(p_pid, p_dest) $$;
+create or replace function game.quest_boss_defeated(p_pid uuid) returns jsonb
+language sql as $$ select game.gala_boss_defeated(p_pid) $$;
 
 -- Aksi misi. a = [action, arg]: status | accept | investigate [jawaban] | deliver
 create or replace function public.api_galaQuest(a jsonb default '[]'::jsonb) returns jsonb
@@ -192,13 +198,17 @@ create table if not exists game.paradiso_heal (
 );
 alter table game.paradiso_heal enable row level security;
 
--- Jam penyembuhan mulai saat tiba di Paradiso dan dihapus saat berangkat
+-- Kota yang memulihkan kapal saat merapat (0015 menambah TooGood yang sudah merdeka)
+create or replace function game.heal_city(p_pid uuid, p_city text) returns boolean
+language sql stable as $$ select p_city = 'paradiso' $$;
+
+-- Jam penyembuhan mulai saat tiba di kota penyembuh dan dihapus saat berangkat
 create or replace function game.paradiso_loc_trg() returns trigger
 language plpgsql as $$
 begin
   if coalesce(new.destination_city_id, '') <> '' then
     delete from game.paradiso_heal where player_id = new.player_id;
-  elsif coalesce(old.destination_city_id, '') <> '' and new.city_id = 'paradiso' then
+  elsif coalesce(old.destination_city_id, '') <> '' and game.heal_city(new.player_id, new.city_id) then
     insert into game.paradiso_heal(player_id, at) values (new.player_id, now())
     on conflict (player_id) do update set at = now();
   end if;
@@ -212,7 +222,7 @@ language plpgsql as $$
 declare l game.player_location; v_at timestamptz; n int; ship jsonb; eff_max numeric; cond numeric; gain numeric;
 begin
   select * into l from game.player_location where player_id = p_pid;
-  if not found or l.city_id <> 'paradiso' or coalesce(l.destination_city_id, '') <> '' then
+  if not found or not game.heal_city(p_pid, l.city_id) or coalesce(l.destination_city_id, '') <> '' then
     delete from game.paradiso_heal where player_id = p_pid;
     return null;
   end if;

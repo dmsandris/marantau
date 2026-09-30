@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <?!= include('Stylesheet'); ?>
   <?!= include('SceneEngine'); ?>
+  <?!= include('Cinema'); ?>
   <style>
     /*
       LAYOUT (lihat decisions: #game WAJIB tinggi pasti, bukan min-height -
@@ -1605,6 +1606,33 @@
     .qg-loot { align-items: center; }
     .qg-float { position: absolute; right: 6px; top: -4px; font-weight: 800; color: #6fe39a; text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none; animation: qgFloat 1.4s ease-out forwards; }
     @keyframes qgFloat { to { transform: translateY(-22px); opacity: 0; } }
+    /* ---- Tide v12: Pembebasan TooGood ---- */
+    .qt-wrap { margin: 10px 0 14px; display: grid; gap: 10px; }
+    .qt-dots { display: flex; gap: 5px; margin-top: 8px; } .qt-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(143,101,34,.3); } .qt-dots i.on { background: var(--brass-700, #8f6522); }
+    .qt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+    .qt-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: .8em; background: rgba(90,70,40,.1); border: 1px solid rgba(143,101,34,.3); color: #6d5536; }
+    .qt-chip .ico { width: 13px; height: 13px; } .qt-chip.ok { background: #e3f3de; border-color: #7fb56f; color: #2f6a2a; } .qt-chip.now { background: #fff1cc; border-color: #d3a342; color: #7a5412; }
+    .qt-prog { font-size: .86em; color: #6d5536; margin-top: 4px; }
+    .qt-need { margin-top: 8px; padding: 7px 10px; border-radius: 10px; background: rgba(255,248,228,.9); border: 1px dashed rgba(143,101,34,.45); font-size: .88em; color: #5a4226; display: flex; gap: 6px; align-items: center; }
+    .qt-need .ico { width: 16px; height: 16px; flex: none; }
+    .qt-hunted { margin: 6px 0; padding: 7px 10px; border-radius: 10px; background: #3a1512; color: #ffd9c9; font-size: .86em; display: flex; gap: 6px; align-items: center; } .qt-hunted .ico { width: 16px; height: 16px; color: #ff8a6a; }
+    .qt-sealrow { display: flex; justify-content: center; margin: 2px 0 6px; } .qt-seal { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); animation: qtStamp .5s cubic-bezier(.3,1.6,.5,1); }
+    @keyframes qtStamp { from { transform: scale(2.2) rotate(-20deg); opacity: 0; } }
+    .qt-code { margin: 10px auto; padding: 12px 16px; max-width: 360px; text-align: center; font-family: "Pirata One", Georgia, serif; font-size: 1.7em; letter-spacing: .08em; color: #f6d27a; background: radial-gradient(circle at 50% 30%, #3a2a1a, #140c06); border: 2px solid #b8903c; border-radius: 12px; text-shadow: 0 0 12px rgba(246,210,122,.6); word-break: break-all; }
+    .qt-codeform { display: flex; gap: 8px; margin-top: 8px; } .qt-codeform input { flex: 1; min-width: 0; }
+    .qt-shake { animation: qtShake .45s; } @keyframes qtShake { 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+    .qt-door { grid-template-columns: auto 1fr; }
+    .qt-run { background: linear-gradient(#b6392c, #7a1f16); color: #fff; border-color: #5a140e; }
+    .qt-pearlcard { display: flex; gap: 14px; align-items: center; padding: 10px 14px; background: linear-gradient(135deg, #1b1a20, #2c2a33); color: #efe6d2; border-radius: 14px; }
+    .qt-pearlcard canvas { width: 220px; height: 150px; flex: none; } .qt-pearlcard .muted { color: #bdb3a0; }
+    .qt-cine { position: fixed; inset: 0; z-index: 9000; background: #05060a; opacity: 0; transition: opacity .8s; }
+    .qt-cine.show { opacity: 1; } .qt-cine.out { opacity: 0; transition: opacity .45s; }
+    .qt-cine canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .qt-cap { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(760px, calc(100% - 32px)); padding: 16px 20px; border-radius: 16px; background: rgba(10,8,6,.72); border: 1px solid rgba(232,191,85,.4); backdrop-filter: blur(4px); color: #f3ead6; font-family: Georgia, serif; font-size: 1.05em; line-height: 1.55; }
+    .qt-captext { opacity: 0; min-height: 3em; } .qt-captext.in { animation: qtCap .8s ease forwards; } .qt-captext b { color: #f6d27a; }
+    @keyframes qtCap { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .qt-capbtn { display: flex; justify-content: flex-end; margin-top: 10px; }
+    @media (max-width: 640px) { .qt-cap { font-size: .95em; padding: 12px 14px; } .qt-pearlcard { flex-direction: column; } .qt-code { font-size: 1.35em; } }
     @media (max-width: 640px) {
       .qg-card { grid-template-columns: 56px 1fr; gap: 10px; padding: 12px; }
       .qg-face { width: 56px; height: 56px; }
@@ -1680,7 +1708,7 @@
         <button class="btn" id="scenicBtn" onclick="toggleScenic_()"><span class="mi" data-icon="landscape"></span><span class="ml">Pemandangan</span><span class="mk">V</span></button>
         <button class="btn" data-panel="settings"><span class="mi" data-icon="gear"></span><span class="ml">Settings</span><span class="mk">O</span></button>
       </div>
-      <div id="sidebarFoot">Tide v11</div>
+      <div id="sidebarFoot">Tide v12</div>
     </aside>
 
     <main id="mainArea">
@@ -1787,5 +1815,6 @@
   <?!= include('JavaScript'); ?>
   <?!= include('Fishing'); ?>
   <?!= include('Quest'); ?>
+  <?!= include('Toogood'); ?>
 </body>
 </html>

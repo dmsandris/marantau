@@ -47,7 +47,7 @@
     TradeHub: { icon: 'scales', label: 'Pusat Dagang' }, Agricultural: { icon: 'sack', label: 'Lumbung' },
     Remote: { icon: 'compass', label: 'Terpencil' }, Capital: { icon: 'star', label: 'Ibu Kota' },
     Outlaw: { icon: 'skull', label: 'Sarang Penyamun' }, FallenCapital: { icon: 'warehouse', label: 'Ibu Kota Runtuh' },
-    Paradise: { icon: 'gem', label: 'Pulau Surga' }
+    Paradise: { icon: 'gem', label: 'Pulau Surga' }, Freed: { icon: 'star', label: 'Pulau Merdeka' }
   };
   var COMMODITY_META = {
     sugar: { icon: 'sack', c1: '#e3c16a', c2: '#9a7424' }, silk: { icon: 'silk', c1: '#c070b8', c2: '#6a2a66' },
@@ -635,7 +635,7 @@
 
     var city = state.city;
     var tm = TYPE_META[city && city.Type] || { icon: 'anchor', label: 'Pelabuhan' };
-    if (scene) scene.configure({ mode: 'port', cityId: city ? city.CityId : 'x', cityType: city ? city.Type : 'TradeHub', weather: state.cityEvent ? state.cityEvent.eventType : null, clockFrac: dayFrac_(), ship: shipVisual_(), encounter: false });
+    if (scene) scene.configure({ mode: 'port', cityId: city ? (city.CityId === 'toogood' && city.Type === 'Freed' ? 'toogood_free' : city.CityId) : 'x', cityType: city ? city.Type : 'TradeHub', weather: state.cityEvent ? state.cityEvent.eventType : null, clockFrac: dayFrac_(), ship: shipVisual_(), encounter: false });
     setPhotoMode_(city && city.ImageUrl);
 
     var crest = document.getElementById('locCrest');
@@ -2915,6 +2915,7 @@
   function npc_(role) {
     var cid = (state && state.city && state.city.CityId) || 'x';
     if (cid === 'skitraw' && role === 'tukang' && window.QG) return QG.gala;
+    if (window.QT) { var qn = QT.npc(cid, role); if (qn) return qn; }
     var outlaw = state && state.city && state.city.Type === 'Outlaw';
     var ap = MTFace.npc(cid + '|' + role, outlaw && role !== 'bankir' ? 'bajak' : role);
     var r = MTUtil.rng(MTUtil.hashStr(cid + '#' + role));
@@ -2922,7 +2923,7 @@
   }
   function npcHtml_(role, text) {
     var n = npc_(role);
-    return '<div class="npc"><div class="npc-face">' + MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'] }) + '</div>' +
+    return '<div class="npc"><div class="npc-face">' + MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'], fat: n.fat, clown: n.clown, medals: n.medals }) + '</div>' +
       '<div class="npc-body"><div class="npc-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(n.title) + '</span></div><div class="npc-text">' + text + '</div></div></div>';
   }
   function pickLine_(arr, salt) { var r = MTUtil.rng(MTUtil.hashStr((state ? state.gameDay : 0) + '|' + salt + '|' + Math.floor(Date.now() / 90000))); return MTUtil.pick(r, arr); }
@@ -3505,7 +3506,7 @@
     { id: 'voyage_25', t: 2, ic: 'ship', n: 'Pelaut Ulung', d: '25 kali berlayar.', g: function (m) { return [m.c.voyage || 0, 25]; } },
     { id: 'voyage_100', t: 3, ic: 'compass', n: 'Penjelajah Tujuh Samudra', d: '100 kali berlayar.', g: function (m) { return [m.c.voyage || 0, 100]; } },
     { id: 'visit_all', t: 3, ic: 'map', n: 'Merantau Sejati', d: 'Singgahi semua kota di peta.', g: function (m) { return [m.v.length, Math.max(1, (state && state.cities ? state.cities.length : 6))]; } },
-    { id: 'visit_toogood', t: 2, ic: 'skull', n: 'Nyali Baja', d: 'Merapat di sarang penyamun.', g: function (m) { return [m.v.some(function (c) { var x = cityById_(c); return x && x.Type === 'Outlaw'; }) ? 1 : 0, 1]; } },
+    { id: 'visit_toogood', t: 2, ic: 'skull', n: 'Nyali Baja', d: 'Merapat di sarang penyamun.', g: function (m) { return [m.v.some(function (c) { var x = cityById_(c); return x && (x.Type === 'Outlaw' || x.CityId === 'toogood'); }) ? 1 : 0, 1]; } },
     { id: 'night_sail', t: 1, ic: 'moon', n: 'Pelayar Malam', d: 'Angkat sauh di tengah malam.', g: function (m) { return [m.c.night || 0, 1]; } },
     { id: 'full_hold', t: 1, ic: 'crate', n: 'Palka Penuh', d: 'Berlayar dengan palka terisi penuh.', g: function (m) { return [m.c.fullhold || 0, 1]; } },
     { id: 'first_battle', t: 1, ic: 'cannon', n: 'Mandi Api', d: 'Selesaikan pertempuran pertamamu.', g: function (m) { return [m.c.battle || 0, 1]; } },
@@ -3837,7 +3838,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v11';
+  TIDE_VERSION = 'Tide v12';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
@@ -4425,6 +4426,8 @@
     { id: 'fish_10', t: 1, ic: 'fish', n: 'Pemancing Dermaga', d: 'Tangkap 10 ikan.', g: function (m) { return [m.c.fish || 0, 10]; } },
     { id: 'fish_legend', t: 3, ic: 'fish', n: 'Penakluk Ikan Dewa', d: 'Tangkap ikan epik atau legenda (Tuna, Hiu, atau Ikan Dewa).', g: function (m) { return [m.c.fishlegend || 0, 1]; } },
     { id: 'gala_quest', t: 3, ic: 'star', n: 'Sahabat Uda Gala', d: 'Kembalikan harta terpenting Uda Gala dan temukan Paradiso.', g: function (m) { return [m.c.galaquest || 0, 1]; } },
+    { id: 'toogood_quest', t: 3, ic: 'skull', n: 'Pembebas TooGood', d: 'Bongkar kejahatan Jendral Tedsky dan merdekakan TooGood bersama zafachmie.', g: function (m) { return [m.c.toogoodquest || 0, 1]; } },
+    { id: 'black_pearl', t: 3, ic: 'anchor', n: 'Nakhoda Black Pearl', d: 'Buka gua rahasia TooGood dengan kode sandi dan nakhodai kapal perang legenda.', g: function (m) { return [m.c.blackpearl || 0, 1]; } },
     { id: 'fish_book', t: 2, ic: 'book', n: 'Kolektor Samudra', d: 'Temukan 8 jenis tangkapan berbeda di Buku Ikan.', g: function (m) { return [m.c.fishnew || 0, 8]; } },
     { id: 'fish_perfect', t: 2, ic: 'fish', n: 'Tangan Dingin', d: 'Daratkan 5 ikan dengan tarikan sempurna.', g: function (m) { return [m.c.fishperf || 0, 5]; } },
     { id: 'lapau_dice', t: 1, ic: 'dice', n: 'Besar atau Kecil?', d: 'Menang 5 kali di meja dadu lapau.', g: function (m) { return [m.c.lapaudice || 0, 5]; } },
