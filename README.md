@@ -54,3 +54,13 @@ Keamanan:
 - Tabel ada di schema `game` yang tidak bisa diakses browser; browser hanya bisa memanggil
   fungsi `public.api_*`. Tujuh di antaranya boleh tanpa login (judul, kota, arketipe, cek username).
 - Jangan pernah commit `service_role`/secret key atau password database.
+
+## Pindah data dari versi Google Sheets
+
+Kode sudah ada di repo (`0011_legacy_accounts.sql`, `tools/import_legacy.py`); DATA pemain tidak pernah
+masuk repo (repo publik).
+1. Ekspor spreadsheet lama ke `.xlsx`, jalankan `python3 tools/import_legacy.py Tradewinds.xlsx impor.sql passwords.json`.
+2. Tempel isi `impor.sql` di Supabase → SQL Editor → Run. Aman diulang: kapten yang sudah diklaim tidak disentuh.
+3. Pemain lama cukup **Masuk** dengan username + password lamanya; kaptennya otomatis pindah ke akun baru.
+   Pemain yang dulu login pakai Google mendapat username + password sementara (isi `passwords.json`),
+   lalu bisa ganti password di Settings.

@@ -71,7 +71,7 @@ const DIST = path.join(__dirname, '..', 'dist');
           return send(res, 200, r.rows[0].r);
         } catch (e) { return send(res, 400, { code: 'P0001', message: e.message }); }
       }
-      if (url.pathname.startsWith('/__sql') && process.env.DEVSQL) { const b = await body(req); return send(res, 200, await H.sql(b.q, b.p)); }
+      if (url.pathname.startsWith('/__sql') && process.env.DEVSQL) { const b = await body(req); if (b.exec) { await db.exec(b.exec); return send(res, 200, { ok: true }); } return send(res, 200, await H.sql(b.q, b.p)); }
       // statis
       let p = url.pathname === '/' ? '/index.html' : url.pathname;
       if (p === '/config.js') return send(res, 200, `window.MT_CONFIG={supabaseUrl:'http://localhost:${PORT}',supabaseKey:'sb_publishable_local',emailDomain:'marantau.game'};`, 'application/javascript');

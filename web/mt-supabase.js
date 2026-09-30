@@ -27,7 +27,7 @@
   }
   // Endpoint yang boleh dipanggil tanpa login (sisanya butuh sesi)
   var PUBLIC = { api_ping: 1, api_gettitlescreenconfig: 1, api_getsailingbackgroundurl: 1, api_getcities: 1,
-    api_getarchetypes: 1, api_authwhoami: 1, api_usernameavailable: 1 };
+    api_getarchetypes: 1, api_authwhoami: 1, api_usernameavailable: 1, api_legacycheck: 1 };
   async function rpc(name, args) {
     var fn = String(name).toLowerCase();
     if (!PUBLIC[fn]) {
@@ -38,6 +38,18 @@
     var r = await sb.rpc(fn, { a: args || [] });
     if (r.error) throw mapError(r.error);
     return r.data;
+  }
+  async function legacyMove(u, p) {
+    var chk = await rpc('api_legacyCheck', [u, p]);
+    if (!chk || !chk.ok) return false;
+    var su = await sb.auth.signUp({ email: email(u), password: p, options: { data: { username: u } } });
+    if (su.error) throw err('Username atau password salah.');
+    if (!su.data.session) {
+      var s = await sb.auth.signInWithPassword({ email: email(u), password: p });
+      if (s.error) throw mapError(s.error);
+    }
+    await rpc('api_legacyClaim', [p]);
+    return true;
   }
   var LOCAL = {
     api_authRegister: async function (u, p) {
@@ -59,12 +71,20 @@
       u = String(u || '').trim().toLowerCase();
       if (!/^[a-z0-9_]{3,16}$/.test(u)) throw err('Username atau password salah.');
       var r = await sb.auth.signInWithPassword({ email: email(u), password: p });
+      if (r.error && /invalid login|invalid credentials/i.test(r.error.message)) {
+        // Pemain dari versi lama (Google Sheets)? Pindahkan kaptennya ke akun baru sekali saja.
+        if (await legacyMove(u, p)) r = { error: null };
+      }
       if (r.error) {
         if (/invalid login|invalid credentials/i.test(r.error.message)) throw err('Username atau password salah.');
         if (/rate limit|too many/i.test(r.error.message)) throw err('Terlalu banyak percobaan gagal. Coba lagi beberapa menit lagi.');
         throw mapError(r.error);
       }
       var who = await rpc('api_authWhoAmI', []);
+      if (!who.hasCharacter) {
+        // Pindah akun lama sempat terputus? Coba selesaikan klaimnya (diam-diam kalau tidak ada).
+        try { await rpc('api_legacyClaim', [p]); who = await rpc('api_authWhoAmI', []); } catch (e) {}
+      }
       return { token: 'sb', username: u, hasCharacter: !!who.hasCharacter };
     },
     api_authChangePassword: async function (oldPass, newPass) {
