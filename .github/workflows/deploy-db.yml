@@ -35,8 +35,11 @@ jobs:
           for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
           ok=0
           for try in 1 2 3; do
-            if psql "$DB" -v ON_ERROR_STOP=1 --single-transaction -q -c "set lock_timeout = '8s'" $args; then ok=1; break; fi
-            echo "::warning::Percobaan $try gagal (mungkin bentrok dengan pemain online), ulangi..."; sleep $((try * 10))
+            if psql "$DB" -v ON_ERROR_STOP=1 --single-transaction -q -c "set lock_timeout = '8s'" $args 2> psql_err.txt; then ok=1; break; fi
+            cat psql_err.txt
+            grep -E "ERROR|psql:|DETAIL|HINT|CONTEXT" psql_err.txt | head -6 | while IFS= read -r l; do echo "::error::$l"; done
+            if ! grep -qiE "lock timeout|deadlock|could not obtain lock" psql_err.txt; then break; fi
+            echo "::warning::Percobaan $try bentrok dengan pemain online, ulangi..."; sleep $((try * 10))
           done
           [ "$ok" = 1 ] || exit 1
           psql "$DB" -At -c "select 'Endpoint aktif: ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'api_%'"
