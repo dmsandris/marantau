@@ -1,0 +1,667 @@
+<script>
+/* =====================================================================
+ * Tide v10 - MANCING DI DERMAGA v2
+ * Pilih umpan -> tahan & lepas untuk melempar (jarak = kedalaman)
+ * -> tunggu gigitan (awas gigitan palsu) -> sentak -> duel tegangan
+ * (tahan = gulung, lepas = kendurkan) -> daratkan -> buku ikan & rekor.
+ * Server (0013_fishing.sql) memilih ikan & berat; nama disembunyikan
+ * sampai ikan mendarat.
+ * ===================================================================== */
+var FG = (function () {
+  var U = MTUtil;
+  var RARITY = [
+    { n: 'Sampah', c: '#8a8a7a' }, { n: 'Biasa', c: '#8fa6b4' }, { n: 'Umum', c: '#5f9fca' }, { n: 'Lumayan', c: '#3f83d0' },
+    { n: 'Langka', c: '#d0553f' }, { n: 'Sangat Langka', c: '#d07a1f' }, { n: 'Epik', c: '#e0ae2a' }, { n: 'Legenda', c: '#b56df0' }
+  ];
+  // Seni tiap tangkapan (warna/bentuk). Nama & rarity baru diketahui setelah mendarat.
+  var ART = {
+    sepatu: { kind: 'boot' },
+    teri: { a: '#9fb6c4', b: '#eef4f7', fin: '#8aa3b2', h: 0.2, line: '#5d88a3' },
+    baronang: { a: '#7d8450', b: '#dcd3a0', fin: '#5f5c30', h: 0.52, spots: '#efe6b8' },
+    kembung: { a: '#3a6a8c', b: '#e2eaee', fin: '#5f8093', h: 0.3, dots: '#173347' },
+    tongkol: { a: '#223c68', b: '#e8eef2', fin: '#34496c', h: 0.32, bars: '#131f3a', fork: true },
+    cumi: { kind: 'squid', a: '#e7ad96', b: '#f8dfd4', spots: '#c05f49' },
+    kakap: { a: '#d24b35', b: '#f5bca8', fin: '#b23624', h: 0.42 },
+    peti: { kind: 'chest' },
+    kerapu: { a: '#77684a', b: '#cbb88e', fin: '#57472d', h: 0.46, blotch: '#3a2e1c' },
+    lentera: { a: '#1b2a4a', b: '#3e5c8f', fin: '#27406e', h: 0.36, glow: '#8ff1ff', dots: '#b8fbff' },
+    pari: { kind: 'ray', a: '#6a5a48', b: '#dccfbd', spots: '#382e26' },
+    tuna: { a: '#1d385e', b: '#e1e9ef', fin: '#e8c33a', h: 0.34, fork: true, finlets: '#f0cf48' },
+    hiu: { kind: 'shark', a: '#6d7d88', b: '#e6eaec', fin: '#56666f' },
+    dewa: { a: '#eab54a', b: '#fff3c4', fin: '#d4553f', h: 0.46, glow: '#ffe28a', crown: true }
+  };
+  var S = {
+    st: 'idle', info: null, bait: 'cacing', log: [], tab: 'log', book: null, raf: 0, last: 0, t: 0,
+    held: false, power: 0, pdir: 1, perfect: false, dist: 0.5, cast: null, fight: null, res: null,
+    fly: 0, waitAt: 0, nibbles: [], biteAt: 0, lostT: 0, landT: 0, msgT: 0, person: null, clouds: null, glit: null,
+    parts: [], rings: [], decoys: [], shake: 0, reelTick: 0, awaiting: false, cooldownUntil: 0, left: null
+  };
+
+  /* ------------------------- gambar ikan ------------------------- */
+  function drawFish(c, id, x, y, len, ang, t, shadow, alpha) {
+    var A = ART[id] || ART.kembung;
+    c.save(); c.translate(x, y); c.rotate(ang || 0); c.globalAlpha = alpha == null ? 1 : alpha;
+    var sh = shadow ? 'rgba(8,24,34,0.5)' : null;
+    var wag = Math.sin(t * (shadow ? 7 : 11)) * 0.22;
+    if (A.kind === 'boot') {
+      c.fillStyle = sh || '#5a3a22';
+      c.beginPath(); c.moveTo(-len * 0.1, -len * 0.45); c.lineTo(len * 0.15, -len * 0.45); c.lineTo(len * 0.18, len * 0.02);
+      c.quadraticCurveTo(len * 0.5, len * 0.02, len * 0.5, len * 0.18); c.lineTo(-len * 0.14, len * 0.2); c.closePath(); c.fill();
+      if (!sh) { c.fillStyle = '#2e1d10'; c.fillRect(-len * 0.16, len * 0.14, len * 0.68, len * 0.07); c.strokeStyle = '#c9b07a'; c.lineWidth = len * 0.02; c.beginPath(); c.moveTo(-len * 0.05, -len * 0.3); c.lineTo(len * 0.12, -len * 0.3); c.moveTo(-len * 0.05, -len * 0.18); c.lineTo(len * 0.12, -len * 0.18); c.stroke(); }
+    } else if (A.kind === 'chest') {
+      c.fillStyle = sh || '#7a4f2a'; c.fillRect(-len * 0.4, -len * 0.18, len * 0.8, len * 0.36);
+      c.beginPath(); c.ellipse(0, -len * 0.18, len * 0.4, len * 0.16, 0, Math.PI, 0); c.fill();
+      if (!sh) {
+        c.fillStyle = '#d4a84c'; c.fillRect(-len * 0.4, -len * 0.05, len * 0.8, len * 0.06); c.fillRect(-len * 0.05, -len * 0.3, len * 0.1, len * 0.48);
+        c.fillStyle = '#3a2412'; c.fillRect(-len * 0.03, -len * 0.04, len * 0.06, len * 0.08);
+        c.fillStyle = 'rgba(255,240,180,' + (0.5 + Math.sin(t * 5) * 0.4) + ')'; c.beginPath(); c.arc(len * 0.28, -len * 0.26, len * 0.04, 0, 6.3); c.fill();
+      }
+    } else if (A.kind === 'squid') {
+      c.fillStyle = sh || A.a;
+      c.beginPath(); c.moveTo(len * 0.5, 0); c.quadraticCurveTo(len * 0.1, -len * 0.2, -len * 0.1, -len * 0.08); c.lineTo(-len * 0.1, len * 0.08); c.quadraticCurveTo(len * 0.1, len * 0.2, len * 0.5, 0); c.fill();
+      c.strokeStyle = sh || A.b; c.lineWidth = Math.max(1, len * 0.035); c.lineCap = 'round';
+      for (var k = 0; k < 6; k++) { var yy = (k - 2.5) * len * 0.03; c.beginPath(); c.moveTo(-len * 0.1, yy); c.quadraticCurveTo(-len * 0.3, yy + Math.sin(t * 6 + k) * len * 0.06, -len * 0.5, yy * 1.6 + Math.sin(t * 5 + k) * len * 0.05); c.stroke(); }
+      if (!sh) { c.fillStyle = A.spots; for (var s1 = 0; s1 < 6; s1++) { c.beginPath(); c.arc(len * (0.05 + s1 * 0.06), (s1 % 2 ? 1 : -1) * len * 0.04, len * 0.018, 0, 6.3); c.fill(); } c.fillStyle = '#1a1a1a'; c.beginPath(); c.arc(-len * 0.04, -len * 0.03, len * 0.03, 0, 6.3); c.fill(); }
+    } else if (A.kind === 'ray') {
+      var fl = Math.sin(t * 4) * len * 0.08;
+      c.fillStyle = sh || A.a;
+      c.beginPath(); c.moveTo(len * 0.3, 0); c.quadraticCurveTo(0, -len * 0.18 - fl, -len * 0.18, 0); c.quadraticCurveTo(0, len * 0.14 + fl * 0.5, len * 0.3, 0); c.fill();
+      c.strokeStyle = sh || A.a; c.lineWidth = Math.max(1, len * 0.025); c.beginPath(); c.moveTo(-len * 0.18, 0); c.quadraticCurveTo(-len * 0.35, Math.sin(t * 3) * len * 0.05, -len * 0.55, 0); c.stroke();
+      if (!sh) { c.fillStyle = A.spots; for (var s2 = 0; s2 < 7; s2++) { c.beginPath(); c.arc(len * (-0.08 + s2 * 0.05), -len * 0.03 + (s2 % 2) * len * 0.04, len * 0.014, 0, 6.3); c.fill(); } }
+    } else {
+      var h = len * (A.kind === 'shark' ? 0.26 : A.h), glow = !sh && A.glow;
+      if (glow) { c.shadowColor = A.glow; c.shadowBlur = len * 0.35; }
+      // ekor
+      c.save(); c.translate(-len * 0.36, 0); c.rotate(wag);
+      c.fillStyle = sh || A.fin || A.a;
+      c.beginPath(); c.moveTo(0, 0);
+      if (A.kind === 'shark') { c.lineTo(-len * 0.2, -h * 1.3); c.lineTo(-len * 0.1, 0); c.lineTo(-len * 0.16, h * 0.7); }
+      else if (A.crown) { c.quadraticCurveTo(-len * 0.2, -h * 1.4, -len * 0.3, -h * 1.1); c.quadraticCurveTo(-len * 0.14, 0, -len * 0.3, h * 1.1); c.quadraticCurveTo(-len * 0.2, h * 1.4, 0, 0); }
+      else if (A.fork) { c.lineTo(-len * 0.17, -h * 0.9); c.lineTo(-len * 0.08, 0); c.lineTo(-len * 0.17, h * 0.9); }
+      else { c.lineTo(-len * 0.15, -h * 0.65); c.quadraticCurveTo(-len * 0.1, 0, -len * 0.15, h * 0.65); }
+      c.closePath(); c.fill(); c.restore();
+      // sirip punggung & perut
+      c.fillStyle = sh || A.fin || A.a;
+      c.beginPath();
+      if (A.kind === 'shark') { c.moveTo(len * 0.05, -h * 0.45); c.lineTo(-len * 0.05, -h * 1.5); c.lineTo(-len * 0.14, -h * 0.4); }
+      else if (A.crown) { c.moveTo(len * 0.2, -h * 0.4); c.quadraticCurveTo(0, -h * 1.6, -len * 0.3, -h * 0.35); }
+      else { c.moveTo(len * 0.15, -h * 0.42); c.quadraticCurveTo(0, -h * 0.95, -len * 0.22, -h * 0.35); }
+      c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(len * 0.05, h * 0.4); c.lineTo(-len * 0.05, h * 0.8); c.lineTo(-len * 0.12, h * 0.35); c.closePath(); c.fill();
+      // badan
+      c.beginPath(); c.moveTo(len * 0.5, 0);
+      c.bezierCurveTo(len * 0.35, -h * 0.62, -len * 0.2, -h * 0.58, -len * 0.37, -h * 0.12);
+      c.lineTo(-len * 0.37, h * 0.12);
+      c.bezierCurveTo(-len * 0.2, h * 0.55, len * 0.35, h * 0.58, len * 0.5, 0);
+      c.closePath();
+      if (sh) { c.fillStyle = sh; c.fill(); }
+      else {
+        var g = c.createLinearGradient(0, -h * 0.55, 0, h * 0.55);
+        g.addColorStop(0, A.a); g.addColorStop(0.55, U.css(U.mix(U.hex(A.a), U.hex(A.b), 0.6))); g.addColorStop(1, A.b);
+        c.fillStyle = g; c.fill();
+        c.shadowBlur = 0;
+        c.save(); c.clip();
+        if (A.bars) { c.strokeStyle = A.bars; c.lineWidth = len * 0.025; for (var bi = 0; bi < 6; bi++) { var bx = len * (0.28 - bi * 0.1); c.beginPath(); c.moveTo(bx, -h * 0.6); c.quadraticCurveTo(bx - len * 0.04, -h * 0.2, bx - len * 0.02, -h * 0.05); c.stroke(); } }
+        if (A.spots) { c.fillStyle = A.spots; for (var si = 0; si < 14; si++) { c.beginPath(); c.arc(len * (0.3 - (si % 7) * 0.09), -h * 0.25 + Math.floor(si / 7) * h * 0.3, len * 0.018, 0, 6.3); c.fill(); } }
+        if (A.dots) { c.fillStyle = A.dots; for (var di = 0; di < 9; di++) { c.beginPath(); c.arc(len * (0.25 - di * 0.065), -h * 0.28 + (di % 2) * h * 0.12, len * 0.012, 0, 6.3); c.fill(); } }
+        if (A.blotch) { c.fillStyle = A.blotch; c.globalAlpha *= 0.55; for (var ki = 0; ki < 8; ki++) { c.beginPath(); c.ellipse(len * (0.25 - ki * 0.08), (ki % 2 ? -1 : 0.3) * h * 0.2, len * 0.045, h * 0.13, 0.4, 0, 6.3); c.fill(); } c.globalAlpha /= 0.55; }
+        if (A.line) { c.strokeStyle = A.line; c.lineWidth = len * 0.02; c.beginPath(); c.moveTo(len * 0.42, -h * 0.02); c.lineTo(-len * 0.36, -h * 0.02); c.stroke(); }
+        if (A.crown) { c.fillStyle = 'rgba(255,255,255,0.35)'; for (var ci = 0; ci < 5; ci++) { c.beginPath(); c.arc(len * (0.2 - ci * 0.1), -h * 0.1, len * 0.05, 0, Math.PI); c.fill(); } }
+        c.restore();
+        if (A.finlets) { c.fillStyle = A.finlets; for (var fi = 0; fi < 5; fi++) { c.beginPath(); c.moveTo(-len * (0.15 + fi * 0.045), -h * 0.28); c.lineTo(-len * (0.17 + fi * 0.045), -h * 0.42); c.lineTo(-len * (0.19 + fi * 0.045), -h * 0.24); c.fill(); } }
+        c.fillStyle = '#fff'; c.beginPath(); c.arc(len * 0.34, -h * 0.12, Math.max(1.2, len * 0.045), 0, 6.3); c.fill();
+        c.fillStyle = '#111'; c.beginPath(); c.arc(len * 0.35, -h * 0.12, Math.max(0.8, len * 0.026), 0, 6.3); c.fill();
+        c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = Math.max(0.6, len * 0.012);
+        c.beginPath(); c.moveTo(len * 0.25, -h * 0.3); c.quadraticCurveTo(len * 0.2, 0, len * 0.25, h * 0.3); c.stroke();
+      }
+    }
+    c.restore();
+  }
+
+  /* ------------------------- fisika duel (murni, bisa dites) ------------------------- */
+  // f: {stam,pow,agi}; rod: {reel,cap}; s: state duel; held: bool; rnd: fungsi acak
+  function step(s, f, rod, held, dt, rnd) {
+    s.modeT -= dt;
+    if (s.modeT <= 0) {
+      var r = rnd();
+      if (s.mode === 'thrash' || s.mode === 'run') { s.mode = 'rest'; s.modeT = 0.6 + rnd() * 0.6; }
+      else if (r < 0.28 + 0.4 * f.agi) { s.mode = 'thrash'; s.modeT = 0.5 + rnd() * 0.8; s.T += 0.2 * f.pow * f.pow; s.jerk = 1; }
+      else if (f.pow > 0.5 && r < 0.45 + 0.4 * f.agi) { s.mode = 'run'; s.modeT = 0.9 + rnd() * 1.1; s.T += 0.14 * f.pow * f.pow; s.jerk = 1; }
+      else { s.mode = 'calm'; s.modeT = 0.9 + rnd() * 1.4; }
+    }
+    var pull = s.mode === 'thrash' ? (0.8 + 0.45 * Math.sin(s.t * 18)) * f.pow : s.mode === 'run' ? 1.35 * f.pow : s.mode === 'rest' ? 0.12 * f.pow : (0.35 + 0.1 * Math.sin(s.t * 3)) * f.pow;
+    s.pull = pull;
+    s.T += dt * ((held ? 0.75 : -0.9) + pull * (held ? 1.25 : 0.45) - 0.35) / rod.cap;
+    s.T = U.clamp(s.T, 0, 1.25);
+    var inZone = s.T >= 0.3 && s.T <= 0.85, perfect = s.T >= 0.5 && s.T <= 0.72;
+    if (held && inZone) {
+      s.P += dt * rod.reel / f.stam * (perfect ? 1.4 : 1) * (s.mode === 'thrash' ? 0.5 : s.mode === 'run' ? 0.25 : 1);
+      s.reelT += dt; if (perfect) s.perfT += dt;
+    } else if (!held && s.mode === 'run') s.P -= dt * 0.07 * f.pow;
+    else s.P -= dt * 0.015;
+    s.P = U.clamp(s.P, 0, 1);
+    s.strain = s.T > 1 ? s.strain + dt : Math.max(0, s.strain - dt * 2);
+    s.slack = s.T < 0.15 ? s.slack + dt : 0;
+    s.t += dt;
+    if (s.P >= 1) return 'caught';
+    if (s.strain > 0.28 * rod.cap) return 'snap';
+    if (s.slack > 2.0) return 'slip';
+    return null;
+  }
+  function newFight(p0) { return { T: 0.45, P: p0 || 0.15, mode: 'calm', modeT: 1.2, t: 0, strain: 0, slack: 0, reelT: 0, perfT: 0, pull: 0 }; }
+
+  /* ------------------------- geometri scene ------------------------- */
+  function geo(W, H) {
+    var hy = H * 0.36, deckY = H * 0.66, u = H / 34;
+    return {
+      W: W, H: H, hy: hy, deckY: deckY, u: u, pierX: W * 0.22,
+      ax: W * 0.11, ay: deckY, ph: u * 8.6,
+      near: { x: W * 0.36, y: H * 0.8 }, far: { x: W * 0.9, y: hy + H * 0.07 }
+    };
+  }
+  function spot(G, d) {
+    var k = Math.pow(U.clamp(d, 0, 1), 0.85);
+    return { x: U.lerp(G.near.x, G.far.x, k), y: U.lerp(G.near.y, G.far.y, k), s: U.lerp(1, 0.4, k) };
+  }
+  function rodTip(G) {
+    var hx = G.ax + G.u * 1.1, hy = G.ay - G.ph * 0.52, L = G.u * 11.5, a;
+    if (S.st === 'charge') a = -1.25 - S.power * 1.2;
+    else if (S.st === 'fight') a = -0.55 - (S.fight ? S.fight.T * 0.45 : 0);
+    else if (S.st === 'flying') a = U.lerp(-2.3, -0.75, Math.min(1, S.fly * 3));
+    else a = -0.95;
+    var bend = S.st === 'fight' && S.fight ? S.fight.T * 0.55 : (S.st === 'bite' ? 0.35 : 0.05);
+    var tx = hx + Math.cos(a + bend) * L, ty = hy + Math.sin(a + bend) * L;
+    return { hx: hx, hy: hy, x: tx, y: ty, cx: hx + Math.cos(a) * L * 0.62, cy: hy + Math.sin(a) * L * 0.62 };
+  }
+
+  /* ------------------------- efek ------------------------- */
+  function splash(x, y, n, sc, col) {
+    for (var i = 0; i < n; i++) S.parts.push({ x: x, y: y, vx: (Math.random() - 0.5) * 120 * sc, vy: -(60 + Math.random() * 160) * sc, life: 0.6 + Math.random() * 0.5, age: 0, r: (1 + Math.random() * 2.2) * sc, col: col || 'rgba(235,248,255,A)' });
+  }
+  function ring(x, y, sc, big) { S.rings.push({ x: x, y: y, s: sc, age: 0, life: big ? 1.4 : 1.0, big: !!big }); }
+  function msg(t, cls, dur) {
+    var el = document.getElementById('fgMsg'); if (!el) return;
+    el.innerHTML = t; el.className = 'fg-msg show ' + (cls || ''); S.msgT = dur || 1.8;
+  }
+  function hint(t) { var el = document.getElementById('fgHint'); if (el) el.innerHTML = t; }
+  function vib(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+
+  /* ------------------------- alur permainan ------------------------- */
+  function rod() { var i = S.info; return i && i.rods ? i.rods[i.rod || 0] : { reel: 1, cap: 1, name: 'Joran Bambu' }; }
+  function bait() { var i = S.info; return (i && i.baits || []).filter(function (b) { return b.id === S.bait; })[0] || { id: 'cacing', name: 'Cacing', cost: 0 }; }
+
+  function press() {
+    if (S.held || currentPanel !== 'fishing') return;
+    S.held = true;
+    if (state && state.voyage && state.voyage.inTransit) { msg('Kapal sedang berlayar &mdash; mancing saat merapat.', 'bad'); return; }
+    if (S.st === 'result') hideCard();
+    if (S.st === 'idle' || S.st === 'result') {
+      if (S.left != null && S.left <= 0) { msg('Ikan sudah jinak hari ini. Kembali besok!', 'bad', 2.5); return; }
+      var cd = S.cooldownUntil - Date.now();
+      if (cd > 0) { msg('Umpan disiapkan&hellip; ' + Math.ceil(cd / 1000) + ' dtk', '', 1); return; }
+      if (bait().cost > (state.player.gold || 0)) { msg('Gold tidak cukup untuk ' + esc_(bait().name) + '.', 'bad'); return; }
+      S.st = 'charge'; S.power = 0; S.pdir = 1; au_('click');
+      hint('Lepas untuk melempar &middot; <b>zona emas</b> = lemparan sempurna');
+      return;
+    }
+    if (S.st === 'wait') { lose('early', 'Terlalu cepat! Ikannya kabur.'); return; }
+    if (S.st === 'bite') {
+      var rt = Date.now() - S.biteAt, p0 = rt < 350 ? 0.28 : 0.15;
+      S.st = 'fight'; S.fight = newFight(p0); S.reelTick = 0;
+      msg(rt < 350 ? '<b>Sentakan sigap!</b>' : '<b>Kena!</b>', 'good', 1.2);
+      hint('<b>Tahan</b> untuk menggulung &middot; <b>lepas</b> saat tegangan tinggi');
+      au_('chain'); vib(30);
+      return;
+    }
+  }
+  function release() {
+    if (!S.held) return;
+    S.held = false;
+    if (S.st === 'charge') doCast();
+  }
+
+  function doCast() {
+    var p = S.power, perfect = p >= 0.86 && p <= 0.96;
+    S.dist = p; S.perfect = perfect; S.st = 'flying'; S.fly = 0; S.cast = null; S.awaiting = true;
+    au_('whoosh');
+    if (perfect) msg('<b>Lemparan sempurna!</b> Ikan langka lebih tertarik', 'good', 1.6);
+    hint('Lemparan ' + (p < 0.38 ? 'dekat &middot; ikan kecil' : p < 0.72 ? 'sedang' : 'jauh &middot; perairan dalam'));
+    google.script.run.withSuccessHandler(function (c) {
+      S.awaiting = false;
+      if (currentPanel !== 'fishing') return;
+      S.cast = c; S.left = c.left; S.cooldownUntil = Date.now() + 3000;
+      if (c.newGold != null && c.baitCost > 0) patchGold_(c.newGold);
+      drawBar();
+    }).withFailureHandler(function (e) {
+      S.awaiting = false; S.st = 'idle'; S.cast = null;
+      msg(esc_(String(e.message || e)), 'bad', 3); hint('Tahan untuk mengisi tenaga lemparan');
+    }).api_mgFishCast(Math.round(p * 1000) / 1000, S.bait, perfect);
+  }
+
+  function startWait() {
+    var c = S.cast, now = Date.now();
+    S.st = 'wait'; S.waitAt = now; S.biteAt = now + c.waitMs;
+    S.nibbles = [];
+    var n = Math.floor(Math.random() * 3.2);
+    for (var i = 0; i < n; i++) S.nibbles.push(now + 500 + Math.random() * Math.max(300, c.waitMs - 900));
+    S.nibbles.sort();
+    au_('splash'); var sp = spot(S.G, S.dist); ring(sp.x, sp.y, sp.s, false); splash(sp.x, sp.y, 8, sp.s * 0.6);
+    hint('Tunggu gigitan&hellip; <b>jangan tergoda gigitan kecil!</b>');
+    // ikan "asli" ikut berenang di antara umpan palsu
+    S.biter = { a: Math.random() * 6.28, size: c.fight.size };
+  }
+
+  function lose(reason, text) {
+    var c = S.cast;
+    S.st = 'lost'; S.lostT = 0; S.lostReason = reason; S.fightEnd = S.fight;
+    msg(text, 'bad', 2.2); hint('');
+    if (reason === 'snap') { au_('hit'); vib([60, 40, 90]); S.shake = 8; }
+    else au_('splash');
+    if (!c) return;
+    google.script.run.withSuccessHandler(function (r) {
+      S.res = r; S.log.push({ caught: false, id: r.fish.id, name: r.fish.name, kg: r.kg, rarity: r.fish.rarity });
+      setTimeout(function () { if (S.st === 'lost') showCard(r, reason); }, 900);
+      drawLog();
+    }).withFailureHandler(function (e) { S.st = 'idle'; msg(esc_(String(e.message || e)), 'bad'); })
+      .api_mgFishReel(c.castId, reason, 0);
+  }
+
+  function land() {
+    var c = S.cast, f = S.fight, q = f && f.reelT > 0 ? Math.min(1, f.perfT / f.reelT * 1.15) : 0;
+    S.st = 'landing'; S.landT = 0; S.res = null; S.quality = q;
+    au_('splash'); vib(40);
+    var sp = fishPos(); splash(sp.x, sp.y, 18, sp.s);
+    msg('<b>Dapat!</b>', 'good', 1.2); hint('');
+    google.script.run.withSuccessHandler(function (r) {
+      S.res = r; S.left = r.left != null ? r.left : S.left;
+      if (r.caught) {
+        patchGold_(r.newGold);
+        S.log.push({ caught: true, id: r.fish.id, name: r.fish.name, kg: r.kg, gold: r.gold, rarity: r.fish.rarity });
+        metaBump_('fish'); if (r.fish.rarity >= 6) metaBump_('fishlegend');
+        if (r.firstCatch) metaBump_('fishnew'); if (q >= 0.8) metaBump_('fishperf');
+        if (S.info) S.info.found = r.found;
+        au_(r.fish.rarity >= 5 ? 'achieve' : 'coin', { n: 2 });
+        S.book = null;
+      } else {
+        S.log.push({ caught: false, id: r.fish.id, name: r.fish.name, kg: r.kg, rarity: r.fish.rarity });
+      }
+      drawLog(); drawBar();
+    }).withFailureHandler(function (e) { S.st = 'idle'; msg(esc_(String(e.message || e)), 'bad', 3); })
+      .api_mgFishReel(c.castId, 'caught', Math.round(q * 100) / 100);
+  }
+
+  function fishPos() {
+    var G = S.G, f = S.fight, sp = spot(G, S.dist), P = f ? f.P : 0;
+    var endX = G.pierX + G.W * 0.06, endY = G.H * 0.82;
+    var x = U.lerp(sp.x, endX, P), y = U.lerp(sp.y, endY, P), s = U.lerp(sp.s, 1, P);
+    var wob = f ? Math.sin(f.t * (f.mode === 'thrash' ? 14 : 2.4)) * (f.mode === 'thrash' ? 10 : 18) * s : 0;
+    return { x: x + wob, y: y + (f && f.mode === 'run' ? 4 : 10) * s, s: s };
+  }
+
+  /* ------------------------- kartu hasil ------------------------- */
+  function showCard(r, reason) {
+    S.st = 'result';
+    var el = document.getElementById('fgCard'); if (!el) return;
+    var R = RARITY[r.fish.rarity] || RARITY[1], caught = r.caught;
+    var badges = '';
+    if (caught && r.firstCatch) badges += '<span class="fg-badge new">Spesies baru!</span>';
+    if (caught && r.globalRecord) badges += '<span class="fg-badge gold">Rekor dermaga!</span>';
+    else if (caught && r.record) badges += '<span class="fg-badge">Rekor pribadi</span>';
+    if (caught && S.quality >= 0.8) badges += '<span class="fg-badge">Tarikan sempurna</span>';
+    var why = { snap: 'Talinya putus!', slip: 'Kailnya terlepas.', early: 'Kamu menyentak terlalu cepat.', late: 'Umpannya dicuri.', invalid: 'Ikannya lolos.' }[reason] || 'Ikannya lolos.';
+    el.innerHTML = '<div class="fg-card-in ' + (caught ? 'ok' : 'miss') + '" style="--rc:' + R.c + '">' +
+      '<div class="fg-rar">' + (caught ? R.n : 'Lepas') + '</div>' +
+      '<canvas id="fgCardFish" width="440" height="220"></canvas>' +
+      '<div class="fg-name">' + (caught ? esc_(r.fish.name) : 'Itu tadi&hellip; ' + esc_(r.fish.name) + '?') + '</div>' +
+      '<div class="fg-kg">' + (r.kg != null ? Number(r.kg).toLocaleString('id-ID') + ' kg' : '') + (caught ? ' &middot; <b>+' + formatGold(r.gold) + ' gold</b>' : ' &middot; ' + why) + '</div>' +
+      (badges ? '<div class="fg-badges">' + badges + '</div>' : '') +
+      '<button class="btn btn-gold" id="fgAgain">' + ic('fish') + '&nbsp; Lempar lagi <span class="kbd">Spasi</span></button></div>';
+    el.hidden = false;
+    var cv = document.getElementById('fgCardFish'), cc = cv.getContext('2d'), t0 = performance.now();
+    (function anim(ts) {
+      if (!document.getElementById('fgCardFish') || el.hidden) return;
+      var t = (ts - t0) / 1000; cc.clearRect(0, 0, 440, 220);
+      if (caught) { var g = cc.createRadialGradient(220, 110, 10, 220, 110, 200); g.addColorStop(0, U.css(U.hex(R.c), 0.35)); g.addColorStop(1, 'rgba(0,0,0,0)'); cc.fillStyle = g; cc.fillRect(0, 0, 440, 220); }
+      drawFish(cc, r.fish.id, 220, 112 + Math.sin(t * 2) * 4, 300, Math.sin(t * 1.4) * 0.06, t, !caught, caught ? 1 : 0.8);
+      requestAnimationFrame(anim);
+    })(t0);
+    document.getElementById('fgAgain').onclick = function () { hideCard(); S.st = 'idle'; hint('Tahan untuk mengisi tenaga lemparan'); };
+  }
+  function hideCard() { var el = document.getElementById('fgCard'); if (el) { el.hidden = true; el.innerHTML = ''; } }
+
+  /* ------------------------- loop & render ------------------------- */
+  function frame(ts) {
+    var cv = document.getElementById('fgCanvas');
+    if (!cv || currentPanel !== 'fishing') { S.raf = 0; return; }
+    S.raf = requestAnimationFrame(frame);
+    var dt = Math.min(0.05, S.last ? (ts - S.last) / 1000 : 0.016); S.last = ts; S.t += dt;
+    var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(10, r.width), H = Math.max(10, r.height);
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    var c = cv.getContext('2d'), G = S.G = geo(W, H), t = S.t;
+    update(dt, G);
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (S.shake > 0.2) { c.translate((Math.random() - 0.5) * S.shake, (Math.random() - 0.5) * S.shake); S.shake *= 0.9; }
+    var pal = S.pal && t - S.palT < 3 ? S.pal : (S.pal = MTSky.palette(typeof dayFrac_ === 'function' ? dayFrac_() : 0.3, state && state.cityEvent ? state.cityEvent.eventType : null), S.palT = t, S.pal);
+    render(c, G, pal, t, dt);
+    var stg = cv.parentNode; if (stg && stg.classList.contains('fighting') !== (S.st === 'fight')) stg.classList.toggle('fighting', S.st === 'fight');
+    if (S.msgT > 0) { S.msgT -= dt; if (S.msgT <= 0) { var m = document.getElementById('fgMsg'); if (m) m.className = 'fg-msg'; } }
+  }
+
+  function update(dt, G) {
+    if (S.st === 'charge') {
+      S.power += S.pdir * dt / 1.05;
+      if (S.power >= 1) { S.power = 1; S.pdir = -1; } else if (S.power <= 0) { S.power = 0; S.pdir = 1; }
+    } else if (S.st === 'flying') {
+      S.fly = Math.min(1, S.fly + dt / 0.75);
+      if (S.fly >= 1 && S.cast && !S.awaiting) startWait();
+    } else if (S.st === 'wait') {
+      var now = Date.now();
+      if (S.nibbles.length && now >= S.nibbles[0]) {
+        S.nibbles.shift(); S.nibT = 0.28; var sp = spot(G, S.dist); ring(sp.x, sp.y, sp.s * 0.6, false); au_('click');
+      }
+      if (now >= S.biteAt) {
+        S.st = 'bite'; S.biteAt = now;
+        var sp2 = spot(G, S.dist); ring(sp2.x, sp2.y, sp2.s, true); splash(sp2.x, sp2.y, 14, sp2.s);
+        msg('<b>STRIKE!</b> Sentak sekarang!', 'strike', 1.2); hint('<b>Klik / Spasi</b> sekarang!');
+        au_('bell'); vib(60);
+      }
+    } else if (S.st === 'bite') {
+      if (Date.now() - S.biteAt > (S.cast.fight.reactMs || 900)) lose('late', 'Terlambat! Umpannya dicuri.');
+    } else if (S.st === 'fight') {
+      var res = step(S.fight, S.cast.fight, rod(), S.held, dt, Math.random);
+      var f = S.fight, fp = fishPos();
+      if (S.held) { S.reelTick -= dt; if (S.reelTick <= 0) { S.reelTick = 0.16; au_('click'); } }
+      if (f.mode === 'thrash' && Math.random() < dt * 9) splash(fp.x, fp.y - 8 * fp.s, 3, fp.s);
+      if (f.mode === 'thrash' && S.cast.fight.pow > 0.55 && !S.jump && Math.random() < dt * 0.5) S.jump = { t: 0, x: fp.x, y: fp.y };
+      if (res === 'caught') land();
+      else if (res === 'snap') lose('snap', 'Talinya putus! Tegangan terlalu tinggi.');
+      else if (res === 'slip') lose('slip', 'Tali terlalu kendur &mdash; ikannya lepas.');
+    } else if (S.st === 'landing') {
+      S.landT += dt;
+      if (S.landT > 1.3 && S.res) { if (S.res.caught) showCard(S.res); else showCard(S.res, 'invalid'); }
+    } else if (S.st === 'lost') S.lostT += dt;
+    if (S.nibT > 0) S.nibT -= dt;
+    if (S.jump) { S.jump.t += dt; if (S.jump.t > 0.9) { var j = S.jump; splash(j.x, j.y, 12, spot(G, S.dist).s); S.jump = null; au_('splash'); } }
+    for (var i = S.parts.length - 1; i >= 0; i--) { var p = S.parts[i]; p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 420 * dt; if (p.age > p.life) S.parts.splice(i, 1); }
+    for (var k = S.rings.length - 1; k >= 0; k--) { S.rings[k].age += dt; if (S.rings[k].age > S.rings[k].life) S.rings.splice(k, 1); }
+  }
+
+  function render(c, G, pal, t, dt) {
+    var W = G.W, H = G.H, L = pal.lit;
+    MTSky.paintSky(c, W, G.hy, pal, t, true);
+    if (!S.clouds) { S.clouds = MTSky.makeClouds(U.rng(31), 5); S.glit = MTSky.makeGlitter(U.rng(17)); }
+    MTSky.paintClouds(c, W, G.hy, pal, S.clouds, dt * 1000, 0.6);
+    // pulau jauh
+    c.fillStyle = U.css(pal.mountainFar);
+    c.beginPath(); c.moveTo(W * 0.5, G.hy); c.quadraticCurveTo(W * 0.62, G.hy - H * 0.07, W * 0.72, G.hy - H * 0.02); c.quadraticCurveTo(W * 0.8, G.hy - H * 0.05, W * 0.95, G.hy); c.fill();
+    MTSky.paintSea(c, W, H, G.hy, pal, t, { glitter: S.glit, rough: 0.8, drift: 14 });
+    // bayangan ikan umpan palsu
+    var nDec = S.st === 'wait' || S.st === 'bite' ? 4 : 2;
+    for (var d = 0; d < nDec; d++) {
+      var dd = 0.25 + ((d * 0.29 + t * 0.013 * (d % 2 ? 1 : -1)) % 0.7 + 0.7) % 0.7, sp = spot(G, dd);
+      var dx = sp.x + Math.sin(t * 0.4 + d * 2) * 60 * sp.s, dy = sp.y + (18 + d * 6) * sp.s;
+      drawFish(c, 'kembung', dx, dy, (24 + d * 7) * sp.s, Math.sin(t * 0.4 + d * 2 + 1.57) > 0 ? 0 : Math.PI, t + d, true, 0.55);
+    }
+    // ikan asli mendekati umpan
+    if ((S.st === 'wait' || S.st === 'bite') && S.biter) {
+      var sp3 = spot(G, S.dist), left = Math.max(0, (S.biteAt - Date.now()) / 1000), rr = Math.min(1, left / 2.5) * 70 * sp3.s + 6 * sp3.s;
+      S.biter.a += dt * (0.6 + (1 - Math.min(1, left / 2.5)) * 1.5);
+      var bx = sp3.x + Math.cos(S.biter.a) * rr, by = sp3.y + (14 + Math.sin(S.biter.a) * 6) * sp3.s;
+      drawFish(c, 'kembung', bx, by, (22 + S.biter.size * 70) * sp3.s, Math.cos(S.biter.a) > 0 ? Math.PI : 0, t * 1.5, true, 0.62);
+    }
+    // cincin riak
+    S.rings.forEach(function (rg) {
+      var k = rg.age / rg.life; c.strokeStyle = 'rgba(240,250,255,' + (0.55 * (1 - k)) + ')'; c.lineWidth = (rg.big ? 2 : 1.2) * rg.s;
+      c.beginPath(); c.ellipse(rg.x, rg.y + 2, (6 + k * (rg.big ? 46 : 26)) * rg.s, (2 + k * (rg.big ? 12 : 7)) * rg.s, 0, 0, 6.3); c.stroke();
+    });
+    // ikan saat duel
+    var tip = rodTip(G), fp = null;
+    if (S.st === 'fight' || (S.st === 'lost' && S.fightEnd && S.lostReason !== 'early' && S.lostReason !== 'late')) {
+      fp = fishPos();
+      if (S.st === 'lost') fp.x += S.lostT * 220 * fp.s;
+      var fs = S.cast.fight, len = (26 + fs.size * 90) * fp.s;
+      if (S.jump && S.st === 'fight') {
+        var jt = S.jump.t / 0.9, jx = S.jump.x + jt * 40 * fp.s, jy = S.jump.y - Math.sin(jt * Math.PI) * 70 * fp.s;
+        drawFish(c, 'kembung', jx, jy, len, -0.9 + jt * 1.8 + Math.PI, t * 2, true, 0.9);
+      } else drawFish(c, 'kembung', fp.x, fp.y, len, S.st === 'lost' ? 0 : Math.PI + Math.sin(t * 3) * 0.2, t * (S.fight && S.fight.mode === 'thrash' ? 3 : 1.4), true, S.st === 'lost' ? Math.max(0, 0.7 - S.lostT * 0.4) : 0.72);
+    }
+    // pelampung / kail
+    var bob = null;
+    if (S.st === 'flying') {
+      var tg = spot(G, S.dist), k2 = S.fly;
+      bob = { x: U.lerp(tip.x, tg.x, k2), y: U.lerp(tip.y, tg.y, k2) - Math.sin(k2 * Math.PI) * H * 0.22, s: U.lerp(0.9, tg.s, k2) };
+    } else if (S.st === 'wait' || S.st === 'bite') {
+      var sp4 = spot(G, S.dist), dip = S.st === 'bite' ? 7 + Math.sin(t * 30) * 2 : (S.nibT > 0 ? 3.5 : 0);
+      bob = { x: sp4.x, y: sp4.y + Math.sin(t * 2.2) * 1.2 * sp4.s + dip * sp4.s, s: sp4.s };
+    }
+    if (bob) {
+      c.fillStyle = L('#f4f0e6'); c.beginPath(); c.ellipse(bob.x, bob.y, 3.6 * bob.s + 1, 4.2 * bob.s + 1, 0, 0, 6.3); c.fill();
+      c.fillStyle = L('#e0412f'); c.beginPath(); c.ellipse(bob.x, bob.y - 1.5 * bob.s, 3.6 * bob.s + 1, 2.6 * bob.s + 0.6, 0, Math.PI, 0); c.fill();
+      c.strokeStyle = L('#2a1b10'); c.lineWidth = 1; c.beginPath(); c.moveTo(bob.x, bob.y - 4 * bob.s - 1); c.lineTo(bob.x, bob.y - 9 * bob.s - 2); c.stroke();
+      if (S.st === 'bite') { c.fillStyle = '#ffd24a'; c.font = 'bold ' + Math.round(18 + 10 * bob.s) + 'px serif'; c.textAlign = 'center'; c.fillText('!', bob.x, bob.y - 18 * bob.s - 10 - Math.abs(Math.sin(t * 10)) * 4); }
+    }
+    // tali pancing
+    var end = bob || (fp && S.st === 'fight' ? { x: fp.x, y: fp.y - 6 * fp.s } : null);
+    if (S.st === 'landing') { var lp = landPos(G, tip); end = { x: lp.x, y: lp.y - 10 }; }
+    if (end && !(S.st === 'lost' && S.lostReason === 'snap')) {
+      var T = S.fight ? S.fight.T : 0.3, sag = S.st === 'fight' ? (1 - Math.min(1, T)) * 50 : (S.st === 'flying' ? 10 : 26);
+      c.strokeStyle = S.st === 'fight' && T > 0.85 ? 'rgba(255,120,90,0.95)' : 'rgba(245,245,240,0.8)';
+      c.lineWidth = 1.1;
+      c.beginPath(); c.moveTo(tip.x, tip.y); c.quadraticCurveTo((tip.x + end.x) / 2, Math.max(tip.y, end.y) + sag, end.x, end.y); c.stroke();
+    } else if (S.st === 'lost' && S.lostReason === 'snap' && S.lostT < 0.8) {
+      c.strokeStyle = 'rgba(245,245,240,' + (0.8 - S.lostT) + ')'; c.lineWidth = 1.1;
+      c.beginPath(); c.moveTo(tip.x, tip.y); c.quadraticCurveTo(tip.x + 40, tip.y + 30 + S.lostT * 60, tip.x + 20 - S.lostT * 40, tip.y + 90); c.stroke();
+    } else if (S.st === 'idle' || S.st === 'charge' || S.st === 'result') {
+      c.strokeStyle = 'rgba(245,245,240,0.7)'; c.lineWidth = 1; c.beginPath(); c.moveTo(tip.x, tip.y); c.lineTo(tip.x + 1, tip.y + G.u * 3.2); c.stroke();
+    }
+    // percikan
+    S.parts.forEach(function (p) { c.fillStyle = p.col.replace('A', (1 - p.age / p.life).toFixed(2)); c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.3); c.fill(); });
+    drawPier(c, G, pal, t);
+    // pemancing + joran
+    if (!S.person) {
+      var rr2 = U.rng(U.hashStr((state && state.player && state.player.characterName) || 'x'));
+      var arch = state && state.player ? state.player.archetype : '';
+      S.person = MTPeople.make(rr2, arch === 'pirate' || arch === 'smuggler' ? 'pirates' : 'villagers'); S.person.carry = 'none'; S.person.bike = false;
+      S.person.shirt = ({ merchant: '#b8862b', navigator: '#2f7fa3', pirate: '#7a1e14', explorer: '#3f8c3f', gambler: '#8e3d8a', smuggler: '#3a3530', diplomat: '#e8dcc0', adventurer: '#4ea3c9' })[arch] || S.person.shirt;
+    }
+    MTPeople.draw(c, G.ax, G.ay, G.ph, S.person, 0, 1, L, pal.lights > 0.55);
+    c.strokeStyle = L('#6b4a2a'); c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(tip.hx, tip.hy); c.quadraticCurveTo(tip.cx, tip.cy, tip.x, tip.y); c.stroke();
+    c.strokeStyle = L('#caa04a'); c.lineWidth = 1.4; c.beginPath(); c.moveTo(tip.hx, tip.hy); c.lineTo(U.lerp(tip.hx, tip.cx, 0.3), U.lerp(tip.hy, tip.cy, 0.3)); c.stroke();
+    c.fillStyle = L('#3a2a1a'); c.beginPath(); c.arc(tip.hx + 2, tip.hy + 3, 3, 0, 6.3); c.fill();
+    // ikan diangkat ke dermaga
+    if (S.st === 'landing' && S.cast) {
+      var lp2 = landPos(G, tip), known = S.res && S.res.caught;
+      drawFish(c, known ? S.res.fish.id : 'kembung', lp2.x, lp2.y, 26 + S.cast.fight.size * 70, Math.PI / 2 + Math.sin(t * 16) * 0.35, t * 3, !known, 1);
+      if (known) { c.fillStyle = 'rgba(255,240,180,' + (0.6 + Math.sin(t * 8) * 0.3) + ')'; for (var sI = 0; sI < 5; sI++) { var a2 = t * 2 + sI * 1.25; c.beginPath(); c.arc(lp2.x + Math.cos(a2) * 34, lp2.y + Math.sin(a2) * 24, 2, 0, 6.3); c.fill(); } }
+    }
+    drawHud(c, G, t);
+  }
+
+  function landPos(G, tip) {
+    var k = Math.min(1, S.landT / 0.8), sp = fishPos();
+    return { x: U.lerp(sp.x, tip.x - 6, k), y: U.lerp(sp.y, tip.y + G.u * 5, k) - Math.sin(k * Math.PI) * G.u * 6 };
+  }
+
+  function drawPier(c, G, pal, t) {
+    var L = pal.lit, x1 = G.pierX, y = G.deckY, u = G.u;
+    // tiang
+    for (var i = 0; i < 4; i++) {
+      var px = x1 * (0.15 + i * 0.28); c.fillStyle = L('#3b2616'); c.fillRect(px - u * 0.5, y, u, G.H - y);
+      c.fillStyle = 'rgba(10,20,30,0.25)'; c.fillRect(px - u * 0.5, y + (G.H - y) * 0.5, u, (G.H - y) * 0.5);
+    }
+    // lantai papan
+    c.fillStyle = L('#8a6238'); c.fillRect(-4, y, x1 + 4, u * 1.3);
+    c.fillStyle = L('#6b4a2a'); c.fillRect(-4, y + u * 1.3, x1 + 4, u * 0.6);
+    c.strokeStyle = L('#4a3220'); c.lineWidth = 1;
+    for (var k = 0; k < x1; k += u * 2.6) { c.beginPath(); c.moveTo(k, y); c.lineTo(k, y + u * 1.3); c.stroke(); }
+    // ember & tali
+    var bx = x1 * 0.62, by = y;
+    c.fillStyle = L('#5f7f8f'); c.beginPath(); c.moveTo(bx - u * 1.3, by - u * 2.2); c.lineTo(bx + u * 1.3, by - u * 2.2); c.lineTo(bx + u, by); c.lineTo(bx - u, by); c.closePath(); c.fill();
+    c.strokeStyle = L('#3a4f5a'); c.beginPath(); c.arc(bx, by - u * 2.2, u * 1.2, Math.PI, 0); c.stroke();
+    var nCaught = S.log.filter(function (l) { return l.caught; }).length;
+    if (nCaught) { c.fillStyle = L('#9fb6c4'); for (var f = 0; f < Math.min(3, nCaught); f++) { c.beginPath(); c.ellipse(bx - u * 0.6 + f * u * 0.6, by - u * 2.3 - (f % 2) * u * 0.3, u * 0.5, u * 0.25, -0.5 + f * 0.5, 0, 6.3); c.fill(); } }
+    // lentera malam
+    if (pal.lights > 0.2) {
+      var lx = x1 * 0.9, ly = y - u * 5.5;
+      c.fillStyle = L('#3b2616'); c.fillRect(lx - u * 0.2, ly, u * 0.4, u * 5.5);
+      c.globalCompositeOperation = 'lighter';
+      var g = c.createRadialGradient(lx, ly, 0, lx, ly, u * 7); g.addColorStop(0, 'rgba(255,200,110,' + (0.7 * pal.lights) + ')'); g.addColorStop(1, 'rgba(255,160,60,0)');
+      c.fillStyle = g; c.fillRect(lx - u * 7, ly - u * 7, u * 14, u * 14);
+      c.globalCompositeOperation = 'source-over';
+      c.fillStyle = 'rgba(255,225,150,' + pal.lights + ')'; c.beginPath(); c.arc(lx, ly, u * 0.5, 0, 6.3); c.fill();
+    }
+  }
+
+  function drawHud(c, G, t) {
+    var W = G.W, H = G.H, u = G.u;
+    c.save();
+    c.font = '600 ' + Math.round(Math.max(10, u * 0.95)) + 'px system-ui, sans-serif';
+    if (S.st === 'charge') {
+      // meter tenaga lemparan
+      var mx = G.ax + u * 5.5, my = G.deckY - u * 13, mh = u * 11, mw = u * 1.3;
+      c.fillStyle = 'rgba(15,20,26,0.75)'; roundRect(c, mx - 3, my - 3, mw + 6, mh + 6, 6); c.fill();
+      var zones = [[0, 0.38, '#5f9fca'], [0.38, 0.72, '#3f83d0'], [0.72, 1, '#1f4f8f']];
+      zones.forEach(function (z) { c.fillStyle = z[2]; c.fillRect(mx, my + mh * (1 - z[1]), mw, mh * (z[1] - z[0])); });
+      c.fillStyle = '#ffd24a'; c.fillRect(mx - 2, my + mh * (1 - 0.96), mw + 4, mh * 0.1);
+      c.fillStyle = '#fff'; c.fillRect(mx - 5, my + mh * (1 - S.power) - 1.5, mw + 10, 3);
+      c.fillStyle = 'rgba(255,255,255,0.85)'; c.textAlign = 'left';
+      c.fillText('Jauh', mx + mw + 8, my + mh * 0.14); c.fillText('Sedang', mx + mw + 8, my + mh * 0.47); c.fillText('Dekat', mx + mw + 8, my + mh * 0.85);
+    }
+    if (S.st === 'fight' && S.fight) {
+      var f = S.fight, R = Math.min(W * 0.14, u * 6), cx = W - R - u * 2.2, cy = H - u * (W < 560 ? 3.4 : 2.2);
+      // busur tegangan
+      c.lineCap = 'butt';
+      function arc(a0, a1, col, w) { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.arc(cx, cy, R, Math.PI + a0 * Math.PI / 1.25, Math.PI + a1 * Math.PI / 1.25); c.stroke(); }
+      c.fillStyle = 'rgba(12,16,22,0.72)'; c.beginPath(); c.arc(cx, cy, R + u * 1.2, Math.PI, 0); c.fill();
+      arc(0, 0.3, '#6b7a88', u * 0.9); arc(0.3, 0.85, '#3f9a5a', u * 0.9); arc(0.5, 0.72, '#e6c54a', u * 0.9); arc(0.85, 1.25, '#c0392b', u * 0.9);
+      var na = Math.PI + Math.min(1.25, f.T) * Math.PI / 1.25, danger = f.T > 0.9;
+      c.strokeStyle = danger ? '#ff6b5a' : '#ffffff'; c.lineWidth = 3; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(na) * (R + u * 0.4), cy + Math.sin(na) * (R + u * 0.4)); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 4, 0, 6.3); c.fill();
+      c.fillStyle = danger ? '#ffb4a8' : 'rgba(255,255,255,0.9)'; c.textAlign = 'center';
+      c.font = '700 ' + Math.round(Math.max(11, u * 1.05)) + 'px system-ui, sans-serif';
+      c.fillText(danger ? 'LEPAS!' : f.T < 0.2 ? 'GULUNG!' : f.T >= 0.5 && f.T <= 0.72 ? 'SEMPURNA' : 'TEGANGAN', cx, cy - R - u * 1.7);
+      // bar tarikan
+      var bx = W * 0.25, by = Math.max(u * 3.6, 48), bw = W * 0.5, bh = Math.max(u * 1.1, 9);
+      c.fillStyle = 'rgba(12,16,22,0.7)'; roundRect(c, bx - 4, by - 4, bw + 8, bh + 8, 8); c.fill();
+      var g = c.createLinearGradient(bx, 0, bx + bw, 0); g.addColorStop(0, '#e6c54a'); g.addColorStop(1, '#3f9a5a');
+      c.fillStyle = g; roundRect(c, bx, by, bw * f.P, bh, 5); c.fill();
+      c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText('Dermaga', bx, by + bh + u * 1.1);
+      c.textAlign = 'right'; c.fillText(f.mode === 'run' ? 'Ikan kabur!' : f.mode === 'thrash' ? 'Meronta!' : '', bx + bw, by + bh + u * 1.1);
+      drawFish(c, 'kembung', bx + bw * f.P, by + bh / 2, u * 2.4, Math.PI, t * 2, true, 1);
+    }
+    c.restore();
+  }
+  function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+
+  /* ------------------------- panel & UI ------------------------- */
+  function render_() {
+    var inT = state.voyage && state.voyage.inTransit;
+    setModal_(panelHeader_('fish', 'Dermaga', 'Lempar, tunggu, duel, daratkan &mdash; makin jauh makin besar') +
+      '<div class="fg-stage"><canvas id="fgCanvas"></canvas>' +
+        '<div class="fg-chips" id="fgChips"></div>' +
+        '<div class="fg-msg" id="fgMsg"></div><div class="fg-hint" id="fgHint">' + (inT ? 'Kapal sedang berlayar &mdash; mancing saat merapat.' : '<b>Tahan</b> klik / Spasi untuk mengisi tenaga lemparan') + '</div>' +
+        '<div class="fg-card" id="fgCard" hidden></div></div>' +
+      '<div class="fg-bar" id="fgBar"><div class="skeleton-block" style="height:64px;"></div></div>' +
+      '<div class="fg-tabs"><button data-tab="log" class="on">' + ic('journal') + ' Tangkapan hari ini</button><button data-tab="book">' + ic('book') + ' Buku Ikan <span id="fgBookN"></span></button></div>' +
+      '<div id="fgTab"></div>');
+    var cv = document.getElementById('fgCanvas');
+    cv.addEventListener('pointerdown', function (e) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} press(); });
+    cv.addEventListener('pointerup', function () { release(); });
+    cv.addEventListener('pointercancel', function () { release(); });
+    cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    document.querySelectorAll('.fg-tabs [data-tab]').forEach(function (b) {
+      b.onclick = function () { S.tab = b.getAttribute('data-tab'); document.querySelectorAll('.fg-tabs [data-tab]').forEach(function (x) { x.classList.toggle('on', x === b); }); drawTab(); au_('click'); };
+    });
+    if (S.st !== 'idle' && S.st !== 'result') S.st = 'idle';
+    hideCard(); S.held = false; S.parts = []; S.rings = []; S.pal = null;
+    drawTab();
+    google.script.run.withSuccessHandler(function (i) {
+      S.info = i; S.left = i.left; S.cooldownUntil = Date.now() + (i.cooldownMs || 0);
+      if (!(i.baits || []).some(function (b) { return b.id === S.bait; })) S.bait = 'cacing';
+      drawBar();
+    }).withFailureHandler(function (e) { var b = document.getElementById('fgBar'); if (b) b.textContent = e.message; }).api_mgFishInfo();
+    cancelAnimationFrame(S.raf); S.last = 0; S.raf = requestAnimationFrame(frame);
+  }
+
+  function drawBar() {
+    var el = document.getElementById('fgBar'), i = S.info; if (!el || !i) return;
+    var R = rod(), next = i.rods[(i.rod || 0) + 1];
+    var chips = document.getElementById('fgChips');
+    if (chips) chips.innerHTML = '<span class="fg-chip">' + ic('fish') + ' Sisa <b>' + (S.left != null ? S.left : i.left) + '</b>/' + i.max + '</span>' +
+      '<span class="fg-chip">' + ic(i.night ? 'moon' : 'sun') + (i.night ? ' Malam &middot; ikan malam keluar' : ' Siang') + '</span>';
+    var bn = document.getElementById('fgBookN'); if (bn) bn.textContent = (i.found || 0) + '/' + (i.total || 14);
+    el.innerHTML = '<div class="fg-baits">' + i.baits.map(function (b, k) {
+      var tone = ['#b58a6a', '#e08a6a', '#d06a8a', '#e0b43a'][k] || '#999';
+      return '<button class="fg-bait' + (b.id === S.bait ? ' on' : '') + '" data-b="' + b.id + '" title="' + esc_(b.desc) + '"><span class="fg-dot" style="--c:' + tone + '"></span><span class="fg-bn">' + esc_(b.name) + '</span><span class="fg-bc">' + (b.cost ? formatGold(b.cost) + ' g' : 'Gratis') + '</span></button>';
+    }).join('') + '</div>' +
+      '<div class="fg-rod"><div><div class="fg-rn">' + ic('anchor') + ' ' + esc_(R.name) + '</div><div class="muted small">Gulung &times;' + R.reel + ' &middot; tali &times;' + R.cap + '</div></div>' +
+      (next ? '<button class="btn btn-sm' + (state.player.gold >= next.cost ? ' btn-gold' : '') + '" id="fgRodBuy"' + (state.player.gold >= next.cost ? '' : ' disabled') + ' title="' + esc_(next.desc) + '">' + esc_(next.name) + ' &middot; ' + formatGold(next.cost) + '</button>' : '<span class="legend-tag">' + ic('star') + ' Joran terbaik</span>') + '</div>';
+    el.querySelectorAll('.fg-bait').forEach(function (b) { b.onclick = function () { S.bait = b.getAttribute('data-b'); drawBar(); au_('click'); var bb = bait(); msg(esc_(bb.name) + ' &mdash; ' + esc_(bb.desc), '', 2.2); }; });
+    var rb = document.getElementById('fgRodBuy');
+    if (rb) rb.onclick = function () {
+      rb.disabled = true;
+      google.script.run.withSuccessHandler(function (r) {
+        patchGold_(r.newGold); S.info.rod = r.rod; showToast('Kamu membeli ' + r.name + '!', 'success'); au_('unfurl'); drawBar();
+      }).withFailureHandler(function (e) { rb.disabled = false; showToast(e.message, 'error'); }).api_mgFishBuyRod((i.rod || 0) + 1);
+    };
+  }
+
+  function drawTab() { if (S.tab === 'book') drawBook(); else drawLog(); }
+  function drawLog() {
+    if (S.tab !== 'log') return;
+    var el = document.getElementById('fgTab'); if (!el) return;
+    el.innerHTML = S.log.length ? '<div class="fg-log">' + S.log.slice(-14).reverse().map(function (f) {
+      var R = RARITY[f.rarity] || RARITY[1];
+      return '<div class="fg-li' + (f.caught ? '' : ' miss') + '" style="--rc:' + R.c + '"><canvas width="84" height="44" data-fish="' + f.id + '" data-sh="' + (f.caught ? 0 : 1) + '"></canvas><div><b>' + esc_(f.name) + '</b><span>' + (f.kg != null ? Number(f.kg).toLocaleString('id-ID') + ' kg' : '') + '</span></div><em>' + (f.caught ? '+' + formatGold(f.gold) : 'lepas') + '</em></div>';
+    }).join('') + '</div>' : '<div class="card empty-state">' + ic('fish') + 'Belum ada tangkapan. Pilih umpan, lalu tahan &amp; lepas untuk melempar.</div>';
+    paintThumbs(el);
+  }
+  function paintThumbs(el) {
+    el.querySelectorAll('canvas[data-fish]').forEach(function (cv) {
+      var c = cv.getContext('2d'); c.clearRect(0, 0, cv.width, cv.height);
+      drawFish(c, cv.getAttribute('data-fish'), cv.width / 2, cv.height / 2 + 2, Math.min(cv.width * 0.74, cv.height * 1.25), 0, 0.6, cv.getAttribute('data-sh') === '1', 1);
+    });
+  }
+  function drawBook() {
+    var el = document.getElementById('fgTab'); if (!el) return;
+    if (!S.book) {
+      el.innerHTML = '<div class="skeleton-block" style="height:120px;"></div>';
+      google.script.run.withSuccessHandler(function (b) { S.book = b; if (S.tab === 'book') drawBook(); })
+        .withFailureHandler(function (e) { el.textContent = e.message; }).api_mgFishBook();
+      return;
+    }
+    var found = S.book.filter(function (b) { return b.found; }).length;
+    el.innerHTML = '<div class="fg-book-head"><b>' + found + '</b> dari ' + S.book.length + ' tangkapan ditemukan<div class="bar-track"><div class="bar-fill green" style="width:' + Math.round(found / S.book.length * 100) + '%"></div></div></div>' +
+      '<div class="fg-book">' + S.book.map(function (b) {
+        var R = RARITY[b.rarity] || RARITY[1], where = [b.depth === 0 ? 'Dekat' : b.depth === 1 ? 'Sedang' : 'Jauh'];
+        if (b.night) where.push('Malam');
+        if (b.cities) where.push(b.cities.map(function (c) { return cityName_(c); }).join('/'));
+        return '<div class="fg-bk' + (b.found ? '' : ' unk') + '" style="--rc:' + R.c + '"><canvas width="160" height="80" data-fish="' + b.id + '" data-sh="' + (b.found ? 0 : 1) + '"></canvas>' +
+          '<div class="fg-bk-n">' + (b.found ? esc_(b.name) : '???') + '</div><div class="fg-bk-r">' + R.n + ' &middot; ' + where.join(' &middot; ') + '</div>' +
+          (b.found ? '<div class="fg-bk-s">Terbesar <b>' + Number(b.bestKg).toLocaleString('id-ID') + ' kg</b> &middot; ' + b.n + '&times;</div>' : '<div class="fg-bk-h">' + esc_(b.hint) + '</div>') +
+          (b.record ? '<div class="fg-bk-rec' + (b.record.me ? ' me' : '') + '">' + ic('trophy') + ' Rekor: ' + esc_(b.record.n) + ' ' + Number(b.record.kg).toLocaleString('id-ID') + ' kg</div>' : '') + '</div>';
+      }).join('') + '</div>';
+    paintThumbs(el);
+  }
+
+  function stop() {
+    if ((S.st === 'wait' || S.st === 'bite' || S.st === 'fight' || S.st === 'flying') && S.cast) {
+      google.script.run.withSuccessHandler(function () {}).withFailureHandler(function () {}).api_mgFishReel(S.cast.castId, 'abort', 0);
+    }
+    cancelAnimationFrame(S.raf); S.raf = 0; S.st = 'idle'; S.cast = null; S.held = false; S.fight = null;
+  }
+
+  document.addEventListener('keyup', function (e) { if ((e.key === ' ' || e.code === 'Space') && currentPanel === 'fishing') { e.preventDefault(); release(); } });
+  window.addEventListener('pointerup', function () { if (S.held && currentPanel === 'fishing') release(); });
+  window.addEventListener('blur', function () { if (S.held) release(); });
+
+  return { S: S, render: render_, press: press, release: release, stop: stop, step: step, newFight: newFight, drawFish: drawFish, ART: ART, RARITY: RARITY };
+})();
+
+// Nama lama yang dipakai kerangka panel/hotkey
+function renderFishing_() { FG.render(); }
+function fishAction_() { FG.press(); }
+function fishStop_() { FG.stop(); }
+</script>

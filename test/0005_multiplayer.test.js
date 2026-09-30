@@ -324,42 +324,18 @@ const assert = require('assert');
   pb = await call(B, 'api_mpPulse', { ib: lastIb }); assert.strictEqual(pb.inbox.length, 0);
   console.log('gift ok');
 
-  // ---- mini game: mancing
-  const gF = await goldOf(A);
+  // ---- mini game: mancing (dasar; uji lengkap di 0013_fishing.test.js)
   const c = await call(A, 'api_mgFishCast');
-  assert(c.castId && c.fish.name && c.waitMs >= 1500 && c.waitMs < 5000 && c.left === 20 && typeof c.fish.zone === 'number' && typeof c.fish.rarity === 'number', JSON.stringify(c));
+  assert(c.castId && c.waitMs >= 1500 && c.waitMs <= 5200 && c.left === 20, JSON.stringify(c));
   await err(() => A.call('api_mgFishCast', []), /^Umpan belum siap - tunggu sebentar\.$/);
   await err(() => A.call('api_mgFishReel', ['salah', true]), /^Umpan sudah lepas\. Lempar lagi\.$/);
-  const rr = await call(A, 'api_mgFishReel', c.castId, true);
-  assert(rr.caught && rr.gold >= 1 && rr.newGold === gF + rr.gold && rr.fish.name === c.fish.name, JSON.stringify(rr));
-  assert.strictEqual(await goldOf(A), gF + rr.gold);
-  await err(() => A.call('api_mgFishReel', [c.castId, true]), /Umpan sudah lepas/);
-  // jendela tarik terlewat
-  await H.sql('update game.mp_fish set cooldown_until = 0');
-  let c2 = await call(A, 'api_mgFishCast'); assert.strictEqual(c2.left, 19);
-  await H.sql('update game.mp_fish set t0 = t0 - 15000 where player_id = $1', [A.id]);
-  let r2 = await call(A, 'api_mgFishReel', c2.castId, true); assert(r2.caught === false && r2.fish.name);
-  // tidak menarik
-  await H.sql('update game.mp_fish set cooldown_until = 0');
-  c2 = await call(A, 'api_mgFishCast'); assert.strictEqual(c2.left, 19);
-  r2 = await call(A, 'api_mgFishReel', c2.castId, false); assert.strictEqual(r2.caught, false);
-  // umpan kedaluwarsa (3 menit)
-  await H.sql('update game.mp_fish set cooldown_until = 0');
-  c2 = await call(A, 'api_mgFishCast');
-  await H.sql('update game.mp_fish set t0 = t0 - 200000 where player_id = $1', [A.id]);
-  await err(() => A.call('api_mgFishReel', [c2.castId, true]), /Umpan sudah lepas/);
-  // 20 tangkapan per hari
   await H.sql(`update game.mp_daily set n = 20 where player_id = $1 and kind = 'fish'`, [A.id]);
+  await H.sql(`insert into game.mp_daily(player_id, kind, game_day, n) select $1, 'fish', game.mp_day(), 20 where not exists (select 1 from game.mp_daily where player_id = $1 and kind = 'fish')`, [A.id]);
   await H.sql('update game.mp_fish set cooldown_until = 0');
   await err(() => A.call('api_mgFishCast', []), /^Ikan di dermaga sudah jinak hari ini\. Coba lagi besok \(hari-game berikutnya\)\.$/);
   await H.sql(`update game.player_location set destination_city_id = 'joungjava' where player_id = $1`, [B.id]);
   await err(() => B.call('api_mgFishCast', []), /^Mancing di dermaga saat kapal merapat\.$/);
   await H.sql(`update game.player_location set destination_city_id = null where player_id = $1`, [B.id]);
-  // tabel ikan: luck tinggi menaikkan ikan langka
-  const counts = {};
-  await H.sql('update game.character_stats set luck = 60 where player_id = $1', [C.id]);
-  for (let i = 0; i < 40; i++) { await H.sql('update game.mp_fish set cooldown_until = 0'); const x = await call(C, 'api_mgFishCast'); counts[x.fish.id] = (counts[x.fish.id] || 0) + 1; }
-  assert(Object.keys(counts).length >= 3, JSON.stringify(counts));
 
   // ---- mini game: dadu besar/kecil
   const gD = await goldOf(A);
@@ -380,7 +356,7 @@ const assert = require('assert');
   await H.sql('update game.players set gold = 1000000 where player_id = $1', [C.id]);
   let sawTriple = false;
   for (let i = 0; i < 38; i++) { const x = await call(C, 'api_mgDice', 10, 'besar'); if (x.triple) { sawTriple = true; assert(!x.win && x.delta === -10); } }
-  console.log('minigames ok: fish', rr.fish.name, rr.gold, 'dice', dd.dice, dd.win, 'triple seen', sawTriple);
+  console.log('minigames ok: dice', dd.dice, dd.win, 'triple seen', sawTriple);
 
   // ---- papan PvP
   const board = await call(A, 'api_mpPvpBoard');

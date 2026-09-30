@@ -38,6 +38,7 @@ begin
     'cityEvent', game.city_event(v_city),
     'gameDay', game.game_day(),
     'minutesUntilNextGameDay', game.minutes_to_next_day(),
+    'dayLengthMinutes', game.cfg_num('GameDayLengthRealMinutes', 60),
     'audio', game.audio_config(),
     'logs', game.recent_logs(v_pid, 30),
     'appearance', v_me.appearance,

@@ -566,8 +566,9 @@
   /** Porsi hari-game yang sudah lewat (0..1), diinterpolasi lokal antar reload. */
   function dayFrac_() {
     if (!state) return 0.3;
+    var len = state.dayLengthMinutes || 60;
     var mins = (state.minutesUntilNextGameDay || 0) - (Date.now() - stateLoadedAt) / 60000;
-    var f = 1 - mins / 60;
+    var f = 1 - mins / len;
     return ((f % 1) + 1) % 1;
   }
   function updateClockHud_() {
@@ -3824,7 +3825,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v9';
+  TIDE_VERSION = 'Tide v10';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
@@ -4399,9 +4400,9 @@
   }
 
   /* ---------- 4. Bursa, mancing, dadu lapau, papan duel, akun, pemain di scene ---------- */
-  PANEL_SIZE.bursa = 'mid'; PANEL_SIZE.fishing = 'mid';
+  PANEL_SIZE.bursa = 'mid'; PANEL_SIZE.fishing = 'wide';
   HOT_PANEL.fishing = 'fishing';
-  HOT_INFO.fishing = { fn: 'Mancing di dermaga (mini game)', key: 'F' };
+  HOT_INFO.fishing = { fn: 'Mancing di dermaga: lempar, duel, daratkan', key: 'F' };
   ACH.push(
     { id: 'duel_1', t: 1, ic: 'swords', n: 'Tantang-Menantang', d: 'Ikuti duel melawan kapten lain.', g: function (m) { return [m.c.duel || 0, 1]; } },
     { id: 'duelwin_1', t: 2, ic: 'cannon', n: 'Jagoan Pelabuhan', d: 'Menangkan duel melawan kapten lain.', g: function (m) { return [m.c.duelwin || 0, 1]; } },
@@ -4410,7 +4411,9 @@
     { id: 'bursa_1', t: 2, ic: 'scales', n: 'Saudagar Bursa', d: 'Barangmu terjual ke kapten lain di Bursa.', g: function (m) { return [m.c.bursa || 0, 1]; } },
     { id: 'bursabuy_1', t: 1, ic: 'handshake', n: 'Dagang Sesama Kapten', d: 'Beli barang dari order Bursa kapten lain.', g: function (m) { return [m.c.bursabuy || 0, 1]; } },
     { id: 'fish_10', t: 1, ic: 'fish', n: 'Pemancing Dermaga', d: 'Tangkap 10 ikan.', g: function (m) { return [m.c.fish || 0, 10]; } },
-    { id: 'fish_legend', t: 3, ic: 'fish', n: 'Penakluk Ikan Dewa', d: 'Tangkap ikan langka (Tuna atau Ikan Dewa).', g: function (m) { return [m.c.fishlegend || 0, 1]; } },
+    { id: 'fish_legend', t: 3, ic: 'fish', n: 'Penakluk Ikan Dewa', d: 'Tangkap ikan epik atau legenda (Tuna, Hiu, atau Ikan Dewa).', g: function (m) { return [m.c.fishlegend || 0, 1]; } },
+    { id: 'fish_book', t: 2, ic: 'book', n: 'Kolektor Samudra', d: 'Temukan 8 jenis tangkapan berbeda di Buku Ikan.', g: function (m) { return [m.c.fishnew || 0, 8]; } },
+    { id: 'fish_perfect', t: 2, ic: 'fish', n: 'Tangan Dingin', d: 'Daratkan 5 ikan dengan tarikan sempurna.', g: function (m) { return [m.c.fishperf || 0, 5]; } },
     { id: 'lapau_dice', t: 1, ic: 'dice', n: 'Besar atau Kecil?', d: 'Menang 5 kali di meja dadu lapau.', g: function (m) { return [m.c.lapaudice || 0, 5]; } },
     { id: 'chat_1', t: 1, ic: 'chat', n: 'Suara di Pelabuhan', d: 'Kirim pesan ke kapten lain.', g: function (m) { return [m.c.chat || 0, 1]; } },
     { id: 'gift_1', t: 1, ic: 'gift', n: 'Dermawan Lautan', d: 'Kirim gold ke kapten lain.', g: function (m) { return [m.c.gift || 0, 1]; } }
@@ -4425,7 +4428,7 @@
   /* ---- live info dermaga & tooltip kapten lain ---- */
   var hotLiveV5_ = hotLive_;
   hotLive_ = function (id) {
-    if (id === 'fishing') return FS.left != null ? 'Sisa <b>' + FS.left + '</b> lemparan hari ini' : 'Teri sampai Ikan Dewa &mdash; tarik di saat yang tepat';
+    if (id === 'fishing') return window.FG && FG.S.left != null ? 'Sisa <b>' + FG.S.left + '</b> tangkapan hari ini' : '14 jenis tangkapan &mdash; dari teri sampai Ikan Dewa';
     return hotLiveV5_(id);
   };
   var tipHtmlV5_ = tipHtml_;
@@ -4561,110 +4564,7 @@
     });
   }
 
-  /* ================= MINI GAME: MANCING DI DERMAGA ================= */
-  var FISH_COL = ['#8a8a7a', '#b9c9d4', '#6fa3c7', '#4d7fb3', '#d0553f', '#c88a2a', '#e6c54a', '#b56df0'];
-  var FS = { st: 'idle', cast: null, raf: 0, t0: 0, pos: 0, dir: 1, zone: [0.4, 0.6], zv: 0, strikeAt: 0, left: null, log: [], waitT: 0 };
-  function renderFishing_() {
-    var inT = state.voyage && state.voyage.inTransit;
-    setModal_(panelHeader_('fish', 'Dermaga', 'Lempar umpan, tunggu gigitan, tarik tepat di zona emas') +
-      '<div class="fish-stage" id="fishStage"><div class="fs-sky"></div><div class="fs-sea"><i></i><i></i><i></i></div>' +
-        '<div class="fs-line" id="fsLine"></div><div class="fs-bob" id="fsBob"></div><div class="fs-msg" id="fsMsg">' + (inT ? 'Kapal sedang berlayar &mdash; mancing saat merapat.' : 'Siap memancing?') + '</div></div>' +
-      '<div class="fish-bar" id="fishBar"><div class="fb-zone" id="fbZone"></div><div class="fb-needle" id="fbNeedle"></div></div>' +
-      '<div class="fish-ctl"><button class="btn btn-gold btn-lg" id="fishBtn"' + (inT ? ' disabled' : '') + '>' + ic('fish') + '&nbsp; Lempar Umpan <span class="kbd">Spasi</span></button><span class="muted small" id="fishLeft">' + (FS.left != null ? 'Sisa ' + FS.left + ' lemparan hari ini' : 'Maks. 20 tangkapan per hari-game') + '</span></div>' +
-      '<h3>' + ic('journal') + 'Tangkapan Hari Ini</h3><div id="fishLog" class="fish-log"></div>' +
-      '<p class="muted small">Ikan langka menarik lebih cepat dan zonanya sempit. Stat Luck menambah peluang ikan langka dan harga jualnya. Hasil tangkapan langsung dijual ke pengepul di dermaga.</p>');
-    document.getElementById('fishBtn').addEventListener('click', fishAction_);
-    FS.st = 'idle'; drawFishLog_();
-  }
-  function drawFishLog_() {
-    var el = document.getElementById('fishLog'); if (!el) return;
-    el.innerHTML = FS.log.length ? FS.log.slice(-12).reverse().map(function (f) {
-      return '<div class="fl-item' + (f.caught ? '' : ' miss') + '"><span class="fl-ico" style="background:' + FISH_COL[f.rarity || 0] + '">' + ic('fish') + '</span><b>' + esc_(f.name) + '</b><span>' + (f.caught ? '+' + formatGold(f.gold) : 'lepas') + '</span></div>';
-    }).join('') : '<div class="muted small">Belum ada. Lempar umpanmu!</div>';
-  }
-  function fishMsg_(t, cls) { var m = document.getElementById('fsMsg'); if (m) { m.innerHTML = t; m.className = 'fs-msg ' + (cls || ''); } }
-  function fishBtn_(label, dis) { var b = document.getElementById('fishBtn'); if (b) { b.innerHTML = label; b.disabled = !!dis; } }
-  function fishStage_(cls) { var s = document.getElementById('fishStage'); if (s) s.className = 'fish-stage ' + (cls || ''); }
-  function fishAction_() {
-    if (currentPanel !== 'fishing') return;
-    if (FS.st === 'idle' || FS.st === 'done') return fishCast_();
-    if (FS.st === 'waiting') { fishResolve_(false, 'Terlalu cepat! Ikannya kabur.'); return; }
-    if (FS.st === 'strike') { var hit = FS.pos >= FS.zone[0] && FS.pos <= FS.zone[1]; fishResolve_(hit, hit ? '' : 'Meleset! Talinya kendur.'); }
-  }
-  function fishCast_() {
-    FS.st = 'casting'; fishBtn_(ic('fish') + '&nbsp; Melempar&hellip;', true); fishMsg_(''); fishStage_('cast'); au_('whoosh');
-    google.script.run.withSuccessHandler(function (c) {
-      if (currentPanel !== 'fishing') { FS.st = 'idle'; return; }
-      FS.cast = c; FS.left = c.left; FS.st = 'waiting';
-      var el = document.getElementById('fishLeft'); if (el) el.textContent = 'Sisa ' + c.left + ' lemparan hari ini';
-      fishStage_('wait'); au_('splash');
-      fishMsg_('Menunggu gigitan&hellip;'); fishBtn_(ic('hourglass') + '&nbsp; Sabar&hellip; <span class="kbd">Spasi</span>', false);
-      var zw = Math.max(0.06, c.fish.zone), z0 = 0.08 + Math.random() * (0.84 - zw);
-      FS.zone = [z0, z0 + zw]; FS.zv = c.fish.rarity >= 4 ? (0.08 + c.fish.rarity * 0.03) * (Math.random() < 0.5 ? -1 : 1) : 0;
-      FS.speed = 0.55 * c.fish.speed; FS.pos = 0; FS.dir = 1;
-      var zEl = document.getElementById('fbZone'); if (zEl) { zEl.style.left = (FS.zone[0] * 100) + '%'; zEl.style.width = (zw * 100) + '%'; zEl.style.background = FISH_COL[c.fish.rarity]; }
-      document.getElementById('fishBar').classList.remove('live');
-      clearTimeout(FS.waitT);
-      FS.waitT = setTimeout(function () {
-        if (FS.st !== 'waiting') return;
-        FS.st = 'strike'; FS.strikeAt = Date.now(); FS.t0 = 0;
-        fishStage_('strike'); au_('bell'); fishMsg_('<b>STRIKE!</b> Tarik saat jarum di zona!', 'strike');
-        fishBtn_(ic('fish') + '&nbsp; TARIK! <span class="kbd">Spasi</span>', false);
-        document.getElementById('fishBar').classList.add('live');
-        cancelAnimationFrame(FS.raf); FS.raf = requestAnimationFrame(fishTick_);
-      }, c.waitMs);
-    }).withFailureHandler(function (e) {
-      FS.st = 'idle'; fishStage_(''); fishMsg_(esc_(String(e.message || e)), 'bad');
-      fishBtn_(ic('fish') + '&nbsp; Lempar Umpan <span class="kbd">Spasi</span>', false);
-    }).api_mgFishCast();
-  }
-  function fishTick_(ts) {
-    if (FS.st !== 'strike') return;
-    if (!FS.t0) FS.t0 = ts;
-    var dt = Math.min(0.05, (ts - (FS.last || ts)) / 1000); FS.last = ts;
-    FS.pos += FS.dir * FS.speed * dt;
-    if (FS.pos > 1) { FS.pos = 1; FS.dir = -1; } else if (FS.pos < 0) { FS.pos = 0; FS.dir = 1; }
-    if (FS.zv) {
-      var w = FS.zone[1] - FS.zone[0]; FS.zone[0] += FS.zv * dt;
-      if (FS.zone[0] < 0.02 || FS.zone[0] + w > 0.98) { FS.zv = -FS.zv; FS.zone[0] = Math.max(0.02, Math.min(0.98 - w, FS.zone[0])); }
-      FS.zone[1] = FS.zone[0] + w;
-      var zEl = document.getElementById('fbZone'); if (zEl) zEl.style.left = (FS.zone[0] * 100) + '%';
-    }
-    var n = document.getElementById('fbNeedle'); if (n) n.style.left = (FS.pos * 100) + '%';
-    if (Date.now() - FS.strikeAt > 6000) { fishResolve_(false, 'Terlambat! Ikannya lepas.'); return; }
-    FS.raf = requestAnimationFrame(fishTick_);
-  }
-  function fishResolve_(hit, missMsg) {
-    var c = FS.cast; if (!c) return;
-    FS.st = 'reeling'; cancelAnimationFrame(FS.raf); FS.last = 0; clearTimeout(FS.waitT);
-    document.getElementById('fishBar').classList.remove('live');
-    fishBtn_(ic('fish') + '&nbsp; Menarik&hellip;', true);
-    if (hit) { fishStage_('reel'); fishMsg_('Tarik&hellip; tarik&hellip;!'); au_('chain'); }
-    google.script.run.withSuccessHandler(function (r) {
-      FS.st = 'done'; FS.cast = null;
-      if (r.caught) {
-        patchGold_(r.newGold);
-        FS.log.push({ caught: true, name: r.fish.name, gold: r.gold, rarity: r.fish.rarity });
-        fishStage_('caught r' + r.fish.rarity);
-        fishMsg_('<span class="fs-catch" style="--fc:' + FISH_COL[r.fish.rarity] + '">' + ic('fish') + '</span><b>' + esc_(r.fish.name) + '</b><br>dijual <b>+' + formatGold(r.gold) + '</b> gold', 'good');
-        au_(r.fish.rarity >= 5 ? 'achieve' : 'coin', { n: 2 });
-        metaBump_('fish'); if (r.fish.rarity >= 6) metaBump_('fishlegend');
-      } else {
-        FS.log.push({ caught: false, name: r.fish.name, rarity: 0 });
-        fishStage_('miss'); fishMsg_(esc_(missMsg || 'Ikannya lepas.') + '<br><span class="muted small">Tadi itu ' + esc_(r.fish.name) + '&hellip;</span>', 'bad'); au_('splash');
-      }
-      drawFishLog_();
-      var left = FS.left;
-      setTimeout(function () { if (FS.st === 'done') fishBtn_(ic('fish') + '&nbsp; Lempar Lagi <span class="kbd">Spasi</span>', left != null && left <= 0); }, 1200);
-    }).withFailureHandler(function (e) {
-      FS.st = 'done'; FS.cast = null; fishStage_(''); fishMsg_(esc_(String(e.message || e)), 'bad');
-      fishBtn_(ic('fish') + '&nbsp; Lempar Lagi <span class="kbd">Spasi</span>', false);
-    }).api_mgFishReel(c.castId, !!hit);
-  }
-  function fishStop_() {
-    if (FS.st === 'waiting' || FS.st === 'strike') { var c = FS.cast; if (c) google.script.run.withSuccessHandler(function () {}).withFailureHandler(function () {}).api_mgFishReel(c.castId, false); }
-    cancelAnimationFrame(FS.raf); clearTimeout(FS.waitT); FS.st = 'idle'; FS.cast = null;
-  }
+  /* Mini game mancing: lihat Fishing.html (Tide v10). */
 
   /* ================= DADU BESAR/KECIL DI LAPAU ================= */
   var DZ = { bet: 50, busy: false, streak: 0 };
