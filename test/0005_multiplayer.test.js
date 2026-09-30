@@ -49,7 +49,7 @@ const assert = require('assert');
   assert.strictEqual(pres.n, 'Alice'); assert.strictEqual(pres.b, 2); assert.deepStrictEqual(pres.f, { fem: 1, skin: 2 }); assert.strictEqual(pres.t, 1);
   pa = await call(A, 'api_mpPulse', {});
   assert(pa.here.length === 1 && pa.here[0].n === 'Bob', JSON.stringify(pa.here));
-  assert.deepStrictEqual(Object.keys(pa.here[0]).sort(), ['a', 'b', 'c', 'dest', 'f', 'id', 'n', 'sea', 't']);
+  assert.deepStrictEqual(Object.keys(pa.here[0]).sort(), ['a', 'b', 'c', 'dest', 'f', 'id', 'n', 's', 'sea', 't']);
   assert.strictEqual(pa.online, 3);
   assert(pa.onlineList.length === 3 && pa.onlineList[0].me === true && pa.onlineList[0].id === pa.mePub);
   const bobPub = pa.here[0].id;

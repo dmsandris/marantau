@@ -489,9 +489,10 @@
     state.bank = bankState;
     renderLedgerSecondary_();
   }
-  function patchShip_(ship) {
+  function patchShip_(ship, visual) {
     if (!state) return;
     state.ship = ship;
+    if (visual) state.shipVisual = visual;
     updateHullHud_();
     if (scene) scene.configure({ ship: shipVisual_() });
   }
@@ -596,7 +597,13 @@
   function shipVisual_() {
     var s = (state && state.ship) || {};
     var pct = s.ConditionPct != null ? s.ConditionPct : 100;
-    return { tier: Number(s.Tier) || 2, cond: pct };
+    return { tier: Number(s.Tier) || 2, cond: pct, visual: (state && state.shipVisual) || null };
+  }
+  /** Opsi gambar kapal milik pemain (warna, bendera, tahap upgrade). `look` = pratinjau yang belum disimpan. */
+  function myShipOpts_(look) {
+    var v = (state && state.shipVisual) || { look: {}, up: {} };
+    if (look) v = { look: Object.assign({}, v.look, look), up: v.up, name: v.name };
+    return MTShip.fromVisual(v);
   }
 
   function cityById_(id) { return (state && state.cities || []).filter(function (c) { return c.CityId === id; })[0]; }
@@ -1096,6 +1103,86 @@
     cannons: { icon: 'cannon', label: 'Cannons' }
   };
   var shipHeroRaf = 0;
+  var shipLookDraft = null;   // pratinjau tampilan kapal yang belum disimpan
+  var SHIP_LOOK_STAGES = {
+    speed: ['Layar standar', 'Layar sayap di tiang utama', 'Tiang ketiga', 'Layar sayap di semua tiang', 'Garis layar warna bendera', 'Panji di semua tiang'],
+    cargo: ['Lambung standar', 'Lambung lebih besar', 'Palka + lambung besar', 'Lis emas kedua', 'Derek muatan', 'Lambung raksasa'],
+    condition: ['Papan biasa', 'Sabuk besi', 'Lapisan tembaga', 'Papan jati tebal', 'Pelat baja berpaku', 'Buritan berukir emas'],
+    cannons: ['3 lubang meriam', '4 lubang meriam', '5 lubang meriam', '6 meriam + moncong perunggu', '7 meriam + meriam dek', 'Meriam haluan']
+  };
+  var SHIP_STAGE_STEP = [0, 1, 3, 5, 9, 13];
+  var LOOK_PALETTES = {
+    hull: [['#6b4226', 'Jati'], ['#2a211c', 'Eboni'], ['#6e1f1c', 'Marun'], ['#1f3a5a', 'Biru laut'], ['#2f4a2c', 'Hijau lumut'], ['#d9ccb0', 'Gading'], ['#5b5f63', 'Abu karang'], ['#9a6a24', 'Oker']],
+    trim: [['#d4a84c', 'Emas'], ['#c9ccd1', 'Perak'], ['#f1ece0', 'Putih'], ['#a8322a', 'Merah'], ['#1c1a18', 'Hitam'], ['#3f79b5', 'Biru']],
+    sail: [['#f3e9d2', 'Kanvas'], ['#fbfaf5', 'Putih'], ['#a8382c', 'Merah'], ['#2b2826', 'Hitam'], ['#2f5f8f', 'Biru'], ['#e2b64a', 'Kuning'], ['#4d7a45', 'Hijau']],
+    flag: [['#9b2d20', 'Merah'], ['#c9922f', 'Emas'], ['#2f7fa3', 'Biru'], ['#1f3a6a', 'Navy'], ['#3f8c3f', 'Hijau'], ['#8e3d8a', 'Ungu'], ['#111111', 'Hitam'], ['#f4ecd8', 'Putih'], ['#d9682b', 'Oranye'], ['#2a9d8f', 'Tosca']],
+    emblemColor: [['#f3e9d2', 'Gading'], ['#e8bf55', 'Emas'], ['#111111', 'Hitam'], ['#b3302a', 'Merah'], ['#2a5a9a', 'Biru'], ['#ffffff', 'Putih']]
+  };
+  var LOOK_SHAPES = [['rect', 'Persegi'], ['swallow', 'Ekor walet'], ['pennant', 'Segitiga'], ['long', 'Panji panjang'], ['flame', 'Lidah api']];
+  var LOOK_EMBLEMS = [['none', 'Polos'], ['crest', 'Bulat'], ['star', 'Bintang'], ['anchor', 'Jangkar'], ['skull', 'Tengkorak'], ['cross', 'Salib'], ['crescent', 'Bulan sabit'], ['diamond', 'Wajik'], ['compass', 'Kompas']];
+
+  function stepLabel_(step) { return 'Lv ' + (Math.floor((step - 1) / 4) + 1) + ' Tier ' + ((step - 1) % 4 + 1); }
+  function lookNow_() { return Object.assign({}, (state.shipVisual && state.shipVisual.look) || {}, shipLookDraft || {}); }
+  function shapeSvg_(id, col) {
+    var F = MTShip.FLAG_SHAPES[id], d = '';
+    F.p.forEach(function (pt, i) { d += (i ? 'L' : 'M') + (4 + pt[0] * 11 * F.w).toFixed(1) + ' ' + (10 - 6 * F.h + pt[1] * 12 * F.h).toFixed(1); });
+    return '<svg viewBox="0 0 30 20" width="34" height="22"><line x1="4" y1="1" x2="4" y2="19" stroke="#5a3b22" stroke-width="1.4"/><path d="' + d + 'Z" fill="' + col + '" stroke="rgba(0,0,0,.35)" stroke-width=".6"/></svg>';
+  }
+
+  function renderShipLook_() {
+    var el = document.getElementById('shipLookSection');
+    if (!el || !state.shipVisual) return;
+    var L = lookNow_(), name = (document.getElementById('shipNameInp') || {}).value;
+    if (name == null) name = state.shipVisual.name || (state.ship && state.ship.ShipName) || '';
+    function sw(k, label) {
+      return '<div class="look-row"><div class="look-lbl">' + label + '</div><div class="look-sw">' + LOOK_PALETTES[k].map(function (c) {
+        return '<button type="button" class="sw' + (String(L[k]).toLowerCase() === c[0] ? ' on' : '') + '" data-k="' + k + '" data-v="' + c[0] + '" title="' + c[1] + '" style="--c:' + c[0] + '"></button>';
+      }).join('') + '</div></div>';
+    }
+    el.innerHTML = '<div class="card look-card"><div class="look-wrap"><div class="look-prev"><canvas id="shipLookPreview"></canvas><div class="lp-cap">Pratinjau langsung</div></div><div class="look-ctrl">' +
+      '<div class="look-row"><div class="look-lbl">Nama kapal</div><input id="shipNameInp" class="look-name" maxlength="24" value="' + esc_(name) + '"></div>' +
+      sw('hull', 'Lambung') + sw('trim', 'Lis') + sw('sail', 'Layar') + sw('flag', 'Bendera') + sw('emblemColor', 'Warna lambang') +
+      '<div class="look-row"><div class="look-lbl">Bentuk bendera</div><div class="look-opts">' + LOOK_SHAPES.map(function (x) {
+        return '<button type="button" class="look-opt' + (L.shape === x[0] ? ' on' : '') + '" data-k="shape" data-v="' + x[0] + '">' + shapeSvg_(x[0], L.flag || '#9b2d20') + '<span>' + x[1] + '</span></button>';
+      }).join('') + '</div></div>' +
+      '<div class="look-row"><div class="look-lbl">Lambang</div><div class="look-opts">' + LOOK_EMBLEMS.map(function (x) {
+        return '<button type="button" class="look-opt' + (L.emblem === x[0] ? ' on' : '') + '" data-k="emblem" data-v="' + x[0] + '"><canvas width="68" height="44" data-emb="' + x[0] + '"></canvas><span>' + x[1] + '</span></button>';
+      }).join('') + '</div></div>' +
+      '<div class="look-actions"><button type="button" class="btn btn-gold" id="lookSave"' + (shipLookDraft || name !== (state.shipVisual.name || '') ? '' : ' disabled') + '>' + ic('check') + '&nbsp; Simpan Tampilan</button>' +
+        (shipLookDraft ? '<button type="button" class="btn btn-ghost-ink" id="lookReset">Batal</button>' : '') +
+        '<span class="muted small">Gratis &middot; terlihat oleh kapten lain di pelabuhan &amp; saat duel</span></div>' +
+      '<p id="lookMsg" class="msg-err"></p></div></div></div>';
+    el.querySelectorAll('canvas[data-emb]').forEach(function (cv) {
+      var c = cv.getContext('2d'); c.fillStyle = L.flag || '#9b2d20'; c.fillRect(0, 0, 68, 44);
+      if (cv.getAttribute('data-emb') !== 'none') MTShip.drawEmblem(c, cv.getAttribute('data-emb'), 34, 22, 13, L.emblemColor || '#f3e9d2', L.flag || '#9b2d20');
+    });
+    el.querySelectorAll('[data-k]').forEach(function (b) {
+      b.onclick = function () {
+        shipLookDraft = shipLookDraft || {};
+        shipLookDraft[b.getAttribute('data-k')] = b.getAttribute('data-v');
+        renderShipLook_();
+      };
+    });
+    var inp = document.getElementById('shipNameInp');
+    inp.oninput = function () { var sv = document.getElementById('lookSave'); if (sv) sv.disabled = !shipLookDraft && inp.value.trim() === (state.shipVisual.name || ''); };
+    var rs = document.getElementById('lookReset'); if (rs) rs.onclick = function () { shipLookDraft = null; renderShipLook_(); };
+    document.getElementById('lookSave').onclick = saveShipLook_;
+  }
+
+  function saveShipLook_() {
+    var btn = document.getElementById('lookSave'); if (btn) btn.disabled = true;
+    var nm = (document.getElementById('shipNameInp') || {}).value || '';
+    google.script.run.withSuccessHandler(function (r) {
+      shipLookDraft = null;
+      patchShip_(r.ship, r.visual);
+      showToast('Tampilan kapal disimpan. Kapten lain akan melihat kapal barumu!', 'success');
+      if (currentPanel === 'ship') renderShip();
+      if (window.MPc && typeof mpPulseNow_ === 'function') try { mpPulseNow_(); } catch (e) {}
+    }).withFailureHandler(function (err) {
+      if (btn) btn.disabled = false;
+      var m = document.getElementById('lookMsg'); if (m) m.textContent = err.message;
+    }).api_saveShipLook(lookNow_(), nm.trim());
+  }
   function stopShipHero_() { if (shipHeroRaf) cancelAnimationFrame(shipHeroRaf); shipHeroRaf = 0; }
 
   /** Potret kapal hidup di header panel Ship (canvas kecil, dihentikan saat panel ditutup). */
@@ -1117,12 +1204,28 @@
       MTSky.paintSky(ctx, W, hy, pal, t, null);
       MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 1);
       MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.8, drift: 20 });
-      var sv = shipVisual_(), sc = Math.min(W * 0.0034, H * 0.0062);
-      var o = { dir: 1, t: t, masts: sv.tier >= 2 ? 3 : 2, hull: '#6b4226', trim: '#d4a84c', sail: '#f3e9d2', flag: '#9b2d20', flagType: 'crest', damage: Math.max(0, (70 - sv.cond) / 70), lanterns: pal.lights, lit: pal.lit, roll: Math.sin(t * 1.1) * 0.03 };
+      var sv = shipVisual_(), o = myShipOpts_(shipLookDraft);
+      var sc = Math.min(W * 0.0034, H * 0.0062) / Math.max(1, (o.sizeK || 1) * 0.92);
+      o.dir = 1; o.t = t; o.damage = Math.max(0, (70 - sv.cond) / 70); o.lanterns = pal.lights; o.lit = pal.lit; o.roll = Math.sin(t * 1.1) * 0.03;
       var x = W * 0.6, y = H * 0.84 + Math.sin(t * 1.3) * 2;
       ctx.save(); ctx.globalAlpha = 0.18; var ro = {}; for (var k in o) ro[k] = o[k]; ro.reflect = true; ro.roll = -o.roll; MTShip.draw(ctx, x, y + 5 * sc, sc, ro); ctx.restore();
       MTShip.draw(ctx, x, y, sc, o);
       MTShip.foam(ctx, x, y, sc, 1, t, 0.6, 1);
+      // pratinjau kecil yang tetap terlihat saat menggulir editor tampilan
+      var pv = document.getElementById('shipLookPreview');
+      if (pv) {
+        var pr = pv.getBoundingClientRect(), PW = Math.max(10, pr.width), PH = Math.max(10, pr.height);
+        if (pv.width !== Math.round(PW * dpr)) { pv.width = Math.round(PW * dpr); pv.height = Math.round(PH * dpr); }
+        var pc = pv.getContext('2d'); pc.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var phy = PH * 0.64;
+        MTSky.paintSky(pc, PW, phy, pal, t, null);
+        MTSky.paintSea(pc, PW, PH, phy, pal, t, { glitter: glit, rough: 0.7, drift: 20 });
+        var po = myShipOpts_(shipLookDraft);
+        po.dir = 1; po.t = t; po.lanterns = pal.lights; po.lit = pal.lit; po.roll = Math.sin(t * 1.1) * 0.03;
+        var psc = Math.min(PW * 0.0056, PH * 0.0052) / (po.sizeK || 1);
+        MTShip.draw(pc, PW * 0.54, PH * 0.84 + Math.sin(t * 1.3) * 1.5, psc, po);
+        MTShip.foam(pc, PW * 0.54, PH * 0.84, psc, 1, t, 0.5, 1);
+      }
     }
     shipHeroRaf = requestAnimationFrame(frame);
   }
@@ -1135,6 +1238,7 @@
     var conditionPct = s.ConditionPct != null ? s.ConditionPct : Math.max(0, Math.min(100, Number(s.Condition) || 0));
     var inTransit = !!(state.voyage && state.voyage.inTransit);
     var cargoVal = s.EffectiveCargo || s.Cargo;
+    shipLookDraft = null;
 
     var html = panelHeader_('ship', 'Galangan Kapal', esc_(s.ShipName) + ' &middot; Tier ' + esc_(s.Tier) + ' &middot; kondisi <b>' + Math.round(conditionPct) + '%</b>') + (inTransit ? '' : npcHtml_('tukang', lineShip_())) +
       '<div class="ship-hero"><canvas id="shipHeroCanvas"></canvas>' +
@@ -1152,11 +1256,13 @@
         statTile_('shield', 'Armor', s.Armor, '') +
         statTile_('compass', 'Navig.', s.Navigation, '') +
       '</div>' +
+      (state.shipVisual ? '<h3>' + ic('flag') + 'Tampilan &amp; Bendera</h3><div id="shipLookSection"></div>' : '') +
       '<h3>' + ic('wrench') + 'Galangan &mdash; Reparasi</h3><div id="repairSection"><div class="skeleton-block" style="height:54px;"></div></div>' +
       '<h3>' + ic('star') + 'Upgrade Kapal</h3><div id="shipUpgradeSection"><div class="skeleton-block" style="height:64px;margin-bottom:8px;"></div><div class="skeleton-block" style="height:64px;"></div></div>' +
       '<p id="shipActionMsg" class="msg-err"></p>';
     setModal_(html);
     startShipHero_();
+    renderShipLook_();
 
     if (panelCache.upgrades) renderShipUpgradeSection_(panelCache.upgrades);
     if (!inTransit && state.city && panelCache['repair:' + state.city.CityId]) renderRepairSection_(panelCache['repair:' + state.city.CityId]);
@@ -1204,7 +1310,7 @@
         renderSidebar();
         invalidatePanelCache_();
         google.script.run.withSuccessHandler(function (shipData) {
-          patchShip_(shipData.ship);
+          patchShip_(shipData.ship, shipData.visual);
           if (currentPanel === 'ship') renderShip();
         }).withFailureHandler(function (err) {
           var el = document.getElementById('shipActionMsg'); if (el) el.textContent = err.message;
@@ -1234,12 +1340,15 @@
       var info = affordable[group] || {};
       var lt = parseLevelTier_(info.currentLabel);
       var prog = lt ? '<span class="muted small">Lv ' + lt.level + '</span>' + pipsHtml_(lt.tier, 4) : '';
+      var stp = state.shipVisual && state.shipVisual.up ? state.shipVisual.up[group] || 0 : 0, stg = MTShip.stage(stp);
+      var lookLine = '<div class="upg-look">' + ic('ship') + '<span>' + SHIP_LOOK_STAGES[group][stg] +
+        (stg < 5 ? ' &rarr; <b>' + SHIP_LOOK_STAGES[group][stg + 1] + '</b> di ' + stepLabel_(SHIP_STAGE_STEP[stg + 1]) : ' &middot; tampilan maksimal') + '</span></div>';
       if (info.maxed) {
         return '<div class="card upg-card"><span class="upg-ico">' + ic(meta.icon) + '</span><div><div class="upg-name">' + meta.label + ' ' + prog + '</div>' +
-          '<div class="upg-next">' + (info.currentLabel || '') + '</div></div><span class="legend-tag">' + ic('star') + ' LEGENDARY</span></div>';
+          '<div class="upg-next">' + (info.currentLabel || '') + '</div>' + lookLine + '</div><span class="legend-tag">' + ic('star') + ' LEGENDARY</span></div>';
       }
       return '<div class="card upg-card hover"><span class="upg-ico">' + ic(meta.icon) + '</span><div><div class="upg-name">' + meta.label + ' ' + prog + '</div>' +
-        '<div class="upg-next">' + (info.nextLabel || '') + ': ' + (info.label || '') + ' &middot; <b style="color:var(--teak-800);">' + formatGold(info.cost) + ' gold</b></div></div>' +
+        '<div class="upg-next">' + (info.nextLabel || '') + ': ' + (info.label || '') + ' &middot; <b style="color:var(--teak-800);">' + formatGold(info.cost) + ' gold</b></div>' + lookLine + '</div>' +
         '<button class="btn ' + (info.affordable ? 'btn-gold' : '') + ' ship-action" ' + (info.affordable ? '' : 'disabled') + ' onclick="doShipUpgrade(\'' + group + '\')">Upgrade</button></div>';
     }).join('') + '</div>';
   }
@@ -1253,11 +1362,16 @@
       .withSuccessHandler(function (result) {
         txPending = false;
         showToast('Upgrade ' + group + ' ke ' + String(result.newLevelTierLabel || '').replace('&middot;', '-') + ' selesai (' + formatGold(result.goldSpent) + ' gold).', 'success');
+        var upBefore = state.shipVisual && state.shipVisual.up ? state.shipVisual.up[group] || 0 : 0;
+        setTimeout(function () {
+          var up = state.shipVisual && state.shipVisual.up ? state.shipVisual.up[group] || 0 : 0;
+          if (MTShip.stage(up) > MTShip.stage(upBefore)) showToast('Tampilan kapal berubah: ' + (SHIP_LOOK_STAGES[group][MTShip.stage(up)] || 'baru') + '!', 'success');
+        }, 1500);
         patchGold_(result.newGold);
         renderSidebar();
         invalidatePanelCache_();
         google.script.run.withSuccessHandler(function (shipData) {
-          patchShip_(shipData.ship);
+          patchShip_(shipData.ship, shipData.visual);
           if (currentPanel === 'ship') renderShip();
         }).withFailureHandler(function (err) {
           var el = document.getElementById('shipActionMsg'); if (el) el.textContent = err.message;
@@ -1671,7 +1785,7 @@
       setModal_(html);
   }
 
-  function refreshShipSilently_() { google.script.run.withSuccessHandler(function (shipData) { patchShip_(shipData.ship); }).api_getShipState(); }
+  function refreshShipSilently_() { google.script.run.withSuccessHandler(function (shipData) { patchShip_(shipData.ship, shipData.visual); }).api_getShipState(); }
   function itemActionFail_(err) {
     txPending = false;
     document.querySelectorAll('.item-action').forEach(function (b) { b.disabled = false; });
@@ -2078,7 +2192,6 @@
         [['M', 'Market'], ['C', 'Cargo'], ['H', 'Ship'], ['S', 'Set Sail'], ['T', 'Tasks'], ['L', 'Library'], ['K', 'Lapau'], ['B', 'Bank'], ['J', 'Log'], ['I', 'Items'], ['P', 'Character'], ['V', 'Pemandangan'], ['N', 'Bisu / suara'], ['Esc', 'Tutup panel'], ['1-6', 'Taktik combat']]
           .map(function (k) { return '<span><b class="badge normal" style="min-width:32px;justify-content:center;">' + k[0] + '</b> ' + k[1] + '</span>'; }).join('') +
       '</div>' +
-      '<p class="small" style="margin-top:14px;"><a href="?dev=1" target="_blank" style="color:var(--sea-700);">Buka Developer Mode (diagnostik) &rarr;</a></p>' +
       '<div class="danger-zone" style="margin-top:14px;"><h3>' + ic('alert') + 'Zona Berbahaya</h3>' +
         '<p class="small">Menghapus karakter akan menghapus SEMUA progress (stat, kapal, cargo, gold, log) secara permanen. Kamu akan diarahkan kembali ke layar pembuatan karakter.</p>' +
         '<button class="btn btn-danger" id="deleteCharBtn">Hapus Karakter</button></div>');
@@ -2285,7 +2398,7 @@
     if (sinkT) { sink = Math.min(1, sinkT / 2.4); roll += dir * sink * 0.35; y += sink * sink * 170 * sh.s; }
     var opts = isEnemy
       ? { dir: dir, t: t, masts: 3, hull: '#2b1d16', trim: '#7a6440', sail: '#4d4843', flag: '#111111', flagType: 'skull', pennant: '#6e1d14', lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll }
-      : { dir: dir, t: t, masts: (shipVisual_().tier >= 2 ? 3 : 2), hull: '#6b4226', trim: '#d4a84c', sail: '#f3e9d2', flag: '#9b2d20', flagType: 'crest', lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll };
+      : Object.assign(myShipOpts_(), { dir: dir, t: t, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll });
 
     var ctx = cvCtx;
     // pantulan
@@ -2574,7 +2687,7 @@
           patchGold_(result.newGold);
           renderSidebar();
           google.script.run.withSuccessHandler(function (shipData) {
-            patchShip_(shipData.ship);
+            patchShip_(shipData.ship, shipData.visual);
             applyCombatRoundFx_(prevEnemyHp, prevCondition, result, tactic);
           }).withFailureHandler(function () {
             applyCombatRoundFx_(prevEnemyHp, prevCondition, result, tactic);
@@ -3711,7 +3824,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v8';
+  TIDE_VERSION = 'Tide v9';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
@@ -4231,8 +4344,13 @@
       var y = yS + Math.sin(t * 1.3 + (w === 'you' ? 0 : 2)) * 3 + Math.sin(sw * Math.PI) * 10;
       DU.lunge[w] = Math.max(0, lunge - dt * 1.2); DU.swerve[w] = Math.max(0, sw - dt * 1.1);
       S.px = x; S.py = y;
-      c.save(); c.globalAlpha = 0.18; MTShip.draw(c, x, y + 6 * s, s, { dir: S.dir, t: t, masts: 3, hull: S.hull, sail: S.sail, flag: S.flag, reflect: true }); c.restore();
-      MTShip.draw(c, x, y, s, { dir: S.dir, t: t, masts: 3, hull: S.hull, trim: '#d4a84c', sail: S.sail, flag: S.flag, flagType: 'crest', damage: dmg, roll: Math.sin(t * 1.1 + (w === 'you' ? 0 : 1)) * 0.03 + sw * 0.12 * S.dir });
+      var vis = st && st.s ? st.s : (w === 'you' ? state && state.shipVisual : null);
+      var so = vis ? MTShip.fromVisual(vis) : { masts: 3, hull: S.hull, trim: '#d4a84c', sail: S.sail, flag: S.flag, flagType: 'crest' };
+      so.dir = S.dir; so.t = t;
+      var sr = {}; for (var sk in so) sr[sk] = so[sk]; sr.reflect = true;
+      c.save(); c.globalAlpha = 0.18; MTShip.draw(c, x, y + 6 * s, s, sr); c.restore();
+      so.damage = dmg; so.roll = Math.sin(t * 1.1 + (w === 'you' ? 0 : 1)) * 0.03 + sw * 0.12 * S.dir;
+      MTShip.draw(c, x, y, s, so);
       MTShip.foam(c, x, y, s, S.dir, t, 0.4 + lunge, 0.8);
       if (DU.shield[w] > 0) {
         var a = DU.shield[w]; DU.shield[w] = Math.max(0, a - dt * 0.7);

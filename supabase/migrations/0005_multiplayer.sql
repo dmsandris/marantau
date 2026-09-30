@@ -40,6 +40,7 @@ create table if not exists game.mp_presence (
   last_chat_at timestamptz
 );
 create index if not exists mp_presence_ts_idx on game.mp_presence (ts desc);
+alter table game.mp_presence add column if not exists s jsonb;   -- tampilan kapal (game.ship_visual)
 
 create table if not exists game.mp_chat_channels (
   channel text primary key,
@@ -262,7 +263,7 @@ language sql stable as $$ select p.player_id is not null and p.ts > now() - inte
 -- ---------------------------------------------------------------------
 create or replace function game.mp_touch(p_pid uuid) returns void
 language plpgsql as $$
-declare p game.players; sh jsonb; v_sea boolean; v_dest text := ''; v_city text;
+declare p game.players; sh jsonb; v_sea boolean; v_dest text := ''; v_city text; v_vis jsonb;
 begin
   select * into p from game.players where player_id = p_pid;
   if not found or coalesce(p.archetype, '') = '' then return; end if;
@@ -272,12 +273,13 @@ begin
     select coalesce(destination_city_id, '') into v_dest from game.player_location where player_id = p_pid;
   end if;
   v_city := coalesce(game.current_city(p_pid), '');
-  insert into game.mp_presence as x (player_id, pub, n, a, f, t, b, c, sea, dest, ts)
+  begin v_vis := game.ship_visual(p_pid); exception when others then v_vis := null; end;
+  insert into game.mp_presence as x (player_id, pub, n, a, f, t, b, c, sea, dest, ts, s)
   values (p_pid, game.mp_new_pub(), p.character_name, p.archetype, p.appearance,
-          floor(game.mp_jsnum(sh ->> 'Tier', 1))::int, game.mp_badges(p.meta), v_city, v_sea, coalesce(v_dest, ''), now())
+          floor(game.mp_jsnum(sh ->> 'Tier', 1))::int, game.mp_badges(p.meta), v_city, v_sea, coalesce(v_dest, ''), now(), v_vis)
   on conflict (player_id) do update set
     n = excluded.n, a = excluded.a, f = excluded.f, t = excluded.t, b = excluded.b,
-    c = excluded.c, sea = excluded.sea, dest = excluded.dest, ts = excluded.ts;
+    c = excluded.c, sea = excluded.sea, dest = excluded.dest, ts = excluded.ts, s = excluded.s;
 exception when others then
   raise warning 'presence gagal: %', sqlerrm;
 end $$;
@@ -317,7 +319,7 @@ end $$;
 
 create or replace function game.mp_public_info(o game.mp_presence) returns jsonb
 language sql stable as $$
-  select jsonb_build_object('id', o.pub, 'n', o.n, 'a', o.a, 'f', o.f, 't', o.t, 'b', coalesce(o.b, 0),
+  select jsonb_build_object('id', o.pub, 'n', o.n, 'a', o.a, 'f', o.f, 't', o.t, 'b', coalesce(o.b, 0), 's', o.s,
     'sea', coalesce(o.sea, false), 'c', o.c, 'dest', coalesce(o.dest, ''))
 $$;
 
@@ -383,6 +385,7 @@ begin
   v_cond := case when sh is null then 100 else game.mp_jsnum(sh ->> 'ConditionPct', 100) end;
   return jsonb_build_object(
     'pub', o.pub, 'n', p.character_name, 'a', p.archetype, 'f', coalesce(o.f, 'null'::jsonb), 'tier', v_tier,
+    's', coalesce(o.s, 'null'::jsonb),
     'maxHp', 80 + v_tier * 20 + game.mp_jsround(v_cond / 5),
     'atk', 12 + game.mp_jsnum(st ->> 'Combat', 0) * 0.18 + game.mp_jsnum(sh ->> 'Combat', 0) * 1.2
                + game.mp_jsnum(sh ->> 'CannonBonusPercent', 0) * 0.08,
@@ -571,10 +574,10 @@ begin
     'created', d.created, 't', game.now_ms(),
     'you', jsonb_strip_nulls(jsonb_build_object('id', you -> 'pub', 'n', you -> 'n', 'a', you -> 'a', 'tier', you -> 'tier',
              'maxHp', you -> 'maxHp', 'hp', y_hp, 'ammo', y_ammo, 'ammoMax', you -> 'ammoMax', 'picked', y_pick is not null))
-           || jsonb_build_object('f', coalesce(you -> 'f', 'null'::jsonb), 'pick', y_pick),
+           || jsonb_build_object('f', coalesce(you -> 'f', 'null'::jsonb), 's', coalesce(you -> 's', 'null'::jsonb), 'pick', y_pick),
     'foe', jsonb_strip_nulls(jsonb_build_object('id', foe -> 'pub', 'n', foe -> 'n', 'a', foe -> 'a', 'tier', foe -> 'tier',
              'maxHp', foe -> 'maxHp', 'hp', f_hp, 'ammo', f_ammo, 'ammoMax', foe -> 'ammoMax', 'picked', f_pick is not null))
-           || jsonb_build_object('f', coalesce(foe -> 'f', 'null'::jsonb)),
+           || jsonb_build_object('f', coalesce(foe -> 'f', 'null'::jsonb), 's', coalesce(foe -> 's', 'null'::jsonb)),
     'challenger', me_a,
     'pickDeadline', case when d.pick_ts > 0 then d.pick_ts + 25000 else 0 end,
     'roundTs', d.round_ts,

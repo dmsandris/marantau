@@ -28,6 +28,7 @@ begin
     'player', game.player_json(v_me),
     'stats', game.stats_json(v_pid),
     'ship', game.ship_json(v_pid),
+    'shipVisual', game.ship_visual(v_pid),
     'city', v_city_json,
     'citiesVersion', v_ver,
     'voyage', game.voyage_state(v_pid),

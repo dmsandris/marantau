@@ -440,8 +440,33 @@ var MTShip = (function () {
    * o: { dir, t, hull, trim, sail, flag, flagType('plain'|'skull'), masts(2|3),
    *      furl(0..1), roll, damage(0..1), lanterns(0..1), reflect(bool), lit(fn) }
    */
+  var lastK = 1;
+  // Titik pada garis lis emas (wale), t 0..1 dari buritan ke haluan
+  function waleY(u) { return (1 - u) * (1 - u) * -17 + 2 * (1 - u) * u * -3 + u * u * -12; }
+  function waleX(u) { return (1 - u) * (1 - u) * -62 + 2 * (1 - u) * u * -8 + u * u * 60; }
+
+  /** Tahap visual (0..5) dari langkah upgrade absolut (0..20). */
+  function stage(n) { n = +n || 0; return n <= 0 ? 0 : n <= 2 ? 1 : n <= 4 ? 2 : n <= 8 ? 3 : n <= 12 ? 4 : 5; }
+
+  /** Opsi gambar dari data kapal server ({look, up}) - dipakai di semua scene. */
+  function fromVisual(v) {
+    v = v || {};
+    var L = v.look || {}, u = v.up || {};
+    var sp = stage(u.speed), cg = stage(u.cargo), cd = stage(u.condition), cn = stage(u.cannons);
+    return {
+      hull: L.hull || '#6b4226', trim: L.trim || '#d4a84c', sail: L.sail || '#f3e9d2', flag: L.flag || '#9b2d20',
+      emblemColor: L.emblemColor || '#f3e9d2', flagShape: L.shape || 'rect', emblem: L.emblem || 'crest', pennant: L.flag || '#e8d7a8',
+      masts: sp >= 2 ? 3 : 2, studding: sp >= 3 ? 2 : (sp >= 1 ? 1 : 0), sailStripe: sp >= 4 ? (L.flag || '#9b2d20') : null, streamers: sp >= 5,
+      sizeK: [1, 1.05, 1.1, 1.15, 1.2, 1.26][cg], hatch: cg >= 2, wale2: cg >= 3, boom: cg >= 4,
+      bands: cd >= 1, copper: cd >= 2, planks: cd >= 3, rivets: cd >= 4, gilded: cd >= 5,
+      ports: [3, 4, 5, 6, 7, 7][cn], muzzles: cn >= 3, railGuns: cn >= 4, chaser: cn >= 5
+    };
+  }
+
   function draw(ctx, x, y, s, o) {
     o = o || {};
+    lastK = o.sizeK || 1;
+    s *= lastK;
     var dir = o.dir || 1, t = o.t || 0, masts = o.masts || 3, furl = o.furl || 0, dmg = o.damage || 0;
     var L = o.lit || function (h, a) { return a == null ? h : U.css(U.hex(h), a); };
     var hull = o.hull || '#6b4226', trim = o.trim || '#caa04a', sail = o.sail || '#f2e8d0', flag = o.flag || '#9b2d20';
@@ -533,6 +558,12 @@ var MTShip = (function () {
         ctx.quadraticCurveTo(mx + b * 0.4, ybb + b * 0.55, mx - hl * 1.06, ybb);
         ctx.quadraticCurveTo(mx - hl + b * 0.5, (yt + ybb) / 2, mx - hl, yt);
         ctx.fill();
+        if (o.sailStripe && !o.reflect) {
+          ctx.save(); ctx.clip();
+          ctx.fillStyle = L(o.sailStripe, 0.85);
+          ctx.fillRect(mx - hl - 6, yt + (ybb - yt) * 0.58, hl + hr + 12, (ybb - yt) * 0.16);
+          ctx.restore();
+        }
         // bayangan lengkung + garis jahitan
         ctx.strokeStyle = L('#000000', 0.12); ctx.lineWidth = 0.8;
         ctx.beginPath(); ctx.moveTo(mx + hr * 0.25, yt + 1); ctx.quadraticCurveTo(mx + hr * 0.25 + b * 0.5, (yt + ybb) / 2, mx + hr * 0.3, ybb); ctx.stroke();
@@ -570,6 +601,17 @@ var MTShip = (function () {
         ctx.beginPath(); ctx.moveTo(ms.x, deckY - Hm * 0.72); ctx.lineTo(ms.x - 30, deckY - Hm * 0.62); ctx.moveTo(ms.x, deckY - 8); ctx.lineTo(ms.x - 36, deckY - 10); ctx.stroke();
       }
       squareSail(ms.x, deckY - Hm * 0.80, deckY - Hm * 0.55, hwBase * 0.8, bill * 0.8, dmg > 0.45 && j === 0);
+      // layar sayap (studding sail) di ujung yard - tanda upgrade Speed
+      if (furl < 0.6 && (o.studding >= 2 || (o.studding === 1 && j === 1))) {
+        var syT = deckY - Hm * 0.80, syH = Hm * 0.25 * (1 - furl), shw = hwBase * 0.8;
+        ctx.fillStyle = L(sail);
+        ctx.fillRect(ms.x + shw + 2, syT + 1, 8, syH * 0.9);
+        ctx.fillRect(ms.x - shw - 10, syT + 1, 8, syH * 0.9);
+        ctx.fillStyle = L('#000000', 0.1);
+        ctx.fillRect(ms.x + shw + 2, syT + 1, 8, syH * 0.9);
+        ctx.strokeStyle = L('#3b2616'); ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.moveTo(ms.x + shw + 1, syT); ctx.lineTo(ms.x + shw + 11, syT); ctx.moveTo(ms.x - shw - 1, syT); ctx.lineTo(ms.x - shw - 11, syT); ctx.stroke();
+      }
       if (!brokenTop) squareSail(ms.x, deckY - Hm * 0.97, deckY - Hm * 0.82, hwBase * 0.56, bill * 0.55, false);
     }
 
@@ -589,22 +631,71 @@ var MTShip = (function () {
     ctx.beginPath(); ctx.moveTo(-62, -17); ctx.quadraticCurveTo(-8, -3, 60, -12); ctx.stroke();
     ctx.strokeStyle = L('#000000', 0.35); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(-62, -14.6); ctx.quadraticCurveTo(-8, -0.6, 60, -9.6); ctx.stroke();
-    // garis air (cat bawah lebih gelap)
-    ctx.fillStyle = L('#2a1810', 0.55);
-    ctx.beginPath(); ctx.moveTo(-62, 1); ctx.quadraticCurveTo(0, 6, 62, -2); ctx.lineTo(62, 20); ctx.lineTo(-62, 20); ctx.fill();
+    if (o.planks) {
+      ctx.strokeStyle = L('#000000', 0.3); ctx.lineWidth = 0.9;
+      for (var pk = -19; pk < 8; pk += 6.8) { ctx.beginPath(); ctx.moveTo(-62, pk); ctx.quadraticCurveTo(-4, pk + 12, 60, pk - 2); ctx.stroke(); }
+    }
+    if (o.wale2) {
+      ctx.strokeStyle = L(trim); ctx.lineWidth = 1.7;
+      ctx.beginPath(); ctx.moveTo(-62, -8); ctx.quadraticCurveTo(-6, 6, 60, -3); ctx.stroke();
+    }
+    // garis air (cat bawah lebih gelap) - atau lapisan tembaga (upgrade Condition)
+    if (o.copper) {
+      var cgr = ctx.createLinearGradient(0, -2, 0, 14);
+      cgr.addColorStop(0, L('#c77d45')); cgr.addColorStop(0.5, L('#a45f2e')); cgr.addColorStop(1, L('#5e3a1c'));
+      ctx.fillStyle = cgr;
+      ctx.beginPath(); ctx.moveTo(-62, -2); ctx.quadraticCurveTo(0, 4, 62, -5); ctx.lineTo(62, 20); ctx.lineTo(-62, 20); ctx.fill();
+      ctx.strokeStyle = L('#4a2a12', 0.45); ctx.lineWidth = 0.5;
+      for (var cp = -58; cp < 60; cp += 4.5) { var cy0 = -2 + (cp + 62) / 124 * -3 + Math.sin((cp + 62) / 124 * Math.PI) * 3; ctx.beginPath(); ctx.moveTo(cp, cy0); ctx.lineTo(cp, cy0 + 12); ctx.stroke(); }
+      ctx.fillStyle = L('#7fb59a', 0.25);
+      for (var cq = -50; cq < 55; cq += 13) ctx.fillRect(cq, 3 + (cq % 3), 3, 1.4);
+    } else {
+      ctx.fillStyle = L('#2a1810', 0.55);
+      ctx.beginPath(); ctx.moveTo(-62, 1); ctx.quadraticCurveTo(0, 6, 62, -2); ctx.lineTo(62, 20); ctx.lineTo(-62, 20); ctx.fill();
+    }
+    if (o.bands) {
+      var BX = [-46, -24, 0, 22, 43];
+      for (var bi = 0; bi < BX.length; bi++) {
+        ctx.fillStyle = L('#2b2622', 0.85); ctx.fillRect(BX[bi] - 1.1, -32, 2.2, 42);
+        ctx.fillStyle = L('#bdb5a4', 0.8);
+        for (var rv = -20; rv < 4; rv += 5) { ctx.beginPath(); ctx.arc(BX[bi], rv + bi * 0.4, 0.55, 0, 6.3); ctx.fill(); }
+      }
+    }
+    if (o.rivets) {
+      ctx.fillStyle = L('#8f9499', 0.9);
+      ctx.beginPath(); ctx.moveTo(44, -20); ctx.lineTo(58, -24); ctx.quadraticCurveTo(58, -8, 46, 3); ctx.lineTo(40, 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = L('#d8dadc', 0.9);
+      for (var ri = 0; ri <= 22; ri++) { var ru = 0.04 + ri * 0.042; ctx.beginPath(); ctx.arc(waleX(ru), waleY(ru) + 3.6, 0.55, 0, 6.3); ctx.fill(); }
+      for (var rj = 0; rj < 5; rj++) { ctx.beginPath(); ctx.arc(46 + rj * 2.2, -18 + rj * 3.6, 0.55, 0, 6.3); ctx.fill(); }
+    }
     ctx.restore();
     hullPath(ctx);
     ctx.strokeStyle = L('#140c07', 0.6); ctx.lineWidth = 0.9;
     ctx.stroke();
 
     // lubang meriam
-    for (var gi = 0; gi < 7; gi++) {
-      var dp = deckPt(0.14 + gi * 0.115);
+    var nPorts = o.ports || 7;
+    for (var gi = 0; gi < nPorts; gi++) {
+      var dp = deckPt(nPorts > 1 ? 0.14 + gi * (0.69 / (nPorts - 1)) : 0.5);
       ctx.fillStyle = L('#1a0f08');
       ctx.fillRect(dp[0] - 2, dp[1] + 8.2, 4.2, 3.6);
       ctx.fillStyle = L(trim, 0.7);
       ctx.fillRect(dp[0] - 2.4, dp[1] + 7.6, 5, 0.8);
-      if (o.lanterns > 0.3) { ctx.fillStyle = 'rgba(255,190,90,' + (0.5 * o.lanterns) + ')'; ctx.fillRect(dp[0] - 1.4, dp[1] + 8.8, 3, 2.4); }
+      if (o.muzzles) {
+        ctx.fillStyle = L('#0b0705'); ctx.beginPath(); ctx.arc(dp[0] + 0.1, dp[1] + 10, 1.35, 0, 6.3); ctx.fill();
+        ctx.strokeStyle = L('#c99a4a', 0.95); ctx.lineWidth = 0.6; ctx.stroke();
+      } else if (o.lanterns > 0.3) { ctx.fillStyle = 'rgba(255,190,90,' + (0.5 * o.lanterns) + ')'; ctx.fillRect(dp[0] - 1.4, dp[1] + 8.8, 3, 2.4); }
+    }
+    if (o.railGuns) {
+      for (var rg = 0; rg < 5; rg++) {
+        var rp2 = deckPt(0.24 + rg * 0.13);
+        ctx.fillStyle = L('#1a0f08'); ctx.fillRect(rp2[0] - 1.5, rp2[1] - 5.2, 3, 2.4);
+        ctx.fillStyle = L('#0b0705'); ctx.beginPath(); ctx.arc(rp2[0], rp2[1] - 4, 0.9, 0, 6.3); ctx.fill();
+      }
+    }
+    if (o.chaser) {
+      ctx.fillStyle = L('#161210'); ctx.fillRect(53, -27.4, 10, 2);
+      ctx.fillStyle = L('#c99a4a'); ctx.fillRect(61, -27.8, 1.4, 2.8);
     }
 
     // kastil buritan & haluan
@@ -615,9 +706,24 @@ var MTShip = (function () {
     ctx.fillStyle = L(trim); ctx.fillRect(-62.5, -42.5, 23, 1.6);
     ctx.fillStyle = o.lanterns > 0.25 ? 'rgba(255,196,110,' + (0.35 + 0.6 * o.lanterns) + ')' : L('#1e140c');
     for (var w = 0; w < 3; w++) ctx.fillRect(-57 + w * 6, -36, 3.4, 4.4);
+    if (o.gilded) {
+      ctx.strokeStyle = L('#e8bf55'); ctx.lineWidth = 0.8;
+      for (var gw = 0; gw < 3; gw++) ctx.strokeRect(-57.6 + gw * 6, -36.6, 4.6, 5.6);
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(-63, -30); ctx.quadraticCurveTo(-58, -27, -60, -22); ctx.moveTo(-62, -41); ctx.quadraticCurveTo(-67, -46, -61, -48); ctx.stroke();
+      ctx.fillStyle = L('#e8bf55'); ctx.fillRect(-62.5, -44.5, 23, 2);
+      ctx.beginPath(); ctx.arc(-51, -46.5, 2.4, Math.PI, 0); ctx.fill();
+    }
     ctx.fillStyle = L(hull);
     ctx.beginPath(); ctx.moveTo(40, -19); ctx.lineTo(41, -27); ctx.lineTo(55, -28); ctx.lineTo(57, -23); ctx.closePath(); ctx.fill();
     ctx.fillStyle = L(trim); ctx.fillRect(40.5, -28.2, 15, 1.2);
+    if (o.hatch) {
+      var hy0 = deckPt(0.5)[1] - 3.2;
+      ctx.fillStyle = L('#5a3b22'); ctx.fillRect(-2, hy0, 13, 3.2);
+      ctx.strokeStyle = L('#2b1a0e'); ctx.lineWidth = 0.5;
+      for (var hx = 0; hx < 13; hx += 2.6) { ctx.beginPath(); ctx.moveTo(-2 + hx, hy0); ctx.lineTo(-2 + hx, hy0 + 3.2); ctx.stroke(); }
+      ctx.strokeRect(-2, hy0, 13, 3.2);
+    }
     // muatan di dek (peti & karung) - jumlahnya mengikuti isi palka
     var nCargo = Math.max(0, Math.min(14, o.cargo | 0));
     if (nCargo && !o.reflect) {
@@ -647,27 +753,42 @@ var MTShip = (function () {
     ctx.fillStyle = L(trim);
     ctx.beginPath(); ctx.moveTo(56, -22); ctx.quadraticCurveTo(62, -20, 60, -14); ctx.quadraticCurveTo(57, -17, 56, -22); ctx.fill();
 
+    if (o.boom && !o.reflect) {
+      var bm = M[M.length - 1], bY = deckY - (deckY - bm.top) * 0.3, bx2 = bm.x - 26, by2 = deckY - 6;
+      ctx.strokeStyle = L('#3b2616'); ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(bm.x, bY); ctx.lineTo(bx2, by2 - 16); ctx.stroke();
+      var sw2 = Math.sin(t * 1.4) * 1.5;
+      ctx.strokeStyle = rope; ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.moveTo(bx2, by2 - 16); ctx.lineTo(bx2 + sw2, by2 - 7); ctx.stroke();
+      ctx.fillStyle = L('#a07444'); ctx.fillRect(bx2 + sw2 - 3.5, by2 - 7, 7, 5.5);
+      ctx.strokeStyle = L('#4a3220'); ctx.lineWidth = 0.5; ctx.strokeRect(bx2 + sw2 - 3.5, by2 - 7, 7, 5.5);
+      ctx.beginPath(); ctx.moveTo(bx2 + sw2 - 3.5, by2 - 4.2); ctx.lineTo(bx2 + sw2 + 3.5, by2 - 4.2); ctx.stroke();
+    }
+
     // bendera & panji
     var fl = M[masts >= 3 ? 1 : 1], ft = (dmg > 0.62 && masts < 3 ? fl.top : fl.top) - 2;
     ctx.strokeStyle = L('#3b2616'); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(fl.x, fl.top); ctx.lineTo(fl.x, ft - 8); ctx.stroke();
-    var fw = 18, fh = 11;
-    // bendera berkibar ke belakang (arah -x lokal karena angin dari depan-relatif)
+    var shape = o.flagShape || 'rect', emb = o.emblem || o.flagType || 'none';
+    var FS = FLAG_SHAPES[shape] || FLAG_SHAPES.rect;
+    var fw = 22 * FS.w, fh = 13 * FS.h, fy0 = ft - 8;
+    function fpt(u, v) { return [fl.x - u * fw, fy0 + v * fh + Math.sin(t * 4 + u * 4 + v * 0.4) * 2.2 * Math.min(1, u)]; }
     ctx.fillStyle = L(flag);
     ctx.beginPath();
-    ctx.moveTo(fl.x, ft - 8);
-    for (var a1 = 0; a1 <= 6; a1++) { var u1 = a1 / 6; ctx.lineTo(fl.x - u1 * fw, ft - 8 + Math.sin(t * 4 + u1 * 4) * 2.2 * u1); }
-    for (var a2 = 6; a2 >= 0; a2--) { var u2 = a2 / 6; ctx.lineTo(fl.x - u2 * fw, ft - 8 + fh + Math.sin(t * 4 + u2 * 4 + 0.4) * 2.2 * u2); }
+    var pts = FS.p;
+    for (var fi = 0; fi < pts.length; fi++) {
+      var a0 = pts[fi], a1 = pts[(fi + 1) % pts.length];
+      for (var fk = 0; fk < 5; fk++) {
+        var q0 = fk / 5, pp = fpt(a0[0] + (a1[0] - a0[0]) * q0, a0[1] + (a1[1] - a0[1]) * q0);
+        if (fi === 0 && fk === 0) ctx.moveTo(pp[0], pp[1]); else ctx.lineTo(pp[0], pp[1]);
+      }
+    }
     ctx.closePath(); ctx.fill();
-    if (o.flagType === 'skull') {
-      var cxs = fl.x - fw * 0.5, cys = ft - 8 + fh * 0.45 + Math.sin(t * 4 + 2) * 1.1;
-      ctx.fillStyle = 'rgba(240,235,220,0.95)';
-      ctx.beginPath(); ctx.arc(cxs, cys - 1, 2.6, 0, 6.3); ctx.fill();
-      ctx.strokeStyle = 'rgba(240,235,220,0.95)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(cxs - 4, cys + 1.5); ctx.lineTo(cxs + 4, cys + 4.5); ctx.moveTo(cxs + 4, cys + 1.5); ctx.lineTo(cxs - 4, cys + 4.5); ctx.stroke();
-    } else if (o.flagType === 'crest') {
-      ctx.fillStyle = L(trim);
-      ctx.beginPath(); ctx.arc(fl.x - fw * 0.5, ft - 8 + fh * 0.5 + Math.sin(t * 4 + 2) * 1.1, 2.4, 0, 6.3); ctx.fill();
+    ctx.strokeStyle = L('#000000', 0.25); ctx.lineWidth = 0.5; ctx.stroke();
+    if (emb !== 'none') {
+      var ec = fpt(FS.c, 0.5), er = Math.min(fh, 13) * 0.3;
+      var ecol = o.emblemColor || (emb === 'skull' ? '#f0ebdc' : trim);
+      drawEmblem(ctx, emb, ec[0], ec[1], er, L(ecol), L(flag), o.emblemColor ? null : trim);
     }
     // panji panjang di tiang depan
     var pm = M[0];
@@ -677,6 +798,17 @@ var MTShip = (function () {
     for (var pa = 0; pa <= 5; pa++) { var up = pa / 5; ctx.lineTo(pm.x - up * 22, pm.top + 1 + up * 1.2 + Math.sin(t * 5 + up * 5) * 1.6 * up); }
     ctx.lineTo(pm.x, pm.top + 3);
     ctx.closePath(); ctx.fill();
+    if (o.streamers) {
+      for (var si = 2; si < M.length; si++) {
+        var smm = M[si];
+        ctx.fillStyle = L(si % 2 ? (o.emblemColor || '#e8d7a8') : (o.pennant || '#e8d7a8'));
+        ctx.beginPath(); ctx.moveTo(smm.x, smm.top);
+        for (var sa = 0; sa <= 6; sa++) { var us = sa / 6; ctx.lineTo(smm.x - us * 30, smm.top + 1 + us * 1.4 + Math.sin(t * 5 + us * 5 + si) * 2 * us); }
+        ctx.lineTo(smm.x, smm.top + 3); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = L('#e8bf55');
+      for (var sb = 0; sb < M.length; sb++) { ctx.beginPath(); ctx.arc(M[sb].x, M[sb].top - 1, 1.4, 0, 6.3); ctx.fill(); }
+    }
 
     // lentera buritan
     if (o.lanterns > 0.05) {
@@ -694,8 +826,54 @@ var MTShip = (function () {
     ctx.restore();
   }
 
+  // Bentuk bendera: titik (u sepanjang bendera 0..1, v tinggi 0..1), w/h = skala, c = posisi lambang
+  var FLAG_SHAPES = {
+    rect: { w: 1, h: 1, c: 0.45, p: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+    swallow: { w: 1.1, h: 1, c: 0.36, p: [[0, 0], [1, 0], [0.7, 0.5], [1, 1], [0, 1]] },
+    pennant: { w: 1.35, h: 1, c: 0.3, p: [[0, 0], [1, 0.5], [0, 1]] },
+    long: { w: 2.1, h: 0.62, c: 0.2, p: [[0, 0], [1, 0.36], [0.92, 0.5], [1, 0.64], [0, 1]] },
+    flame: { w: 1.1, h: 1, c: 0.38, p: [[0, 0], [0.78, 0], [1, 0.17], [0.8, 0.33], [1, 0.5], [0.8, 0.67], [1, 0.83], [0.78, 1], [0, 1]] }
+  };
+
+  /** Lambang di tengah bendera. */
+  function drawEmblem(ctx, e, cx, cy, r, col, bg, ring) {
+    ctx.save();
+    ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineCap = 'round';
+    if (e === 'crest') {
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.8, 0, 6.3); ctx.fill();
+      ctx.lineWidth = r * 0.22; ctx.strokeStyle = bg; ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, 6.3); ctx.stroke();
+    } else if (e === 'star' || e === 'compass') {
+      var n = e === 'star' ? 5 : 4, ro = e === 'star' ? r : r * 1.1, ri = e === 'star' ? r * 0.42 : r * 0.28;
+      ctx.beginPath();
+      for (var i = 0; i < n * 2; i++) { var a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? ri : ro; if (i) ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); else ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill();
+      if (e === 'compass') { ctx.lineWidth = r * 0.14; ctx.beginPath(); ctx.arc(cx, cy, r * 0.62, 0, 6.3); ctx.stroke(); }
+    } else if (e === 'anchor') {
+      ctx.lineWidth = r * 0.24;
+      ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.75); ctx.lineTo(cx, cy + r * 0.8);
+      ctx.moveTo(cx - r * 0.45, cy - r * 0.35); ctx.lineTo(cx + r * 0.45, cy - r * 0.35); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy + r * 0.1, r * 0.72, 0.35, Math.PI - 0.35); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy - r * 0.92, r * 0.2, 0, 6.3); ctx.stroke();
+    } else if (e === 'skull') {
+      ctx.beginPath(); ctx.arc(cx, cy - r * 0.2, r * 0.55, 0, 6.3); ctx.fill();
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(cx - r * 0.2, cy - r * 0.25, r * 0.13, 0, 6.3); ctx.arc(cx + r * 0.2, cy - r * 0.25, r * 0.13, 0, 6.3); ctx.fill();
+      ctx.lineWidth = r * 0.22;
+      ctx.beginPath(); ctx.moveTo(cx - r * 0.9, cy + r * 0.35); ctx.lineTo(cx + r * 0.9, cy + r * 0.95); ctx.moveTo(cx + r * 0.9, cy + r * 0.35); ctx.lineTo(cx - r * 0.9, cy + r * 0.95); ctx.stroke();
+    } else if (e === 'cross') {
+      ctx.lineWidth = r * 0.34; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(cx - r * 0.9, cy); ctx.lineTo(cx + r * 0.9, cy); ctx.moveTo(cx, cy - r * 0.9); ctx.lineTo(cx, cy + r * 0.9); ctx.stroke();
+    } else if (e === 'crescent') {
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.8, 0, 6.3); ctx.fill();
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(cx + r * 0.32, cy - r * 0.12, r * 0.66, 0, 6.3); ctx.fill();
+    } else if (e === 'diamond') {
+      ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r * 0.62, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r * 0.62, cy); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   /** Busa garis air + riak di sekitar lambung (dipanggil setelah draw()). */
   function foam(ctx, x, y, s, dir, t, speed, alpha) {
+    s *= lastK;
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(s * dir, s);
@@ -746,7 +924,7 @@ var MTShip = (function () {
     ctx.restore();
   }
 
-  return { draw: draw, foam: foam, jukung: jukung };
+  return { draw: draw, foam: foam, jukung: jukung, fromVisual: fromVisual, stage: stage, FLAG_SHAPES: FLAG_SHAPES, drawEmblem: drawEmblem };
 })();
 
 /* =============================== MTScene =============================== */
@@ -1398,7 +1576,7 @@ var MTScene = (function () {
           o.hat = ({ pirate: 'tricorn', navigator: 'cap', smuggler: 'hood', diplomat: 'peci', explorer: 'caping' })[p.a] || o.hat;
           o.flag = ({ merchant: '#c9922f', navigator: '#2f7fa3', pirate: '#111111', explorer: '#3f8c3f', gambler: '#8e3d8a', smuggler: '#4a4540', diplomat: '#f4ecd8', adventurer: '#4ea3c9' })[p.a] || '#9b2d20';
         }
-        o.x0 = x0; o.x1 = x1; o.name = p.n; o.tier = p.t || 2; o.slot = i;
+        o.x0 = x0; o.x1 = x1; o.name = p.n; o.tier = p.t || 2; o.slot = i; o.vis = p.s || null;
         return o;
       });
     };
@@ -2230,11 +2408,11 @@ var MTScene = (function () {
 
   function shipOpts(inst, p, t, dir) {
     var tier = (inst.ship && inst.ship.tier) || 2, cond = (inst.ship && inst.ship.cond != null) ? inst.ship.cond : 100;
-    return {
-      dir: dir, t: t, masts: tier >= 3 ? 3 : (tier >= 2 ? 3 : 2), hull: '#6b4226', trim: '#d4a84c', sail: '#f3e9d2', flag: '#9b2d20', flagType: 'crest', pennant: '#e8d7a8',
-      damage: Math.max(0, (70 - cond) / 70), lanterns: p.lights, lit: p.lit,
-      cargo: Math.round(inst.deckN != null ? inst.deckN : deckTarget(inst))
-    };
+    var o = inst.ship && inst.ship.visual ? MTShip.fromVisual(inst.ship.visual)
+      : { masts: tier >= 3 ? 3 : (tier >= 2 ? 3 : 2), hull: '#6b4226', trim: '#d4a84c', sail: '#f3e9d2', flag: '#9b2d20', flagType: 'crest', pennant: '#e8d7a8' };
+    o.dir = dir; o.t = t; o.damage = Math.max(0, (70 - cond) / 70); o.lanterns = p.lights; o.lit = p.lit;
+    o.cargo = Math.round(inst.deckN != null ? inst.deckN : deckTarget(inst));
+    return o;
   }
 
   /** Jumlah peti di dek yang "seharusnya" menurut isi palka (0..12). */
@@ -2430,11 +2608,15 @@ var MTScene = (function () {
     for (var i = 0; i < Math.min(4, os.length); i++) {
       var o = os[i], x = W * (0.08 + i * 0.12), y = H * (0.745 + (i % 2) * 0.07), s = sc0 * (0.85 + (o.tier || 2) * 0.06) * (1 + (y / H - 0.745) * 1.4);
       var bob = Math.sin(t * 1.05 + i * 1.7) * H * 0.0025;
-      ctx.save(); ctx.globalAlpha = 0.2; MTShip.draw(ctx, x, y + bob + 4 * s, s, { dir: 1, t: t, masts: (o.tier || 2) >= 3 ? 3 : 2, furl: 1, hull: '#5a3a22', sail: '#efe4cc', flag: o.flag, reflect: true, lit: p.lit }); ctx.restore();
-      MTShip.draw(ctx, x, y + bob, s, { dir: 1, t: t, masts: (o.tier || 2) >= 3 ? 3 : 2, furl: 1, hull: '#5a3a22', trim: '#c9a04a', sail: '#efe4cc', flag: o.flag, flagType: o.flag === '#111111' ? 'skull' : 'crest', lanterns: p.lights, lit: p.lit, roll: Math.sin(t * 0.8 + i) * 0.012 });
+      var so = o.vis ? MTShip.fromVisual(o.vis) : { masts: (o.tier || 2) >= 3 ? 3 : 2, hull: '#5a3a22', trim: '#c9a04a', sail: '#efe4cc', flag: o.flag, flagType: o.flag === '#111111' ? 'skull' : 'crest' };
+      so.dir = 1; so.t = t; so.furl = 1; so.lit = p.lit;
+      var sr = {}; for (var sk in so) sr[sk] = so[sk]; sr.reflect = true;
+      ctx.save(); ctx.globalAlpha = 0.2; MTShip.draw(ctx, x, y + bob + 4 * s, s, sr); ctx.restore();
+      so.lanterns = p.lights; so.roll = Math.sin(t * 0.8 + i) * 0.012;
+      MTShip.draw(ctx, x, y + bob, s, so);
       MTShip.foam(ctx, x, y + bob, s, 1, t, 0, 0.5);
       o._ship = { x: x, y: y, w: 60 * s, h: 125 * s };
-      if (inst.hoverPid === o.pid) nameTag(ctx, x, y - 136 * s, 'Kapal ' + (o.name || 'Kapten'), inst.walkU || 12, '#ffffff');
+      if (inst.hoverPid === o.pid) nameTag(ctx, x, y - 136 * s, (o.vis && o.vis.name ? o.vis.name + ' \u00b7 ' : 'Kapal ') + (o.name || 'Kapten'), inst.walkU || 12, '#ffffff');
     }
   }
 

@@ -724,7 +724,7 @@ create or replace function public.api_getShipState(a jsonb default '[]'::jsonb) 
 language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me();
 begin
-  return jsonb_build_object('ship', game.ship_json(v_me.player_id));
+  return jsonb_build_object('ship', game.ship_json(v_me.player_id), 'visual', game.ship_visual(v_me.player_id));
 end $$;
 select game.expose('api_getshipstate');
 
@@ -1024,3 +1024,79 @@ begin
     'lootItem', loot_item);
 end $$;
 select game.expose('api_resolvecombat');
+
+
+-- =====================================================================
+-- TAMPILAN KAPAL: kustomisasi pemain + tahap visual dari upgrade
+-- =====================================================================
+alter table game.players add column if not exists ship_look jsonb;
+
+-- Tampilan bawaan per arketipe (supaya kapal sudah beda walau belum dikustom)
+create or replace function game.ship_default_look(p_arch text) returns jsonb
+language sql immutable as $$
+  select jsonb_build_object(
+    'hull', '#6b4226', 'trim', '#d4a84c', 'sail', '#f3e9d2',
+    'flag', coalesce(jsonb_build_object('merchant', '#c9922f', 'navigator', '#2f7fa3', 'pirate', '#111111', 'explorer', '#3f8c3f',
+      'gambler', '#8e3d8a', 'smuggler', '#4a4540', 'diplomat', '#f4ecd8', 'adventurer', '#4ea3c9') ->> p_arch, '#9b2d20'),
+    'emblemColor', case when p_arch = 'diplomat' then '#9b2d20' else '#f3e9d2' end,
+    'shape', case p_arch when 'pirate' then 'swallow' when 'navigator' then 'pennant' when 'gambler' then 'flame' else 'rect' end,
+    'emblem', coalesce(jsonb_build_object('merchant', 'crest', 'navigator', 'star', 'pirate', 'skull', 'explorer', 'compass',
+      'gambler', 'diamond', 'smuggler', 'crescent', 'diplomat', 'crest', 'adventurer', 'anchor') ->> p_arch, 'crest'))
+$$;
+
+-- { look, up:{speed,cargo,condition,cannons} (langkah 0..20), name }
+create or replace function game.ship_visual(p_pid uuid) returns jsonb
+language plpgsql stable as $$
+declare p game.players; u jsonb; v_name text;
+begin
+  select * into p from game.players where player_id = p_pid;
+  if not found then return null; end if;
+  u := game.voy_player_upgrades(p_pid);
+  select ship_name into v_name from game.ships where player_id = p_pid;
+  return jsonb_build_object(
+    'look', game.ship_default_look(p.archetype) || coalesce(p.ship_look, '{}'::jsonb),
+    'up', jsonb_build_object('speed', game.voy_abs_step(u -> 'speed'), 'cargo', game.voy_abs_step(u -> 'cargo'),
+      'condition', game.voy_abs_step(u -> 'condition'), 'cannons', game.voy_abs_step(u -> 'cannons')),
+    'name', coalesce(v_name, 'The Wandering Gull'));
+end $$;
+
+-- Simpan tampilan kapal (gratis) + nama kapal. a = [look, shipName]
+create or replace function public.api_saveShipLook(a jsonb default '[]'::jsonb) returns jsonb
+language plpgsql security definer set search_path = game, public as $$
+declare
+  v_me game.players := game.me(true);
+  v_in jsonb := coalesce(game.arg_json(a, 0), '{}'::jsonb);
+  v_name text := btrim(regexp_replace(coalesce(game.arg(a, 1), ''), '\s+', ' ', 'g'));
+  v_out jsonb := '{}'::jsonb; k text; v text;
+begin
+  if v_me.archetype = '' then raise exception 'Buat kapten dulu.'; end if;
+  if jsonb_typeof(v_in) <> 'object' then raise exception 'Data tampilan kapal tidak valid.'; end if;
+  foreach k in array array['hull', 'trim', 'sail', 'flag', 'emblemColor'] loop
+    v := lower(coalesce(v_in ->> k, ''));
+    if v <> '' then
+      if v !~ '^#[0-9a-f]{6}$' then raise exception 'Warna tidak valid: %', k; end if;
+      v_out := v_out || jsonb_build_object(k, v);
+    end if;
+  end loop;
+  v := coalesce(v_in ->> 'shape', '');
+  if v <> '' then
+    if v <> all (array['rect', 'swallow', 'pennant', 'long', 'flame']) then raise exception 'Bentuk bendera tidak dikenal.'; end if;
+    v_out := v_out || jsonb_build_object('shape', v);
+  end if;
+  v := coalesce(v_in ->> 'emblem', '');
+  if v <> '' then
+    if v <> all (array['none', 'crest', 'star', 'anchor', 'skull', 'cross', 'crescent', 'diamond', 'compass']) then
+      raise exception 'Lambang bendera tidak dikenal.';
+    end if;
+    v_out := v_out || jsonb_build_object('emblem', v);
+  end if;
+  if v_name <> '' then
+    if char_length(v_name) < 3 or char_length(v_name) > 24 then raise exception 'Nama kapal 3-24 karakter.'; end if;
+    if v_name !~ '^[[:alnum:] .''&-]+$' then raise exception 'Nama kapal hanya boleh huruf, angka, spasi, dan tanda . '' & -'; end if;
+    update game.ships set ship_name = v_name where player_id = v_me.player_id;
+  end if;
+  update game.players set ship_look = v_out where player_id = v_me.player_id;
+  begin perform game.mp_touch(v_me.player_id); exception when others then null; end;
+  return jsonb_build_object('visual', game.ship_visual(v_me.player_id), 'ship', game.ship_json(v_me.player_id));
+end $$;
+select game.expose('api_saveshiplook');
