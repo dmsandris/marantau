@@ -75,7 +75,6 @@ begin
   v_step := coalesce(q.step, 0);
   return jsonb_build_object(
     'step', v_step, 'badges', v_badges, 'need', 20, 'eligible', v_badges >= 20,
-    'targetCity', (array['joungjava', 'bjorneo', 'ikn', 'toogood', 'skitraw'])[v_step],
     'here', v_city,
     'hasBox', v_step = 5,
     'done', v_step >= 6,
@@ -164,12 +163,12 @@ begin
     v_story := (array[
       'Pak Tua Karto terbatuk sambil menyeruput kopi pahitnya. "Gala? Anak Minang yang dulu berlayar pulang dengan wajah paling bahagia sedunia itu? Anak lelakinya baru lahir waktu itu. Ya, ya... Malam itu kapalnya dirampok. Perampoknya membawa lari sebuah kotak kecil, hadiah yang ia siapkan untuk putranya, dan Gala menangis seperti anak kecil. Aku cuma ingat satu hal: perampok itu berlayar ke tempat kabut tak pernah pergi dan pohon lebih tua dari kerajaan."',
       'Nenek tersenyum lebar. "Cerdas, seperti Gala waktu muda. Perampok itu melempar jangkar di sini tiga malam, mabuk dan berteriak soal kotak berbentuk hati. Lalu ia pergi ke kota yang sudah runtuh untuk menjual rahasianya. Carilah catatannya di arsip ibu kota lama."',
-      'Di antara kertas lapuk Arsip Nusantara kamu menemukan buku pelabuhan dari tahun badai besar. Satu baris ditulis dengan tinta merah: "Kapal hitam milik MR. GAP. Muatan: satu kotak hati - TIDAK DIJUAL. Tujuan: TooGood." Mr. GAP... nama yang bahkan tak berani disebut Uda Gala. Berlayarlah menuju TooGood. Dia yang akan menemukanmu.'
+      'Di antara kertas lapuk Arsip Nusantara kamu menemukan buku pelabuhan dari tahun badai besar. Satu baris ditulis dengan tinta merah: "Kapal hitam milik MR. GAP. Muatan: satu kotak hati - TIDAK DIJUAL. Tujuan: sarang tempat asap tak pernah padam." Mr. GAP... nama yang bahkan tak berani disebut Uda Gala. Berlayarlah ke sarang itu. Dia yang akan menemukanmu di jalan.'
     ])[v_step];
     v_next := (array['bjorneo', 'ikn', 'toogood'])[v_step];
     update game.player_quests set step = v_step + 1, data = data - 'wrongUntil', updated_at = now()
     where player_id = v_pid and quest_id = 'gala';
-    perform game.log(v_pid, (array['Pak Tua Karto di Joungjava menunjuk ke Bjorneo.', 'Nenek penjaga mercusuar Bjorneo menunjuk ke arsip IKN.', 'Arsip IKN: Mr. GAP berlayar menuju TooGood.'])[v_step]);
+    perform game.log(v_pid, (array['Pak Tua Karto bercerita tentang kabut dan pohon yang lebih tua dari kerajaan.', 'Nenek penjaga mercusuar menyebut catatan lama di kota yang sudah runtuh.', 'Catatan lama: kapal hitam Mr. GAP menuju sarang asap yang tak pernah padam.'])[v_step]);
     return jsonb_build_object('story', v_story, 'next', v_next, 'gala', game.gala_state(v_pid));
   end if;
 

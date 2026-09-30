@@ -167,10 +167,16 @@
     setInterval(function () { updateClockHud_(); tickVoyageCard_(); }, 1000);
   });
 
+  // Nomor urut perubahan voyage lokal: respons server yang diminta SEBELUM kapten berlayar
+  // (poll/loadState yang "balapan" dengan api_setSail) dibuang supaya kapal tidak kembali ke pulau.
+  var voySeq = 0;
   function pollVoyage_() {
+    if (txPending || (state && state.voyage && state.voyage._optimistic)) return;
+    var seq = voySeq;
     google.script.run
       .withSuccessHandler(function (res) {
         if (!state || !res || !res.voyage) return;
+        if (seq !== voySeq || txPending || (state.voyage && state.voyage._optimistic)) return;
         var wasInTransit = !!(state.voyage && state.voyage.inTransit);
         state.voyage = res.voyage;
         state.voyage._at = Date.now();
@@ -418,8 +424,12 @@
     document.getElementById('bootOverlay').classList.remove('open');
   }
 
+  var loadStateRetry_ = null;
   function loadState() {
+    var seq = voySeq;
     google.script.run.withSuccessHandler(function (s) {
+      // Ada pelayaran baru dimulai selagi permintaan ini di jalan -> datanya basi, ambil ulang.
+      if (seq !== voySeq || txPending) { clearTimeout(loadStateRetry_); loadStateRetry_ = setTimeout(loadState, 900); return; }
       if (s && s.needsCharacter) { if (window.onNeedsCharacter_) onNeedsCharacter_(s); return; }
       if (!s || !s.player || !s.stats) {
         console.error('[Marantau] loadState(): payload kosong/tidak lengkap:', s);
@@ -1441,13 +1451,13 @@
 
     listings.forEach(function (item) {
       var id = item.commodityId;
-      var maxBuy = item.buyPrice > 0 ? Math.max(0, Math.min(Math.floor(gold / item.buyPrice), space)) : 0;
+      var maxBuy = item.buyPrice > 0 ? maxAffordable_(item, gold, space) : 0;
       var maxSell = item.ownedQty || 0;
       html += '<div class="card mkt-row hover' + (lastTrade && lastTrade.id === id ? ' flash-' + lastTrade.dir : '') + '" data-good="' + id + '">' +
         (lastTrade && lastTrade.id === id ? '<span class="trade-float ' + lastTrade.dir + '">' + (lastTrade.dir === 'buy' ? '+' : '\u2212') + lastTrade.qty + ' ' + esc_(item.name) + '</span>' : '') +
         '<div class="mkt-good">' + goodIcon_(id) + '<div style="min-width:0;">' +
           '<div><span class="cname">' + esc_(item.name) + '</span>' + (maxSell ? '<span class="owned-pill">&times;' + maxSell + ' di palka</span>' : '') + '</div>' +
-          '<div style="margin-top:4px;">' + priceBadge_(item.priceRatio) + (item.overstockPct >= 3 ? ' <span class="price-badge bad" title="Banyak kapten menjual barang ini di sini. Harga jual pulih perlahan; harga beli tidak terpengaruh.">' + ic('crate') + ' Stok menumpuk &minus;' + item.overstockPct + '% jual</span>' : '') + '</div>' +
+          '<div style="margin-top:4px;">' + priceBadge_(item.priceRatio) + (item.overstockPct >= 3 ? ' <span class="price-badge bad" title="Banyak kapten menjual barang ini di sini. Harga jual pulih perlahan.">' + ic('crate') + ' Stok menumpuk &minus;' + item.overstockPct + '% jual</span>' : '') + (item.scarcityPct >= 3 ? ' <span class="price-badge bad" title="Banyak kapten memborong barang ini di sini. Harga beli pulih perlahan.">' + ic('alert') + ' Diborong +' + item.scarcityPct + '% beli</span>' : '') + '</div>' +
           (item.flavor ? '<span class="commodity-flavor">' + esc_(item.flavor) + '</span>' : '') +
           personalBestLine_(state.city.CityId, id) + knownBestLine_(id, item.buyPrice) +
         '</div></div>' +
@@ -1496,8 +1506,10 @@
     if (!el || !sum) return;
     var q = Math.max(1, Math.floor(Number(el.value)) || 0);
     var it = marketItem_(id), st = it ? sellTotal_(it, q) : q * Number(sum.dataset.sell);
-    var drop = it && q > 1 && st < q * it.sellPrice;
-    sum.innerHTML = q + ' &times; &rarr; beli <b>' + formatGold(q * Number(sum.dataset.buy)) + '</b> &middot; jual <b>' + formatGold(st) + '</b>' +
+    var bt = it ? buyTotal_(it, q) : q * Number(sum.dataset.buy);
+    var drop = it && q > 1 && st < q * it.sellPrice, rise = it && q > 1 && bt > q * it.buyPrice;
+    sum.innerHTML = q + ' &times; &rarr; beli <b>' + formatGold(bt) + '</b> &middot; jual <b>' + formatGold(st) + '</b>' +
+      (rise ? '<span class="glut-note" title="Setiap unit yang diborong menaikkan harga beli di kota ini">' + ic('alert') + ' harga beli naik saat memborong (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
       (drop ? '<span class="glut-note" title="Stok di kota ini makin menumpuk setiap unit yang kamu jual">' + ic('alert') + ' harga jual turun saat menjual banyak (rata-rata ' + formatGold(Math.round(st / q)) + ')</span>' : '');
   }
 
@@ -1551,6 +1563,25 @@
    * gagal, perubahan dibatalkan (rollback delta) + toast alasan.
    */
   /* ---- Tide v8: stok menumpuk (overstock) - harga jual turun per unit yang dijual ---- */
+  /* ---- Tide v13: permintaan - harga beli naik per unit yang dibeli ---- */
+  function demandUnit_(it, d) { return Math.round(it.buyNormal * Math.min(1 + it.demandCap, 1 + Math.max(0, d) / it.demandScale)); }
+  function buyTotal_(it, q) {
+    if (!it) return 0;
+    if (!it.demandScale || !it.buyNormal) return q * it.buyPrice;
+    var s = 0; for (var i = 0; i < q; i++) s += demandUnit_(it, (it.demand || 0) + i);
+    return s;
+  }
+  function maxAffordable_(it, gold, space) {
+    var n = 0, s = 0;
+    while (n < space) { var u = it.demandScale && it.buyNormal ? demandUnit_(it, (it.demand || 0) + n) : it.buyPrice; if (u <= 0 || s + u > gold) break; s += u; n++; }
+    return n;
+  }
+  function applyDemand_(it, delta) {
+    if (!it || !it.demandScale) return;
+    it.demand = Math.max(0, (it.demand || 0) + delta);
+    it.buyPrice = demandUnit_(it, it.demand);
+    it.scarcityPct = it.buyNormal > 0 ? Math.max(0, Math.round((it.buyPrice / it.buyNormal - 1) * 100)) : 0;
+  }
   function glutUnit_(it, g) { return Math.max(Math.round(it.sellNormal * it.glutFloor), Math.round(it.sellNormal / (1 + g / it.glutScale))); }
   function sellTotal_(it, q) {
     if (!it) return 0;
@@ -1568,11 +1599,11 @@
   function doBuy(commodityId, unitPrice) {
     if (!canAct_() || !marketCache || !state.city) return;
     var qty = Math.max(1, Math.floor(Number(document.getElementById('qty_' + commodityId).value)) || 0);
-    var cost = qty * unitPrice;
+    var cost = buyTotal_(marketItem_(commodityId), qty) || qty * unitPrice;
     if (cost > state.player.gold) { showToast('Gold tidak cukup untuk ' + qty + ' unit.', 'error'); return; }
     if (qty > marketCache.cargoSpaceRemaining) { showToast('Ruang palka tidak cukup (sisa ' + marketCache.cargoSpaceRemaining + ').', 'error'); return; }
     var cityId = state.city.CityId;
-    recordPersonalBest_(cityId, commodityId, 'buy', unitPrice);
+    recordPersonalBest_(cityId, commodityId, 'buy', Math.round(cost / qty));
     patchGold_(state.player.gold - cost);
     lastTrade = { id: commodityId, dir: 'buy', qty: qty };
     patchMarketCacheAfterTrade_(commodityId, qty, 'buy');
@@ -1621,6 +1652,7 @@
     for (var i = 0; i < marketCache.items.length; i++) { if (marketCache.items[i].commodityId === commodityId) { item = marketCache.items[i]; break; } }
     if (!item) { renderMarket(); return; }
     applyGlut_(item, direction === 'buy' ? -qty : qty);
+    applyDemand_(item, direction === 'buy' ? qty : -qty);
     if (direction === 'buy') {
       item.ownedQty = (item.ownedQty || 0) + qty;
       marketCache.cargoSpaceRemaining = Math.max(0, marketCache.cargoSpaceRemaining - qty);
@@ -1650,7 +1682,7 @@
     }).api_getLibrary();
   }
 
-  var TIER_SPINE = { I: '#2f7a45', II: '#1a4d69', III: '#8c2a1d' };
+  var TIER_SPINE = { I: '#2f7a45', II: '#1a4d69', III: '#8c2a1d', IV: '#6a2f8a' };
   function renderLibraryWith_(lib) {
     var html = panelHeader_('book', 'Library', 'Koleksi ' + lib.owned.length + ' buku &middot; stat naik permanen');
     html += npcHtml_('pustakawan', lineLibrary_());
@@ -1679,8 +1711,8 @@
   }
 
   function tierBadge_(tier) {
-    var colorClass = tier === 'III' ? 'bad' : (tier === 'II' ? 'normal' : 'good');
-    return '<span class="price-badge ' + colorClass + '">Tier ' + esc_(tier) + '</span>';
+    var colorClass = tier === 'IV' ? 'legend' : tier === 'III' ? 'bad' : (tier === 'II' ? 'normal' : 'good');
+    return '<span class="price-badge ' + colorClass + '">Tier ' + esc_(tier) + (tier === 'IV' ? ' &middot; Legenda' : '') + '</span>';
   }
   function bookEffectSummary(b) {
     var parts = [];
@@ -1689,7 +1721,7 @@
     return parts.join(', ') || '&mdash;';
   }
   function specialEffectLabel(keyword) {
-    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)' };
+    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka' };
     return labels[keyword] || keyword;
   }
 
@@ -1922,7 +1954,7 @@
   /** LATENCY: layar langsung berganti ke laut (optimistis), server dikonfirmasi di belakang. */
   function doSetSail(cityId) {
     if (!canAct_() || txPending || !state.city) return;
-    txPending = true;
+    txPending = true; voySeq++;
     var o = (lastSailOptions || []).filter(function (x) { return x.cityId === cityId; })[0];
     var prevVoyage = state.voyage;
     state.voyage = { inTransit: true, originCityId: state.city.CityId, destinationCityId: cityId, progress: 0, etaSeconds: o ? Math.round(o.etaMinutes * 60) : 60, encounterPending: false, encounter: null, _at: Date.now(), _optimistic: true };
@@ -1932,14 +1964,19 @@
     beginSync_();
     google.script.run
       .withSuccessHandler(function () {
-        txPending = false;
+        txPending = false; voySeq++;
+        var seq = voySeq;
         google.script.run.withSuccessHandler(function (res) {
           endSync_();
-          if (res && res.voyage) { state.voyage = res.voyage; state.voyage._at = Date.now(); renderSidebar(); renderScene(); schedulePreciseArrival_(); saveSnap_(); }
-        }).withFailureHandler(function () { endSync_(); loadState(); }).api_pollVoyage();
+          if (seq !== voySeq) return;
+          if (res && res.voyage && res.voyage.inTransit) { state.voyage = res.voyage; state.voyage._at = Date.now(); renderSidebar(); renderScene(); schedulePreciseArrival_(); saveSnap_(); }
+          else loadState();
+        }).withFailureHandler(function () { endSync_(); if (state.voyage) state.voyage._optimistic = false; loadState(); }).api_pollVoyage();
       })
       .withFailureHandler(function (err) {
-        txPending = false; endSync_();
+        txPending = false; endSync_(); voySeq++;
+        // Server bilang kapal SUDAH berlayar (mis. klik ganda / tab lain) -> sinkronkan, jangan kembali ke pulau.
+        if (/sudah dalam perjalanan|dicegat bajak laut/i.test(String(err && err.message))) { if (state.voyage) state.voyage._optimistic = false; loadState(); return; }
         state.voyage = prevVoyage;
         renderSidebar(); renderScene();
         showToast('Gagal berlayar: ' + err.message, 'error');
@@ -3838,7 +3875,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v12';
+  TIDE_VERSION = 'Tide v13';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
