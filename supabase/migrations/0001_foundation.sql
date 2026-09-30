@@ -99,6 +99,7 @@ create table if not exists game.cities (
   map_y            numeric not null default 50,
   sort             int not null default 0
 );
+alter table game.cities add column if not exists hidden boolean not null default false;  -- kota rahasia (dibuka lewat misi)
 
 create table if not exists game.commodities (
   id     text primary key,
@@ -326,7 +327,7 @@ language sql stable as $$
     'CityId', c.city_id, 'Name', c.name, 'Type', c.type,
     'RepairCostRate', c.repair_cost_rate, 'MayorMissionPool', '',
     'ImageUrl', c.image_url, 'MapX', c.map_x, 'MapY', c.map_y,
-    'TypeFlavor', game.city_flavor(c.type)) end
+    'TypeFlavor', game.city_flavor(c.type), 'Hidden', c.hidden) end
 $$;
 
 create or replace function game.city(p_id text) returns jsonb

@@ -179,6 +179,13 @@ var MTSky = (function () {
       KEYS.forEach(function (k) { p[k] = U.mix(p[k], U.mul(H(M[k]), U.mix([255, 255, 255], p.tint, 0.55)), mk); });
       if (mood === 'gloom') p.night = Math.max(p.night, 0.45);
     }
+    if (mood === 'paradise') {
+      // Paradiso: langit keemasan-merah muda, laguna pirus (melemah saat malam)
+      var pk = 1 - p.night * 0.8;
+      var PM = { top: ['#5a7ccc', 0.25], mid: ['#f7a1c2', 0.52], hor: ['#ffcf90', 0.58], seaH: ['#5fe3d6', 0.62], seaD: ['#0c93a6', 0.58], tint: ['#fff0e4', 0.3], cloudL: ['#ffe1ec', 0.4], cloudD: ['#c99ab9', 0.28] };
+      for (var pmk in PM) p[pmk] = U.mix(p[pmk], H(PM[pmk][0]), PM[pmk][1] * pk);
+      p.mid = U.mix(p.mid, H('#7a4a8a'), 0.12 * p.night);
+    }
     p.mood = mood || null;
     // Warna turunan
     p.sun = frac > -0.03 && frac < 0.72 && mood !== 'gloom';
@@ -937,7 +944,8 @@ var MTScene = (function () {
     Remote: { hill: ['#35633c', '#1f3f28'], hillH: 0.27, walls: ['#7a5634', '#8e6a44', '#6b4a2c'], roofs: ['#7e6a3a', '#6a5a30', '#8a7440'], roofTypes: ['thatch', 'stilt', 'thatch'], density: 0.32, trees: 60, shore: 'beach', head: 'woodlight', mist: true, flags: ['#8a2b1f'] },
     Capital: { hill: ['#7a9a58', '#4d6f3e'], hillH: 0.19, walls: ['#f4eee2', '#e9ddc5', '#fbf7ec', '#efe2c8'], roofs: ['#2e7d7a', '#c9a033', '#9b3b2c', '#256664'], roofTypes: ['gonjong', 'dome', 'pagoda', 'gonjong', 'hip', 'flat'], density: 1.1, trees: 10, shore: 'fort', head: 'lighthouse', palace: true, flags: ['#c9a033', '#2e7d7a', '#9b3b2c'] },
     Outlaw: { hill: ['#5d5954', '#2f2c29'], hillH: 0.23, walls: ['#5b4636', '#6e5540', '#4a3a2e', '#7a6048'], roofs: ['#3b2f26', '#5a3a2a', '#4a4038'], roofTypes: ['shack', 'shack', 'shack', 'flat'], density: 0.7, trees: 6, shore: 'rocks', head: 'beacon', rocky: true, wreck: true, flags: ['#111111'] },
-    FallenCapital: { hill: ['#72855a', '#475a3a'], hillH: 0.2, walls: ['#c3b79f', '#a99e88', '#cfc3aa', '#b6ab93'], roofs: ['#6d6a5c', '#7e7462'], roofTypes: ['ruin', 'ruin', 'dome', 'ruin', 'flat', 'ruin'], density: 0.8, trees: 18, shore: 'quay', head: 'ruinlight', ruins: true, flags: ['#6d5a3a'] }
+    FallenCapital: { hill: ['#72855a', '#475a3a'], hillH: 0.2, walls: ['#c3b79f', '#a99e88', '#cfc3aa', '#b6ab93'], roofs: ['#6d6a5c', '#7e7462'], roofTypes: ['ruin', 'ruin', 'dome', 'ruin', 'flat', 'ruin'], density: 0.8, trees: 18, shore: 'quay', head: 'ruinlight', ruins: true, flags: ['#6d5a3a'] },
+    Paradise: { hill: ['#6cbf52', '#2f8040'], hillH: 0.2, walls: ['#fbf4e4', '#f1e4c8', '#d8b88a', '#8a5a32'], roofs: ['#caa452', '#b8903c', '#d4b060'], roofTypes: ['thatch', 'thatch', 'stilt', 'thatch', 'hip'], density: 0.6, trees: 28, shore: 'beach', head: 'palms', flags: ['#ff6fa0', '#2fb5a8', '#ffc94a'] }
   };
 
   /* -------------------- gambar bangunan & landmark -------------------- */
@@ -1340,7 +1348,7 @@ var MTScene = (function () {
   function buildSignature(inst, cv, ctx, S, r, builder) {
     var W = inst.W, H = inst.H, landEnd = inst.landEnd, shoreY = inst.shoreY;
     var B = { ctx: ctx, W: W, H: H, S: S, u: Math.min(S * 1.3, landEnd * 0.97 / 30), shoreY: shoreY, landEnd: landEnd, hy: inst.horizonY, r: r,
-      wins: [], torches: [], flags: [], smokes: [], hotspots: [], moored: [], dyn: [], walk: null, roamers: null, coral: false };
+      wins: [], torches: [], flags: [], smokes: [], hotspots: [], moored: [], dyn: [], walk: null, roamers: null, coral: false, lagoon: false, noLamps: false };
     B.qTop = shoreY - B.u * 0.62;
     builder(B);
     inst.hillY = B.hillY;
@@ -1349,9 +1357,17 @@ var MTScene = (function () {
       var lx0 = landEnd * (0.06 + ls * 0.46), lx1 = lx0 + landEnd * 0.36, ly = B.qTop - B.u * (2.4 + ls * 0.5);
       for (var li = 0; li <= 12; li++) { var uu = li / 12; lanterns.push({ x: U.lerp(lx0, lx1, uu), y: ly + Math.sin(uu * Math.PI) * B.u * 0.8, c: U.pick(r, ['#ff5a3c', '#ffd24a', '#ff8a2a', '#e8483a']) }); }
     }
-    inst.land = { S: B.u, wins: B.wins, torches: B.torches, flags: B.flags, smokes: B.smokes, beam: null, lanterns: lanterns, cfg: {}, hotspots: B.hotspots, moored: B.moored, dyn: B.dyn, roamers: B.roamers, coral: B.coral, sig: true };
+    inst.land = { S: B.u, wins: B.wins, torches: B.torches, flags: B.flags, smokes: B.smokes, beam: null, lanterns: lanterns, cfg: {}, hotspots: B.hotspots, moored: B.moored, dyn: B.dyn, roamers: B.roamers, coral: B.coral, lagoon: B.lagoon, noLamps: B.noLamps, sig: true };
     // penghuni api unggun (duduk)
     B.dyn.forEach(function (d) { if (d.type === 'campfire' && !d.noPeople) { var rr = U.rng(99); d.people = [0, 1, 2].map(function (i) { var o = MTPeople.make(rr, 'pirates'); o.sit = true; o.dx = [-1.6, 1.4, -0.2][i]; o.dir = i === 1 ? -1 : 1; return o; }); } });
+    // pesta api unggun Paradiso: penari berkain + penabuh kendang
+    B.dyn.forEach(function (d) {
+      if (d.type !== 'party') return;
+      var rp = U.rng(777);
+      d.people = [];
+      for (var i = 0; i < 7; i++) { var o = MTPeople.make(rp, 'resort'); o.carry = 'none'; o.dance = true; if (i % 3 !== 2) { o.fem = true; o.hat = 'flower'; o.kain = o.kain || '#e0457a'; } d.people.push(o); }
+      var dr = MTPeople.make(rp, 'resort'); dr.fem = false; dr.kain = null; dr.hat = 'none'; dr.carry = 'none'; dr.sit = true; d.drummer = dr;
+    });
     initWalkers(inst, B.walk, B.u, B.qTop);
     inst.landCv = cv;
     inst.litCv = inst.litCv || document.createElement('canvas');
@@ -1656,7 +1672,7 @@ var MTScene = (function () {
   /** Pelangi (Panen Melimpah, atau pagi hari tertentu). */
   function paintRainbow(inst, ctx, W, hy, p) {
     var f = p.frac, on = p.weather === 'harvest_bounty' || ((inst.day || 0) % 4 === 1 && f > 0.08 && f < 0.45);
-    if (!on || !p.sun || p.mood || p.weather === 'storm_surge') return;
+    if (!on || !p.sun || (p.mood && p.mood !== 'paradise') || p.weather === 'storm_surge') return;
     var str = U.smooth(Math.min((f - 0.06) / 0.06, (0.47 - f) / 0.08, 1)) * (p.weather === 'harvest_bounty' ? 1 : 0.8);
     if (str <= 0.01) return;
     var cx = U.clamp(p._sunX != null ? W - p._sunX : W * 0.5, W * 0.25, W * 0.75), cy = hy + hy * 0.42, R = hy * 1.02, bw = R * 0.016;
@@ -1745,7 +1761,7 @@ var MTScene = (function () {
   function lampList(inst) {
     if (inst._lamps && inst._lampsFor === inst._layoutId) return inst._lamps;
     var ws = inst.walkers || [], u = inst.walkU || 12, out = [];
-    if (ws.length && inst.cityType !== 'FallenCapital') {
+    if (ws.length && inst.cityType !== 'FallenCapital' && !(inst.land && inst.land.noLamps)) {
       var x0 = ws[0].x0, x1 = ws[0].x1, n = Math.max(3, Math.floor((x1 - x0) / (u * 4.6)));
       for (var i = 0; i <= n; i++) out.push({ x: U.lerp(x0 + u * 1.2, x1 - u * 0.6, i / n), ph: i * 1.7, broken: inst.cityType === 'Outlaw' && i % 3 === 2 });
     }
@@ -2187,6 +2203,25 @@ var MTScene = (function () {
         ctx.beginPath(); for (var cb = 0; cb < 4; cb++) { ctx.moveTo(cx2 + (cb - 1.5) * rr2 * 0.5 + rr2 * 0.4, cy2); ctx.ellipse(cx2 + (cb - 1.5) * rr2 * 0.5, cy2 - (cb % 2) * rr2 * 0.2, rr2 * 0.4, rr2 * 0.18, 0, 0, 6.3); } ctx.fill();
       }
     }
+    // laguna dangkal pirus + kilau kaustik (Paradiso)
+    if (land && land.lagoon) {
+      var lgH = (H - shoreY) * 0.55, dayK = 1 - p.night * 0.75;
+      var lgc = U.mix([120, 240, 222], p.seaH, 0.3 + p.night * 0.5);
+      var lgg = ctx.createLinearGradient(0, shoreY, 0, shoreY + lgH);
+      lgg.addColorStop(0, U.css(lgc, 0.55 * dayK)); lgg.addColorStop(0.35, U.css(lgc, 0.3 * dayK)); lgg.addColorStop(1, U.css(lgc, 0));
+      ctx.fillStyle = lgg;
+      ctx.fillRect(-30, shoreY, landEnd + S * 4, lgH);
+      if (dayK > 0.3) {
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.22 * dayK).toFixed(3) + ')'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (var ca = 0; ca < 18; ca++) {
+          var cxa = ((ca * 97.3 + t * S * 0.4 * (ca % 2 ? 1 : -0.6)) % (landEnd * 1.05)), cya = shoreY + S * 0.4 + (ca % 6) * lgH * 0.1;
+          if (cxa < 0) cxa += landEnd * 1.05;
+          ctx.moveTo(cxa, cya); ctx.quadraticCurveTo(cxa + S * 0.5, cya - S * 0.12 * Math.sin(t * 1.3 + ca), cxa + S * 1.1, cya);
+        }
+        ctx.stroke();
+      }
+    }
 
     // pantulan kota di air depan (irisan bergelombang)
     if (inst.litCv) {
@@ -2373,6 +2408,34 @@ var MTScene = (function () {
         ng.addColorStop(0, 'rgba(255,120,210,' + 0.45 * fl + ')'); ng.addColorStop(0.5, 'rgba(80,180,230,' + 0.18 * fl + ')'); ng.addColorStop(1, 'rgba(80,180,230,0)');
         ctx.fillStyle = ng; ctx.fillRect(d.x - d.w * 0.4, d.y - d.w * 0.4, d.w * 1.8, d.h + d.w * 0.8);
         ctx.globalCompositeOperation = 'source-over';
+      } else if (d.type === 'lights') {
+        renderStringLights(ctx, p, t, d);
+      } else if (d.type === 'steam') {
+        if (Math.random() < d.rate) puff(inst, d.x + (Math.random() - 0.5) * d.w, d.y, { vx: 0.03 + Math.random() * 0.07, vy: -0.14 - Math.random() * 0.12, r: d.u * 0.15, grow: 0.03, life: 3.4, col: U.css(U.mix(p.cloudL, [255, 255, 255], 0.5), 'A'), a: 0.32 });
+      } else if (d.type === 'fireworks') {
+        if (p.night > 0.55 && !inst.reduced) {
+          d.tm = (d.tm == null ? 1.2 : d.tm) - dt / 1000;
+          if (d.tm <= 0) {
+            d.tm = 1.4 + Math.random() * 2.6;
+            var fwx = U.lerp(d.x0, d.x1, Math.random()), fwy = U.lerp(d.y0, d.y1, Math.random());
+            var FWC = ['255,110,170', '255,210,90', '110,235,225', '255,255,240', '255,150,80', '190,140,255'];
+            var c1 = FWC[Math.floor(Math.random() * FWC.length)], c2 = FWC[Math.floor(Math.random() * FWC.length)], nfw = 52;
+            puff(inst, fwx, fwy, { r: land.S * 2.2, life: 0.35, col: 'rgba(' + c1 + ',A)', a: 0.28, add: true });
+            for (var fp = 0; fp < nfw; fp++) { var fa = fp / nfw * 6.283 + Math.random() * 0.08, fsp = (fp % 2 ? 1.9 : 1.2) + Math.random() * 0.4; puff(inst, fwx, fwy, { vx: Math.cos(fa) * fsp, vy: Math.sin(fa) * fsp, g: 0.02, r: 1.8, life: 1.3 + Math.random() * 0.5, col: 'rgba(' + (fp % 2 ? c1 : c2) + ',A)', add: true }); }
+            for (var fq = 0; fq < 12; fq++) { var fb = Math.random() * 6.283, fsq = 0.3 + Math.random() * 0.7; puff(inst, fwx, fwy, { vx: Math.cos(fb) * fsq, vy: Math.sin(fb) * fsq, g: 0.015, r: 1, life: 0.9 + Math.random() * 0.4, col: 'rgba(255,245,200,A)', add: true }); }
+          }
+        }
+      } else if (d.type === 'party') {
+        renderParty(inst, ctx, p, t, d);
+      } else if (d.type === 'hosts') {
+        for (var hi = 0; hi < d.list.length; hi++) {
+          var ho = d.list[hi];
+          ho.o.at = t * 2 + hi * 1.7;
+          ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.beginPath(); ctx.ellipse(ho.x, ho.y + 0.5, ho.h * 0.2, ho.h * 0.045, 0, 0, 6.3); ctx.fill();
+          MTPeople.draw(ctx, ho.x, ho.y, ho.h, ho.o, 0, ho.dir, p.lit);
+        }
+      } else if (d.type === 'hammock') {
+        renderHammock(ctx, p, t, d);
       }
     });
     // highlight bangunan yang di-hover
@@ -2404,6 +2467,97 @@ var MTScene = (function () {
     }
     renderCritters(inst, p, ctx, t, dt);
     renderOthers(inst, p, ctx, t, dt);
+  }
+
+  /* ---- Paradiso: untaian lampu, pesta api unggun, hammock ---- */
+  function renderStringLights(ctx, p, t, d) {
+    var on = p.lights, bu = d.u, S = d.strands, k, s, b;
+    ctx.strokeStyle = p.lit('#3b2a1a', 0.7); ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    for (s = 0; s < S.length; s++) for (k = 0; k < S[s].length; k++) { b = S[s][k]; if (!k) ctx.moveTo(b.x, b.y); else ctx.lineTo(b.x, b.y); }
+    ctx.stroke();
+    if (on > 0.12) {
+      ctx.globalCompositeOperation = 'lighter';
+      for (s = 0; s < S.length; s++) for (k = 0; k < S[s].length; k++) {
+        b = S[s][k];
+        var tw = on * (0.72 + 0.28 * Math.sin(t * 2.4 + k * 1.9 + s * 0.7));
+        ctx.fillStyle = U.css(b.rgb, 0.16 * tw); ctx.beginPath(); ctx.arc(b.x, b.y + bu * 0.1, bu * 0.27, 0, 6.3); ctx.fill();
+        ctx.fillStyle = U.css(b.rgb, 0.95 * tw); ctx.beginPath(); ctx.arc(b.x, b.y + bu * 0.1, bu * 0.1, 0, 6.3); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      for (s = 0; s < S.length; s++) for (k = 0; k < S[s].length; k++) { b = S[s][k]; ctx.fillStyle = p.lit(b.c); ctx.beginPath(); ctx.arc(b.x, b.y + bu * 0.1, bu * 0.085, 0, 6.3); ctx.fill(); }
+    }
+  }
+
+  function renderParty(inst, ctx, p, t, d) {
+    var u = d.u, pl = p.lights, fk = 0.8 + Math.sin(t * 12) * 0.12 + Math.sin(t * 7.7) * 0.08, fs = 1 + pl * 0.45;
+    var gR = u * (2.6 + pl * 3.4) * fk;
+    var g = ctx.createRadialGradient(d.x, d.y - u * 0.4, 0, d.x, d.y - u * 0.4, gR);
+    g.addColorStop(0, 'rgba(255,190,90,' + (0.4 + pl * 0.4).toFixed(3) + ')'); g.addColorStop(0.4, 'rgba(255,120,50,' + (0.14 + pl * 0.2).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,80,30,0)');
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(d.x - gR, d.y - u * 0.4 - gR, gR * 2, gR * 2); ctx.globalCompositeOperation = 'source-over';
+    var ppl = d.people || [], nv = pl > 0.35 ? ppl.length : 3, R = u * 2.2, list = [];
+    for (var i = 0; i < nv; i++) {
+      var a = i / nv * 6.283 + t * 0.28, sa = Math.sin(a);
+      list.push({ o: ppl[i], x: d.x + Math.cos(a) * R, y: d.y + sa * u * 0.42, sa: sa, dir: -sa >= 0 ? 1 : -1, i: i });
+    }
+    list.sort(function (A, B2) { return A.sa - B2.sa; });
+    function dancer(e) {
+      var o = e.o; o.at = t * 2.3 + e.i * 1.3;
+      ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + 0.5, u * 0.22, u * 0.05, 0, 0, 6.3); ctx.fill();
+      MTPeople.draw(ctx, e.x, e.y, u * (1.02 + e.sa * 0.05), o, t * 1.7 + e.i, e.dir, p.lit);
+    }
+    var j = 0;
+    for (; j < list.length && list[j].sa < 0; j++) dancer(list[j]);
+    // tumpukan kayu + nyala api
+    ctx.fillStyle = p.lit('#3a2618');
+    ctx.save(); ctx.translate(d.x, d.y);
+    ctx.rotate(0.35); ctx.fillRect(-u * 0.55, -u * 0.12, u * 1.1, u * 0.14); ctx.rotate(-0.7); ctx.fillRect(-u * 0.55, -u * 0.12, u * 1.1, u * 0.14);
+    ctx.restore();
+    var fh = u * 1.25 * fs * fk;
+    ctx.fillStyle = 'rgba(255,150,50,.95)'; ctx.beginPath(); ctx.moveTo(d.x - u * 0.45, d.y - u * 0.1); ctx.quadraticCurveTo(d.x - u * 0.2, d.y - fh * 0.8, d.x + Math.sin(t * 5) * u * 0.08, d.y - fh); ctx.quadraticCurveTo(d.x + u * 0.2, d.y - fh * 0.6, d.x + u * 0.45, d.y - u * 0.1); ctx.fill();
+    ctx.fillStyle = 'rgba(255,215,110,.95)'; ctx.beginPath(); ctx.moveTo(d.x - u * 0.28, d.y - u * 0.1); ctx.quadraticCurveTo(d.x - u * 0.05, d.y - fh * 0.62, d.x + u * 0.05, d.y - fh * 0.7); ctx.quadraticCurveTo(d.x + u * 0.15, d.y - fh * 0.4, d.x + u * 0.28, d.y - u * 0.1); ctx.fill();
+    ctx.fillStyle = 'rgba(255,250,210,.9)'; ctx.beginPath(); ctx.moveTo(d.x - u * 0.12, d.y - u * 0.1); ctx.quadraticCurveTo(d.x, d.y - fh * 0.35, d.x + u * 0.12, d.y - u * 0.1); ctx.fill();
+    if (Math.random() < 0.25 + pl * 0.3) puff(inst, d.x + (Math.random() - 0.5) * u * 0.4, d.y - fh * 0.7, { vx: (Math.random() - 0.5) * 0.5, vy: -0.8 - Math.random() * 0.6, r: 0.9, life: 1.3, col: 'rgba(255,170,70,A)', add: true });
+    for (; j < list.length; j++) dancer(list[j]);
+    // penabuh kendang
+    if (d.drummer) {
+      var dx = d.x + u * 3.3, dy = d.y - u * 0.05;
+      MTPeople.draw(ctx, dx, dy, u * 1.0, d.drummer, 0, -1, p.lit);
+      var hit = Math.abs(Math.sin(t * 7)) * u * 0.12;
+      ctx.fillStyle = p.lit('#8a4a24'); ctx.beginPath(); ctx.ellipse(dx - u * 0.55, dy - u * 0.28, u * 0.22, u * 0.3, 0, 0, 6.3); ctx.fill();
+      ctx.fillStyle = p.lit('#f1e4c8'); ctx.beginPath(); ctx.ellipse(dx - u * 0.55, dy - u * 0.56 - hit * 0.2, u * 0.2, u * 0.06, 0, 0, 6.3); ctx.fill();
+    }
+    // cahaya api menerangi para penari (malam)
+    if (pl > 0.2) {
+      var g2 = ctx.createRadialGradient(d.x, d.y - u * 0.8, 0, d.x, d.y - u * 0.8, u * 3.4);
+      g2.addColorStop(0, 'rgba(255,170,90,' + (0.2 * pl * fk).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(255,120,60,0)');
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g2; ctx.fillRect(d.x - u * 3.4, d.y - u * 4.2, u * 6.8, u * 6.8); ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+
+  function renderHammock(ctx, p, t, d) {
+    var u = d.u, sw = Math.sin(t * 1.1 + d.x0 * 0.01) * u * 0.1, mx = (d.x0 + d.x1) / 2 + sw, y0 = d.y, span = d.x1 - d.x0, sag = span * 0.28;
+    // tali ke batang kelapa
+    ctx.strokeStyle = p.lit('#6b5030'); ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(d.x0, y0); ctx.lineTo(d.x0 + span * 0.12, y0 + sag * 0.35); ctx.moveTo(d.x1, y0); ctx.lineTo(d.x1 - span * 0.12, y0 + sag * 0.35); ctx.stroke();
+    var ax = d.x0 + span * 0.12, bx = d.x1 - span * 0.12, ay = y0 + sag * 0.35;
+    // orang bersantai (kepala berhias bunga di kiri)
+    var o = d.o;
+    if (o) {
+      var hx = U.lerp(ax, bx, 0.18) + sw * 0.4, hyy = ay + sag * 0.2 - u * 0.2;
+      ctx.fillStyle = p.lit(o.kain || o.pants); ctx.beginPath(); ctx.ellipse(U.lerp(ax, bx, 0.66) + sw * 0.8, ay + sag * 0.3 - u * 0.1, span * 0.2, u * 0.13, 0.12, 0, 6.3); ctx.fill();
+      ctx.fillStyle = p.lit(o.shirt); ctx.beginPath(); ctx.ellipse(U.lerp(ax, bx, 0.38) + sw * 0.6, ay + sag * 0.42 - u * 0.14, span * 0.15, u * 0.16, 0.05, 0, 6.3); ctx.fill();
+      ctx.fillStyle = p.lit('#1b1410'); ctx.beginPath(); ctx.arc(hx - u * 0.05, hyy + u * 0.02, u * 0.15, 0, 6.3); ctx.fill();
+      ctx.fillStyle = p.lit(o.skin); ctx.beginPath(); ctx.arc(hx, hyy, u * 0.13, 0, 6.3); ctx.fill();
+      ctx.fillStyle = p.lit(o.flower || '#ff5a8a'); ctx.beginPath(); ctx.arc(hx - u * 0.1, hyy - u * 0.1, u * 0.06, 0, 6.3); ctx.arc(hx + u * 0.02, hyy - u * 0.15, u * 0.06, 0, 6.3); ctx.fill();
+    }
+    ctx.fillStyle = p.lit(d.c1);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, ay + sag * 1.3, bx, ay); ctx.quadraticCurveTo(mx, ay + sag * 0.55, ax, ay); ctx.fill();
+    ctx.strokeStyle = p.lit(d.c2); ctx.lineWidth = Math.max(1, u * 0.07);
+    ctx.beginPath(); ctx.moveTo(ax, ay + 1); ctx.quadraticCurveTo(mx, ay + sag * 1.05, bx, ay + 1); ctx.stroke();
+    ctx.strokeStyle = p.lit('#ffffff', 0.7); ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(ax, ay + 0.5); ctx.quadraticCurveTo(mx, ay + sag * 1.25, bx, ay + 0.5); ctx.stroke();
   }
 
   function shipOpts(inst, p, t, dir) {
@@ -2738,7 +2892,8 @@ var MTChart = (function () {
     Remote: '<path d="M-4 4l4-8 4 8z" />',
     Capital: '<path d="M-5 3v-6l2.5 3L0 -5l2.5 5L5 -3v6z" />',
     Outlaw: '<circle cx="0" cy="-1" r="3"/><path d="M-4 3l8 3M4 3l-8 3" />',
-    FallenCapital: '<path d="M-4 5v-7M0 5v-4M4 5v-8M-5 5h10" />'
+    FallenCapital: '<path d="M-4 5v-7M0 5v-4M4 5v-8M-5 5h10" />',
+    Paradise: '<path d="M0 5c0-3 1-6 1-8M1 -3c-2-2-5-2-6 0M1 -3c2-2 5-2 6 0M1 -3c-1-2 0-4 2-4" />'
   };
 
   function blob(cx, cy, r0, seed, n) {
@@ -2961,8 +3116,46 @@ var MTBoats = (function () {
     ctx.restore();
   }
 
+  /** Yacht mewah putih (Paradiso): lambung ramping, dua dek berkaca gelap, lampu dek saat malam. */
+  function yacht(ctx, x, y, s, dir, t, L, col, lights) {
+    L = L || id; lights = lights || 0;
+    ctx.save(); ctx.translate(x, y); ctx.scale(s * dir, s); ctx.rotate(Math.sin(t * 0.9 + x) * 0.012);
+    // lambung
+    ctx.fillStyle = L('#f7f5ef');
+    ctx.beginPath(); ctx.moveTo(-66, -14); ctx.lineTo(50, -14); ctx.quadraticCurveTo(68, -13, 80, -19); ctx.quadraticCurveTo(68, 1, 46, 4); ctx.lineTo(-58, 4); ctx.quadraticCurveTo(-68, 0, -66, -14); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = L('#000000', 0.08); ctx.beginPath(); ctx.moveTo(-60, -2); ctx.lineTo(58, -2); ctx.quadraticCurveTo(52, 3, 46, 4); ctx.lineTo(-58, 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = L(col || '#1f3a5a'); ctx.fillRect(-62, -5, 118, 3);
+    ctx.fillStyle = L('#c9a033'); ctx.fillRect(-60, -9, 112, 1.1);
+    for (var i = -48; i < 42; i += 12) { ctx.fillStyle = lights > 0.2 ? 'rgba(255,214,140,' + (0.4 + 0.6 * lights).toFixed(3) + ')' : L('#1e2a38'); ctx.fillRect(i, -12.2, 5, 2.2); }
+    // dek bawah
+    ctx.fillStyle = L('#ffffff'); ctx.beginPath(); ctx.moveTo(-50, -14); ctx.lineTo(-45, -26); ctx.lineTo(24, -26); ctx.lineTo(40, -14); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = lights > 0.2 ? 'rgba(255,200,120,' + (0.35 + 0.55 * lights).toFixed(3) + ')' : L('#1e2a38', 0.92);
+    ctx.beginPath(); ctx.moveTo(-41, -17); ctx.lineTo(-39, -23); ctx.lineTo(22, -23); ctx.lineTo(31, -17); ctx.closePath(); ctx.fill();
+    // dek atas (flybridge)
+    ctx.fillStyle = L('#f4f1ea'); ctx.beginPath(); ctx.moveTo(-36, -26); ctx.lineTo(-31, -35); ctx.lineTo(8, -35); ctx.lineTo(19, -26); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = L('#1e2a38', 0.92); ctx.beginPath(); ctx.moveTo(-27, -28); ctx.lineTo(-25, -33); ctx.lineTo(6, -33); ctx.lineTo(13, -28); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = L('#ffffff'); ctx.fillRect(-30, -38, 30, 3);
+    // tiang radar + pagar
+    ctx.strokeStyle = L('#d8d4cc'); ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-14, -38); ctx.lineTo(-11, -52); ctx.moveTo(-21, -47); ctx.lineTo(-2, -47); ctx.stroke();
+    ctx.strokeStyle = L('#c8c4bc'); ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-64, -19); ctx.lineTo(-50, -19); ctx.moveTo(40, -18); ctx.lineTo(74, -20); ctx.stroke();
+    // bantal berjemur di haluan + panji merah muda di buritan
+    ctx.fillStyle = L('#f2e2b8'); ctx.fillRect(44, -17.5, 20, 3.2);
+    ctx.fillStyle = L('#ff6fa0'); ctx.fillRect(48, -18.5, 5, 1.6);
+    ctx.strokeStyle = L('#8a8478'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-64, -14); ctx.lineTo(-66, -26); ctx.stroke();
+    ctx.fillStyle = L('#ff6fa0'); ctx.beginPath(); ctx.moveTo(-66, -26); ctx.lineTo(-76, -24 + Math.sin(t * 4) * 1.2); ctx.lineTo(-65.5, -21.5); ctx.closePath(); ctx.fill();
+    if (lights > 0.2) {
+      ctx.fillStyle = 'rgba(255,240,200,' + (0.9 * lights).toFixed(3) + ')';
+      for (var k = -60; k <= 72; k += 9) ctx.fillRect(k, -20.5 - (k > 40 ? (k - 40) * 0.06 : 0), 1.6, 1.6);
+      ctx.fillStyle = 'rgba(255,90,80,' + lights.toFixed(3) + ')'; ctx.fillRect(-12, -53, 2, 2);
+    }
+    ctx.restore();
+  }
+
   function draw(ctx, m, t, L, sc) {
     var y = m.y + Math.sin(t * 1.2 + m.x * 0.01) * 1.2;
+    if (m.type === 'yacht') { yacht(ctx, m.x, y, m.s, m.dir, t, L, m.col, m.lights); return; }
     var fn = { junk: junk, freighter: freighter, speedboat: speedboat, rowboat: rowboat, batik: jukungBatik }[m.type];
     if (m.type === 'brig') {
       MTShip.draw(ctx, m.x, y, m.s, { dir: m.dir, t: t, masts: 2, hull: '#5a3a22', trim: '#b8903c', sail: '#ece0c6', flag: m.flag || '#9b2d20', furl: 1, lit: L, lanterns: m.lights || 0 });
@@ -2971,7 +3164,7 @@ var MTBoats = (function () {
     if (m.type === 'jukung') { MTShip.jukung(ctx, m.x, y, m.s, m.dir, t, m.sail || '#c2452f', L); return; }
     if (fn) fn(ctx, m.x, y, m.s, m.dir, t, L, m.col, m.moving);
   }
-  return { draw: draw, junk: junk, freighter: freighter, speedboat: speedboat, rowboat: rowboat };
+  return { draw: draw, junk: junk, freighter: freighter, speedboat: speedboat, rowboat: rowboat, yacht: yacht };
 })();
 
 /* =============================== MTPeople =============================== */
@@ -2982,7 +3175,23 @@ var MTPeople = (function () {
   var SHIRTS = ['#c2452f', '#2f7fa3', '#e0b64c', '#3f8c3f', '#efe6d2', '#8e3d8a', '#d98a3a', '#5a6a7a', '#b86a4a'];
   var PANTS = ['#3a2a1e', '#2a3444', '#5a4a38', '#1f2a1f', '#6b5a44'];
 
+  // Paradiso: tamu & nyonya resor berkain cerah, mahkota bunga, kadang membawa minuman
+  var KAIN_R = ['#e0457a', '#f28c28', '#2fb5a8', '#8e3d8a', '#f2c230', '#d9342b', '#3f7fd0', '#ff6fa0'];
+  var TOPS_F = ['#fff4e0', '#ffd6e0', '#fbe7a1', '#bff0e6', '#f7b267', '#ffffff', '#f4a7c3'];
+  var SHIRT_M = ['#f2f2ea', '#7fd6c9', '#f7b267', '#e86a5a', '#fbe7a1', '#5fb0e0'];
+  var FLOWER = ['#ff5a8a', '#ffd24a', '#ffffff', '#ff8a3c', '#ff7ad0'];
+  var DRINK = ['#ff7a3c', '#ff5a8a', '#ffd24a', '#6ad0e0'];
+  function makeResort(r) {
+    var fem = r() < 0.7;
+    var o = { resort: true, skin: U.pick(r, SKIN), fem: fem, bike: false, flower: U.pick(r, FLOWER), sash: U.pick(r, KAIN_R), drinkCol: U.pick(r, DRINK) };
+    if (fem) { o.shirt = U.pick(r, TOPS_F); o.kain = U.pick(r, KAIN_R); o.pants = o.kain; o.hat = r() < 0.82 ? 'flower' : 'none'; o.lei = r() < 0.2; }
+    else { o.shirt = U.pick(r, SHIRT_M); o.pants = U.pick(r, ['#f1e8d6', '#3a4a6a', '#c9b48a']); o.kain = r() < 0.3 ? U.pick(r, KAIN_R) : null; o.hat = U.pick(r, ['none', 'none', 'caping', 'peci']); o.lei = r() < 0.5; }
+    o.carry = r() < 0.3 ? 'drink' : 'none';
+    return o;
+  }
+
   function make(r, style) {
+    if (style === 'resort') return makeResort(r);
     var hats = style === 'pirates' ? ['bandana', 'tricorn', 'none', 'bandana'] : style === 'scavengers' ? ['hood', 'none', 'cap'] : style === 'cyclists' ? ['helmet', 'none', 'cap', 'peci'] : ['caping', 'peci', 'none', 'scarf', 'caping', 'none'];
     var carry = style === 'villagers' || style === 'porters' ? U.pick(r, ['none', 'none', 'crate', 'sack', 'basket']) : style === 'pirates' ? U.pick(r, ['none', 'bottle', 'none']) : 'none';
     return {
@@ -2995,8 +3204,9 @@ var MTPeople = (function () {
   /** x,y = titik kaki; h = tinggi orang (px); ph = fase langkah. */
   function draw(ctx, x, y, h, o, ph, dir, L, lantern) {
     L = L || function (c) { return c; };
-    var sw = Math.sin(ph) * 0.5, u = h / 10;
+    var sw = Math.sin(ph) * 0.5, u = h / 10, at = o.at || 0;
     ctx.save(); ctx.translate(x, y); ctx.scale(dir, 1);
+    if (o.dance) { ctx.rotate(Math.sin(at) * 0.06); sw *= 0.5; }
     ctx.lineCap = 'round';
     if (o.bike) {
       ctx.strokeStyle = L('#2a2a2a'); ctx.lineWidth = Math.max(1, u * 0.35);
@@ -3022,10 +3232,38 @@ var MTPeople = (function () {
     // badan
     ctx.fillStyle = L(o.shirt);
     ctx.beginPath(); ctx.moveTo(-u * 1.1, bodyY - u * 4.2); ctx.lineTo(u * 1.1, bodyY - u * 4.2); ctx.lineTo(u * 1.2, bodyY - u * 7.6); ctx.quadraticCurveTo(0, bodyY - u * 8.3, -u * 1.2, bodyY - u * 7.6); ctx.closePath(); ctx.fill();
+    if (o.resort && o.kain && o.fem && !o.sit) { ctx.fillStyle = L(o.kain); ctx.fillRect(-u * 1.12, bodyY - u * 4.9, u * 2.24, u * 0.55); }
+    if (o.lei) {
+      for (var li = 0; li < 5; li++) { var la = Math.PI * (0.15 + li * 0.175); ctx.fillStyle = L(li % 2 ? '#ffffff' : (o.flower || '#ff5a8a')); ctx.beginPath(); ctx.arc(Math.cos(la) * u * 0.95, bodyY - u * 7.7 + Math.sin(la) * u * 1.1, u * 0.34, 0, 6.3); ctx.fill(); }
+    }
     // lengan
     ctx.strokeStyle = L(o.skin); ctx.lineWidth = Math.max(1, u * 0.5);
+    var hand = null;
     if (o.carry === 'crate' || o.carry === 'sack' || o.carry === 'basket') {
       ctx.beginPath(); ctx.moveTo(-u * 0.9, bodyY - u * 7.2); ctx.lineTo(-u * 1.2, bodyY - u * 9.6); ctx.moveTo(u * 0.9, bodyY - u * 7.2); ctx.lineTo(u * 1.2, bodyY - u * 9.6); ctx.stroke();
+    } else if (o.dance) {
+      // tangan terentang & jari melentik (gaya tari Nusantara), selendang berayun
+      var hs = Math.sin(at * 1.3) * u * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.6, bodyY - u * 7.1); ctx.lineTo(-u * 2.0, bodyY - u * 7.2); ctx.lineTo(-u * 2.4, bodyY - u * 8.7 + hs);
+      ctx.moveTo(u * 0.6, bodyY - u * 7.1); ctx.lineTo(u * 2.0, bodyY - u * 7.0); ctx.lineTo(u * 2.5, bodyY - u * 8.4 - hs);
+      ctx.stroke();
+      if (o.sash) { ctx.strokeStyle = L(o.sash); ctx.lineWidth = Math.max(0.8, u * 0.32); ctx.beginPath(); ctx.moveTo(u * 2.4, bodyY - u * 7.6 - hs * 0.5); ctx.quadraticCurveTo(u * 3.3, bodyY - u * 5.4, u * 2.4 + hs * 0.6, bodyY - u * 3.4); ctx.stroke(); }
+    } else if (o.wave) {
+      var wv = Math.sin(at * 3) * u * 0.7;
+      ctx.beginPath(); ctx.moveTo(0, bodyY - u * 7.2); ctx.lineTo(-u * 0.5, bodyY - u * 4.6);
+      ctx.moveTo(u * 0.5, bodyY - u * 7.2); ctx.lineTo(u * 1.7, bodyY - u * 8.5); ctx.lineTo(u * 1.8 + wv, bodyY - u * 10.6); ctx.stroke();
+    } else if (o.carry === 'tray') {
+      ctx.beginPath(); ctx.moveTo(0, bodyY - u * 7.2); ctx.lineTo(-sw * u * 1.2, bodyY - u * 4.6);
+      ctx.moveTo(u * 0.5, bodyY - u * 7.2); ctx.lineTo(u * 1.7, bodyY - u * 6.6); ctx.lineTo(u * 1.9, bodyY - u * 9.4); ctx.stroke();
+      ctx.fillStyle = L('#c9a033'); ctx.fillRect(u * 0.6, bodyY - u * 9.8, u * 2.6, u * 0.35);
+      ctx.fillStyle = L(o.drinkCol || '#ff7a3c'); ctx.fillRect(u * 1.0, bodyY - u * 10.9, u * 0.6, u * 1.1);
+      ctx.fillStyle = L('#6ad0e0'); ctx.fillRect(u * 2.1, bodyY - u * 10.9, u * 0.6, u * 1.1);
+      ctx.fillStyle = L('#ffffff', 0.7); ctx.fillRect(u * 1.0, bodyY - u * 10.9, u * 0.6, u * 0.25); ctx.fillRect(u * 2.1, bodyY - u * 10.9, u * 0.6, u * 0.25);
+    } else if (o.carry === 'drink') {
+      ctx.beginPath(); ctx.moveTo(0, bodyY - u * 7.2); ctx.lineTo(-sw * u * 1.8, bodyY - u * 4.6);
+      ctx.moveTo(u * 0.3, bodyY - u * 7.2); ctx.lineTo(u * 1.0, bodyY - u * 5.4); ctx.lineTo(u * 1.9, bodyY - u * 6.0); ctx.stroke();
+      hand = [u * 1.9, bodyY - u * 6.0];
     } else {
       ctx.beginPath(); ctx.moveTo(0, bodyY - u * 7.2); ctx.lineTo(-sw * u * 1.8, bodyY - u * 4.6); ctx.moveTo(0, bodyY - u * 7.2); ctx.lineTo(sw * u * 1.8 + (lantern ? u * 1.5 : 0), bodyY - u * 4.6); ctx.stroke();
     }
@@ -3035,6 +3273,13 @@ var MTPeople = (function () {
     if (o.carry === 'sack') { ctx.fillStyle = L('#c9b07a'); ctx.beginPath(); ctx.ellipse(0, bodyY - u * 11.6, u * 2, u * 1.2, 0, 0, 6.3); ctx.fill(); }
     if (o.carry === 'basket') { ctx.fillStyle = L('#a07838'); ctx.beginPath(); ctx.ellipse(0, bodyY - u * 11.4, u * 1.8, u * 0.9, 0, 0, 6.3); ctx.fill(); ctx.fillStyle = L('#d9534a'); ctx.beginPath(); ctx.arc(-u * 0.5, bodyY - u * 12, u * 0.5, 0, 6.3); ctx.arc(u * 0.6, bodyY - u * 12.1, u * 0.5, 0, 6.3); ctx.fill(); }
     if (o.carry === 'bottle') { ctx.fillStyle = L('#3a6a3a'); ctx.fillRect(sw * u * 1.8 - u * 0.3, bodyY - u * 5.6, u * 0.6, u * 1.4); }
+    if (hand) {
+      // gelas koktail + payung kertas mungil
+      var gx = hand[0], gy = hand[1];
+      ctx.fillStyle = L('#ffffff', 0.8); ctx.beginPath(); ctx.moveTo(gx - u * 0.6, gy - u * 1.6); ctx.lineTo(gx + u * 0.6, gy - u * 1.6); ctx.lineTo(gx + u * 0.32, gy - u * 0.2); ctx.lineTo(gx - u * 0.32, gy - u * 0.2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = L(o.drinkCol || '#ff7a3c'); ctx.beginPath(); ctx.moveTo(gx - u * 0.5, gy - u * 1.25); ctx.lineTo(gx + u * 0.5, gy - u * 1.25); ctx.lineTo(gx + u * 0.3, gy - u * 0.3); ctx.lineTo(gx - u * 0.3, gy - u * 0.3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = L(o.flower || '#ff5a8a'); ctx.beginPath(); ctx.moveTo(gx - u * 0.1, gy - u * 2.3); ctx.lineTo(gx + u * 0.9, gy - u * 2.0); ctx.lineTo(gx + u * 0.2, gy - u * 1.6); ctx.closePath(); ctx.fill();
+    }
     if (lantern) {
       var lx = sw * u * 1.8 + u * 1.5, ly = bodyY - u * 4.2;
       ctx.globalCompositeOperation = 'lighter';
@@ -3058,6 +3303,15 @@ var MTPeople = (function () {
       case 'hood': ctx.fillStyle = L('#4a4a3a'); ctx.beginPath(); ctx.arc(x, y, u * 1.5, Math.PI * 0.9, Math.PI * 2.1); ctx.fill(); break;
       case 'cap': ctx.fillStyle = L('#2f5a7a'); ctx.beginPath(); ctx.arc(x, y - u * 0.3, u * 1.2, Math.PI, 0); ctx.fill(); ctx.fillRect(x, y - u * 0.5, u * 1.8, u * 0.35); break;
       case 'helmet': ctx.fillStyle = L('#e0b64c'); ctx.beginPath(); ctx.arc(x, y - u * 0.2, u * 1.3, Math.PI, 0); ctx.fill(); break;
+      case 'flower':
+        // rambut hitam (panjang terurai untuk perempuan) + mahkota bunga + kembang sepatu di telinga
+        ctx.beginPath(); ctx.arc(x, y - u * 0.3, u * 1.22, Math.PI, 0); ctx.fill();
+        if (o.fem) { ctx.beginPath(); ctx.moveTo(x - u * 1.2, y - u * 0.4); ctx.quadraticCurveTo(x - u * 2.0, y + u * 1.6, x - u * 1.4, y + u * 3.3); ctx.lineTo(x - u * 0.4, y + u * 2.5); ctx.quadraticCurveTo(x - u * 0.8, y + u * 0.9, x - u * 0.1, y - u * 0.2); ctx.fill(); }
+        var fcs = [o.flower || '#ff5a8a', '#ffffff', '#ffd24a', o.flower || '#ff5a8a', '#ffffff'];
+        for (var fi = 0; fi < 5; fi++) { var fa = Math.PI * (1.06 + fi * 0.22); ctx.fillStyle = L(fcs[fi]); ctx.beginPath(); ctx.arc(x + Math.cos(fa) * u * 1.15, y - u * 0.3 + Math.sin(fa) * u * 1.05, u * 0.44, 0, 6.3); ctx.fill(); }
+        ctx.fillStyle = L(o.flower || '#ff5a8a'); ctx.beginPath(); ctx.arc(x + u * 1.0, y + u * 0.05, u * 0.55, 0, 6.3); ctx.fill();
+        ctx.fillStyle = L('#ffd24a'); ctx.beginPath(); ctx.arc(x + u * 1.0, y + u * 0.05, u * 0.2, 0, 6.3); ctx.fill();
+        break;
       default: if (!o.fem) { ctx.beginPath(); ctx.arc(x, y - u * 0.35, u * 1.15, Math.PI * 1.05, Math.PI * 1.95); ctx.fill(); }
     }
   }
@@ -3292,7 +3546,8 @@ var MTCities = (function () {
     ctx.fillStyle = o.fg || (style === 'neon' ? '#ff7ad0' : '#3a2412');
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var bh = style === 'banner' ? h * 0.72 : h;
-    var size = fitText(ctx, lines, w * 0.88, bh, font, style === 'board' || style === 'neon' ? '700' : '');
+    var fitLines = o.subFit && o.sub && lines.length > 1 ? lines.slice(0, -1).concat([lines[lines.length - 1].slice(0, Math.ceil(lines[lines.length - 1].length * 0.62))]) : lines;
+    var size = fitText(ctx, fitLines, w * 0.88, bh, font, style === 'board' || style === 'neon' ? '700' : '');
     lines.forEach(function (l, i) {
       var ly = y + bh * (i + 0.5) / lines.length + (style === 'banner' ? h * 0.04 : 0);
       if (o.sub && i === lines.length - 1 && lines.length > 1) { ctx.save(); ctx.font = '700 ' + (size * 0.55).toFixed(1) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = o.subFg || ctx.fillStyle; ctx.fillText(l, x + w / 2, ly); ctx.restore(); }
@@ -3957,8 +4212,289 @@ var MTCities = (function () {
     B.walk = { style: 'scavengers', n: 5, x0: u * 12, x1: u * 25 };
   }
 
-  var BUILDERS = { sunda_empire: sunda, joungjava: joungjava, bjorneo: bjorneo, skitraw: skitraw, toogood: toogood, ikn: ikn };
-  var MOOD = { toogood: 'gloom', ikn: 'overcast' };
+  /* ---------- helper Paradiso ---------- */
+  // atap alang-alang dua susun ala bale Bali (serat jerami + rumbai di tepi)
+  function resortRoof(ctx, x, top, w, rh, col) {
+    var ov = w * 0.1;
+    function hatch(x0, x1, y0, y1) {
+      ctx.save(); ctx.clip();
+      ctx.strokeStyle = 'rgba(90,60,20,.32)'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); for (var hx = x0; hx < x1; hx += 3) { ctx.moveTo(hx, y1); ctx.lineTo(hx + (hx - (x0 + x1) / 2) * 0.12, y0); } ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.fillRect((x0 + x1) / 2, y0, (x1 - x0) / 2, y1 - y0);
+      ctx.fillStyle = 'rgba(255,240,190,.14)'; ctx.fillRect(x0, y0, (x1 - x0) * 0.2, y1 - y0);
+      ctx.restore();
+    }
+    // susun bawah
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(x - ov, top + rh * 0.12); ctx.lineTo(x + w * 0.16, top - rh * 0.55); ctx.lineTo(x + w * 0.84, top - rh * 0.55); ctx.lineTo(x + w + ov, top + rh * 0.12); ctx.closePath(); ctx.fill();
+    hatch(x - ov, x + w + ov, top - rh * 0.55, top + rh * 0.12);
+    // rumbai
+    ctx.fillStyle = U.shadeHex(col, -30);
+    ctx.beginPath(); ctx.moveTo(x - ov, top + rh * 0.12);
+    for (var fx = x - ov, k = 0; fx <= x + w + ov; fx += rh * 0.14, k++) ctx.lineTo(fx, top + rh * (k % 2 ? 0.2 : 0.1));
+    ctx.lineTo(x + w + ov, top + rh * 0.06); ctx.lineTo(x - ov, top + rh * 0.06); ctx.closePath(); ctx.fill();
+    // susun atas (lancip)
+    ctx.fillStyle = U.shadeHex(col, 10);
+    ctx.beginPath(); ctx.moveTo(x + w * 0.1, top - rh * 0.48); ctx.lineTo(x + w * 0.5, top - rh * 1.5); ctx.lineTo(x + w * 0.9, top - rh * 0.48); ctx.closePath(); ctx.fill();
+    hatch(x + w * 0.1, x + w * 0.9, top - rh * 1.5, top - rh * 0.48);
+    ctx.fillStyle = U.shadeHex(col, -34); ctx.fillRect(x + w * 0.1, top - rh * 0.5, w * 0.8, rh * 0.06);
+    ctx.fillStyle = '#6b4a2c'; ctx.fillRect(x + w * 0.5 - 1, top - rh * 1.62, 2, rh * 0.14);
+  }
+  function palmAt(ctx, x, y, h, lean, colA, colB) {
+    ctx.strokeStyle = '#7a5634'; ctx.lineWidth = Math.max(1.6, h * 0.065); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + lean * 0.15, y - h * 0.55, x + lean, y - h); ctx.stroke();
+    ctx.strokeStyle = 'rgba(40,25,10,.35)'; ctx.lineWidth = 0.7;
+    for (var s = 0.12; s < 0.95; s += 0.11) { var bx = x + lean * s * s, by = y - h * s; ctx.beginPath(); ctx.moveTo(bx - h * 0.03, by); ctx.lineTo(bx + h * 0.03, by - h * 0.01); ctx.stroke(); }
+    var tx = x + lean, ty = y - h;
+    for (var i = 0; i < 8; i++) {
+      var a = -Math.PI / 2 + (i - 3.5) * 0.5, len = h * (0.5 + (i % 3) * 0.07);
+      var ex = tx + Math.cos(a) * len, ey = ty + Math.sin(a) * len * 0.5 + len * 0.34;
+      ctx.strokeStyle = i % 2 ? colA : colB; ctx.lineWidth = Math.max(1.3, h * 0.075);
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + ex) / 2, ty - len * 0.28, ex, ey); ctx.stroke();
+    }
+    ctx.fillStyle = '#6a4a22'; ctx.beginPath(); ctx.arc(tx - h * 0.03, ty + h * 0.03, h * 0.04, 0, 6.3); ctx.arc(tx + h * 0.03, ty + h * 0.04, h * 0.04, 0, 6.3); ctx.fill();
+    ctx.lineCap = 'butt';
+    return { x: tx, y: ty, at: function (f) { var q = 1 - f; return { x: q * q * x + 2 * q * f * (x + lean * 0.15) + f * f * (x + lean), y: y - h * f }; } };
+  }
+  function tiki(B, x, base, h) {
+    var ctx = B.ctx, u = B.u;
+    ctx.fillStyle = '#8a6a3a'; ctx.fillRect(x - u * 0.06, base - h, u * 0.12, h);
+    ctx.fillStyle = 'rgba(60,40,20,.5)'; for (var k = 1; k < 4; k++) ctx.fillRect(x - u * 0.07, base - h * k / 4, u * 0.14, 1);
+    ctx.fillStyle = '#4a3220'; ctx.beginPath(); ctx.moveTo(x - u * 0.16, base - h - u * 0.2); ctx.lineTo(x + u * 0.16, base - h - u * 0.2); ctx.lineTo(x + u * 0.08, base - h); ctx.lineTo(x - u * 0.08, base - h); ctx.closePath(); ctx.fill();
+    B.torches.push({ x: x, y: base - h - u * 0.3 });
+  }
+  function umbrella(ctx, x, base, h, col, col2) {
+    ctx.strokeStyle = '#e8e0d0'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x, base); ctx.lineTo(x + h * 0.06, base - h); ctx.stroke();
+    var cx = x + h * 0.06, cy = base - h, rw = h * 0.62;
+    for (var i = 0; i < 6; i++) {
+      ctx.fillStyle = i % 2 ? col2 : col;
+      ctx.beginPath(); ctx.moveTo(cx, cy - h * 0.12);
+      ctx.lineTo(cx - rw + rw * 2 * i / 6, cy + h * 0.12); ctx.quadraticCurveTo(cx - rw + rw * (2 * i + 1) / 6, cy + h * 0.2, cx - rw + rw * 2 * (i + 1) / 6, cy + h * 0.12);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  function strand(x0, y0, x1, y1, sag, n, cols) {
+    var pts = [];
+    for (var i = 0; i <= n; i++) { var f = i / n, c = cols[i % cols.length]; pts.push({ x: U.lerp(x0, x1, f), y: U.lerp(y0, y1, f) + Math.sin(f * Math.PI) * sag, c: c, rgb: U.hex(c) }); }
+    return pts;
+  }
+  function hotPool(B, cx, cy, rx) {
+    var ctx = B.ctx, u = B.u;
+    ctx.fillStyle = '#8f887a'; ctx.beginPath(); ctx.ellipse(cx, cy, rx + u * 0.28, u * 0.5, 0, 0, 6.3); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(cx, cy + u * 0.12, rx + u * 0.28, u * 0.4, 0, 0, Math.PI); ctx.fill();
+    for (var k = 0; k < 9; k++) { var a = k / 9 * 6.283; ctx.fillStyle = k % 2 ? '#a39b8b' : '#7c7568'; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * (rx + u * 0.2), cy + Math.sin(a) * u * 0.4, u * 0.16, 0, 6.3); ctx.fill(); }
+    var g = ctx.createLinearGradient(0, cy - u * 0.3, 0, cy + u * 0.3); g.addColorStop(0, '#b8fff6'); g.addColorStop(1, '#3fcfc8');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, rx, u * 0.3, 0, 0, 6.3); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(cx - rx * 0.3, cy - u * 0.1, rx * 0.35, u * 0.06, 0, 0, 6.3); ctx.fill();
+    B.dyn.push({ type: 'steam', x: cx, y: cy - u * 0.1, w: rx * 1.4, u: u, rate: 0.1 });
+  }
+
+  // PARADISO - pulau rahasia "Surga Para Pelaut": pantai pasir putih, laguna pirus,
+  // vila di atas air, beach club beratap alang-alang berhias untaian lampu, kasino
+  // berkubah mutiara, pemandian air panas beruap, hammock di antara nyiur, yacht
+  // tertambat, pesta api unggun dengan penari berkain & mahkota bunga, kembang api malam.
+  function paradiso(B) {
+    var u = B.u, q = B.qTop, sy = B.shoreY, ctx = B.ctx, r = B.r;
+    var LC = ['#ffe7a8', '#ff7ab8', '#6ae0e0', '#ffc94a', '#ffffff'];
+    var strands = [];
+    hills(B, { c: ['#6cc152', '#2f8040'], h: 0.22, peak: 0.45, trees: 42, kind: 'palm', head: 0.028, village: { walls: ['#fbf4e4', '#f1e4c8', '#d8b88a'], roofs: ['#caa452', '#b8903c', '#d4b060'], types: ['thatch', 'thatch', 'stilt'], prob: 0.26 } });
+    // --- laguna terbuka di kiri (vila di atas air): kosongkan kaki bukit sampai laut
+    var lagX = u * 5.8;
+    ctx.save(); ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath(); ctx.moveTo(-2, q + u * 0.04); ctx.lineTo(lagX - u * 0.4, q + u * 0.04); ctx.quadraticCurveTo(lagX + u * 0.3, q + u * 0.1, lagX + u * 0.5, sy + B.S); ctx.lineTo(-2, sy + B.S); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#efe2bf'; ctx.beginPath(); ctx.moveTo(-2, q + u * 0.06); ctx.lineTo(lagX, q + u * 0.06); ctx.lineTo(lagX, q - u * 0.22); ctx.quadraticCurveTo(lagX * 0.5, q - u * 0.34, -2, q - u * 0.18); ctx.closePath(); ctx.fill();
+    B.lagoon = lagX;
+    // --- pasir putih lebar
+    var sx1 = B.landEnd + B.S * 1.4, sTop = sy - u * 2.15;
+    var sg = ctx.createLinearGradient(0, sTop, 0, sy + u * 0.4);
+    sg.addColorStop(0, '#e2d6a4'); sg.addColorStop(0.2, '#f6edd4'); sg.addColorStop(0.75, '#fcf7ea'); sg.addColorStop(1, '#e9d8b0');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.moveTo(lagX - u * 0.3, sy + u * 0.4); ctx.quadraticCurveTo(lagX - u * 0.2, sTop + u * 1.2, lagX + u * 0.4, sTop + u * 0.5);
+    for (var bx = lagX + u * 0.4; bx <= sx1; bx += 6) { var endK = U.clamp((sx1 - bx) / (u * 3), 0, 1); ctx.lineTo(bx, U.lerp(sy - u * 0.2, sTop + Math.sin(bx * 0.045) * u * 0.16 + Math.sin(bx * 0.013) * u * 0.24, endK)); }
+    ctx.lineTo(sx1, sy + u * 0.4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(200,180,140,.35)'; ctx.fillRect(lagX, sy - u * 0.14, sx1 - lagX, u * 0.54);
+    ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(lagX, sy - u * 0.04, sx1 - lagX, 1.4);
+    for (var sh = 0; sh < 46; sh++) { ctx.fillStyle = r() < 0.5 ? 'rgba(236,160,150,.75)' : 'rgba(190,170,130,.5)'; ctx.fillRect(lagX + r() * (sx1 - lagX), sy - u * (0.1 + r() * 1.8), 1.5, 1); }
+    ctx.strokeStyle = 'rgba(70,130,50,.7)'; ctx.lineWidth = 1;
+    for (var gt = 0; gt < 40; gt++) { var gx = lagX + r() * (sx1 - lagX - u * 2), gy = sTop + u * 0.1; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx - 1.5, gy - u * 0.25); ctx.moveTo(gx, gy); ctx.lineTo(gx + 1.5, gy - u * 0.28); ctx.stroke(); }
+
+    // ================= BARIS BELAKANG (bukit) =================
+    // Paviliun Kisah: bale beratap tumpang di atas batur bata, diapit candi bentar
+    var lx = u * 2.3, lw = u * 5.2, lb = Math.min(sy - u * 3.4, B.hillY(lx + lw / 2) + u * 1.3);
+    [[lx - u * 1.1, 1], [lx + lw + u * 0.3, -1]].forEach(function (c) {
+      for (var st = 0; st < 5; st++) { var sw2 = u * (0.8 - st * 0.13), sh2 = u * 0.42; ctx.fillStyle = st % 2 ? '#b0603e' : '#9a4e30'; ctx.fillRect(c[1] > 0 ? c[0] + u * 0.8 - sw2 : c[0], lb - sh2 * (st + 1), sw2, sh2); }
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(c[0] + (c[1] > 0 ? u * 0.6 : 0), lb - u * 2.1, u * 0.2, u * 2.1);
+    });
+    ctx.fillStyle = '#a8583a'; ctx.fillRect(lx, lb - u * 0.62, lw, u * 0.62);
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; for (var br = 0; br < 3; br++) ctx.fillRect(lx, lb - u * 0.62 + br * u * 0.2, lw, 1);
+    ctx.fillStyle = '#d8c8a8'; ctx.fillRect(lx + lw * 0.4, lb - u * 0.62, lw * 0.2, u * 0.62);
+    ctx.fillStyle = 'rgba(60,35,20,.72)'; ctx.fillRect(lx + u * 0.2, lb - u * 2.2, lw - u * 0.4, u * 1.58);
+    ctx.fillStyle = '#5a3c22'; for (var lp = 0; lp <= 4; lp++) ctx.fillRect(lx + u * 0.15 + (lw - u * 0.45) * lp / 4, lb - u * 2.2, u * 0.14, u * 1.58);
+    B.wins.push({ x: lx + u * 0.4, y: lb - u * 2.0, w: lw - u * 0.8, h: u * 1.2, ph: 2, on: 0.35 });
+    MTScene._h.roof(ctx, 'pagoda', lx - u * 0.1, lb - u * 2.2, lw + u * 0.2, u * 1.5, '#8a6a3a', r);
+    ctx.fillStyle = '#c9a033'; ctx.beginPath(); ctx.arc(lx + lw / 2, lb - u * 2.2 - u * 2.3, u * 0.16, 0, 6.3); ctx.fill();
+    hot(B, 'library', 'Paviliun Kisah', 'book', lx - u * 0.3, lb - u * 4.6, lw + u * 0.6, u * 4.6);
+
+    // Kasino Mutiara: istana putih-emas berkubah mutiara + papan neon
+    var kx = u * 12.6, kw = u * 7.6, kh = u * 2.1, kb = Math.min(sy - u * 3.4, B.hillY(kx + kw / 2) + u * 1.2);
+    ctx.fillStyle = '#fdf8ef'; ctx.fillRect(kx, kb - kh, kw, kh);
+    ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(kx + kw * 0.86, kb - kh, kw * 0.14, kh);
+    ctx.fillStyle = '#d8b04a'; ctx.fillRect(kx - u * 0.1, kb - kh - u * 0.14, kw + u * 0.2, u * 0.16); ctx.fillRect(kx, kb - kh * 0.52, kw, u * 0.08);
+    for (var bl = 0; bl < 28; bl++) ctx.fillRect(kx + kw * bl / 28, kb - kh - u * 0.42, u * 0.07, u * 0.3);
+    ctx.fillRect(kx - u * 0.1, kb - kh - u * 0.46, kw + u * 0.2, u * 0.07);
+    B.wins.push.apply(B.wins, windows(ctx, kx + u * 0.1, kb - kh * 0.96, kw - u * 0.2, kh * 0.92, 2, 10, { arch: true, frame: '#e9d9a8' }));
+    var dcx = kx + kw / 2, dr = kw * 0.15, dby = kb - kh - u * 0.5;
+    ctx.fillStyle = '#fbf4e6'; ctx.fillRect(dcx - dr * 0.95, dby, dr * 1.9, u * 0.5);
+    ctx.fillStyle = '#d8b04a'; ctx.fillRect(dcx - dr, dby - u * 0.08, dr * 2, u * 0.12);
+    var pg = ctx.createRadialGradient(dcx - dr * 0.35, dby - dr * 0.7, dr * 0.1, dcx, dby - dr * 0.3, dr * 1.1);
+    pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.5, '#f6e6ee'); pg.addColorStop(1, '#d7bfd6');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.moveTo(dcx - dr, dby); ctx.bezierCurveTo(dcx - dr, dby - dr * 1.1, dcx - dr * 0.2, dby - dr * 1.25, dcx, dby - dr * 1.45); ctx.bezierCurveTo(dcx + dr * 0.2, dby - dr * 1.25, dcx + dr, dby - dr * 1.1, dcx + dr, dby); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d8b04a'; ctx.lineWidth = Math.max(1.2, u * 0.08); ctx.beginPath(); ctx.moveTo(dcx, dby - dr * 1.45); ctx.lineTo(dcx, dby - dr * 1.45 - u * 0.5); ctx.stroke();
+    ctx.fillStyle = '#fff6fa'; ctx.beginPath(); ctx.arc(dcx, dby - dr * 1.45 - u * 0.62, u * 0.17, 0, 6.3); ctx.fill();
+    [kx + kw * 0.1, kx + kw * 0.9].forEach(function (sx) {
+      var sr = kw * 0.055, sb = kb - kh - u * 0.42;
+      var sgp = ctx.createRadialGradient(sx - sr * 0.3, sb - sr * 0.8, 1, sx, sb - sr * 0.4, sr * 1.2); sgp.addColorStop(0, '#ffffff'); sgp.addColorStop(1, '#dcc4da');
+      ctx.fillStyle = sgp; ctx.beginPath(); ctx.moveTo(sx - sr, sb); ctx.bezierCurveTo(sx - sr, sb - sr * 1.2, sx, sb - sr * 1.3, sx, sb - sr * 1.6); ctx.bezierCurveTo(sx, sb - sr * 1.3, sx + sr, sb - sr * 1.2, sx + sr, sb); ctx.closePath(); ctx.fill();
+      B.flags.push({ x: sx, y: sb - sr * 1.6 - u * 1.0, h: u * 0.95, col: '#ff6fa0' });
+    });
+    sign(ctx, dcx - u * 1.7, kb - kh * 0.5 - u * 0.02, u * 3.4, u * 0.6, ['KASINO MUTIARA'], 'neon', { fg: '#ffd86a', edge: '#ff7ad0', font: '"Cinzel", Georgia, serif' });
+    B.dyn.push({ type: 'neon', x: dcx - u * 1.7, y: kb - kh * 0.5 - u * 0.02, w: u * 3.4, h: u * 0.6 });
+    ctx.fillStyle = 'rgba(40,30,20,.55)'; ctx.fillRect(dcx - u * 0.45, kb - u * 0.95, u * 0.9, u * 0.95);
+    hot(B, 'bank', 'Kasino Mutiara', 'bank', kx - u * 0.2, dby - dr * 1.45 - u * 0.9, kw + u * 0.4, kb - (dby - dr * 1.45 - u * 0.9));
+
+    // pemandian air panas bertingkat di lereng (bagian dari Spa Kapal)
+    var tb = Math.min(sy - u * 3.5, B.hillY(u * 25.5) + u * 1.5);
+    ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.fillRect(u * 24.35, tb - u * 1.0, u * 0.18, u * 0.6); ctx.fillRect(u * 26.35, tb - u * 0.4, u * 0.18, u * 0.6);
+    hotPool(B, u * 23.4, tb - u * 1.05, u * 1.1);
+    hotPool(B, u * 25.4, tb - u * 0.45, u * 1.2);
+    hotPool(B, u * 27.5, tb + u * 0.15, u * 1.05);
+    // gazebo kecil di samping kolam
+    ctx.fillStyle = '#6b4a2c'; ctx.fillRect(u * 28.9, tb - u * 1.2, u * 0.1, u * 1.2); ctx.fillRect(u * 30.0, tb - u * 1.2, u * 0.1, u * 1.2);
+    resortRoof(ctx, u * 28.8, tb - u * 1.2, u * 1.4, u * 0.8, '#c9a451');
+
+    // hammock di antara dua nyiur (pasir belakang, di balik pesta)
+    var hg = sy - u * 1.75;
+    var pA = palmAt(ctx, u * 11.9, hg, u * 2.5, -u * 0.35, '#3f8a3a', '#2f6e2c');
+    var pB = palmAt(ctx, u * 13.7, hg, u * 2.7, u * 0.45, '#4a9a40', '#35762e');
+    var ha = pA.at(0.4), hb = pB.at(0.38);
+    B.dyn.push({ type: 'hammock', x0: ha.x, x1: hb.x, y: Math.min(ha.y, hb.y), u: u, c1: '#ff6fa0', c2: '#ffd24a', o: { skin: '#d4a075', shirt: '#bff0e6', kain: '#8e3d8a', flower: '#ffd24a' } });
+    umbrella(ctx, u * 14.9, sy - u * 1.85, u * 1.7, '#ff6fa0', '#fff4e8');
+    umbrella(ctx, u * 17.2, sy - u * 1.9, u * 1.6, '#2fb5a8', '#fff4e8');
+
+    // ================= BARIS DEPAN =================
+    // Vila Syahbandar: dua vila beratap alang-alang di atas air + titian kayu
+    var deckY = q - u * 0.28, bw1 = lagX + u * 0.35;
+    ctx.fillStyle = '#4a3320'; for (var bp = u * 0.25; bp < bw1; bp += u * 0.9) ctx.fillRect(bp, deckY, u * 0.12, sy + u * 0.6 - deckY);
+    var v1 = bld(B, { x: u * 0.35, w: u * 2.2, base: deckY, h: u * 1.45, roof: 'thatch', rh: u * 1.3, wall: '#9a6438', roofCol: '#c9a451', stilt: true, ground: sy + u * 0.6 });
+    var v2 = bld(B, { x: u * 3.05, w: u * 2.55, base: deckY, h: u * 1.75, roof: 'thatch', rh: u * 1.55, wall: '#f4ead4', roofCol: '#d4b060', stilt: true, ground: sy + u * 0.6 });
+    [v1, v2].forEach(function (v) { ctx.fillStyle = 'rgba(50,30,15,.8)'; ctx.fillRect(v.x + v.w * 0.38, deckY - v.h * 0.62, v.w * 0.24, v.h * 0.62); });
+    ctx.fillStyle = '#9a6a3a'; ctx.fillRect(0, deckY, bw1, u * 0.2);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; for (var pl = 0; pl < bw1; pl += u * 0.3) ctx.fillRect(pl, deckY, 1, u * 0.2);
+    ctx.strokeStyle = '#6b4a2c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, deckY - u * 0.45); ctx.lineTo(bw1, deckY - u * 0.45);
+    for (var rl = 0; rl <= bw1; rl += u * 0.45) { ctx.moveTo(rl, deckY - u * 0.45); ctx.lineTo(rl, deckY); } ctx.stroke();
+    for (var pot = 0; pot < 3; pot++) { var ptx = u * (2.75 + pot * 0.12); ctx.fillStyle = '#ff5a8a'; ctx.beginPath(); ctx.arc(ptx, deckY - u * 0.6 - pot * u * 0.12, u * 0.14, 0, 6.3); ctx.fill(); }
+    B.flags.push({ x: v2.x + v2.w / 2, y: deckY - v2.h - v2.rh * 1.2 - u * 1.0, h: u * 0.95, col: '#2fb5a8' });
+    strands.push(strand(0, deckY - u * 0.95, bw1, deckY - u * 0.95, u * 0.3, 12, LC));
+    hot(B, 'tasks', 'Vila Syahbandar', 'scroll', u * 0.1, deckY - u * 4.4, u * 5.7, sy + u * 0.5 - (deckY - u * 4.4));
+    // nyiur condong ke laguna
+    MTScene._h.palm(ctx, lagX + u * 0.1, q - u * 0.1, u * 3.1, r, '#3f8a3a', '#2f6e2c');
+    tiki(B, lagX + u * 0.4, q, u * 1.5);
+
+    // Beach Club Paradiso: pendopo terbuka, bar bambu, bantal lounge, papan nama
+    var cx0 = u * 6.25, cw = u * 5.1, ch = u * 2.35;
+    ctx.fillStyle = '#9a6a3a'; ctx.fillRect(cx0 - u * 0.2, q - u * 0.34, cw + u * 0.4, u * 0.34);
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; for (var cp = 0; cp < cw + u * 0.4; cp += u * 0.35) ctx.fillRect(cx0 - u * 0.2 + cp, q - u * 0.34, 1, u * 0.34);
+    ctx.fillStyle = '#4a2e1c'; ctx.fillRect(cx0, q - ch, cw, ch - u * 0.34);
+    ctx.strokeStyle = 'rgba(120,85,45,.5)'; ctx.lineWidth = 0.7; ctx.beginPath(); for (var ww = 1; ww < 8; ww++) { ctx.moveTo(cx0, q - ch + ww * u * 0.26); ctx.lineTo(cx0 + cw, q - ch + ww * u * 0.26); } ctx.stroke();
+    ctx.fillStyle = '#7a5230'; ctx.fillRect(cx0 + u * 0.3, q - ch + u * 0.5, u * 2.3, u * 0.08); ctx.fillRect(cx0 + u * 0.3, q - ch + u * 0.95, u * 2.3, u * 0.08);
+    var bc = ['#3fa05a', '#d9342b', '#f2c230', '#6ad0e0', '#ff7ab8', '#8e3d8a'];
+    for (var bt = 0; bt < 14; bt++) { ctx.fillStyle = bc[bt % 6]; ctx.fillRect(cx0 + u * (0.4 + (bt % 7) * 0.3), q - ch + u * (bt < 7 ? 0.22 : 0.67), u * 0.12, u * 0.28); }
+    ctx.fillStyle = '#c9a060'; ctx.fillRect(cx0 + u * 0.2, q - u * 1.2, u * 2.5, u * 0.86);
+    ctx.fillStyle = 'rgba(110,75,35,.55)'; for (var bb = 0; bb < 9; bb++) ctx.fillRect(cx0 + u * (0.3 + bb * 0.28), q - u * 1.1, 1, u * 0.72);
+    ctx.fillStyle = '#7a4a24'; ctx.fillRect(cx0 + u * 0.1, q - u * 1.3, u * 2.7, u * 0.14);
+    var cc = ['#ff6fa0', '#2fb5a8', '#ffc94a', '#f7f0e0', '#ff8a3c'];
+    ctx.fillStyle = '#6b4a2c'; ctx.fillRect(cx0 + u * 3.0, q - u * 0.72, u * 1.9, u * 0.36);
+    for (var cu = 0; cu < 5; cu++) { ctx.fillStyle = cc[cu]; ctx.beginPath(); ctx.ellipse(cx0 + u * (3.2 + cu * 0.38), q - u * (0.86 + (cu % 2) * 0.1), u * 0.2, u * 0.2, 0, 0, 6.3); ctx.fill(); }
+    ctx.fillStyle = '#5a3c22'; for (var cpo = 0; cpo <= 4; cpo++) ctx.fillRect(cx0 + (cw - u * 0.14) * cpo / 4, q - ch, u * 0.14, ch - u * 0.34);
+    B.wins.push({ x: cx0 + u * 0.2, y: q - ch + u * 0.15, w: cw - u * 0.4, h: ch - u * 0.9, ph: 1, on: 0.32 });
+    resortRoof(ctx, cx0 - u * 0.15, q - ch, cw + u * 0.3, u * 1.75, '#caa452');
+    sign(ctx, cx0 + cw * 0.2, q - ch + u * 0.1, cw * 0.6, u * 0.52, ['BEACH CLUB'], 'board', { bg: '#1f7f86', fg: '#fff4d8', frame: '#5a3c22' });
+    strands.push(strand(cx0 - u * 0.6, q - ch + u * 0.28, cx0 + cw / 2, q - ch + u * 0.28, u * 0.32, 9, LC));
+    strands.push(strand(cx0 + cw / 2, q - ch + u * 0.28, cx0 + cw + u * 0.6, q - ch + u * 0.28, u * 0.32, 9, LC));
+    strands.push(strand(cx0 + cw + u * 0.6, q - ch + u * 0.28, u * 13.95, q - u * 1.75, u * 0.35, 9, LC));
+    hot(B, 'tavern', 'Beach Club Paradiso', 'cup', cx0 - u * 0.5, q - u * 5.1, cw + u * 1.0, u * 5.1);
+    tiki(B, u * 11.75, q, u * 1.45);
+    tiki(B, u * 13.95, q, u * 1.55);
+    B.dyn.push({ type: 'party', x: u * 12.85, y: q + u * 0.1, u: u });
+
+    // Pasar Senja: kios berkanopi warna-warni + papan nama di dua tiang bambu
+    var mc = [['#e0457a', '#fff4e8'], ['#2fb5a8', '#fff4e8'], ['#f28c28', '#fff4e8']];
+    for (var s = 0; s < 3; s++) stall(ctx, u * (14.35 + s * 1.38), q + u * 0.05, u * 1.22, u * 1.5, mc[s][0], mc[s][1]);
+    ctx.fillStyle = '#b8914f'; ctx.fillRect(u * 15.1, q - u * 2.2, u * 0.1, u * 2.2); ctx.fillRect(u * 17.3, q - u * 2.2, u * 0.1, u * 2.2);
+    sign(ctx, u * 14.9, q - u * 2.55, u * 2.7, u * 0.46, ['PASAR SENJA'], 'board', { bg: '#fff1d6', fg: '#b3261e', frame: '#7a4a24' });
+    for (var fr = 0; fr < 5; fr++) { ctx.fillStyle = ['#8a5a2a', '#f2c230', '#6aa84f', '#e86a3a', '#8a5a2a'][fr]; ctx.beginPath(); ctx.arc(u * (18.35 + (fr % 3) * 0.26), q - u * (0.14 + Math.floor(fr / 3) * 0.24), u * 0.14, 0, 6.3); ctx.fill(); }
+    strands.push(strand(u * 14.2, q - u * 1.72, u * 18.4, q - u * 1.72, u * 0.28, 13, LC));
+    hot(B, 'market', 'Pasar Senja', 'scales', u * 14.1, q - u * 2.75, u * 4.5, u * 2.75);
+
+    // gerbang bambu "Paradiso" di muka dermaga (nyiur di belakangnya)
+    palmAt(ctx, u * 18.4, q - u * 0.05, u * 3.0, -u * 0.5, '#4a9a40', '#35762e');
+    var g0 = u * 18.75, g1 = u * 21.45;
+    ctx.fillStyle = '#b8914f'; ctx.fillRect(g0 - u * 0.08, q - u * 3.2, u * 0.16, u * 3.2); ctx.fillRect(g1 - u * 0.08, q - u * 3.2, u * 0.16, u * 3.2);
+    ctx.fillStyle = 'rgba(60,40,20,.45)'; for (var gk = 1; gk < 6; gk++) { ctx.fillRect(g0 - u * 0.09, q - u * 3.2 * gk / 6, u * 0.18, 1); ctx.fillRect(g1 - u * 0.09, q - u * 3.2 * gk / 6, u * 0.18, 1); }
+    for (var gf = 0; gf < 9; gf++) { ctx.fillStyle = ['#ff5a8a', '#ffffff', '#ffd24a'][gf % 3]; ctx.beginPath(); ctx.arc(g0 + (gf % 2 ? u * 0.1 : -u * 0.1), q - u * (0.5 + gf * 0.28), u * 0.08, 0, 6.3); ctx.arc(g1 + (gf % 2 ? -u * 0.1 : u * 0.1), q - u * (0.5 + gf * 0.28), u * 0.08, 0, 6.3); ctx.fill(); }
+    resortRoof(ctx, g0 - u * 0.65, q - u * 3.3, g1 - g0 + u * 1.3, u * 0.8, '#caa452');
+    sign(ctx, g0 - u * 0.45, q - u * 3.2, g1 - g0 + u * 0.9, u * 1.2, ['Paradiso', 'SURGA PARA PELAUT'], 'board', { bg: '#fff6e6', fg: '#d23a6e', frame: '#7a4a24', sub: true, subFit: true, subFg: '#1f7f86', font: '"Pirata One", Georgia, serif' });
+    strands.push(strand(g0, q - u * 1.8, g1, q - u * 1.8, u * 0.4, 9, LC));
+
+    // Gudang Laguna: lumbung alang-alang + peti, tong, tumpukan kelapa
+    var wx = u * 21.9, ww2 = u * 2.8;
+    bld(B, { x: wx, w: ww2, base: q, h: u * 1.95, roof: 'thatch', rh: u * 1.3, wall: '#caa06a', roofCol: '#b8903c' });
+    ctx.fillStyle = 'rgba(50,30,15,.85)'; ctx.fillRect(wx + ww2 * 0.3, q - u * 1.3, ww2 * 0.38, u * 1.3);
+    ctx.strokeStyle = '#8a6238'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(wx + ww2 * 0.3, q - u * 1.3); ctx.lineTo(wx + ww2 * 0.68, q); ctx.moveTo(wx + ww2 * 0.68, q - u * 1.3); ctx.lineTo(wx + ww2 * 0.3, q); ctx.stroke();
+    sign(ctx, wx + u * 0.35, q - u * 1.82, ww2 - u * 0.7, u * 0.38, ['GUDANG LAGUNA'], 'board', { bg: '#f6efdd', frame: '#5a3c22' });
+    for (var cr = 0; cr < 4; cr++) { ctx.fillStyle = ['#8a6238', '#7a5230'][cr % 2]; ctx.fillRect(wx - u * 0.15 + (cr % 2) * u * 0.5, q - u * 0.45 * (1 + Math.floor(cr / 2)), u * 0.45, u * 0.42); ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.strokeRect(wx - u * 0.15 + (cr % 2) * u * 0.5, q - u * 0.45 * (1 + Math.floor(cr / 2)), u * 0.45, u * 0.42); }
+    for (var ba = 0; ba < 2; ba++) { ctx.fillStyle = '#8a4a2a'; ctx.beginPath(); ctx.ellipse(wx + ww2 + u * (0.05 + ba * 0.5), q - u * 0.32, u * 0.22, u * 0.32, 0, 0, 6.3); ctx.fill(); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(wx + ww2 + u * (-0.17 + ba * 0.5), q - u * 0.45, u * 0.44, 1); }
+    hot(B, 'cargo', 'Gudang Laguna', 'warehouse', wx - u * 0.3, q - u * 4.4, ww2 + u * 1.1, u * 4.4);
+    tiki(B, u * 24.95, q, u * 1.5);
+
+    // Spa Kapal Paradiso: pendopo landasan, yacht dimanjakan air panas beruap
+    var spx = u * 25.3, spw = u * 4.6;
+    ctx.strokeStyle = '#4a3220'; ctx.lineWidth = Math.max(1.2, u * 0.08);
+    ctx.beginPath(); ctx.moveTo(spx + u * 0.4, q - u * 0.1); ctx.lineTo(spx + spw + u * 0.4, sy + u * 0.35); ctx.moveTo(spx + u * 0.4, q + u * 0.12); ctx.lineTo(spx + spw + u * 0.2, sy + u * 0.5); ctx.stroke();
+    ctx.fillStyle = '#5a3c22'; [0, 0.33, 0.66, 1].forEach(function (f) { ctx.fillRect(spx + (spw - u * 0.14) * f, q - u * 2.7, u * 0.14, u * 2.7 - (f > 0.9 ? 0 : 0)); });
+    ctx.fillStyle = '#6b4a2c'; ctx.fillRect(spx + u * 1.1, q - u * 0.55, u * 0.18, u * 0.45); ctx.fillRect(spx + u * 2.9, q - u * 0.5, u * 0.18, u * 0.45);
+    MTBoats.speedboat(ctx, spx + u * 2.1, q - u * 0.52, u * 0.042, -1, 0, null, '#ff6fa0', false);
+    ctx.fillStyle = 'rgba(255,255,255,.8)'; for (var dp = 0; dp < 4; dp++) ctx.fillRect(spx + u * (1.0 + dp * 0.55), q - u * 2.4, 1.2, u * 0.9);
+    resortRoof(ctx, spx - u * 0.15, q - u * 2.7, spw + u * 0.3, u * 1.45, '#c9a451');
+    sign(ctx, spx + spw * 0.22, q - u * 2.62, spw * 0.56, u * 0.46, ['SPA KAPAL'], 'board', { bg: '#1f7f86', fg: '#fff4d8', frame: '#5a3c22' });
+    B.dyn.push({ type: 'steam', x: spx + u * 2.2, y: q - u * 1.0, w: u * 2.6, u: u, rate: 0.09 });
+    strands.push(strand(spx - u * 0.4, q - u * 2.45, spx + spw + u * 0.4, q - u * 2.45, u * 0.3, 12, LC));
+    hot(B, 'ship', 'Spa Kapal Paradiso', 'wrench', spx - u * 0.4, tb - u * 1.8, spw + u * 0.8, q - (tb - u * 1.8));
+    MTScene._h.palm(ctx, u * 30.2, q - u * 0.05, u * 2.8, r, '#3f8a3a', '#2f6e2c');
+
+    // --- dinamis
+    B.dyn.push({ type: 'lights', strands: strands, u: u });
+    var rh = U.rng(4242), host = function (act, carry) { var o = MTPeople.make(rh, 'resort'); o.fem = true; o.hat = 'flower'; o.kain = o.kain || '#e0457a'; o.carry = carry || 'none'; if (act === 'wave') o.wave = true; return o; };
+    B.dyn.push({ type: 'hosts', list: [
+      { x: u * 5.0, y: deckY, h: u * 1.02, dir: 1, o: host('wave') },
+      { x: u * 9.9, y: q - u * 0.34, h: u * 1.02, dir: -1, o: host('serve', 'tray') },
+      { x: u * 19.3, y: q + u * 0.06, h: u * 1.05, dir: 1, o: host('wave') },
+      { x: u * 28.6, y: q - u * 0.05, h: u * 1.0, dir: -1, o: host('serve', 'tray') }
+    ] });
+    B.dyn.push({ type: 'fireworks', x0: u * 3, x1: u * 27, y0: B.hy * 0.18, y1: B.hy * 0.55 });
+    B.moored.push(
+      { type: 'yacht', x: B.W * 0.13, y: B.H * 0.765, s: B.H * 0.0015, dir: 1, col: '#1f3a5a' },
+      { type: 'yacht', x: B.W * 0.4, y: B.H * 0.915, s: B.H * 0.0019, dir: -1, col: '#b8902c' },
+      { type: 'jukung', x: B.W * 0.29, y: B.H * 0.73, s: B.H * 0.0024, dir: -1, sail: '#ff6fa0' }
+    );
+    B.roamers = [{ type: 'speedboat', x: 0.25, y: 0.84, dir: 1, v: 0.000026, col: '#ff6fa0' }, { type: 'speedboat', x: 0.75, y: 0.97, dir: -1, v: 0.00002, col: '#2fb5a8' }, { x: 0.55, y: 0.79, dir: 1, v: 0.0000045, sail: '#ffc94a' }];
+    B.noLamps = true;
+    B.walk = { style: 'resort', n: 12, x0: u * 6.3, x1: u * 24.6 };
+  }
+
+  var BUILDERS = { sunda_empire: sunda, joungjava: joungjava, bjorneo: bjorneo, skitraw: skitraw, toogood: toogood, ikn: ikn, paradiso: paradiso };
+  var MOOD = { toogood: 'gloom', ikn: 'overcast', paradiso: 'paradise' };
   return { get: function (id) { return BUILDERS[id]; }, mood: function (id) { return MOOD[id] || null; }, sign: sign };
 })();
 
@@ -4206,6 +4742,7 @@ var MTAudio = (function () {
     if (scene.mode === 'sea') return scene.enc ? 'danger' : (isNight() ? 'night' : 'sea');
     if (scene.type === 'Outlaw') return 'outlaw';
     if (scene.type === 'FallenCapital') return 'fallen';
+    if (scene.type === 'Paradise') return 'capital'; // pesta semalam suntuk
     if (isNight()) return 'night';
     if (scene.type === 'Capital') return 'capital';
     if (scene.type === 'Agricultural' || scene.type === 'Remote') return 'agri';

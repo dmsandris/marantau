@@ -236,7 +236,8 @@ begin
   cond := least(coalesce(s.condition, eff_max), eff_max);
   return jsonb_build_object(
     'ShipName', s.ship_name, 'Tier', s.tier, 'Hull', s.hull, 'MaxHull', s.max_hull,
-    'Cargo', s.cargo, 'Speed', s.speed, 'Combat', s.combat, 'Armor', s.armor, 'Navigation', s.navigation,
+    'Cargo', s.cargo, 'Speed', s.speed + case when coalesce(game.has_effect(p_pid, 'ship_speed_5'), false) then 5 else 0 end,
+    'Combat', s.combat, 'Armor', s.armor, 'Navigation', s.navigation,
     'Condition', cond, 'ConditionDecayPerSail', s.condition_decay_per_sail, 'MaxCondition', s.max_condition,
     'DamageThreshold', s.damage_threshold,
     'CargoBonus', cargo_bonus,
@@ -519,8 +520,11 @@ end $$;
 create or replace function game.voy_roll_encounter(p_pid uuid, p_dest text) returns jsonb
 language plpgsql volatile as $$
 declare ship jsonb; stats jsonb; v_arch text; outlaw boolean; chance numeric;
-  lvl_max int; lvl_min int; lvl int; names text[]; max_hp numeric; max_ammo numeric;
+  lvl_max int; lvl_min int; lvl int; names text[]; max_hp numeric; max_ammo numeric; boss jsonb;
 begin
+  -- Misi rahasia: bos menunggu di rute tertentu (lihat 0014)
+  boss := game.quest_boss_encounter(p_pid, p_dest);
+  if boss is not null then return boss; end if;
   ship := coalesce(game.ship_json(p_pid), '{}'::jsonb);
   stats := coalesce(game.stats_json(p_pid), '{}'::jsonb);
   select archetype into v_arch from game.players where player_id = p_pid;
@@ -629,7 +633,7 @@ begin
     chance := 50 + game.voy_stat_bonus(stats -> 'Combat') * 2 + game.voy_num(ship -> 'CannonBonusPercent') - lvl * 5;
     chance := game.voy_clamp(chance, 10, 92);
     if random() * 100 < chance then
-      dmg := game.voy_round(max_hp * (0.18 + random() * 0.14));
+      dmg := game.voy_round(max_hp * (0.18 + random() * 0.14) * coalesce(nullif(game.voy_num(enc -> 'dmgTaken'), 0), 1));
       msg := lbl || 'tembakan meriam menghantam ' || ename || ' telak (-' || dmg || ' HP musuh).';
     else
       msg := lbl || 'tembakan meriam meleset dari ' || ename || '.';
@@ -842,7 +846,7 @@ begin
     from game.cities c
     cross join lateral (select game.voy_map_distance(l.city_id, c.city_id) as dist) d
     cross join lateral (select game.city_event(c.city_id) as ev) e
-   where c.city_id <> l.city_id;
+   where c.city_id <> l.city_id and game.city_open(v_me.player_id, c.city_id);
   return out;
 end $$;
 select game.expose('api_getsailoptions');
@@ -860,6 +864,7 @@ begin
   if v_dest_name is null then raise exception 'Kota tujuan tidak dikenali: %', coalesce(v_dest, 'undefined'); end if;
 
   v_me := game.me(true);
+  if not game.city_open(v_me.player_id, v_dest) then raise exception 'Kota tujuan tidak dikenali: %', v_dest; end if;
   -- Selesaikan dulu voyage lama kalau sudah waktunya tiba
   perform game.resolve_arrival_if_due(v_me.player_id);
 
@@ -908,6 +913,7 @@ declare
   sinking boolean; defeated boolean; ends boolean; ended boolean;
   final_msg text; final_result text; target text; loot numeric; gold_now bigint; penalty bigint; eff_max numeric;
   drop_res jsonb; drop_note text := ''; loot_item jsonb := null; drop_name text; fin jsonb;
+  is_boss boolean := false; boss_res jsonb := null;
 begin
   if v_tactic is null or not (v_tactic = any (array['fire', 'reload', 'flee', 'bribe', 'negotiate', 'ram'])) then
     raise exception 'Taktik tidak dikenali: %', coalesce(v_tactic, 'undefined');
@@ -925,6 +931,10 @@ begin
   stats := coalesce(game.stats_json(pid), '{}'::jsonb);
   ship := coalesce(game.ship_json(pid), '{}'::jsonb);
   lvl := game.voy_num(enc -> 'enemyLevel')::int;
+  is_boss := coalesce(enc ->> 'boss', '') <> '';
+  if is_boss and v_tactic in ('bribe', 'negotiate') then
+    raise exception '% tertawa: "Suap? Runding? Aku tak butuh gold-mu!" - bos ini tidak bisa disuap atau diajak berunding.', enc ->> 'enemyName';
+  end if;
 
   r := game.voy_resolve_round(v_tactic, enc, stats, ship, v_me.gold);
 
@@ -975,7 +985,7 @@ begin
   target := voyage ->> 'destinationCityId';
 
   if defeated then
-    loot := game.voy_round(game.cfg_num('CombatLootGoldPerLevel', 200) * lvl * (0.9 + random() * 0.3));
+    loot := case when is_boss then 0 else game.voy_round(game.cfg_num('CombatLootGoldPerLevel', 200) * lvl * (0.9 + random() * 0.3)) end;
     update game.players set gold = gold + loot::bigint where player_id = pid;
     final_msg := (r ->> 'message') || ' Tembakan itu ternyata mematikan - ' || (enc ->> 'enemyName') ||
       ' tenggelam dan kru menjarah ' || loot || ' gold dari puing kapal sebelum berlayar lagi.';
@@ -996,8 +1006,14 @@ begin
     final_result := 'sunk';
   end if;
 
+  -- Bos misi dikalahkan: hadiah khusus (menggantikan jarahan biasa & peta harta)
+  if final_result = 'won' and is_boss then
+    boss_res := game.quest_boss_defeated(pid);
+    loot := coalesce(game.voy_num(boss_res -> 'gold'), 0) - greatest(0, game.voy_num(r -> 'goldDelta'));
+    if loot <> 0 then update game.players set gold = gold + loot::bigint where player_id = pid; end if;
+    final_msg := (r ->> 'message') || ' ' || coalesce(boss_res ->> 'message', '');
   -- Menang: peluang peta harta (peluang + pemberian item ditangani kontrak game.treasure_drop)
-  if final_result = 'won' then
+  elsif final_result = 'won' then
     drop_res := game.treasure_drop(pid, lvl);
     if drop_res is not null and jsonb_typeof(drop_res) = 'object' then
       drop_name := coalesce(drop_res ->> 'name', drop_res ->> 'Name');
@@ -1021,7 +1037,9 @@ begin
     'cityId', fin -> 'cityId',
     'newCondition', game.ship_json(pid) -> 'Condition',
     'newGold', (select gold from game.players where player_id = pid),
-    'lootItem', loot_item);
+    'lootItem', loot_item,
+    'boss', case when is_boss then enc ->> 'boss' else null end,
+    'questItem', boss_res -> 'item');
 end $$;
 select game.expose('api_resolvecombat');
 

@@ -241,7 +241,7 @@ declare
 begin
   select coalesce(array_agg(id order by sort, id), '{}') into v_comms from game.commodities;
   select coalesce(array_agg(city_id order by sort, city_id), '{}') into v_others
-    from game.cities where city_id is distinct from p_city;
+    from game.cities where city_id is distinct from p_city and not hidden;
 
   for v_idx in 0 .. jsonb_array_length(v_tiers) - 1 loop
     v_tier := v_tiers -> v_idx;

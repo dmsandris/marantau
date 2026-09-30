@@ -1,0 +1,225 @@
+<script>
+/* =====================================================================
+ * Tide v11 - MISI RAHASIA "HARTA UDA GALA" + PULAU PARADISO
+ * Server: 0014_gala_paradiso.sql (api_galaQuest, api_paradisoTick)
+ * ===================================================================== */
+var QG = (function () {
+  var gala = { name: 'Uda Gala', title: 'Pemilik Galangan Gaul-Wash', ap: { fem: 0, skin: 2, hair: 0, hairStyle: 1, facial: 4, head: 'arch', eyes: 1, seed: 424242, role: 'tukang', age: 0.55 } };
+  var karto = { name: 'Pak Tua Karto', title: 'Peminum Kopi Pahit', ap: { fem: 0, skin: 3, hair: 4, hairStyle: 5, facial: 2, head: 'arch', eyes: 0, seed: 1717, role: 'lapau', age: 0.95 } };
+  var nenek = { name: 'Nenek Ulin', title: 'Penjaga Mercusuar Kayu', ap: { fem: 1, skin: 3, hair: 4, hairStyle: 0, facial: 0, head: 'arch', eyes: 2, seed: 2929, role: 'pustakawan', age: 0.95 } };
+  var gap = { name: 'Mr. GAP', title: 'Bajak laut paling ditakuti', ap: { fem: 0, skin: 1, hair: 0, hairStyle: 4, facial: 3, head: 'arch', eyes: 0, seed: 6666, role: 'bajak', age: 0.6 } };
+
+  var LINES = [
+    'Tahukah Kapten? Dulu Skitraw ini cuma kampung nelayan. Rendang pertama di Mare Nusantara dimasak di dapur perahu, bukan di rumah!',
+    'Kakek buyut ambo pernah menyelam ke kapal karam Raja Bjorneo. Pulangnya bawa sendok emas... dan cerita yang tak habis tujuh malam.',
+    'Gaul-Wash ini ambo buka waktu badai besar. Kapal pertama yang ambo cuci? Kapal hantu! Sumpah, tak ada awaknya satu pun.',
+    'Sunda Empire dulu berperang dengan Joungjava gara-gara harga gula. Gula, Kapten! Sejarah memang manis-manis getir.',
+    'IKN itu dulu megah sekali. Lampunya menyala sampai ke tengah laut. Sekarang? Tinggal Garuda berlumut, kasihan.',
+    'Orang TooGood itu dulunya pedagang jujur, tahu? Satu musim paceklik mengubah semuanya. Hati-hati kalau ke sana.',
+    'Bajak laut paling ditakuti? Ah... ada satu nama yang tak berani ambo sebut keras-keras. Nanti saja ambo cerita.',
+    'Sabun Gaul-Wash ambo racik sendiri: air kelapa, garam laut, dan sedikit rahasia dari Bjorneo. Kapalmu pasti mengilap!'
+  ];
+  var OBJ = [
+    '',
+    'Temui <b>Pak Tua Karto</b> di Lapau <b>Joungjava</b> &mdash; "lelaki tua peminum kopi paling pahit di tanah paling subur".',
+    'Cari <b>tempat kabut tak pernah pergi dan pohon lebih tua dari kerajaan</b>. Tanyakan di Lapau <b>Bjorneo</b>.',
+    'Selidiki catatan pelabuhan di <b>arsip ibu kota lama</b> &mdash; Perpustakaan <b>IKN</b>.',
+    'Berlayarlah menuju <b>TooGood</b>. <b>Mr. GAP</b> akan menghadangmu di jalan. Siapkan meriam dan lambung terbaikmu &mdash; dia tidak bisa disuap!',
+    'Bawa <b>Kotak Hati</b> pulang ke <b>Uda Gala</b> di Galangan Gaul-Wash, <b>Skitraw</b>.',
+    'Misi selesai. Pulau <b>Paradiso</b> kini ada di petamu.'
+  ];
+  var STEP_NAME = ['', 'Petunjuk pertama', 'Petunjuk kedua', 'Petunjuk ketiga', 'Hadapi Mr. GAP', 'Pulang ke Uda Gala', 'Selesai'];
+
+  function st() { return (state && state.gala) || { step: 0, badges: 0, need: 20, eligible: false }; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function face(n) { return MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'] }); }
+  function heartSvg(sz) {
+    return '<svg class="qg-heart" viewBox="0 0 100 92" width="' + (sz || 72) + '" height="' + Math.round((sz || 72) * 0.92) + '">' +
+      '<defs><linearGradient id="qgH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2553f"/><stop offset="1" stop-color="#8e1f18"/></linearGradient></defs>' +
+      '<path d="M50 88 C20 66 4 48 4 28 C4 13 16 4 29 4 C39 4 46 10 50 17 C54 10 61 4 71 4 C84 4 96 13 96 28 C96 48 80 66 50 88 Z" fill="url(#qgH)" stroke="#e8bf55" stroke-width="4"/>' +
+      '<path d="M22 20 C27 13 36 12 42 17" stroke="rgba(255,255,255,.55)" stroke-width="4" fill="none" stroke-linecap="round"/>' +
+      '<text x="50" y="43" text-anchor="middle" font-family="Georgia,serif" font-size="9.5" fill="#fff3c4" font-style="italic">Chafik is</text>' +
+      '<text x="50" y="56" text-anchor="middle" font-family="Georgia,serif" font-size="9.5" fill="#fff3c4" font-style="italic">My One Piece</text></svg>';
+  }
+  function speech(n, text, extra) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(n.title) + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function insertAfterIntro(html) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    if (c.querySelector('.qg-wrap')) return null;
+    var anchor = c.querySelector('.npc') || c.querySelector('.ph');
+    var wrap = document.createElement('div'); wrap.className = 'qg-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function call(action, arg, ok, btn) {
+    if (btn) btn.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      if (r && r.gala && state) state.gala = r.gala;
+      ok(r);
+    }).withFailureHandler(function (e) { if (btn) btn.disabled = false; showToast(e.message, 'error'); }).api_galaQuest(action, arg || '');
+  }
+
+  /* ---------- baris Uda Gala di galangan ---------- */
+  function line() {
+    var g = st();
+    if (g.step === 0 && !g.eligible) return pickLine_(LINES, 'gala') + ' <span class="qg-hint">(Uda Gala melirik tanda jasamu: ' + (g.badges || 0) + '/20)</span>';
+    if (g.step === 0) return 'Kapten! Kemarilah, duduk sebentar. Ambo sudah lama menunggu orang sepertimu...';
+    if (g.step >= 1 && g.step <= 4) return 'Bagaimana, Kapten? Sudah ketemu jejaknya? Ambo tak bisa tidur memikirkannya.';
+    if (g.step === 5) return 'Kapten... itu... itu kotak ambo?! Tangan ambo gemetar...';
+    return 'Sahabatku! Bagaimana Paradiso? Jangan lupa mampir cuci kapal di sini, gratis untukmu. ' + pickLine_(LINES, 'gala2');
+  }
+
+  /* ---------- panel galangan Skitraw ---------- */
+  function decorShip() {
+    if (cid() !== 'skitraw' || !docked()) return;
+    var g = st(), html = '';
+    if (g.step === 0 && g.eligible) {
+      html = '<div class="qg-callout"><div class="qg-callout-ico">' + ic('star') + '</div><div><b>Uda Gala ingin bicara empat mata.</b><br><span class="muted small">Peristiwa sekali seumur hidup &mdash; hanya untuk kapten dengan 20 Tanda Jasa.</span></div>' +
+        '<button class="btn btn-gold" id="qgListen">Dengarkan ceritanya</button></div>';
+    } else if (g.step >= 1 && g.step <= 4) {
+      html = journal(true);
+    } else if (g.step === 5) {
+      html = '<div class="qg-callout gold"><div>' + heartSvg(56) + '</div><div><b>Serahkan Kotak Hati kepada Uda Gala.</b><br><span class="muted small">Kotak yang kau rebut dari Mr. GAP.</span></div><button class="btn btn-gold" id="qgDeliver">Serahkan kotak</button></div>';
+    }
+    if (!html) return;
+    var w = insertAfterIntro(html);
+    var ls = w && w.querySelector('#qgListen');
+    if (ls) ls.onclick = function () { offer(w); };
+    var dv = w && w.querySelector('#qgDeliver');
+    if (dv) dv.onclick = function () { deliver(dv); };
+  }
+
+  function offer(w) {
+    au_('page');
+    w.innerHTML = speech(gala,
+      '<p>Kapten, duduklah. Ambo sudah lihat tanda-tanda jasamu... banyak sekali. Kapten orang yang tepat.</p>' +
+      '<p>Bertahun-tahun lalu, ambo kehilangan <b>harta terpenting dalam hidup ambo</b>. Bukan emas, bukan permata &mdash; lebih mahal dari keduanya. Dirampas orang di tengah laut, dan sejak malam itu hati ambo seperti kapal tanpa jangkar.</p>' +
+      '<p>Ambo tak bisa bilang lebih banyak. Ikuti saja petunjuk ini:</p>' +
+      '<blockquote class="qg-clue">"Carilah lelaki tua yang minum kopi paling pahit, di tanah paling subur. Dia berutang cerita pada ambo."</blockquote>',
+      '<div class="qg-actions"><button class="btn btn-gold" id="qgAccept">' + ic('compass') + '&nbsp; Akan kucari hartamu, Uda!</button><button class="btn btn-ghost-ink" id="qgLater">Nanti dulu</button></div>');
+    w.querySelector('#qgAccept').onclick = function () {
+      call('accept', '', function () { au_('unfurl'); showToast('Misi rahasia dimulai: Harta Uda Gala', 'success'); renderShip(); }, this);
+    };
+    w.querySelector('#qgLater').onclick = function () { renderShip(); };
+  }
+
+  function deliver(btn) {
+    call('deliver', '', function (r) {
+      if (r.unlocks) state.unlocks = r.unlocks;
+      if (r.cities) { try { setCachedCities_(r.citiesVersion, r.cities); } catch (e) {} state.cities = visibleCities_(r.cities, state); }
+      if (r.ship) patchShip_(r.ship);
+      au_('victory'); metaBump_('galaquest');
+      setModal_(panelHeader_('star', 'Harta Uda Gala', 'Misi rahasia selesai') +
+        speech(gala,
+          '<div class="qg-heart-row">' + heartSvg(90) + '</div>' +
+          '<p>Uda Gala terdiam lama. Tangannya yang kasar mengusap tulisan di tutup kotak itu, pelan sekali, seperti takut kotak itu hilang lagi.</p>' +
+          '<p>"<b>Chafik</b>... Kapten, ini bukan harta biasa. Ini hati ambo sendiri, yang ambo kira sudah tenggelam selamanya. Mr. GAP merampasnya tepat di malam ambo mau melamar. Hari ini Kapten mengembalikannya."</p>' +
+          '<p>"Ambo tak punya emas untuk membalas. Tapi ambil <b>catatan pelayaran</b> ambo ini &mdash; isinya semua rahasia angin Mare Nusantara. Kapalmu akan melaju lebih kencang."</p>' +
+          '<p>"Dan satu lagi..." Uda Gala berbisik. "Ada sebuah pulau yang tak tergambar di peta mana pun. Pulau tempat para pelaut melupakan semua lelahnya: pesta di pantai, tarian, mata air panas yang menyembuhkan kapal. Namanya <b>Paradiso</b>. Letaknya di balik Joungjava. Pergilah, Kapten. Kau pantas mendapatkannya."</p>') +
+        '<div class="qg-rewards"><div class="qg-reward">' + ic('book') + '<div><b>Catatan Pelayaran Uda Gala</b><span>+5 Speed kapal (Speed kini ' + esc_(r.ship ? r.ship.Speed : '') + ')</span></div></div>' +
+        '<div class="qg-reward paradiso">' + ic('gem') + '<div><b>Pulau baru: Paradiso</b><span>Terbuka di peta &mdash; kapal pulih +1 kondisi tiap 5 detik saat merapat</span></div></div></div>' +
+        '<div class="qg-actions"><button class="btn btn-gold" onclick="openPanel(\'setsail\')">' + ic('compass') + '&nbsp; Lihat peta</button><button class="btn" onclick="closeModal()">Tutup</button></div>');
+      showToast('Pulau rahasia Paradiso muncul di petamu!', 'success');
+      renderSidebar();
+    }, btn);
+  }
+
+  /* ---------- jurnal misi (panel Tasks & galangan) ---------- */
+  function journal(atGala) {
+    var g = st(); if (!(g.step >= 1 && g.step <= 5)) return '';
+    var steps = '';
+    for (var i = 1; i <= 5; i++) steps += '<li class="' + (i < g.step ? 'done' : i === g.step ? 'now' : '') + '"><span class="ms-dot">' + (i < g.step ? ic('check') : '') + '</span><span>' + STEP_NAME[i] + '</span></li>';
+    return '<div class="qg-journal"><div class="qg-jh">' + ic('scroll') + ' <b>Misi Rahasia: Harta Uda Gala</b>' + (atGala ? '' : '<span class="legend-tag">sekali seumur hidup</span>') + '</div>' +
+      '<ol class="qg-steps">' + steps + '</ol><div class="qg-obj">' + OBJ[g.step] + '</div>' + (g.step === 5 ? '<div class="qg-box">' + heartSvg(44) + '<span>Kotak Hati &mdash; <i>"Chafik is My One Piece"</i></span></div>' : '') + '</div>';
+  }
+  function decorTasks() { var j = journal(false); if (j) insertAfterIntro(j); }
+
+  /* ---------- petunjuk di kota ---------- */
+  function clueResult(w, n, r) {
+    au_(r.wrong ? 'error' : 'unfurl');
+    w.innerHTML = speech(n, '<p>' + esc_(r.story) + '</p>') + (r.wrong ? '' : '<div class="qg-next">' + ic('compass') + ' Tujuan berikutnya: <b>' + esc_(cityName_(r.next)) + '</b></div>');
+    if (r.wrong) setTimeout(function () { if (currentPanel === 'tavern') renderTavern(); }, 2500);
+  }
+  function decorTavern() {
+    var g = st(); if (!docked()) return;
+    if (g.step === 1 && cid() === 'joungjava') {
+      var w = insertAfterIntro(speech(karto, 'Seorang lelaki tua duduk di pojok, menyeruput kopi hitam yang baunya saja sudah pahit. Dia melirikmu. "Kau membawa bau sabun Gaul-Wash..."',
+        '<div class="qg-actions"><button class="btn btn-gold" id="qgInv">' + ic('chat') + '&nbsp; Tanya soal Uda Gala</button></div>'));
+      if (!w) return;
+      w.querySelector('#qgInv').onclick = function () { var b = this; call('investigate', '', function (r) { clueResult(w, karto, r); }, b); };
+    } else if (g.step === 2 && cid() === 'bjorneo') {
+      var wait = (g.wrongUntil || 0) > Date.now() - 2000;
+      var w2 = insertAfterIntro(speech(nenek, 'Di bawah mercusuar kayu yang diselimuti kabut, seorang nenek menatapmu tajam. "Mencari jejak perampok? Jawab dulu teka-tekiku, Nak:"' +
+        '<blockquote class="qg-clue">"Aku berat tapi tak mengapung. Aku diam, tapi kapal sebesar apa pun patuh padaku. Siapakah aku?"</blockquote>',
+        '<div class="qg-actions">' + ['Layar', 'Jangkar', 'Kemudi'].map(function (o) { return '<button class="btn" data-ans="' + o.toLowerCase() + '"' + (wait ? ' disabled' : '') + '>' + o + '</button>'; }).join('') + '</div>'));
+      if (!w2) return;
+      w2.querySelectorAll('[data-ans]').forEach(function (b) { b.onclick = function () { call('investigate', b.getAttribute('data-ans'), function (r) { clueResult(w2, nenek, r); }, b); }; });
+    }
+  }
+  function decorLibrary() {
+    var g = st(); if (!docked() || g.step !== 3 || cid() !== 'ikn') return;
+    var w = insertAfterIntro('<div class="qg-callout"><div class="qg-callout-ico">' + ic('book') + '</div><div><b>Rak arsip pelabuhan, tahun badai besar.</b><br><span class="muted small">Debunya tebal. Sepertinya belum disentuh bertahun-tahun.</span></div><button class="btn btn-gold" id="qgArc">Selidiki arsip</button></div>');
+    if (!w) return;
+    w.querySelector('#qgArc').onclick = function () {
+      var b = this; call('investigate', '', function (r) {
+        au_('page');
+        w.innerHTML = '<div class="qg-journal"><div class="qg-jh">' + ic('book') + ' <b>Buku pelabuhan, tahun badai besar</b></div><div class="qg-obj">' + esc_(r.story) + '</div>' +
+          '<div class="qg-next">' + ic('skull') + ' Tujuan berikutnya: <b>TooGood</b> &mdash; bersiaplah untuk bertempur.</div></div>';
+      }, b);
+    };
+  }
+  // Dipasang setiap kali isi panel dirender ulang (termasuk render asinkron setelah data tiba)
+  var DECOR = { ship: decorShip, tasks: decorTasks, tavern: decorTavern, library: decorLibrary };
+  wrap_('setModal_', function () { var f = DECOR[currentPanel]; if (f) try { f(); } catch (e) { console.warn('[QG]', e); } });
+
+  /* ---------- pertempuran bos ---------- */
+  wrap_('updateCombatHud_', function (args) {
+    var e = args[0]; if (!e || !e.boss) return;
+    var sub = document.getElementById('combatEnemySub'); if (sub) sub.textContent = (e.bossTitle || 'Bos') + ' · tak bisa disuap';
+    ['bribe', 'negotiate'].forEach(function (t) { var b = document.querySelector('.combat-action-btn[data-tactic="' + t + '"]'); if (b) { b.classList.add('disabled'); b.title = 'Mr. GAP tidak bisa disuap atau diajak berunding'; } });
+  });
+  wrap_('openCombatScene_', function () {
+    var e = state && state.voyage && state.voyage.encounter; if (!e || !e.boss) return;
+    var ef = document.getElementById('combatEnemyFace'); if (ef) ef.innerHTML = MTFace.svg(gap.ap, { bgColors: ['#7a1410', '#140404'] });
+    var lb = document.getElementById('combatLogBox');
+    if (lb && (e.round || 1) <= 1) lb.innerHTML = '<p><b>Mr. GAP:</b> "Jadi kau anjing suruhan si tukang cuci kapal itu? Kotak itu milikku sekarang &mdash; ambil kalau berani!"</p><p class="muted">Bos ini tidak bisa disuap atau diajak berunding. Tembak, isi ulang, kabur, atau tabrak.</p>';
+  });
+  wrap_('renderBattleSummary_', function (args) {
+    var r = args[0]; if (!r || !r.questItem) return;
+    var c = document.querySelector('#combatSummaryContent .summary-stat-grid'); if (!c) return;
+    c.insertAdjacentHTML('afterend', '<div class="summary-loot-card qg-loot">' + heartSvg(52) + '<span><b>Kotak Hati</b><br><i>"' + esc_(r.questItem.text) + '"</i><br><span class="muted small">Bawa pulang ke Uda Gala di Skitraw</span></span></div>');
+  });
+
+  /* ---------- Paradiso: kapal pulih +1 tiap 5 detik ---------- */
+  var healT = 0, healBusy = false, healToasted = false;
+  function floatHeal(n) {
+    var el = document.getElementById('resHull'); if (!el) return;
+    var f = document.createElement('div'); f.className = 'qg-float'; f.textContent = '+' + n;
+    el.style.position = el.style.position || 'relative'; el.appendChild(f);
+    setTimeout(function () { f.remove(); }, 1400);
+  }
+  function healLoop() {
+    clearTimeout(healT);
+    healT = setTimeout(healLoop, 5000);
+    if (!state || !state.ship || cid() !== 'paradiso' || !docked() || healBusy || document.hidden) return;
+    var s = state.ship;
+    if ((s.Condition || 0) >= (s.EffectiveMaxCondition || 100)) return;
+    healBusy = true;
+    google.script.run.withSuccessHandler(function (r) {
+      healBusy = false;
+      if (!r || !r.tick || !r.ship) return;
+      if (r.tick.healed > 0) {
+        patchShip_(r.ship); floatHeal(r.tick.healed);
+        if (!healToasted) { healToasted = true; showToast('Mata air panas Paradiso memulihkan kapalmu (+1 kondisi tiap 5 detik).', 'success'); }
+        if (r.tick.full) showToast('Kapalmu pulih sempurna!', 'success');
+      }
+    }).withFailureHandler(function () { healBusy = false; }).api_paradisoTick();
+  }
+  setTimeout(healLoop, 4000);
+
+  return { gala: gala, line: line, heartSvg: heartSvg, journal: journal };
+})();
+</script>

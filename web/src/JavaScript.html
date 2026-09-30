@@ -46,7 +46,8 @@
   var TYPE_META = {
     TradeHub: { icon: 'scales', label: 'Pusat Dagang' }, Agricultural: { icon: 'sack', label: 'Lumbung' },
     Remote: { icon: 'compass', label: 'Terpencil' }, Capital: { icon: 'star', label: 'Ibu Kota' },
-    Outlaw: { icon: 'skull', label: 'Sarang Penyamun' }, FallenCapital: { icon: 'warehouse', label: 'Ibu Kota Runtuh' }
+    Outlaw: { icon: 'skull', label: 'Sarang Penyamun' }, FallenCapital: { icon: 'warehouse', label: 'Ibu Kota Runtuh' },
+    Paradise: { icon: 'gem', label: 'Pulau Surga' }
   };
   var COMMODITY_META = {
     sugar: { icon: 'sack', c1: '#e3c16a', c2: '#9a7424' }, silk: { icon: 'silk', c1: '#c070b8', c2: '#6a2a66' },
@@ -235,7 +236,12 @@
   function setCachedCities_(version, cities) {
     try { localStorage.setItem(CITIES_CACHE_KEY, JSON.stringify({ version: version, cities: cities })); } catch (e) { /* abaikan */ }
   }
-  function resolveCitiesThenApply_(s, applyState_) {
+  function visibleCities_(list, s) {
+    var un = (s && s.unlocks) || [];
+    return (list || []).filter(function (c) { return !c.Hidden || un.indexOf(c.CityId) >= 0 || (s && s.city && s.city.CityId === c.CityId); });
+  }
+  function resolveCitiesThenApply_(s, applyState0_) {
+    var applyState_ = function (x) { x.cities = visibleCities_(x.cities, x); applyState0_(x); };
     if (s.cities && s.cities.length) { setCachedCities_(s.citiesVersion, s.cities); applyState_(s); return; }
     var cached = getCachedCities_();
     if (cached && cached.version === s.citiesVersion) { s.cities = cached.cities; applyState_(s); return; }
@@ -1683,7 +1689,7 @@
     return parts.join(', ') || '&mdash;';
   }
   function specialEffectLabel(keyword) {
-    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo' };
+    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)' };
     return labels[keyword] || keyword;
   }
 
@@ -2397,7 +2403,10 @@
     var roll = Math.sin(t * (isEnemy ? 0.9 : 1.1) + (isEnemy ? 1 : 0)) * 0.04 + (hp < 25 ? dir * 0.05 : 0);
     var sink = 0;
     if (sinkT) { sink = Math.min(1, sinkT / 2.4); roll += dir * sink * 0.35; y += sink * sink * 170 * sh.s; }
-    var opts = isEnemy
+    var bossEnc = isEnemy && state && state.voyage && state.voyage.encounter && state.voyage.encounter.boss;
+    var opts = bossEnc
+      ? { dir: dir, t: t, masts: 3, hull: '#171112', trim: '#c9a033', sail: '#6e1810', flag: '#111111', flagShape: 'flame', emblem: 'skull', emblemColor: '#e8bf55', pennant: '#b3261e', ports: 7, muzzles: true, railGuns: true, chaser: true, gilded: true, rivets: true, sizeK: 1.22, studding: 2, streamers: true, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll }
+      : isEnemy
       ? { dir: dir, t: t, masts: 3, hull: '#2b1d16', trim: '#7a6440', sail: '#4d4843', flag: '#111111', flagType: 'skull', pennant: '#6e1d14', lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll }
       : Object.assign(myShipOpts_(), { dir: dir, t: t, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll });
 
@@ -2905,6 +2914,7 @@
   var ROLE_TITLE_OUTLAW = { syahbandar: 'Kepala Dermaga', saudagar: 'Tukang Tadah', pustakawan: 'Juru Arsip', tukang: 'Tukang Dok', bankir: 'Rentenir', lapau: 'Bartender', gudang: 'Penyelundup' };
   function npc_(role) {
     var cid = (state && state.city && state.city.CityId) || 'x';
+    if (cid === 'skitraw' && role === 'tukang' && window.QG) return QG.gala;
     var outlaw = state && state.city && state.city.Type === 'Outlaw';
     var ap = MTFace.npc(cid + '|' + role, outlaw && role !== 'bankir' ? 'bajak' : role);
     var r = MTUtil.rng(MTUtil.hashStr(cid + '#' + role));
@@ -2929,6 +2939,7 @@
     return pickLine_(['Barang bagus, harga jujur. Silakan pilih, Kapten.', 'Tawar-menawar boleh, tapi timbangan kami tak pernah bohong.', 'Kapal datang, kapal pergi &mdash; pasar ini tak pernah tidur.'], 'mkt');
   }
   function lineShip_() {
+    if (state && state.city && state.city.CityId === 'skitraw' && window.QG) return QG.line();
     var s = state.ship || {}, c = s.ConditionPct != null ? s.ConditionPct : 100;
     if (c < 35) return 'Astaga, lambungmu bocor di mana-mana! Jangan berlayar jauh sebelum diperbaiki.';
     if (c < 70) return 'Ada beberapa papan yang retak. Reparasi sekarang lebih murah daripada tenggelam nanti.';
@@ -2963,7 +2974,8 @@
     bjorneo: ['Gunung itu batuk lagi semalam. Tuak kami jadi hangat.', 'Kayu ulin dari hutan kami tak tenggelam, tak lapuk.', 'Jung dari utara bawa sutra, pulang bawa rempah.'],
     skitraw: ['Rendang di RM Padang ini paling enak se-Mare Nusantara!', 'Coba Gaul-Wash, kapalmu akan mengilap seperti baru.', 'Pesepeda di sini lebih cepat dari kapal dagang, hehe.'],
     toogood: ['Jangan tanya dari mana barang-barang ini datang.', 'Di Black’s Alley, utang dibayar dengan gold... atau hal lain.', 'Asap cerobong itu tak pernah berhenti, siang atau malam.'],
-    ikn: ['Dulu kota ini paling megah. Sekarang kami memungut sisa-sisanya.', 'Garuda itu masih berdiri. Selama ia berdiri, kami tak menyerah.', 'Papan RESTORASI itu dipasang tiap tahun. Tiap tahun juga lapuk.']
+    ikn: ['Dulu kota ini paling megah. Sekarang kami memungut sisa-sisanya.', 'Garuda itu masih berdiri. Selama ia berdiri, kami tak menyerah.', 'Papan RESTORASI itu dipasang tiap tahun. Tiap tahun juga lapuk.'],
+    paradiso: ['Selamat datang di Paradiso, Kapten! Lepaskan sepatumu, lupakan utangmu.', 'Pesta di pantai dimulai saat matahari terbenam dan baru selesai saat fajar.', 'Mata air panas kami menyembuhkan kapal dan hati yang lelah.', 'Penari kami belajar dari tujuh pulau. Malam ini mereka menari untukmu.']
   };
   function rumors_(n) {
     var out = [], cid = state && state.city ? state.city.CityId : '';
@@ -3825,7 +3837,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v10';
+  TIDE_VERSION = 'Tide v11';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
@@ -4412,6 +4424,7 @@
     { id: 'bursabuy_1', t: 1, ic: 'handshake', n: 'Dagang Sesama Kapten', d: 'Beli barang dari order Bursa kapten lain.', g: function (m) { return [m.c.bursabuy || 0, 1]; } },
     { id: 'fish_10', t: 1, ic: 'fish', n: 'Pemancing Dermaga', d: 'Tangkap 10 ikan.', g: function (m) { return [m.c.fish || 0, 10]; } },
     { id: 'fish_legend', t: 3, ic: 'fish', n: 'Penakluk Ikan Dewa', d: 'Tangkap ikan epik atau legenda (Tuna, Hiu, atau Ikan Dewa).', g: function (m) { return [m.c.fishlegend || 0, 1]; } },
+    { id: 'gala_quest', t: 3, ic: 'star', n: 'Sahabat Uda Gala', d: 'Kembalikan harta terpenting Uda Gala dan temukan Paradiso.', g: function (m) { return [m.c.galaquest || 0, 1]; } },
     { id: 'fish_book', t: 2, ic: 'book', n: 'Kolektor Samudra', d: 'Temukan 8 jenis tangkapan berbeda di Buku Ikan.', g: function (m) { return [m.c.fishnew || 0, 8]; } },
     { id: 'fish_perfect', t: 2, ic: 'fish', n: 'Tangan Dingin', d: 'Daratkan 5 ikan dengan tarikan sempurna.', g: function (m) { return [m.c.fishperf || 0, 5]; } },
     { id: 'lapau_dice', t: 1, ic: 'dice', n: 'Besar atau Kecil?', d: 'Menang 5 kali di meja dadu lapau.', g: function (m) { return [m.c.lapaudice || 0, 5]; } },

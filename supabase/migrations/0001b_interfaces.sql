@@ -159,3 +159,25 @@ language sql stable as $$
   select jsonb_build_object('bgmUrl', coalesce(game.cfg('SoundBgmUrl'), ''),
     'enabledByAdmin', coalesce(lower(game.cfg('SoundEnabled')), 'true') <> 'false')
 $$;
+
+-- [misi rahasia & kota tersembunyi / 0014] ------------------------------
+-- Boleh berlayar ke kota ini? (kota tersembunyi hanya bila sudah dibuka)
+create or replace function game.city_open(p_pid uuid, p_city text) returns boolean
+language sql stable as $$ select coalesce((select not hidden from game.cities where city_id = p_city), false) $$;
+
+create or replace function game.player_unlocks(p_pid uuid) returns jsonb
+language sql stable as $$ select '[]'::jsonb $$;
+
+create or replace function game.gala_state(p_pid uuid) returns jsonb
+language sql stable as $$ select null::jsonb $$;
+
+-- Pertemuan bos misi (null = tidak ada)
+create or replace function game.quest_boss_encounter(p_pid uuid, p_dest text) returns jsonb
+language sql stable as $$ select null::jsonb $$;
+
+create or replace function game.quest_boss_defeated(p_pid uuid) returns jsonb
+language sql stable as $$ select null::jsonb $$;
+
+-- Penyembuhan kapal di Paradiso (null = tidak di Paradiso)
+create or replace function game.paradiso_tick(p_pid uuid) returns jsonb
+language sql stable as $$ select null::jsonb $$;

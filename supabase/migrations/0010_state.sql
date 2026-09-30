@@ -17,6 +17,7 @@ begin
 
   -- Selesaikan kedatangan yang sudah waktunya dulu (sama seperti versi .gs)
   perform game.resolve_arrival_if_due(v_pid);
+  perform game.paradiso_tick(v_pid);
   select * into v_me from game.players where player_id = v_pid;
 
   v_city := game.current_city(v_pid);
@@ -43,7 +44,9 @@ begin
     'logs', game.recent_logs(v_pid, 30),
     'appearance', v_me.appearance,
     'meta', v_me.meta,
-    'username', coalesce(v_me.username, '')
+    'username', coalesce(v_me.username, ''),
+    'unlocks', game.player_unlocks(v_pid),
+    'gala', game.gala_state(v_pid)
   );
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru
