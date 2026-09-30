@@ -823,22 +823,38 @@ select game.expose('api_getcharacterstats');
 -- ---------------------------------------------------------------------
 -- APPEARANCE (AppearanceStore_) & META (MetaStore_)
 -- ---------------------------------------------------------------------
+create or replace function game.appearance_pick(v jsonb, allowed text[], dflt text) returns text
+language sql immutable as $$
+  select case when jsonb_typeof(v) = 'string' and (v #>> '{}') = any (allowed) then v #>> '{}' else dflt end
+$$;
+
+-- Penampilan kapten v2 (Tide v14) - lihat docs/FACE_V2_SPEC.md
 create or replace function game.appearance_clean(p jsonb) returns jsonb
 language plpgsql immutable as $$
-declare a jsonb := p; h jsonb;
+declare a jsonb := p; fem int; head text;
 begin
   if a is null or jsonb_typeof(a) <> 'object' then a := '{}'::jsonb; end if;
-  h := a -> 'head';
+  fem := case when game.eco_js_truthy(a -> 'fem') then 1 else 0 end;
+  head := case when a ->> 'head' = 'hood' then 'tudung' when a ->> 'head' = 'headband' then 'ikat' else a ->> 'head' end;
   return jsonb_build_object(
-    'fem', case when game.eco_js_truthy(a -> 'fem') then 1 else 0 end,
-    'skin', greatest(0, least(5, floor(game.eco_js_num(a -> 'skin'))))::int,
-    'hair', greatest(0, least(5, floor(game.eco_js_num(a -> 'hair'))))::int,
-    'hairStyle', greatest(0, least(5, floor(game.eco_js_num(a -> 'hairStyle'))))::int,
-    'facial', greatest(0, least(4, floor(game.eco_js_num(a -> 'facial'))))::int,
-    'head', case when jsonb_typeof(h) = 'string'
-                  and (h #>> '{}') in ('arch', 'none', 'hijab', 'peci', 'blangkon', 'bandana', 'tricorne')
-                 then h #>> '{}' else 'arch' end,
-    'eyes', greatest(0, least(2, floor(game.eco_js_num(a -> 'eyes'))))::int,
+    'fem', fem,
+    'skin', greatest(0, least(7, floor(game.eco_js_num(a -> 'skin'))))::int,
+    'hair', greatest(0, least(9, floor(game.eco_js_num(a -> 'hair'))))::int,
+    'hairStyle', greatest(0, least(13, floor(game.eco_js_num(a -> 'hairStyle'))))::int,
+    'facial', case when fem = 1 then 0 else greatest(0, least(9, floor(game.eco_js_num(a -> 'facial'))))::int end,
+    'eyes', greatest(0, least(4, floor(game.eco_js_num(a -> 'eyes'))))::int,
+    'iris', greatest(0, least(5, floor(game.eco_js_num(a -> 'iris'))))::int,
+    'brows', greatest(0, least(3, floor(game.eco_js_num(a -> 'brows'))))::int,
+    'head', game.appearance_pick(to_jsonb(head), array['arch', 'none', 'hijab', 'peci', 'blangkon', 'bandana', 'tricorne', 'kapten', 'bicorne',
+      'plumed', 'udeng', 'iket', 'caping', 'serban', 'beret', 'kupluk', 'brim', 'bowler', 'ikat', 'tudung'], 'arch'),
+    'outfit', game.appearance_pick(a -> 'outfit', array['arch', 'jas_kapten', 'mantel', 'rompi', 'kemeja', 'beskap', 'kebaya', 'koko', 'kulit',
+      'seragam', 'pelaut', 'jubah'], 'arch'),
+    'cloth', greatest(0, least(9, floor(game.eco_js_num(a -> 'cloth'))))::int,
+    'eye', game.appearance_pick(a -> 'eye', array['arch', 'none', 'patch', 'monocle', 'glasses', 'halfmoon'], 'arch'),
+    'ear', game.appearance_pick(a -> 'ear', array['arch', 'none', 'hoop', 'hoop2', 'pearl', 'stud'], 'arch'),
+    'neck', game.appearance_pick(a -> 'neck', array['arch', 'none', 'scarf', 'chain', 'pearls', 'medallion', 'jabot', 'tooth', 'masker'], 'arch'),
+    'mark', game.appearance_pick(a -> 'mark', array['none', 'scar_cheek', 'scar_eye', 'tattoo', 'freckles', 'mole', 'warpaint'], 'none'),
+    'item', game.appearance_pick(a -> 'item', array['arch', 'none', 'pipe', 'parrot', 'spyglass', 'sword'], 'arch'),
     'seed', greatest(0, least(999999, floor(game.eco_js_num(a -> 'seed'))))::int);
 end $$;
 

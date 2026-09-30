@@ -41,7 +41,7 @@ const deq = assert.deepStrictEqual;
   const loc = await one('select *, game.game_day() d from game.player_location where player_id = $1', [alice.id]);
   eq(loc.city_id, 'sunda_empire'); eq(loc.arrived_game_day, loc.d);
   const face = await one('select appearance from game.players where player_id = $1', [alice.id]);
-  deq(face.appearance, { fem: 1, skin: 3, hair: 0, hairStyle: 0, facial: 0, head: 'peci', eyes: 0, seed: 0 });
+  deq(face.appearance, { fem: 1, skin: 3, hair: 0, hairStyle: 0, facial: 0, head: 'peci', eyes: 0, seed: 0, iris: 0, brows: 0, outfit: 'arch', cloth: 0, eye: 'arch', ear: 'arch', neck: 'arch', mark: 'none', item: 'arch' });
   const lg = await one('select message from game.player_log where player_id = $1 order by id desc limit 1', [alice.id]);
   eq(lg.message, 'Began your journey as Alice, Merchant, in Sunda Empire.');
   await E(() => alice.call('api_createCharacter', ['Alice2', 'merchant', null]), /^Karakter untuk akun ini sudah pernah dibuat\.$/);
@@ -268,8 +268,8 @@ const deq = assert.deepStrictEqual;
 
   // ------------------------------------------------------------ appearance / meta
   const ap = await bob.call('api_saveAppearance', [{ fem: 'yes', skin: 9, hair: -3, hairStyle: '2.7', facial: null, head: 'crown', eyes: true, seed: 1234567, extra: 'x' }]);
-  deq(ap, { fem: 1, skin: 5, hair: 0, hairStyle: 2, facial: 0, head: 'arch', eyes: 1, seed: 999999 });
-  deq(await bob.call('api_saveAppearance', [null]), { fem: 0, skin: 0, hair: 0, hairStyle: 0, facial: 0, head: 'arch', eyes: 0, seed: 0 });
+  deq(ap, { fem: 1, skin: 7, hair: 0, hairStyle: 2, facial: 0, head: 'arch', eyes: 1, seed: 999999, iris: 0, brows: 0, outfit: 'arch', cloth: 0, eye: 'arch', ear: 'arch', neck: 'arch', mark: 'none', item: 'arch' });
+  deq(await bob.call('api_saveAppearance', [null]), { fem: 0, skin: 0, hair: 0, hairStyle: 0, facial: 0, head: 'arch', eyes: 0, seed: 0, iris: 0, brows: 0, outfit: 'arch', cloth: 0, eye: 'arch', ear: 'arch', neck: 'arch', mark: 'none', item: 'arch' });
   await bob.call('api_saveAppearance', [{ fem: 0, head: 'tricorne', skin: '4' }]);
   eq((await one('select appearance from game.players where player_id = $1', [bob.id])).appearance.head, 'tricorne');
 

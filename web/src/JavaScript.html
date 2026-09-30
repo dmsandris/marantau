@@ -910,7 +910,12 @@
     var top = STAT_DEFS.slice().sort(function (a, b) { return (Number(s[b.key]) || 0) - (Number(s[a.key]) || 0); })[0];
     var html = panelHeader_(ARCH_ICON[state.player.archetype] || 'user', esc_(state.player.characterName),
       'The ' + capitalize_(state.player.archetype) + ' &middot; total stat <b>' + total + '</b>');
-    html += '<div class="cs-hero"><div class="char-face" id="charFace">' + playerFaceSvg_() + '</div><div class="char-hero-body">' +
+    var csArch = state.player.archetype, csBg = ARCH_COLOR[csArch] || ['#3a5a7a', '#14202c'];
+    html += '<div class="cs-hero" style="--fx-a:' + csBg[0] + ';--fx-b:' + csBg[1] + '">' +
+      fxMedal_(fxSvg_(playerAppearance_(), { arch: csArch, bg: csBg }), { id: 'charFace', cls: 'fx-medal-sm', icon: ARCH_ICON[csArch] || 'user',
+        attr: ' role="button" tabindex="0" title="Ubah wajah kapten" onclick="openFaceEditor_()" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openFaceEditor_();}"',
+        after: '<span class="fx-ribbon fx-ribbon-sm">' + ic(ARCH_ICON[csArch] || 'user') + '<span>The ' + esc_(capitalize_(csArch)) + '</span></span><span class="fx-edit" aria-hidden="true">' + ic('wrench') + '</span>' }) +
+      '<div class="char-hero-body">' +
       '<div class="cs-kicker">' + ic(ARCH_ICON[state.player.archetype] || 'user') + ' Jalan hidup</div>';
     if (archInfo) {
       html += '<p class="cs-bio">' + esc_(archInfo.bio || archInfo.tagline || '') + '</p>' +
@@ -920,7 +925,7 @@
     } else {
       html += '<div class="skeleton-block" style="height:16px;width:90%;margin:8px 0;"></div><div class="skeleton-block" style="height:64px;"></div>';
     }
-    html += '<div id="faceEditorHost"></div></div></div>';
+    html += '</div></div><div id="faceEditorHost"></div>';
     html += '<h3>' + ic('compass') + 'Keahlian</h3><div class="cs-grid"><div class="card">' + statRadarSvg_(s) + '</div><div class="cs-stats">' +
       STAT_DEFS.map(function (d) {
         var val = Number(s[d.key]) || 0;
@@ -930,6 +935,7 @@
       }).join('') + '</div></div>';
     html += '<p class="muted small" style="margin:16px 0 0;">' + ic('book') + ' Stat naik permanen lewat buku &mdash; kunjungi Library.</p>';
     setModal_(html);
+    if (faceDraft) drawFaceEditor_();
   }
 
   /* ---------------- CAPTAIN'S LOG ---------------- */
@@ -3007,7 +3013,7 @@
 
   /* ---------- gosip lapau & obrolan warga ---------- */
   var CITY_LORE = {
-    sunda_empire: ['Balai Adat di bukit itu dibangun tujuh generasi lalu.', 'Gapura batu itu dijaga kala &mdash; katanya menolak bala.', 'Layar batik jukung di sini ditenun sendiri oleh para nelayan.'],
+    sunda_empire: ['Balai Adat di bukit itu dibangun tujuh generasi lalu.', 'Gapura batu itu dijaga kala — katanya menolak bala.', 'Layar batik jukung di sini ditenun sendiri oleh para nelayan.'],
     joungjava: ['Kantor Syahbandar ini lebih tua dari kota-kota lain.', 'Gula di sini manis, tapi pajaknya lebih manis lagi buat Residen.', 'Pasar pantai paling ramai saat air surut.'],
     bjorneo: ['Gunung itu batuk lagi semalam. Tuak kami jadi hangat.', 'Kayu ulin dari hutan kami tak tenggelam, tak lapuk.', 'Jung dari utara bawa sutra, pulang bawa rempah.'],
     skitraw: ['Rendang di RM Padang ini paling enak se-Mare Nusantara!', 'Coba Gaul-Wash, kapalmu akan mengilap seperti baru.', 'Pesepeda di sini lebih cepat dari kapal dagang, hehe.'],
@@ -3224,33 +3230,288 @@
     if (el) el.innerHTML = rumors_(4).map(function (t) { return '<div class="card rumor">' + ic('chat') + '<span>' + t + '</span></div>'; }).join('');
   }
 
-  /* ---------- editor wajah (panel Character) ---------- */
-  var faceDraft = null;
-  function faceEditorHtml_() {
-    var ap = faceDraft;
-    function sw(field, arr, cur) { return arr.map(function (c, i) { return '<button class="swatch' + (i === cur ? ' on' : '') + '" style="background:' + c + '" onclick="setFace_(\'' + field + '\',' + i + ')" aria-label="' + field + ' ' + (i + 1) + '"></button>'; }).join(''); }
-    function opt(field, labels, cur) { return labels.map(function (l, i) { return '<button class="chip-opt' + (i === cur ? ' on' : '') + '" onclick="setFace_(\'' + field + '\',' + i + ')">' + l + '</button>'; }).join(''); }
-    var heads = MTFace.HEADS.map(function (h, i) { return '<button class="chip-opt' + (ap.head === h[0] ? ' on' : '') + '" onclick="setFaceHead_(\'' + h[0] + '\')">' + h[1] + '</button>'; }).join('');
-    return '<div class="face-editor card">' +
-      '<div class="fe-row"><span class="fe-l">Gaya</span>' + opt('fem', ['Pria', 'Wanita'], ap.fem) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Kulit</span>' + sw('skin', MTFace.SKIN, ap.skin) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Rambut</span>' + opt('hairStyle', ap.fem ? MTFace.HAIR_F : MTFace.HAIR_M, ap.hairStyle) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Warna</span>' + sw('hair', MTFace.HAIR, ap.hair) + '</div>' +
-      (ap.fem ? '' : '<div class="fe-row"><span class="fe-l">Wajah</span>' + opt('facial', MTFace.FACIAL, ap.facial) + '</div>') +
-      '<div class="fe-row"><span class="fe-l">Mata</span>' + opt('eyes', ['Sedang', 'Sipit', 'Lebar'], ap.eyes) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Kepala</span>' + heads + '</div>' +
-      '<div class="fe-actions"><button class="btn btn-sm" onclick="randomFace_()">' + ic('star') + '&nbsp; Acak</button><button class="btn btn-sm" onclick="cancelFace_()">Batal</button><button class="btn btn-gold btn-sm" onclick="commitFace_()">' + ic('check') + '&nbsp; Simpan Wajah</button></div>' +
+  /* ================================================================
+   * Tide v14 — EDITOR KAPTEN (dipakai bersama: pembuat karakter &
+   * panel Character). Satu komponen: potret pahlawan berbingkai emas +
+   * papan nama, tab Wajah / Rambut / Pakaian / Gear, setiap opsi = ubin
+   * berisi potret mini hidup (MTFace.svg draf + opsi itu), di-crop lewat
+   * viewBox. Daftar opsi dibaca dari MTFace (v2); bila belum ada, pakai
+   * cadangan lokal sesuai docs/FACE_V2_SPEC.md.
+   * ================================================================ */
+  var FX_FB = {
+    SKIN: ['#f3cfa6', '#e7b98e', '#d6a277', '#c28b5e', '#a97349', '#865634', '#fbe0c4', '#5e3b22'],
+    HAIR: ['#17110d', '#2b1d14', '#4a3222', '#7a4f2a', '#8d8a86', '#b0452a', '#c9a15a', '#e4e1da', '#1a2230', '#6a2e1c'],
+    IRIS: ['#5a3a1e', '#1e140c', '#8a6a2e', '#3f7a4a', '#3f6f9f', '#7d8790'],
+    CLOTH: [null, '#7a2e1c', '#1f4a6b', '#2a2220', '#2f6a4a', '#4a1f48', '#6b5a2e', '#efe9dc', '#b8862b', '#1e2a3a'],
+    HAIR_M: ['Pendek', 'Belah samping', 'Klimis', 'Acak', 'Gondrong', 'Botak', 'Kuncir', 'Undercut', 'Keriting', 'Gimbal', 'Jambul tinggi', 'Cepak', 'Ikal panjang', 'Konde pria'],
+    HAIR_F: ['Sanggul', 'Panjang', 'Kepang', 'Pendek', 'Poni', 'Kuncir', 'Bob', 'Keriting', 'Kepang dua', 'Gelombang', 'Pixie', 'Cepol ganda', 'Sibak samping', 'Gimbal'],
+    FACIAL: ['Bersih', 'Kumis', 'Jenggot tipis', 'Brewok', 'Kumis tebal', 'Janggut kambing', 'Jambang', 'Janggut kepang', 'Kumis melintir', 'Berewok tipis'],
+    EYES: ['Sedang', 'Sipit', 'Lebar', 'Tajam', 'Sayu'],
+    IRIS_N: ['Coklat', 'Hitam', 'Hazel', 'Hijau', 'Biru', 'Abu'],
+    BROWS: ['Normal', 'Tebal', 'Tipis', 'Tegas'],
+    HEADS: [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['hijab', 'Hijab'], ['peci', 'Peci'], ['blangkon', 'Blangkon'], ['bandana', 'Bandana'], ['tricorne', 'Tricorne'], ['kapten', 'Topi kapten'], ['bicorne', 'Bicorne'], ['plumed', 'Topi bulu'], ['udeng', 'Udeng'], ['iket', 'Iket'], ['caping', 'Caping'], ['serban', 'Serban'], ['beret', 'Baret'], ['kupluk', 'Kupluk'], ['brim', 'Topi lebar'], ['bowler', 'Bowler'], ['ikat', 'Ikat kepala'], ['tudung', 'Tudung']],
+    OUTFITS: [['arch', 'Sesuai archetype'], ['jas_kapten', 'Jas kapten'], ['mantel', 'Mantel'], ['rompi', 'Rompi'], ['kemeja', 'Kemeja'], ['beskap', 'Beskap'], ['kebaya', 'Kebaya'], ['koko', 'Baju koko'], ['kulit', 'Jaket kulit'], ['seragam', 'Seragam'], ['pelaut', 'Pelaut'], ['jubah', 'Jubah']],
+    EYEWEAR: [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['patch', 'Penutup mata'], ['monocle', 'Monokel'], ['glasses', 'Kacamata'], ['halfmoon', 'Kacamata baca']],
+    EARS: [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['hoop', 'Anting bulat'], ['hoop2', 'Anting ganda'], ['pearl', 'Mutiara'], ['stud', 'Giwang']],
+    NECKS: [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['scarf', 'Syal'], ['chain', 'Rantai emas'], ['pearls', 'Kalung mutiara'], ['medallion', 'Medali'], ['jabot', 'Jabot'], ['tooth', 'Taring hiu'], ['masker', 'Masker']],
+    MARKS: [['none', 'Tanpa'], ['scar_cheek', 'Codet pipi'], ['scar_eye', 'Codet mata'], ['tattoo', 'Tato'], ['freckles', 'Bintik'], ['mole', 'Tahi lalat'], ['warpaint', 'Cat perang']],
+    ITEMS: [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['pipe', 'Pipa'], ['parrot', 'Burung beo'], ['spyglass', 'Teropong'], ['sword', 'Pedang']]
+  };
+  var FX_INT = { fem: 1, skin: 1, hair: 1, hairStyle: 1, facial: 1, eyes: 1, iris: 1, brows: 1, cloth: 1, seed: 1 };
+  var FX_CROP = { head: '8 2 84 84', face: '18 16 64 64', eyes: '27 31 46 46', mouth: '23 42 54 54', ears: '14 24 72 72', neck: '21 43 58 58', body: '3 6 94 94', full: '0 0 100 100' };
+  var FX_TABS = [
+    ['wajah', 'Wajah', '<circle cx="12" cy="12" r="8.6"/><path d="M9.2 10.4h.01M14.8 10.4h.01"/><path d="M8.8 14.6c1.8 1.9 4.6 1.9 6.4 0"/>'],
+    ['rambut', 'Rambut', '<path d="M4.6 15.5C4 8.8 7.6 4.5 12 4.5s8 4.3 7.4 11"/><path d="M4.8 12.6c3.2-.4 6-2.2 7.6-5 1.4 2.6 3.8 4.3 6.8 4.8"/><path d="M5 15.5v4M19 15.5v4"/>'],
+    ['pakaian', 'Pakaian', '<path d="M8.2 4 3.6 7l2 4.2 2-1V20h8.8V10.2l2 1 2-4.2-4.6-3c-.8 1.5-2.2 2.3-3.8 2.3S9 5.5 8.2 4z"/><path d="M12 6.4V20"/>'],
+    ['gear', 'Gear', '<path d="M2.8 15.4c3.4 1.7 15 1.7 18.4 0"/><path d="M6 15.6c0-5.2 2.6-8.4 6-8.4s6 3.2 6 8.4"/><path d="M8.4 11.6h7.2"/>']
+  ];
+  var FX = null;          // konteks editor yang sedang aktif
+  var fxUid_ = 0;
+  var fxLastTab_ = 'wajah';
+
+  function fxOpt_(k) { var v = window.MTFace && MTFace[k]; return (v && v.length) ? v : FX_FB[k]; }
+  function fxPairs_(k) { return fxOpt_(k).map(function (o) { return Array.isArray(o) ? o : [o, o]; }); }
+  /** lengkapi field v2 yang hilang supaya pilihan di UI selalu jelas */
+  function fxNorm_(ap) {
+    var d = { fem: 0, skin: 2, hair: 0, hairStyle: 0, facial: 0, eyes: 0, iris: 0, brows: 0, head: 'arch', outfit: 'arch', cloth: 0, eye: 'arch', ear: 'arch', neck: 'arch', mark: 'none', item: 'arch', seed: Math.floor(Math.random() * 1e6) };
+    ap = ap || {};
+    Object.keys(d).forEach(function (k) { if (ap[k] == null || ap[k] === '') ap[k] = d[k]; });
+    if (ap.fem) ap.facial = 0;
+    return ap;
+  }
+  /** bikin id SVG unik (banyak potret di satu halaman) + crop lewat viewBox */
+  function fxSvg_(ap, ctx, crop) {
+    var s = '';
+    try { s = MTFace.svg(ap, { arch: ctx.arch, bgColors: ctx.bg }); } catch (e) { console.warn('[Marantau] MTFace.svg gagal', e); return ''; }
+    var u = '_x' + (++fxUid_);
+    s = s.replace(/\sid="([^"]+)"/g, ' id="$1' + u + '"').replace(/url\(#([^)"']+)\)/g, 'url(#$1' + u + ')').replace(/href="#([^"]+)"/g, 'href="#$1' + u + '"');
+    if (crop && crop !== FX_CROP.full) s = s.replace(/viewBox=["']0[ ,]+0[ ,]+100[ ,]+100["']/, 'viewBox="' + crop + '"');
+    return s;
+  }
+  function fxLabel_(k, v) {
+    var list = fxPairs_(k);
+    for (var i = 0; i < list.length; i++) if (String(list[i][0]) === String(v)) return list[i][1];
+    return '';
+  }
+  function fxArchName_(ctx) { return ctx.archLabel || (ctx.arch ? 'The ' + capitalize_(ctx.arch) : 'Pilih jalan hidup'); }
+
+  /* --- aturan perubahan --- */
+  function fxApply_(ap, f, v) {
+    ap[f] = v;
+    if (f === 'fem') {
+      ap.hairStyle = 0;
+      if (v) ap.facial = 0;
+      else if (ap.head === 'hijab') ap.head = 'arch';
+      var max = fxOpt_(v ? 'HAIR_F' : 'HAIR_M').length - 1;
+      if (ap.hairStyle > max) ap.hairStyle = 0;
+    }
+    if (f === 'head' && v === 'hijab' && !ap.fem) ap.head = 'arch';
+  }
+  function fxRandom_(ap) {
+    var r = Math.random;
+    function pick(a) { return a[Math.floor(r() * a.length)]; }
+    function idx(k) { return Math.floor(r() * fxOpt_(k).length); }
+    function gear(k, p) { if (r() >= p) return 'arch'; return pick(fxPairs_(k).filter(function (o) { return o[0] !== 'arch'; }))[0]; }
+    var fem = ap.fem ? 1 : 0;
+    ap.skin = idx('SKIN'); ap.hair = r() < 0.72 ? Math.floor(r() * Math.min(4, fxOpt_('HAIR').length)) : idx('HAIR');
+    ap.hairStyle = idx(fem ? 'HAIR_F' : 'HAIR_M');
+    ap.facial = fem ? 0 : (r() < 0.35 ? 0 : idx('FACIAL'));
+    ap.eyes = idx('EYES'); ap.iris = r() < 0.6 ? Math.floor(r() * 3) : idx('IRIS_N'); ap.brows = idx('BROWS');
+    var heads = fxPairs_('HEADS').filter(function (o) { return o[0] !== 'arch' && (fem || o[0] !== 'hijab'); });
+    ap.head = r() < 0.45 ? 'arch' : pick(heads)[0];
+    ap.outfit = gear('OUTFITS', 0.5);
+    ap.cloth = ap.outfit === 'arch' && r() < 0.6 ? 0 : (r() < 0.35 ? 0 : 1 + Math.floor(r() * (fxOpt_('CLOTH').length - 1)));
+    ap.eye = gear('EYEWEAR', 0.3); ap.ear = gear('EARS', 0.3); ap.neck = gear('NECKS', 0.3); ap.item = gear('ITEMS', 0.3);
+    ap.mark = r() < 0.72 ? 'none' : pick(fxPairs_('MARKS').filter(function (o) { return o[0] !== 'none'; }))[0];
+    ap.seed = Math.floor(r() * 1e6);
+  }
+
+  /* --- HTML --- */
+  function fxTile_(ctx, f, v, label, crop, extra) {
+    var ap = ctx.draft, on = String(ap[f]) === String(v);
+    var trial = {}; Object.keys(ap).forEach(function (k) { trial[k] = ap[k]; });
+    fxApply_(trial, f, v);
+    return '<button type="button" class="fx-tile' + (on ? ' on' : '') + (v === 'arch' ? ' is-arch' : '') + (extra || '') + '" data-fx-f="' + f + '" data-fx-v="' + esc_(v) + '" aria-pressed="' + on + '" title="' + esc_(label) + '">' +
+      '<span class="fx-thumb">' + fxSvg_(trial, ctx, crop) + '</span><span class="fx-lb">' + esc_(label) + '</span></button>';
+  }
+  function fxSec_(title, cur, inner, row, kind) {
+    return '<section class="fx-sec"><div class="fx-sec-h"><span>' + title + '</span>' + (cur ? '<em>' + esc_(cur) + '</em>' : '') + '</div>' +
+      '<div class="fx-' + (kind || 'tiles') + '" data-fx-row="' + row + '">' + inner + '</div></section>';
+  }
+  function fxTilesKey_(ctx, f, key, crop, filter) {
+    return fxPairs_(key).filter(function (o) { return !filter || filter(o); }).map(function (o) { return fxTile_(ctx, f, o[0], o[1], crop); }).join('');
+  }
+  function fxTilesIdx_(ctx, f, key, crop) { return fxOpt_(key).map(function (l, i) { return fxTile_(ctx, f, i, l, crop); }).join(''); }
+  function fxSwatches_(ctx, f, key, names) {
+    var ap = ctx.draft;
+    return fxOpt_(key).map(function (c, i) {
+      var on = (ap[f] | 0) === i, nm = names ? names[i] : '';
+      if (!c) return '<button type="button" class="fx-sw fx-sw-asli' + (on ? ' on' : '') + '" data-fx-f="' + f + '" data-fx-v="0" aria-pressed="' + on + '" title="Warna asli pakaian"><span>Asli</span></button>';
+      return '<button type="button" class="fx-sw' + (on ? ' on' : '') + '" style="--c:' + c + '" data-fx-f="' + f + '" data-fx-v="' + i + '" aria-pressed="' + on + '" title="' + esc_(nm || (f + ' ' + (i + 1))) + '" aria-label="' + esc_(nm || (f + ' ' + (i + 1))) + '"></button>';
+    }).join('');
+  }
+  function fxBody_(ctx) {
+    var ap = ctx.draft, fem = !!ap.fem, t = ctx.tab;
+    if (t === 'rambut') {
+      var hk = fem ? 'HAIR_F' : 'HAIR_M';
+      return fxSec_('Gaya rambut', fxOpt_(hk)[ap.hairStyle], fxTilesIdx_(ctx, 'hairStyle', hk, FX_CROP.head), 'hs') +
+        fxSec_('Warna rambut', '', fxSwatches_(ctx, 'hair', 'HAIR'), 'hc', 'sws');
+    }
+    if (t === 'pakaian') {
+      return fxSec_('Pakaian', fxLabel_('OUTFITS', ap.outfit), fxTilesKey_(ctx, 'outfit', 'OUTFITS', FX_CROP.body), 'of') +
+        fxSec_('Warna pakaian', (ap.cloth | 0) ? '' : 'Asli', fxSwatches_(ctx, 'cloth', 'CLOTH'), 'cc', 'sws');
+    }
+    if (t === 'gear') {
+      return fxSec_('Tutup kepala', fxLabel_('HEADS', ap.head), fxTilesKey_(ctx, 'head', 'HEADS', FX_CROP.head, function (o) { return fem || o[0] !== 'hijab'; }), 'hd') +
+        fxSec_('Kacamata', fxLabel_('EYEWEAR', ap.eye), fxTilesKey_(ctx, 'eye', 'EYEWEAR', FX_CROP.eyes), 'ey') +
+        fxSec_('Anting', fxLabel_('EARS', ap.ear), fxTilesKey_(ctx, 'ear', 'EARS', FX_CROP.ears), 'er') +
+        fxSec_('Leher', fxLabel_('NECKS', ap.neck), fxTilesKey_(ctx, 'neck', 'NECKS', FX_CROP.neck), 'nk') +
+        fxSec_('Bawaan', fxLabel_('ITEMS', ap.item), fxTilesKey_(ctx, 'item', 'ITEMS', FX_CROP.full), 'it');
+    }
+    // wajah
+    var gender = fxTile_(ctx, 'fem', 0, 'Pria', FX_CROP.face, ' fx-tile-lg') + fxTile_(ctx, 'fem', 1, 'Wanita', FX_CROP.face, ' fx-tile-lg');
+    return fxSec_('Sosok', fem ? 'Wanita' : 'Pria', gender, 'g', 'tiles fx-tiles-duo') +
+      fxSec_('Warna kulit', '', fxSwatches_(ctx, 'skin', 'SKIN'), 'sk', 'sws') +
+      fxSec_('Bentuk mata', fxOpt_('EYES')[ap.eyes], fxTilesIdx_(ctx, 'eyes', 'EYES', FX_CROP.eyes), 'es') +
+      fxSec_('Warna mata', fxOpt_('IRIS_N')[ap.iris], fxSwatches_(ctx, 'iris', 'IRIS', fxOpt_('IRIS_N')), 'ir', 'sws') +
+      fxSec_('Alis', fxOpt_('BROWS')[ap.brows], fxTilesIdx_(ctx, 'brows', 'BROWS', FX_CROP.eyes), 'br') +
+      (fem ? '' : fxSec_('Kumis &amp; jenggot', fxOpt_('FACIAL')[ap.facial], fxTilesIdx_(ctx, 'facial', 'FACIAL', FX_CROP.mouth), 'fc')) +
+      fxSec_('Tanda wajah', fxLabel_('MARKS', ap.mark), fxTilesKey_(ctx, 'mark', 'MARKS', FX_CROP.face), 'mk');
+  }
+  function fxPlate_(ctx) {
+    var nm = String(ctx.name || '').trim();
+    return '<div class="fx-plate"><b class="fx-nm' + (nm ? '' : ' empty') + '">' + esc_(nm || 'Kapten Tanpa Nama') + '</b>' +
+      '<span class="fx-ribbon">' + ic(ARCH_ICON[ctx.arch] || 'anchor') + '<span>' + esc_(fxArchName_(ctx)) + '</span></span></div>';
+  }
+  /** medali potret (dipakai editor & kepala panel Character) */
+  function fxMedal_(svg, opts) {
+    opts = opts || {};
+    return '<div class="fx-medal' + (opts.cls ? ' ' + opts.cls : '') + '"' + (opts.attr || '') + '>' +
+      '<span class="fx-rays" aria-hidden="true"></span>' +
+      '<div class="fx-ring"><div class="fx-por"' + (opts.id ? ' id="' + opts.id + '"' : '') + ' data-fx="hero">' + svg + '</div><i class="fx-shine" aria-hidden="true"></i></div>' +
+      '<span class="fx-crest" aria-hidden="true">' + ic(opts.icon || 'anchor') + '</span>' +
+      (opts.after || '') + '</div>';
+  }
+  function fxHtml_(ctx) {
+    var tabs = FX_TABS.map(function (t) {
+      return '<button type="button" role="tab" class="fx-tab' + (ctx.tab === t[0] ? ' on' : '') + '" data-fx-tab="' + t[0] + '" aria-selected="' + (ctx.tab === t[0]) + '">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + t[2] + '</svg><span>' + t[1] + '</span></button>';
+    }).join('');
+    var actions = ctx.mode === 'char'
+      ? '<div class="fx-actions"><button type="button" class="btn" data-fx-act="cancel">Batal</button><button type="button" class="btn btn-gold" data-fx-act="save">' + ic('check') + '&nbsp; Simpan Wajah</button></div>'
+      : '';
+    return '<div class="fx-ed fx-' + ctx.mode + '" style="--fx-a:' + ctx.bg[0] + ';--fx-b:' + ctx.bg[1] + '">' +
+      '<div class="fx-stage"><div class="fx-hero">' +
+        fxMedal_(fxSvg_(ctx.draft, ctx), { icon: ARCH_ICON[ctx.arch] || 'anchor' }) +
+        '<div class="fx-platebox">' + fxPlate_(ctx) + '</div>' +
+        '<button type="button" class="fx-dice" data-fx-act="rand" title="Acak penampilan">' + ic('dice') + '<span>Acak</span></button>' +
+      '</div></div>' +
+      '<div class="fx-panel"><div class="fx-tabs" role="tablist"><span class="fx-mini" data-fx="mini" aria-hidden="true">' + fxSvg_(ctx.draft, ctx, FX_CROP.face) + '</span>' + tabs + '</div>' +
+        '<div class="fx-body" role="tabpanel">' + fxBody_(ctx) + '</div>' + actions + '</div>' +
     '</div>';
   }
-  function openFaceEditor_() { faceDraft = JSON.parse(JSON.stringify(playerAppearance_())); drawFaceEditor_(); }
+
+  /* --- mount & refresh --- */
+  function fxMount_(host, ctx) {
+    if (!host) return;
+    ctx.draft = fxNorm_(ctx.draft);
+    ctx.tab = ctx.tab || fxLastTab_;
+    ctx.host = host;
+    FX = ctx; host._fx = ctx;
+    host.innerHTML = fxHtml_(ctx);
+    if (!host._fxBound) { host._fxBound = true; host.addEventListener('click', fxClick_); }
+    var ph = ctx.mode === 'char' ? document.querySelector('#modalContent .ph') : null;
+    host.style.setProperty('--fx-top', (ph && getComputedStyle(ph).position === 'sticky' ? ph.offsetHeight : 0) + 'px');
+    fxRevealOn_(host);
+    if (host._fxIO) host._fxIO.disconnect();
+    var medal = host.querySelector('.fx-stage .fx-medal'), ed = host.querySelector('.fx-ed');
+    if (medal && ed && window.IntersectionObserver) {
+      host._fxIO = new IntersectionObserver(function (en) { ed.classList.toggle('fx-hero-off', !en[0].isIntersecting); }, { threshold: 0.15 });
+      host._fxIO.observe(medal);
+    }
+  }
+  /** geser tiap baris ubin supaya pilihan aktif terlihat (baris geser di HP) */
+  function fxRevealOn_(root) {
+    root.querySelectorAll('.fx-tiles').forEach(function (row) {
+      if (row.scrollWidth <= row.clientWidth + 2) return;
+      var on = row.querySelector('.fx-tile.on'); if (!on) return;
+      var l = on.offsetLeft - row.offsetLeft, r = l + on.offsetWidth;
+      if (l < row.scrollLeft || r > row.scrollLeft + row.clientWidth) row.scrollLeft = Math.max(0, l - (row.clientWidth - on.offsetWidth) / 2);
+    });
+  }
+  function fxRefresh_(ctx, what) {
+    ctx = ctx || FX; if (!ctx || !ctx.host || !ctx.host.isConnected) return;
+    var h = ctx.host;
+    var hero = h.querySelector('.fx-stage [data-fx=hero]');
+    if (hero && what !== 'tab') {
+      hero.innerHTML = fxSvg_(ctx.draft, ctx);
+      var m = hero.closest('.fx-medal'); if (m) { m.classList.remove('pop'); void m.offsetWidth; m.classList.add('pop'); }
+    }
+    var mini = h.querySelector('[data-fx=mini]'); if (mini && what !== 'tab') mini.innerHTML = fxSvg_(ctx.draft, ctx, FX_CROP.face);
+    var pb = h.querySelector('.fx-platebox'); if (pb) pb.innerHTML = fxPlate_(ctx);
+    var ed = h.querySelector('.fx-ed'); if (ed) { ed.style.setProperty('--fx-a', ctx.bg[0]); ed.style.setProperty('--fx-b', ctx.bg[1]); var cr = h.querySelector('.fx-stage .fx-crest'); if (cr) cr.innerHTML = ic(ARCH_ICON[ctx.arch] || 'anchor'); }
+    if (what === 'plate') return;
+    var body = h.querySelector('.fx-body'); if (!body) return;
+    var sc = {}; body.querySelectorAll('[data-fx-row]').forEach(function (r) { sc[r.getAttribute('data-fx-row')] = r.scrollLeft; });
+    body.innerHTML = fxBody_(ctx);
+    body.querySelectorAll('[data-fx-row]').forEach(function (r) { var k = r.getAttribute('data-fx-row'); if (sc[k]) r.scrollLeft = sc[k]; });
+    h.querySelectorAll('.fx-tab').forEach(function (b) { var on = b.getAttribute('data-fx-tab') === ctx.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  }
+  function fxClick_(ev) {
+    var ctx = this._fx; if (!ctx) return;
+    var t = ev.target.closest('[data-fx-f],[data-fx-tab],[data-fx-act]'); if (!t || !this.contains(t)) return;
+    if (t.hasAttribute('data-fx-tab')) {
+      var tab = t.getAttribute('data-fx-tab'); if (tab === ctx.tab) return;
+      ctx.tab = fxLastTab_ = tab; fxRefresh_(ctx, 'tab');
+      var body = this.querySelector('.fx-body'); if (body) { body.classList.remove('fx-in'); void body.offsetWidth; body.classList.add('fx-in'); fxRevealOn_(body); }
+      var tabs = this.querySelector('.fx-tabs'), panel = this.querySelector('.fx-panel');
+      if (tabs && panel && panel.getBoundingClientRect().top < tabs.getBoundingClientRect().top - 1) panel.scrollIntoView({ block: 'start' });
+      au_('page'); return;
+    }
+    var act = t.getAttribute('data-fx-act');
+    if (act === 'rand') {
+      fxRandom_(ctx.draft); fxRefresh_(ctx);
+      t.classList.remove('spin'); void t.offsetWidth; t.classList.add('spin');
+      au_('click'); if (ctx.onChange) ctx.onChange(); return;
+    }
+    if (act === 'save') { window.commitFace_(); return; }
+    if (act === 'cancel') { window.cancelFace_(); return; }
+    var f = t.getAttribute('data-fx-f'), v = t.getAttribute('data-fx-v');
+    if (FX_INT[f]) v = parseInt(v, 10) || 0;
+    if (String(ctx.draft[f]) === String(v)) return;
+    fxApply_(ctx.draft, f, v);
+    fxRefresh_(ctx); au_('click');
+    if (ctx.onChange) ctx.onChange();
+  }
+
+  /* ---------- editor wajah (panel Character) ---------- */
+  var faceDraft = null;
+  function charFaceCtx_() {
+    return { mode: 'char', draft: faceDraft, arch: state.player.archetype, name: state.player.characterName,
+      archLabel: 'The ' + capitalize_(state.player.archetype), bg: ARCH_COLOR[state.player.archetype] || ['#3a5a7a', '#14202c'] };
+  }
+  function openFaceEditor_() {
+    if (!state || !state.player) return;
+    faceDraft = fxNorm_(JSON.parse(JSON.stringify(playerAppearance_())));
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-mid'); box.classList.add('size-wide'); }
+    drawFaceEditor_();
+    if (box) box.scrollTo({ top: 0, behavior: 'smooth' });
+    au_('open');
+  }
   function drawFaceEditor_() {
     var host = document.getElementById('faceEditorHost'), pv = document.getElementById('charFace');
-    if (host) host.innerHTML = faceDraft ? faceEditorHtml_() : '';
-    if (pv) pv.innerHTML = MTFace.svg(faceDraft || playerAppearance_(), { arch: state.player.archetype, bgColors: ARCH_COLOR[state.player.archetype] });
+    var hero = host ? host.parentNode.querySelector('.cs-hero') : null;
+    if (hero) hero.classList.toggle('fx-editing', !!faceDraft);
+    if (host) {
+      if (faceDraft) fxMount_(host, charFaceCtx_());
+      else { host.innerHTML = ''; if (host._fxIO) host._fxIO.disconnect(); if (FX && FX.host === host) FX = null; }
+    }
+    if (pv) pv.innerHTML = fxSvg_(playerAppearance_(), { arch: state.player.archetype, bg: ARCH_COLOR[state.player.archetype] || ['#3a5a7a', '#14202c'] });
+    if (!faceDraft && currentPanel === 'character') { var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); } }
   }
-  function setFace_(f, v) { faceDraft[f] = v; if (f === 'fem') { faceDraft.hairStyle = 0; if (v) faceDraft.facial = 0; } drawFaceEditor_(); }
-  function setFaceHead_(h) { faceDraft.head = h; drawFaceEditor_(); }
-  function randomFace_() { var r = Math.random; faceDraft = { fem: faceDraft.fem, skin: Math.floor(r() * 6), hair: Math.floor(r() * 4), hairStyle: Math.floor(r() * 6), facial: faceDraft.fem ? 0 : Math.floor(r() * 5), head: faceDraft.head, eyes: Math.floor(r() * 3), seed: Math.floor(r() * 1e6) }; drawFaceEditor_(); }
+  function setFace_(f, v) { if (!faceDraft) return; fxApply_(faceDraft, f, v); fxRefresh_(); }
+  function setFaceHead_(h) { setFace_('head', h); }
+  function randomFace_() { if (!faceDraft) return; fxRandom_(faceDraft); fxRefresh_(); }
   function cancelFace_() { faceDraft = null; drawFaceEditor_(); }
   function commitFace_() { if (!faceDraft) return; saveAppearance_(faceDraft); faceDraft = null; drawFaceEditor_(); showToast('Wajah kapten disimpan.', 'success'); }
 
@@ -3875,7 +4136,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v13';
+  TIDE_VERSION = 'Tide v14';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
@@ -3938,7 +4199,7 @@
   })();
 
   /* Pembuat karakter (dulu halaman terpisah) - sekarang overlay di dalam game */
-  var ccSel_ = null, ccFace_ = { fem: 0, skin: 2, hair: 0, hairStyle: 0, facial: 0, head: 'arch', eyes: 0, seed: Math.floor(Math.random() * 1e6) };
+  var ccSel_ = null, ccArchList_ = null, ccFace_ = { fem: 0, skin: 2, hair: 0, hairStyle: 0, facial: 0, head: 'arch', eyes: 0, iris: 0, brows: 0, outfit: 'arch', cloth: 0, eye: 'arch', ear: 'arch', neck: 'arch', mark: 'none', item: 'arch', seed: Math.floor(Math.random() * 1e6) };
   var CC_EMBLEM = { merchant: ['coins', '#b8862b', '#3d2708'], navigator: ['compass', '#2f7fa3', '#0e2a3a'], pirate: ['swords', '#b23a2a', '#3a0d08'], explorer: ['map', '#3f8c3f', '#122a12'], gambler: ['star', '#8e3d8a', '#2a0f28'], smuggler: ['eye', '#6b5a4a', '#1e1712'], diplomat: ['scroll', '#c9a876', '#3a2a14'], adventurer: ['anchor', '#4ea3c9', '#10303e'] };
   window.openCreator_ = function () {
     var ov = document.getElementById('ccOverlay');
@@ -3949,11 +4210,11 @@
           '<p class="cc-sub">Pilih nama dan jalan hidupmu menyeberangi lautan.</p>' +
           '<div class="cc-step"><b>1</b> Nama Kapten</div><div class="cc-name"><input id="ccName" maxlength="24" placeholder="Nama kaptenmu (dilihat pemain lain)" autocomplete="off"></div>' +
           '<div class="cc-step"><b>2</b> Pilih Jalan Hidup</div><div id="ccGrid"><p class="muted" style="grid-column:1/-1;text-align:center;">Memuat&hellip;</p></div>' +
-          '<div class="cc-step"><b>3</b> Wajah Kapten</div><div id="ccFaceBox" class="parchment-panel"><div id="ccFacePrev"></div><div id="ccFaceCtl2"></div></div>' +
+          '<div class="cc-step"><b>3</b> Rupa Kapten</div><div id="ccFaceBox"></div>' +
           '<p id="ccErr"></p><button id="ccGo" class="btn btn-gold btn-lg" disabled>' + ic('anchor') + '&nbsp; Mulai Merantau</button>' +
         '</div></div>');
       ov = document.getElementById('ccOverlay');
-      document.getElementById('ccName').addEventListener('input', ccValidate_);
+      document.getElementById('ccName').addEventListener('input', function () { ccValidate_(); if (FX && FX.mode === 'cc') { FX.name = this.value; fxRefresh_(FX, 'plate'); } });
       document.getElementById('ccGo').addEventListener('click', ccSubmit_);
       google.script.run.withSuccessHandler(ccRenderArch_).withFailureHandler(function (e) { document.getElementById('ccGrid').innerHTML = '<p>' + esc_(e.message) + '</p>'; }).api_getArchetypes();
     }
@@ -3961,6 +4222,7 @@
     ccDrawFace_();
   };
   function ccRenderArch_(list) {
+    ccArchList_ = list;
     var g = document.getElementById('ccGrid');
     g.innerHTML = list.map(function (a, i) {
       var em = CC_EMBLEM[a.id] || ['anchor', '#6a3d55', '#2a1420'];
@@ -3971,23 +4233,22 @@
     }).join('');
     g.querySelectorAll('.cc-card').forEach(function (c) { c.addEventListener('click', function () { ccSel_ = c.getAttribute('data-id'); g.querySelectorAll('.cc-card').forEach(function (x) { x.classList.toggle('sel', x === c); }); ccValidate_(); ccDrawFace_(); au_('click'); }); });
   }
-  function ccDrawFace_() {
-    var arch = ccSel_ || 'adventurer', col = CC_EMBLEM[arch] || CC_EMBLEM.adventurer, f = ccFace_;
-    var prev = document.getElementById('ccFacePrev'); if (!prev) return;
-    prev.innerHTML = MTFace.svg(f, { arch: arch, bgColors: [col[1], col[2]] });
-    function sw(k, arr) { return arr.map(function (c, i) { return '<button class="swatch' + (f[k] === i ? ' on' : '') + '" style="background:' + c + '" onclick="ccSet_(\'' + k + '\',' + i + ')"></button>'; }).join(''); }
-    function op(k, labels) { return labels.map(function (l, i) { return '<button class="chip-opt' + (f[k] === i ? ' on' : '') + '" onclick="ccSet_(\'' + k + '\',' + i + ')">' + l + '</button>'; }).join(''); }
-    document.getElementById('ccFaceCtl2').innerHTML =
-      '<div class="fe-row"><span class="fe-l">Gaya</span>' + op('fem', ['Pria', 'Wanita']) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Kulit</span>' + sw('skin', MTFace.SKIN) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Rambut</span>' + op('hairStyle', f.fem ? MTFace.HAIR_F : MTFace.HAIR_M) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Warna</span>' + sw('hair', MTFace.HAIR) + '</div>' +
-      (f.fem ? '' : '<div class="fe-row"><span class="fe-l">Wajah</span>' + op('facial', MTFace.FACIAL) + '</div>') +
-      '<div class="fe-row"><span class="fe-l">Mata</span>' + op('eyes', ['Sedang', 'Sipit', 'Lebar']) + '</div>' +
-      '<div class="fe-row"><span class="fe-l">Kepala</span>' + MTFace.HEADS.map(function (h) { return '<button class="chip-opt' + (f.head === h[0] ? ' on' : '') + '" onclick="ccSetHead_(\'' + h[0] + '\')">' + h[1] + '</button>'; }).join('') + '</div>';
+  function ccCtx_() {
+    var arch = ccSel_ || 'adventurer', col = CC_EMBLEM[arch] || CC_EMBLEM.adventurer;
+    var info = (ccArchList_ || []).filter(function (a) { return a.id === ccSel_; })[0];
+    var nm = document.getElementById('ccName');
+    return { mode: 'cc', draft: ccFace_, arch: arch, name: nm ? nm.value : '', archLabel: ccSel_ ? (info ? info.name : 'The ' + capitalize_(arch)) : 'Pilih jalan hidup', bg: [col[1], col[2]] };
   }
-  window.ccSet_ = function (k, v) { ccFace_[k] = v; if (k === 'fem') { ccFace_.hairStyle = 0; if (v) ccFace_.facial = 0; } ccDrawFace_(); };
-  window.ccSetHead_ = function (h) { ccFace_.head = h; ccDrawFace_(); };
+  function ccDrawFace_() {
+    var box = document.getElementById('ccFaceBox'); if (!box) return;
+    ccFace_ = fxNorm_(ccFace_);
+    if (FX && FX.mode === 'cc' && FX.host === box && box.querySelector('.fx-ed')) {
+      var c = ccCtx_(); FX.arch = c.arch; FX.archLabel = c.archLabel; FX.bg = c.bg; FX.name = c.name; FX.draft = ccFace_;
+      fxRefresh_(FX);
+    } else fxMount_(box, ccCtx_());
+  }
+  window.ccSet_ = function (k, v) { fxApply_(ccFace_, k, v); ccDrawFace_(); };
+  window.ccSetHead_ = function (h) { window.ccSet_('head', h); };
   function ccValidate_() { var n = document.getElementById('ccName').value.trim(); document.getElementById('ccGo').disabled = !(n.length >= 2 && ccSel_); }
   function ccSubmit_() {
     var name = document.getElementById('ccName').value.trim(), btn = document.getElementById('ccGo'), err = document.getElementById('ccErr');

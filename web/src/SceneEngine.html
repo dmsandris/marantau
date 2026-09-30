@@ -3444,205 +3444,1001 @@ var MTPeople = (function () {
 })();
 
 /* =============================== MTFace =============================== */
-/* Potret wajah SVG ber-lapis (gaya ilustrasi komik bergaris tebal).
-   Appearance: { fem, skin, hair, hairStyle, facial, head, eyes, seed }.
-   Dipakai untuk kapten pemain (bisa diatur) & NPC kota (seed per kota+peran). */
+/* Potret kapten v2 (Tide v14) — ilustrasi vektor semi-realistis ber-shading
+   halus (gradien kulit/rambut/kain/emas, AO lembut, rim light), bust 3/4
+   menghadap depan. Data: docs/FACE_V2_SPEC.md. Data v1 (fem, skin 0-5,
+   hair 0-5, hairStyle 0-5, facial 0-4, head, eyes 0-2, seed) tetap tampil
+   dengan arti yang sama. svg() = pembuat string murni (tanpa DOM); semua
+   id gradien/clip unik per panggilan. */
 var MTFace = (function () {
   var U = MTUtil;
-  var SKIN = ['#f3cfa6', '#e7b98e', '#d6a277', '#c28b5e', '#a97349', '#865634'];
-  var HAIR = ['#17110d', '#2b1d14', '#4a3222', '#7a4f2a', '#8d8a86', '#b0452a'];
-  var IRIS = ['#3a2616', '#5a3a1e', '#2f4a3a', '#34485a'];
-  var OUT = '#2a180e';
-  var HAIR_M = ['Pendek', 'Belah samping', 'Klimis', 'Acak', 'Gondrong', 'Botak'];
-  var HAIR_F = ['Sanggul', 'Panjang', 'Kepang', 'Pendek', 'Poni', 'Kuncir'];
-  var FACIAL = ['Bersih', 'Kumis', 'Jenggot tipis', 'Brewok', 'Kumis tebal'];
-  var HEADS = [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['hijab', 'Hijab'], ['peci', 'Peci'], ['blangkon', 'Blangkon'], ['bandana', 'Bandana'], ['tricorne', 'Tricorne']];
+  var SKIN = ['#f3cfa6', '#e7b98e', '#d6a277', '#c28b5e', '#a97349', '#865634', '#fae3cd', '#5c3a24'];
+  var HAIR = ['#17110d', '#2b1d14', '#4a3222', '#7a4f2a', '#8d8a86', '#b0452a', '#c99a50', '#e2dfd8', '#141b2a', '#6b2c1a'];
+  var IRIS = ['#6a4222', '#2b1b10', '#8c6a2a', '#4b7c46', '#3d70a2', '#7c8893'];
+  var CLOTH = [null, '#203658', '#9b2626', '#2e5b3b', '#201d1c', '#5e1b2d', '#ebe3cf', '#1d6a6e', '#4f2a5c', '#b39a68'];
+  var HAIR_M = ['Pendek', 'Belah samping', 'Klimis', 'Acak', 'Gondrong', 'Botak', 'Kuncir', 'Undercut', 'Keriting', 'Gimbal', 'Jambul tinggi', 'Cepak', 'Ikal panjang', 'Konde pria'];
+  var HAIR_F = ['Sanggul', 'Panjang', 'Kepang', 'Pendek', 'Poni', 'Kuncir', 'Bob', 'Keriting', 'Kepang dua', 'Gelombang', 'Pixie', 'Cepol ganda', 'Sibak samping', 'Gimbal'];
+  var FACIAL = ['Bersih', 'Kumis', 'Jenggot tipis', 'Brewok', 'Kumis tebal', 'Janggut kambing', 'Jambang', 'Janggut kepang', 'Kumis melintir', 'Berewok tipis'];
+  var EYES = ['Sedang', 'Sipit', 'Lebar', 'Tajam', 'Sayu'];
+  var IRIS_N = ['Coklat', 'Hitam', 'Hazel', 'Hijau', 'Biru', 'Abu'];
+  var BROWS = ['Normal', 'Tebal', 'Tipis', 'Tegas'];
+  var HEADS = [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['hijab', 'Hijab'], ['peci', 'Peci'], ['blangkon', 'Blangkon'], ['bandana', 'Bandana'], ['tricorne', 'Tricorne'], ['kapten', 'Topi kapten'], ['bicorne', 'Bicorne'], ['plumed', 'Topi bulu'], ['udeng', 'Udeng'], ['iket', 'Iket Sunda'], ['caping', 'Caping'], ['serban', 'Serban'], ['beret', 'Baret'], ['kupluk', 'Kupluk'], ['brim', 'Topi lebar'], ['bowler', 'Bowler'], ['ikat', 'Ikat kepala'], ['tudung', 'Tudung']];
+  var OUTFITS = [['arch', 'Sesuai archetype'], ['jas_kapten', 'Jas kapten'], ['mantel', 'Mantel'], ['rompi', 'Rompi'], ['kemeja', 'Kemeja'], ['beskap', 'Beskap'], ['kebaya', 'Kebaya'], ['koko', 'Baju koko'], ['kulit', 'Jaket kulit'], ['seragam', 'Seragam putih'], ['pelaut', 'Baju pelaut'], ['jubah', 'Jubah']];
+  var EYEWEAR = [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['patch', 'Penutup mata'], ['monocle', 'Monokel'], ['glasses', 'Kacamata'], ['halfmoon', 'Kacamata baca']];
+  var EARS = [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['hoop', 'Anting bulat'], ['hoop2', 'Anting ganda'], ['pearl', 'Mutiara'], ['stud', 'Giwang']];
+  var NECKS = [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['scarf', 'Syal'], ['chain', 'Rantai emas'], ['pearls', 'Kalung mutiara'], ['medallion', 'Medali kompas'], ['jabot', 'Jabot'], ['tooth', 'Taring hiu'], ['masker', 'Masker']];
+  var MARKS = [['none', 'Tanpa'], ['scar_cheek', 'Codet pipi'], ['scar_eye', 'Codet mata'], ['tattoo', 'Tato'], ['freckles', 'Bintik'], ['mole', 'Tahi lalat'], ['warpaint', 'Cat perang']];
+  var ITEMS = [['arch', 'Sesuai archetype'], ['none', 'Tanpa'], ['pipe', 'Pipa'], ['parrot', 'Burung beo'], ['spyglass', 'Teropong'], ['sword', 'Pedang']];
 
+  /* bawaan archetype: coat/trim = warna, outfit = gaya internal (arch) */
   var ARCH_OUTFIT = {
-    merchant: { coat: '#7a2e1c', trim: '#e0b64c', head: 'peci', acc: 'chain' },
-    navigator: { coat: '#1f4a6b', trim: '#d4a84c', head: 'tricorne', acc: 'none' },
-    pirate: { coat: '#2a2220', trim: '#b23a2a', head: 'bandana', acc: 'patch' },
-    explorer: { coat: '#6b5a2e', trim: '#c9a876', head: 'brim', acc: 'scarf' },
-    gambler: { coat: '#4a1f48', trim: '#e0b64c', head: 'bowler', acc: 'card' },
-    smuggler: { coat: '#2f2a26', trim: '#6b5a4a', head: 'hood', acc: 'mask' },
-    diplomat: { coat: '#1e2a3a', trim: '#e0b64c', head: 'blangkon', acc: 'glasses' },
-    adventurer: { coat: '#2f6a4a', trim: '#e8d7a8', head: 'headband', acc: 'none' }
+    merchant: { coat: '#7a2e1c', trim: '#e0b64c', head: 'peci', outfit: 'saudagar', eye: 'none', ear: 'none', neck: 'chain', item: 'none', acc: 'chain' },
+    navigator: { coat: '#1f4a6b', trim: '#d4a84c', head: 'tricorne', outfit: 'navigator', eye: 'none', ear: 'none', neck: 'none', item: 'none', acc: 'none' },
+    pirate: { coat: '#2a2220', trim: '#a8302a', head: 'bandana', outfit: 'mantel', eye: 'patch', ear: 'hoop', neck: 'none', item: 'none', acc: 'patch' },
+    explorer: { coat: '#6b5a2e', trim: '#c9a876', head: 'brim', outfit: 'jaket', eye: 'none', ear: 'none', neck: 'scarf', item: 'none', acc: 'scarf' },
+    gambler: { coat: '#4a1f48', trim: '#e0b64c', head: 'bowler', outfit: 'jas', eye: 'none', ear: 'none', neck: 'none', item: 'card', acc: 'card' },
+    smuggler: { coat: '#2f2a26', trim: '#6b5a4a', head: 'tudung', outfit: 'mantel_up', eye: 'none', ear: 'none', neck: 'masker', item: 'none', acc: 'mask' },
+    diplomat: { coat: '#1e2a3a', trim: '#e0b64c', head: 'blangkon', outfit: 'beskap', eye: 'glasses', ear: 'none', neck: 'none', item: 'none', acc: 'glasses' },
+    adventurer: { coat: '#2f6a4a', trim: '#e8d7a8', head: 'ikat', outfit: 'jaket_b', eye: 'none', ear: 'none', neck: 'none', item: 'none', acc: 'none' }
   };
+  /* bawaan peran NPC kota */
   var ROLE_OUTFIT = {
-    syahbandar: { coat: '#efe9dc', trim: '#c9a033', head: 'peci', acc: 'epaulette' },
-    saudagar: { coat: '#8a3a22', trim: '#e0b64c', head: 'none', acc: 'kebaya' },
-    pustakawan: { coat: '#3a4a3a', trim: '#c9a876', head: 'blangkon', acc: 'glasses' },
-    tukang: { coat: '#6b4a2c', trim: '#c9a876', head: 'headband', acc: 'none' },
-    bankir: { coat: '#1e2230', trim: '#e0b64c', head: 'blangkon', acc: 'chain' },
-    lapau: { coat: '#efe2c2', trim: '#8a3a22', head: 'none', acc: 'apron' },
-    gudang: { coat: '#4a5a6a', trim: '#c9a876', head: 'caping', acc: 'none' },
-    bajak: { coat: '#2a2220', trim: '#b23a2a', head: 'bandana', acc: 'patch' }
+    syahbandar: { coat: '#efe9dc', trim: '#c9a033', head: 'peci', headF: 'hijab', outfit: 'seragam', eye: 'none', ear: 'none', neck: 'none', item: 'none' },
+    saudagar: { coat: '#8a3a22', trim: '#e0b64c', head: 'none', outfit: 'saudagar', outfitF: 'kebaya', eye: 'none', ear: 'none', earF: 'pearl', neck: 'none', item: 'none' },
+    pustakawan: { coat: '#3a4a3a', trim: '#c9a876', head: 'blangkon', headF: 'none', outfit: 'beskap', outfitF: 'kebaya', eye: 'glasses', ear: 'none', neck: 'none', item: 'none' },
+    tukang: { coat: '#6b4a2c', trim: '#c9a876', head: 'ikat', outfit: 'rompi', eye: 'none', ear: 'none', neck: 'none', item: 'none' },
+    bankir: { coat: '#1e2230', trim: '#e0b64c', head: 'blangkon', headF: 'none', outfit: 'jas_v', eye: 'none', ear: 'none', neck: 'chain', item: 'none' },
+    lapau: { coat: '#efe2c2', trim: '#8a3a22', head: 'none', outfit: 'apron', eye: 'none', ear: 'none', neck: 'none', item: 'none' },
+    gudang: { coat: '#4a5a6a', trim: '#c9a876', head: 'caping', outfit: 'jaket', eye: 'none', ear: 'none', neck: 'none', item: 'none' },
+    bajak: { coat: '#2a2220', trim: '#a8302a', head: 'bandana', outfit: 'mantel', eye: 'patch', ear: 'hoop', neck: 'none', item: 'none' }
   };
+  /* warna bawaan tiap pakaian (bila bukan 'arch'): [utama, trim] */
+  var OUT_COL = {
+    jas_kapten: ['#1f3456', '#e0b64c'], mantel: ['#2a2220', '#8a2a24'], mantel_up: ['#2f2a26', '#6b5a4a'], rompi: ['#5a3a24', '#c9a876'],
+    kemeja: ['#e6dcc6', '#8a6a44'], beskap: ['#262a33', '#e0b64c'], kebaya: ['#8a3446', '#f3e6c8'], koko: ['#ece6d6', '#b8862b'],
+    kulit: ['#5a3824', '#c9a876'], seragam: ['#efeae0', '#d4a84c'], pelaut: ['#203658', '#f4f1ea'], jubah: ['#3a3440', '#c9a04a'],
+    saudagar: ['#7a2e1c', '#e0b64c'], navigator: ['#1f4a6b', '#d4a84c'], jas: ['#2a2a3a', '#e0b64c'], jas_v: ['#1e2230', '#e0b64c'],
+    jaket: ['#6b5a2e', '#c9a876'], jaket_b: ['#2f6a4a', '#e8d7a8'], apron: ['#efe2c2', '#8a3a22']
+  };
+  var HIJAB = ['#d8c2a2', '#56688a', '#7a3a4c', '#40604c', '#e9dcc6', '#2e2c38', '#9a6a4a', '#6a4a7a'];
+  var LEGACY_HEAD = { hood: 'tudung', headband: 'ikat' };
+  var uid = 0, EY = 51.6;
+
+  /* ---------- helper string ---------- */
+  function n(v) { return Math.round(v * 10) / 10; }
+  function hx(c) { return '#' + c.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))).toString(16); return v.length < 2 ? '0' + v : v; }).join(''); }
+  function mix(a, b, t) { return hx(U.mix(U.hex(a), U.hex(b), t)); }
+  function P(d, f, x) { return '<path d="' + d + '" fill="' + f + '"' + (x || '') + '/>'; }
+  function S(c, w) { return ' stroke="' + c + '" stroke-width="' + w + '" stroke-linejoin="round" stroke-linecap="round"'; }
+  function O(o) { return ' opacity="' + o + '"'; }
+  function L(d, c, w, o, x) { return '<path d="' + d + '" fill="none"' + S(c, w) + (o != null ? O(o) : '') + (x || '') + '/>'; }
+  function C(x, y, r, f, e) { return '<circle cx="' + n(x) + '" cy="' + n(y) + '" r="' + n(r) + '" fill="' + f + '"' + (e || '') + '/>'; }
+  function E(x, y, rx, ry, f, e) { return '<ellipse cx="' + n(x) + '" cy="' + n(y) + '" rx="' + n(rx) + '" ry="' + n(ry) + '" fill="' + f + '"' + (e || '') + '/>'; }
+  function G(s, t) { return '<g' + (t ? ' transform="' + t + '"' : '') + '>' + s + '</g>'; }
+  var MIR = 'matrix(-1 0 0 1 100 0)';
+  function both(s) { return s + G(s, MIR); }
+  function stops(a) { return a.map(function (s) { return '<stop offset="' + s[0] + '" stop-color="' + s[1] + '"' + (s[2] != null ? ' stop-opacity="' + s[2] + '"' : '') + '/>'; }).join(''); }
+  function lin(id, x1, y1, x2, y2, st, obb) { return '<linearGradient id="' + id + '"' + (obb ? '' : ' gradientUnits="userSpaceOnUse"') + ' x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '">' + stops(st) + '</linearGradient>'; }
+  function rad(id, cx, cy, r, st, obb) { return '<radialGradient id="' + id + '"' + (obb ? '' : ' gradientUnits="userSpaceOnUse"') + ' cx="' + cx + '" cy="' + cy + '" r="' + r + '">' + stops(st) + '</radialGradient>'; }
+  function cub(p0, p1, p2, p3, t) { var u = 1 - t; return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3; }
+  /* kontur bergelombang (rambut keriting): titik-titik -> busur keluar */
+  function scallop(pts, k) {
+    var d = 'M' + n(pts[0][0]) + ' ' + n(pts[0][1]);
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i], len = Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
+      d += ' A' + n(len * (k || 0.62)) + ' ' + n(len * (k || 0.62)) + ' 0 0 1 ' + n(b[0]) + ' ' + n(b[1]);
+    }
+    return d + ' Z';
+  }
+  function ring(cx, cy, rx, ry, a0, a1, cnt) {
+    var out = [];
+    for (var i = 0; i <= cnt; i++) { var a = (a0 + (a1 - a0) * i / cnt) * Math.PI / 180; out.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); }
+    return out;
+  }
 
   function hash(s) { return U.hashStr(s); }
   function defaults(name, arch) {
     var r = U.rng(hash((name || 'x') + '|' + (arch || '')));
-    return { fem: 0, skin: 1 + Math.floor(r() * 4), hair: Math.floor(r() * 3), hairStyle: Math.floor(r() * 4), facial: Math.floor(r() * 4), head: 'arch', eyes: Math.floor(r() * 3), seed: Math.floor(r() * 1e6) };
-  }
-  function npc(seedStr, role, forceFem) {
-    var r = U.rng(hash(seedStr));
-    var fem = forceFem != null ? forceFem : (r() < 0.45 ? 1 : 0);
-    var o = { fem: fem, skin: Math.floor(r() * 6), hair: r() < 0.2 ? 4 : Math.floor(r() * 3), hairStyle: Math.floor(r() * 6), facial: fem ? 0 : Math.floor(r() * 5), head: fem && r() < 0.35 ? 'hijab' : 'arch', eyes: Math.floor(r() * 3), seed: Math.floor(r() * 1e6), role: role, age: r() };
-    // pria berambut gondrong tanpa kumis gampang terbaca perempuan di ukuran kecil -> pendekkan / beri kumis
-    if (!fem && o.hairStyle === 4) { if (r() < 0.6) o.hairStyle = [0, 1, 2, 3][Math.floor(r() * 4)]; else if (!o.facial) o.facial = 1 + Math.floor(r() * 4); }
+    var o = { fem: 0, skin: 1 + Math.floor(r() * 4), hair: Math.floor(r() * 3), hairStyle: Math.floor(r() * 4), facial: Math.floor(r() * 4), head: 'arch', eyes: Math.floor(r() * 3), seed: Math.floor(r() * 1e6) };
+    var r2 = U.rng(o.seed + 99);
+    o.iris = r2() < 0.7 ? 0 : (r2() < 0.6 ? 1 : 2); o.brows = Math.floor(r2() * 4);
+    o.outfit = 'arch'; o.cloth = 0; o.eye = 'arch'; o.ear = 'arch'; o.neck = 'arch'; o.mark = 'none'; o.item = 'arch';
     return o;
   }
+
+  /* NPC: rentang v2 penuh tapi tetap sesuai peran */
+  function npc(seedStr, role, forceFem) {
+    var r = U.rng(hash(seedStr));
+    function pk(a) { return a[Math.floor(r() * a.length) % a.length]; }
+    function ch(p) { return r() < p; }
+    var fem = forceFem != null ? (forceFem ? 1 : 0) : (r() < 0.45 ? 1 : 0);
+    var o = { fem: fem, skin: Math.floor(r() * 6), hair: r() < 0.2 ? 4 : Math.floor(r() * 3), hairStyle: 0, facial: 0, head: 'arch', eyes: Math.floor(r() * 5), seed: Math.floor(r() * 1e6), role: role, age: r() };
+    if (ch(0.1)) o.skin = ch(0.5) ? 6 : 7;
+    if (ch(0.12)) o.hair = pk([3, 5, 8, 9]);
+    if (o.age > 0.82) o.hair = ch(0.5) ? 4 : 7;
+    o.iris = ch(0.72) ? 0 : pk([1, 1, 2, 2, 3, 5, 4]);
+    o.brows = Math.floor(r() * 4);
+    o.hairStyle = fem ? pk([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) : pk([0, 0, 1, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13]);
+    o.facial = fem ? 0 : (ch(0.3) ? 0 : pk([1, 2, 3, 4, 5, 6, 8, 9]));
+    o.cloth = 0; o.eye = 'none'; o.ear = 'none'; o.neck = 'none'; o.mark = 'none'; o.item = 'none';
+    var ro = ROLE_OUTFIT[role] || ROLE_OUTFIT.saudagar;
+    o.outfit = 'arch';
+    o.head = fem ? (ro.headF || ro.head) : ro.head;
+    if (fem && ch(0.35) && role !== 'bajak') o.head = 'hijab';
+    switch (role) {
+      case 'syahbandar':
+        if (!fem) o.head = pk(['peci', 'kapten', 'kapten', 'peci', 'bicorne']);
+        if (ch(0.25)) o.eye = pk(['glasses', 'monocle']);
+        if (!fem && ch(0.4)) o.facial = pk([1, 4, 8]);
+        break;
+      case 'saudagar':
+        if (!fem) { o.head = pk(['peci', 'none', 'serban', 'peci', 'blangkon']); o.outfit = pk(['arch', 'koko', 'beskap', 'arch']); }
+        o.neck = ch(0.5) ? (fem ? 'pearls' : 'chain') : 'none';
+        if (fem && o.head !== 'hijab') o.ear = pk(['pearl', 'hoop', 'stud']);
+        if (!fem && ch(0.15)) o.item = 'pipe';
+        o.cloth = ch(0.4) ? pk([2, 5, 7, 8, 3]) : 0;
+        break;
+      case 'pustakawan':
+        o.eye = pk(['glasses', 'halfmoon', 'halfmoon', 'monocle', 'none']);
+        if (!fem) o.head = pk(['blangkon', 'peci', 'none', 'beret']);
+        o.outfit = pk(['arch', 'arch', 'jubah', 'koko']);
+        if (fem) o.outfit = pk(['kebaya', 'jubah', 'kebaya']);
+        break;
+      case 'tukang':
+        o.head = pk(['ikat', 'iket', 'kupluk', 'none', 'bandana']);
+        o.outfit = pk(['arch', 'arch', 'kemeja', 'pelaut']);
+        if (ch(0.18)) o.mark = pk(['scar_cheek', 'tattoo']);
+        if (ch(0.15)) o.item = 'pipe';
+        break;
+      case 'bankir':
+        if (!fem) o.head = pk(['blangkon', 'bowler', 'peci', 'none']);
+        o.eye = pk(['none', 'monocle', 'glasses', 'halfmoon']);
+        o.neck = 'chain';
+        if (fem) { o.outfit = 'kebaya'; o.neck = 'pearls'; o.ear = o.head === 'hijab' ? 'none' : 'pearl'; }
+        break;
+      case 'lapau':
+        if (o.head !== 'hijab') o.head = pk(['none', 'none', 'ikat', 'iket', 'kupluk']);
+        if (!fem && ch(0.2)) o.item = 'pipe';
+        if (!fem && ch(0.2)) o.neck = 'scarf';
+        break;
+      case 'gudang':
+        if (o.head !== 'hijab') o.head = pk(['caping', 'caping', 'kupluk', 'bandana', 'brim']);
+        o.outfit = pk(['arch', 'kulit', 'pelaut', 'kemeja']);
+        if (ch(0.3)) o.neck = 'scarf';
+        break;
+      case 'bajak':
+        o.head = pk(['bandana', 'bandana', 'tricorne', 'plumed', 'none', 'ikat']);
+        o.outfit = pk(['arch', 'arch', 'kulit', 'kemeja', 'rompi']);
+        o.eye = ch(0.4) ? 'patch' : 'none';
+        o.ear = ch(0.6) ? pk(['hoop', 'hoop2', 'hoop']) : 'none';
+        o.neck = ch(0.45) ? pk(['tooth', 'scarf', 'chain']) : 'none';
+        o.mark = ch(0.4) ? pk(['scar_cheek', 'scar_eye', 'tattoo', 'warpaint']) : 'none';
+        o.item = ch(0.3) ? pk(['parrot', 'sword', 'sword', 'pipe']) : 'none';
+        if (!fem) { o.facial = ch(0.15) ? 0 : pk([3, 7, 7, 5, 8, 9, 4]); o.hairStyle = pk([0, 3, 4, 5, 6, 7, 9, 12, 13, 11]); }
+        if (o.outfit === 'kemeja' || o.outfit === 'rompi') o.cloth = ch(0.5) ? pk([2, 5, 4]) : 0;
+        break;
+    }
+    // pria berambut panjang tanpa kumis gampang terbaca perempuan di ukuran kecil
+    if (!fem && (o.hairStyle === 4 || o.hairStyle === 12) && !o.facial) o.facial = pk([1, 3, 5, 9]);
+    return o;
+  }
+
   function sanitize(a) {
     a = a || {};
     function int(v, max) { v = Math.floor(Number(v) || 0); return Math.max(0, Math.min(max, v)); }
-    var heads = HEADS.map(function (h) { return h[0]; });
-    return { fem: a.fem ? 1 : 0, skin: int(a.skin, 5), hair: int(a.hair, 5), hairStyle: int(a.hairStyle, 5), facial: int(a.facial, 4), head: heads.indexOf(a.head) >= 0 ? a.head : 'arch', eyes: int(a.eyes, 2), seed: int(a.seed, 999999) };
+    function one(v, list, def) { v = LEGACY_HEAD[v] || v; for (var i = 0; i < list.length; i++) if (list[i][0] === v) return v; return def; }
+    var o = {
+      fem: a.fem ? 1 : 0, skin: a.skin == null ? 2 : int(a.skin, 7), hair: int(a.hair, 9), hairStyle: int(a.hairStyle, 13), facial: int(a.facial, 9),
+      eyes: int(a.eyes, 4), iris: int(a.iris, 5), brows: int(a.brows, 3),
+      head: one(a.head, HEADS, 'arch'), outfit: one(a.outfit, OUTFITS, 'arch'), cloth: int(a.cloth, 9),
+      eye: one(a.eye, EYEWEAR, 'arch'), ear: one(a.ear, EARS, 'arch'), neck: one(a.neck, NECKS, 'arch'), mark: one(a.mark, MARKS, 'none'), item: one(a.item, ITEMS, 'arch'),
+      seed: int(a.seed, 999999)
+    };
+    if (o.fem) o.facial = 0;
+    return o;
   }
 
+  /* ================= HAIR =================
+     Mengembalikan { back, over, front, hl, earHide }:
+     back  = di belakang kepala/bahu, over = helai di depan bahu (di atas baju),
+     front = poni/atap kepala; hl = garis rambut (untuk bayangan AO). */
+  function hairParts(st, fem, cap, c) {
+    var hb = 'url(#' + c.id + 'hb)', hf = 'url(#' + c.id + 'hr)';
+    var ol = S(c.line, 0.9);
+    function F(d) { return P(d, hf, ol); }
+    function B(d) { return P(d, hb, ol); }
+    function HL(d, o) { return P(d, c.hl, O(o == null ? 0.5 : o)); }
+    function SL(d, o, w) { return L(d, c.dk, w || 0.7, o == null ? 0.5 : o); }
+    function curlDots(list) { return list.map(function (p) { return L('M' + n(p[0] - 1.2) + ' ' + n(p[1] + 0.4) + ' q1.2 -1.6 2.4 0', c.hl, 0.7, 0.55); }).join(''); }
+    function locs(xs, top, len, w) {
+      return xs.map(function (x, i) {
+        var dx = x < 50 ? -1 : 1, x2 = x + dx * (2 + (i % 2)), d = 'M' + n(x) + ' ' + top + ' C' + n(x + dx * 1.5) + ' ' + n(top + len * 0.35) + ' ' + n(x2 - dx) + ' ' + n(top + len * 0.7) + ' ' + n(x2) + ' ' + n(top + len - (i % 3) * 2);
+        return L(d, c.line, w + 1.2) + L(d, hf, w) + L(d, c.dk, w, 0.55, ' stroke-dasharray="0.7 2.6"') + L(d, c.hl, w * 0.25, 0.4);
+      }).join('');
+    }
+    function braid(x0, y0, x1, y1, w, cnt, tie) {
+      var s = '', dx = (x1 - x0) / cnt, dy = (y1 - y0) / cnt;
+      for (var i = 0; i < cnt; i++) {
+        var cx = x0 + dx * (i + 0.5), cy = y0 + dy * (i + 0.5), sd = i % 2 ? 1 : -1;
+        s += '<ellipse cx="' + n(cx + sd * w * 0.18) + '" cy="' + n(cy) + '" rx="' + n(w * 0.62) + '" ry="' + n(Math.abs(dy) * 0.78) + '" transform="rotate(' + (sd * 28) + ' ' + n(cx) + ' ' + n(cy) + ')" fill="' + hf + '"' + S(c.line, 0.7) + '/>';
+        s += L('M' + n(cx - w * 0.3) + ' ' + n(cy - dy * 0.1) + ' q' + n(w * 0.3) + ' ' + n(-dy * 0.25) + ' ' + n(w * 0.55) + ' ' + n(-dy * 0.1), c.hl, 0.6, 0.55);
+      }
+      s += P('M' + n(x1 - w * 0.4) + ' ' + n(y1) + ' L' + n(x1 - w * 0.7) + ' ' + n(y1 + 4.5) + ' L' + n(x1 + w * 0.7) + ' ' + n(y1 + 4.5) + ' L' + n(x1 + w * 0.4) + ' ' + n(y1) + ' Z', hf, S(c.line, 0.6));
+      s += '<rect x="' + n(x1 - w * 0.55) + '" y="' + n(y1 - 1) + '" width="' + n(w * 1.1) + '" height="1.8" rx=".8" fill="' + (tie || '#b8322a') + '"/>';
+      return s;
+    }
+    var R = { back: '', over: '', front: '', hl: 34 };
+    // atap kepala standar (dipakai beberapa gaya) — dirapatkan bila bertopi
+    var longBack = 'M25.8 46 C24 32 30 15.5 50 14.5 C70 15.5 76 32 74.2 46 C75.6 60 77 74 79 88 C68 91.5 32 91.5 21 88 C23 74 24.4 60 25.8 46 Z';
+    var partFront = 'M27 56 C25 42 26 28 32 20.5 C37.5 14.5 44 13 50 13 C56 13 62.5 14.5 68 20.5 C74 28 75 42 73 56 C71.6 49 70.4 43 68.3 38.5 C65 32 58 28.5 51.2 28 L50 29.5 L48.8 28 C42 28.5 35 32 31.7 38.5 C29.6 43 28.4 49 27 56 Z';
+    var partHL = HL('M33 25 C38 18 44 15.6 49 15.4 C43.5 18 39 22 36 28.5 Z', 0.55) + HL('M54 16 C60 16.6 65 19.5 67.5 24 C63 21 58.5 19.4 53 19 Z', 0.35) + SL('M49 28.4 C44 30 38 33 34 38.5') + SL('M51 28.4 C56 30 62 33 66 38.5');
+    if (!fem) switch (st) {
+      case 0: // Pendek
+        R.front = F('M27 55 C25.6 44 25 31 31.5 22.5 C37 15.5 44.5 13.2 51 13.5 C58.5 13.8 65.5 17 69.8 23 C75 31 74.6 44 73 55 C72 51 71.6 45.5 70.3 41 C69.6 38.6 68 37 66 36 C61 34 56 36 51.5 34.8 C46 36.4 41 34.6 35.5 36.8 C32.4 38 30.6 40 29.8 42.5 C28.8 46 28.2 51 27 55 Z') +
+          HL('M32.5 25 C39 17.5 48 14.8 57 16.2 C49 17.4 41 21 35 28.5 Z', 0.5) + HL('M58 18.5 C63.5 19.5 67.5 23 69 27 C65 24 61.5 22 57 21 Z', 0.3) +
+          SL('M40 35.6 C41.5 30.5 45.5 27.5 50.5 26.5') + SL('M60 35.4 C59 31 56 28 52 26.8') + SL('M33 37.4 C33 33 35.5 29 39 27', 0.35);
+        break;
+      case 1: // Belah samping
+        R.front = F('M27 55 C25.4 43 25 30 32 21.5 C37.5 15 45 12.6 52 13 C60 13.5 67 17 70.5 23.5 C75 31.5 74.6 44 73 55 C72 50 71.5 44.5 70 40 C68 35 63 31.5 57 31 C51 30.6 45.5 32.5 41.5 30.5 C40 33.5 37.5 35.5 34.5 37.2 C31.5 39.2 30.2 42 29.6 45 C28.8 49 28 52 27 55 Z') +
+          HL('M43 20.5 C51 15.8 61 16.8 67.5 23 C60 20.4 51 20.6 44.5 25 Z', 0.55) + HL('M31 30 C33 24 37 19 41 17.5 C38.5 21.5 36.5 26 35 31.5 Z', 0.35) +
+          SL('M41.5 30.5 C40.6 25 40 20 40.8 15.2', 0.7, 0.8) + SL('M43 29.6 C50 25.5 58 25.2 66 30') + SL('M46 31.2 C53 28.4 61 29 68 34', 0.4);
+        R.hl = 32;
+        break;
+      case 2: // Klimis
+        R.front = F('M28 50 C27 38 28 27 33.5 20.5 C38.5 15.5 44.5 14 50 14 C55.5 14 61.5 15.5 66.5 20.5 C72 27 73 38 72 50 C71 45 70.5 40.5 69 37 C66 32 60 29.5 50 29.5 C40 29.5 34 32 31 37 C29.5 40.5 29 45 28 50 Z') +
+          SL('M36 31.2 C38 23 44 18 50 17', 0.5) + SL('M43 29.8 C44.5 23 47 19 50 17.4', 0.45) + SL('M57 29.8 C55.5 23 53 19 50 17.4', 0.45) + SL('M64 31.2 C62 23 56 18 50 17', 0.5) +
+          HL('M34.5 27 C39.5 19 47 16.4 54 16.8 C47 18.6 41 22.4 37.4 29.6 Z', 0.62) + HL('M58 18.6 C62 19.8 65.5 22.4 67 25.4 C64 23.4 61 21.8 58 21.2 Z', 0.35);
+        R.hl = 30;
+        break;
+      case 3: // Acak
+        R.front = F('M27 55 C25.5 46 24 38 25 32 C23 28 24 24 27 22 C27.5 18 31 15 35 15.5 C37 11.5 42 10 46 12 C49 9 55 9.5 57.5 12.5 C62 11 67 13.5 68 17.5 C72 18.5 74.5 22.5 74 26.5 C76.5 30 76 35 74.5 38.5 C74.6 44 74 50 73 55 C72 50 71.5 45 70.2 41.5 L67.5 43.5 L66.8 37.5 L62.4 40 L60.5 34.4 L55.5 37.5 L52.6 33 L48.4 37 L44.6 33.4 L41 38 L38.2 34.4 L35.4 39 L32.6 36.6 C31 41 29.5 47 27 55 Z') +
+          HL('M31 24 C36 16.5 44 13.5 52 14 C45 16 39 19.5 34 26 Z', 0.5) + HL('M56 15.5 C62 15.5 67 18 69.5 22 C65.5 20 61.5 18.6 57 18.2 Z', 0.35) +
+          SL('M45 33 C46 27 49 22 53 19') + SL('M58 34 C59 29 58 24 55.5 20') + SL('M37 34.5 C37 29 39 24 43 21');
+        R.hl = 35;
+        break;
+      case 4: // Gondrong
+        R.back = B(longBack) + SL('M30 60 C30 70 30 80 31 88', 0.35) + SL('M70 60 C70 70 70 80 69 88', 0.35);
+        R.front = F('M26 56 C24.5 44 25 30 31.5 21.5 C37 15 44 13 50 13.5 C56 13 63 15 68.5 21.5 C75 30 75.5 44 74 56 C72.6 50 71.8 45 70.5 41 C68 34 60 29.5 51.5 28.5 L50 30 L48.5 28.5 C40 29.5 32 34 29.5 41 C28.2 45 27.4 50 26 56 Z') + partHL;
+        R.hl = 31;
+        break;
+      case 5: // Botak
+        R.front = P('M28.8 50 C28.3 44 28.6 39 30 35.5 C31.6 39 32 44 31.6 51 Z', c.base, O(0.28)) + P('M71.2 50 C71.7 44 71.4 39 70 35.5 C68.4 39 68 44 68.4 51 Z', c.base, O(0.28));
+        R.bald = 1; R.hl = 22;
+        break;
+      case 6: // Kuncir
+        R.back = P('M64 28 C75 29 80 38 79.5 50 C79 62 80.5 72 84 81 C78.5 80.5 74.5 74 73.5 65 C72.6 55 72.4 44 66 36 Z', hb, ol) + SL('M70 34 C76 42 76 56 77 70', 0.4) +
+          '<rect x="65" y="27.4" width="3" height="6" rx="1.2" transform="rotate(-38 66.5 30.4)" fill="' + c.tie + '"/>';
+        R.front = F('M28 51 C27 39 27.5 27 33.5 20.5 C38.5 15.2 44.5 13.6 50 13.6 C55.5 13.6 61.5 15.2 66.5 20.5 C72.5 27 73 39 72 51 C71 46 70.4 41 68.8 37.4 C65.6 32 59.6 29.8 50 30 C40.4 29.8 34.4 32 31.2 37.4 C29.6 41 29 46 28 51 Z') +
+          SL('M37 31 C40 23 45 18.5 50 17', 0.45) + SL('M63 31 C60 23 55 18.5 50 17', 0.45) + HL('M34.5 27 C39.5 19.5 46.5 16.6 53 16.8 C46.5 18.8 41 22.6 37.4 29.6 Z', 0.55) +
+          L('M31.2 38 C30 42 29.6 46 30.4 50', hf, 0.9) + L('M31 37.6 C29.4 41.6 29.2 46 30.2 50.4', c.hl, 0.4, 0.5);
+        R.hl = 31;
+        break;
+      case 7: // Undercut
+        R.front = P('M28.3 53 C27.9 45 28 39 29.4 34.2 L34.4 33 C33.2 40 32.4 46.5 31.8 53.5 Z', c.base, O(0.42)) + P('M71.7 53 C72.1 45 72 39 70.6 34.2 L65.6 33 C66.8 40 67.6 46.5 68.2 53.5 Z', c.base, O(0.42)) +
+          F('M29 37 C27.4 27 31 16.5 40.5 12.8 C47.5 10.2 57 10.6 63 13.6 C70.4 17.6 73.4 26.6 71 37 C69 31.6 64 28.4 57.6 28.6 C51 28.8 44.4 31.6 40 30.8 C35.6 30 31.6 32.6 29 37 Z') +
+          HL('M35 22 C40 15.4 49 12.8 57 13.8 C49 15.6 42 19 37.6 25 Z', 0.55) + SL('M40 30.4 C45 24 53 20.4 62 20') + SL('M46 30 C51 25.6 58 23.8 66 24.6', 0.45) + SL('M33 33 C35 26 40 20 47 17', 0.4);
+        R.hl = 31;
+        break;
+      case 8: // Keriting
+        var ry8 = cap ? 16 : 21, rx8 = cap ? 24.5 : 27.2, cy8 = cap ? 33 : 35;
+        var outer = ring(50, cy8, rx8, ry8, 162, 378, 13);
+        var pts8 = [[27.2, 55]].concat(outer).concat([[72.8, 55], [71, 47], [69.8, 40.5], [65.5, 36.5], [60.5, 35.2], [55.5, 36.4], [50, 35], [44.5, 36.4], [39.5, 35.2], [34.5, 36.5], [30.2, 40.5], [29, 47], [27.2, 55]]);
+        R.front = P(scallop(pts8, 0.6), hf, ol) + curlDots([[36, 25], [44, 20], [52, 18.5], [60, 21], [66, 27], [32, 32], [41, 29], [49, 26], [57, 28], [64, 33], [70, 36], [30, 40]]) +
+          HL('M33 26 C38 19 45 16 52 16 C45 18.5 39.5 22 35.5 28 Z', 0.3);
+        R.hl = 36;
+        break;
+      case 9: // Gimbal
+        R.back = locs([27, 30.5, 34, 66, 69.5, 73], 30, 56, 3.6);
+        R.over = locs([29.5, 70.5], 52, 34, 3.4);
+        var p9 = [[27, 54]].concat(ring(50, 34, 25.5, 20.5, 165, 375, 11)).concat([[73, 54], [71.5, 46], [70, 40], [64, 36.4], [57, 37], [50, 35.6], [43, 37], [36, 36.4], [30, 40], [28.5, 46], [27, 54]]);
+        R.front = P(scallop(p9, 0.66), hf, ol) + SL('M38 36 C40 28 46 22 52 20', 0.45) + SL('M60 36 C60 29 57 24 53 21', 0.45) + HL('M33 25 C38 18.5 45 15.5 52 15.6 C45 18.5 39.5 22 35.5 28 Z', 0.4);
+        R.hl = 36;
+        break;
+      case 10: // Jambul tinggi
+        if (cap) { R.front = F('M27.6 52 C26.4 44 27 36 29.6 31 L70.4 31 C73 36 73.6 44 72.4 52 C71.6 47 70.8 42 69 38.5 C63 35.6 56 36.2 50 35.4 C44 36.2 37 35.6 31 38.5 C29.2 42 28.4 47 27.6 52 Z'); R.hl = 35; break; }
+        R.front = P('M28.4 52 C27.9 45 28 40 29.2 35.5 L33.5 34.8 C32.6 41 32.2 46.5 31.8 52.5 Z', c.base, O(0.5)) + P('M71.6 52 C72.1 45 72 40 70.8 35.5 L66.5 34.8 C67.4 41 67.8 46.5 68.2 52.5 Z', c.base, O(0.5)) +
+          F('M29.4 37 C28.6 29 30.6 20 37 13 C43 6.6 53 4.6 61 7.4 C68.6 10 72.8 16.6 71.4 24.4 C72.6 28.4 72 33 70.6 37 C68 34.4 64 33.2 58 33.6 C51 34 44 33.4 38 33 C34 33 31.2 34.6 29.4 37 Z') +
+          HL('M36.5 17 C42 9.8 51 7.2 59 8.6 C51 10.6 44 14.6 39.4 21 Z', 0.6) + HL('M60 11 C66 12.6 69.8 16.4 70.2 21.4 C67.4 17.6 64 15.4 59.6 14 Z', 0.35) +
+          SL('M36 32 C38 24 44 16.5 53 12') + SL('M46 33.4 C48 25 54 18.6 62 15.4') + SL('M58 33.6 C60 27 64 22.4 69.6 20.6', 0.4) + L('M62 7.8 C68 9.4 71.4 13.4 71 18', c.line, 0.8, 0.5);
+        R.hl = 34;
+        break;
+      case 11: // Cepak
+        var dots = '';
+        for (var i = 0; i < 26; i++) { var a = 200 + i * 5.6, rr = 17 + (i % 3) * 1.6; dots += C(50 + (rr + 2) * Math.cos(a * Math.PI / 180), 36 + (rr - 1) * Math.sin(a * Math.PI / 180) * 0.9, 0.3, c.dk, O(0.45)); }
+        R.front = P('M28.3 48 C28 36 30 26 36 21 C40.5 17.5 45 16.8 50 16.8 C55 16.8 59.5 17.5 64 21 C70 26 72 36 71.7 48 C71 43 70.2 39 68.6 36.5 C63 34.5 56 35.3 50 34.8 C44 35.3 37 34.5 31.4 36.5 C29.8 39 29 43 28.3 48 Z', hf, S(c.line, 0.6) + O(0.9)) + dots + HL('M35 24 C40 19.5 46 18 52 18 C46 19.6 41 22.4 37.4 26.6 Z', 0.35);
+        R.hl = 35;
+        break;
+      case 12: // Ikal panjang
+        var pb = [[24.5, 48]].concat(ring(50, 42, 26, 28, 180, 360, 10)).concat([[75.5, 48], [77.2, 58], [78, 67], [79.6, 76], [80.4, 86], [72, 90], [64, 91.5], [56, 92], [50, 92], [44, 92], [36, 91.5], [28, 90], [19.6, 86], [20.4, 76], [22, 67], [22.8, 58], [24.5, 48]]);
+        R.back = P(scallop(pb, 0.7), hb, ol) + SL('M28 62 C26 70 29 78 26 86', 0.4) + SL('M72 62 C74 70 71 78 74 86', 0.4);
+        R.front = F('M26 56 C24.5 44 25 30 31.5 21.5 C37 15 44 13 50 13.5 C56 13 63 15 68.5 21.5 C75 30 75.5 44 74 56 C73 51 72.4 47 71 43 C70 38 66 33 61 31 C57 29.6 54 29.6 51.4 29 L50 30.4 L48.6 29 C46 29.6 43 29.6 39 31 C34 33 30 38 29 43 C27.6 47 27 51 26 56 Z') +
+          partHL + SL('M32 40 C30 44 30.5 48 29 52', 0.4) + SL('M68 40 C70 44 69.5 48 71 52', 0.4);
+        R.hl = 31;
+        break;
+      case 13: // Konde pria
+        if (!cap) R.back = C(50, 12, 6.4, hf, ol) + L('M45.6 11 C47 8 52 7.6 54.4 10.4', c.dk, 0.7, 0.6) + L('M46 14.2 C49 15.6 52.4 15 54.2 13', c.dk, 0.7, 0.5) + HL('M45.6 10.4 C46.6 8 49 7 51.4 7.2 C49 8.4 47.4 9.6 46.8 11.6 Z', 0.55) +
+          '<rect x="44.6" y="15.6" width="10.8" height="2.2" rx="1" fill="' + c.tie + '"/>';
+        R.front = F('M28 51 C27 39 27.5 27 33.5 20.5 C38.5 15.6 44.5 16.4 50 16.2 C55.5 16.4 61.5 15.6 66.5 20.5 C72.5 27 73 39 72 51 C71 46 70.4 41 68.8 37.4 C65.6 32 59.6 29.8 50 30 C40.4 29.8 34.4 32 31.2 37.4 C29.6 41 29 46 28 51 Z') +
+          SL('M36 31 C38.5 25 43 20 48 17.6', 0.5) + SL('M64 31 C61.5 25 57 20 52 17.6', 0.5) + SL('M44 30 C45.6 25 47.4 21 49 18', 0.4) + SL('M56 30 C54.4 25 52.6 21 51 18', 0.4) +
+          HL('M34.5 27 C38.5 21 44 18 49.4 17.6 C44 19.8 39.8 23.6 37.2 29.2 Z', 0.55);
+        R.hl = 31;
+        break;
+    } else switch (st) {
+      case 0: // Sanggul
+        if (!cap) R.back = C(50, 10.4, 8.8, hf, ol) + L('M42.6 9 C44 4.2 52.6 2.6 57 6.8', c.dk, 0.8, 0.55) + L('M42 12.6 C45.6 16 54 16.4 58.2 12.8', c.dk, 0.8, 0.45) + L('M44 7 C47 5.6 52 5.6 55 7.6', c.dk, 0.6, 0.4) + HL('M42.8 8 C44.4 4.4 48.4 2.4 52 2.6 C48.4 4.4 45.6 6.6 44.4 9.6 Z', 0.55) +
+          L('M36.4 6 L61 15.4', '#c99a3a', 1.1) + C(36.4, 6, 1.6, '#e8c460', S('#8a5a1a', 0.5)) + C(58.4, 4.8, 1.2, '#fbf6ea', S('#c8bca8', 0.3)) + C(60.6, 6.2, 1.1, '#fbf6ea', S('#c8bca8', 0.3)) + C(58.8, 7.4, 1, '#fbf6ea', S('#c8bca8', 0.3)) + C(61, 8.6, 0.9, '#fbf6ea', S('#c8bca8', 0.3));
+        R.front = F('M27.5 52 C25.5 40 26 28 32 21 C37.5 15 44 13.5 50 13.5 C56 13.5 62.5 15 68 21 C74 28 74.5 40 72.5 52 C71 46 70 41 68 37.5 C65 32.5 58 29 51 28.5 L50 29.8 L49 28.5 C42 29 35 32.5 32 37.5 C30 41 29 46 27.5 52 Z') + partHL;
+        R.hl = 31;
+        break;
+      case 1: // Panjang
+        R.back = B('M25.6 46 C23.6 31 30 15.5 50 14.5 C70 15.5 76.4 31 74.4 46 C75.8 62 77 80 78.6 109 L21.4 109 C23 80 24.2 62 25.6 46 Z') + SL('M29 60 C28 74 27.6 88 27 100', 0.35) + SL('M71 60 C72 74 72.4 88 73 100', 0.35);
+        R.over = P('M29.6 55 C28 66 27.2 78 28.6 90 C29.4 94 31.4 96.4 33.8 97.6 C33 88 33.6 76 35 66 C33.2 62 31.4 58.6 29.6 55 Z', hf, ol) + P('M70.4 55 C72 66 72.8 78 71.4 90 C70.6 94 68.6 96.4 66.2 97.6 C67 88 66.4 76 65 66 C66.8 62 68.6 58.6 70.4 55 Z', hf, ol) +
+          SL('M31 62 C30 72 30 82 31.4 92', 0.4) + SL('M69 62 C70 72 70 82 68.6 92', 0.4) + HL('M30.2 60 C29.4 68 29.2 76 29.8 84 C30.6 76 31 68 31.6 62 Z', 0.4);
+        R.front = F(partFront) + partHL;
+        R.hl = 30;
+        break;
+      case 2: // Kepang
+        R.back = B('M27 46 C25.6 32 31 16 50 15 C69 16 74.4 32 73 46 C73.6 54 73 60 71.6 64 L28.4 64 C27 60 26.4 54 27 46 Z');
+        R.over = braid(69.5, 58, 72.5, 95, 5.2, 7, c.tie);
+        R.front = F('M27.5 52 C25.5 40 26 28 32 21 C37.5 15 44 13.5 50 13.5 C56 13.5 62.5 15 68 21 C74 28 74.5 40 72.5 52 C71 46 70 41 68 37.5 C65 32.5 58 29 51 28.5 L50 29.8 L49 28.5 C42 29 35 32.5 32 37.5 C30 41 29 46 27.5 52 Z') + partHL;
+        R.hl = 31;
+        break;
+      case 3: // Pendek
+        R.back = B('M26 44 C25 54 25.6 60 28.4 64.6 C33 66 67 66 71.6 64.6 C74.4 60 75 54 74 44 Z');
+        R.front = F('M27 56 C25 43 25 29 31.5 21 C37 14.5 44.5 12.5 51 12.8 C59 13 66.5 16.5 70.5 23 C75.5 31 75.4 44 73.4 56 C72.6 50 71.8 45 70 40.5 C67.6 35 62.6 31.6 56.4 31.2 C52 34.6 45.6 37.6 40 39.4 C35.6 40.8 32.4 41.8 30.6 44 C29 48 28 52 27 56 Z') +
+          HL('M36 23 C42 16.6 51 14.4 59 16 C51 17.6 44 21 38.6 26.6 Z', 0.55) + SL('M56 31.4 C50 28 42 28.6 35 33', 0.5) + SL('M60 32 C55 26 47 24.6 39 27', 0.4) + SL('M66 35.4 C66 30 63 25.6 58.4 23', 0.4);
+        R.hl = 33;
+        break;
+      case 4: // Poni
+        R.back = B('M25.4 46 C24 32 30 15.5 50 14.5 C70 15.5 76 32 74.6 46 C75.6 60 76.6 74 78 86 C68 89.5 32 89.5 22 86 C23.4 74 24.4 60 25.4 46 Z') + SL('M29 60 C28.6 70 28.4 78 28 86', 0.35) + SL('M71 60 C71.4 70 71.6 78 72 86', 0.35);
+        R.front = F('M26.6 57 C25 42 26 28 32 20.5 C37.5 14.5 44 13 50 13 C56 13 62.5 14.5 68 20.5 C74 28 75 42 73.4 57 C72.6 51 72 47 71.2 43.4 C68.6 43.8 66.4 42.6 64.4 43.6 C62 42.6 59.8 43.8 57.4 42.8 C55 43.8 52.6 42.6 50 43.6 C47.4 42.6 45 43.8 42.6 42.8 C40.2 43.8 38 42.6 35.6 43.6 C33.6 42.6 31.4 43.8 28.8 43.4 C28 47 27.4 51 26.6 57 Z') +
+          HL('M33 25 C39 17.4 47 14.6 55 15.4 C47 17.6 40.4 21.6 35.6 28.4 Z', 0.5) + SL('M36 43 C36.4 37 37.6 31 40 26', 0.45) + SL('M44 43 C44 36 45 30 47 25', 0.45) + SL('M53 43 C53 36 53.4 30 54.6 25', 0.45) + SL('M62 43 C61.6 36 61 31 59.6 26', 0.45) + SL('M69 42 C68.4 36 67 31 64.6 27', 0.4);
+        R.hl = 42;
+        break;
+      case 5: // Kuncir
+        R.back = P('M55 17 C67 9.6 80 15 82.4 29 C84.6 43 80.4 57 84.4 72 C78 70 73.8 60 73.6 48 C73.4 36 69.6 26.4 61.4 22.4 Z', hb, ol) + SL('M64 20 C74 24 78 36 77.6 50 C77.4 58 78.6 64 80.6 69', 0.4) + HL('M63 16.6 C71 15.6 77 20 79 28 C74.6 23.4 69.6 20 63 18.6 Z', 0.4) +
+          '<rect x="55.6" y="15" width="3.2" height="7" rx="1.3" transform="rotate(-30 57.2 18.5)" fill="' + c.tie + '"/>';
+        R.front = F('M28 52 C26.6 40 27 28 33 21 C38.4 15.2 44.4 13.6 50 13.6 C55.6 13.6 61.6 15.2 67 21 C73 28 73.4 40 72 52 C71 46.4 70.2 41.6 68.4 38 C65.2 32 58.6 29.4 50 29.6 C41.4 29.4 34.8 32 31.6 38 C29.8 41.6 29 46.4 28 52 Z') +
+          SL('M36 31.4 C39 24 44.6 18.6 51 16.4', 0.45) + SL('M64 31.4 C62 25 58.6 20 54.4 17', 0.45) + HL('M34.4 27 C39 19.6 46 16.4 53 16.6 C46.4 18.8 41 22.6 37.4 29.6 Z', 0.55) +
+          L('M31.4 38.4 C29.8 43 29.8 48 31.2 53', hf, 0.9) + L('M68.6 38.4 C70.2 43 70.2 48 68.8 53', hf, 0.9);
+        R.hl = 31;
+        break;
+      case 6: // Bob
+        R.back = B('M25 44 C24 55 24.6 63 27 68.6 L73 68.6 C75.4 63 76 55 75 44 Z');
+        R.front = F('M25 67 C21.6 51 23 30.6 31 20.6 C37 14 44 12.6 51 12.8 C59 13 66 16 70 21.6 C77.6 31 78.6 51 75 67 C73.4 70.2 70.2 70.6 68 69 C70 60.6 70.6 50.6 69.6 43.4 C67.2 36.6 62 32.4 56 31.4 C50 34.6 42 36.8 34.4 39 C31.2 45 30.2 57 32.2 69 C30 70.6 26.6 70 25 67 Z') +
+          HL('M34 23 C40 16.6 48 14.2 56 15 C48 17.4 41.6 21.4 36.4 27.4 Z', 0.55) + HL('M26.6 44 C25.8 52 26.2 60 27.8 66 C28 58 28.4 50 29.8 43 Z', 0.35) + SL('M56 31.6 C49 28.6 41 29.6 34.6 34.6', 0.5) + SL('M71.6 44 C73 52 72.6 60 71 66', 0.4) + SL('M30 46 C29.2 54 29.6 61 31 67', 0.4);
+        R.hl = 34; R.earHide = 1;
+        break;
+      case 7: // Keriting
+        var ry7 = cap ? 17 : 22, cy7 = cap ? 33 : 34;
+        var ob = [[20, 60]].concat(ring(50, cy7 + 6, 31, ry7 + 6, 175, 365, 12)).concat([[80, 60], [82.6, 68], [81, 76], [83.6, 84], [78, 90], [70, 88.6], [30, 88.6], [22, 90], [16.4, 84], [19, 76], [17.4, 68], [20, 60]]);
+        R.back = P(scallop(ob, 0.62), hb, ol) + curlDots([[22, 62], [20, 74], [78, 64], [80, 76], [26, 84], [74, 84]]);
+        var pf7 = [[27, 54]].concat(ring(50, cy7, 25.6, ry7, 165, 375, 12)).concat([[73, 54], [71.6, 46], [69.6, 40], [64.6, 36.4], [58.6, 36.8], [52.6, 35.6], [46.6, 36.6], [41, 36], [35.4, 37], [30.4, 40.4], [28.6, 46], [27, 54]]);
+        R.front = P(scallop(pf7, 0.6), hf, ol) + curlDots([[36, 25], [44, 20], [52, 18.5], [60, 21], [66, 27], [32, 32], [41, 29], [49, 27], [57, 28], [64, 33], [70, 38]]);
+        R.hl = 36;
+        break;
+      case 8: // Kepang dua
+        R.back = B('M26.4 46 C25 32 31 16 50 15 C69 16 75 32 73.6 46 C74 54 73 60 71.6 64 L28.4 64 C27 60 26 54 26.4 46 Z');
+        R.over = braid(30.4, 58, 27.6, 94, 4.6, 7, c.tie) + braid(69.6, 58, 72.4, 94, 4.6, 7, c.tie);
+        R.front = F(partFront) + partHL;
+        R.hl = 30;
+        break;
+      case 9: // Gelombang
+        var wv = [[25, 46]].concat(ring(50, 40, 25.5, 26, 180, 360, 8)).concat([[75, 46], [77.6, 56], [76, 64], [79, 72], [77.4, 80], [80.6, 88], [78.6, 96], [80, 109], [20, 109], [21.4, 96], [19.4, 88], [22.6, 80], [21, 72], [24, 64], [22.4, 56], [25, 46]]);
+        R.back = P(scallop(wv, 0.9), hb, ol) + SL('M28 60 C25 66 29 74 26 82 C24 88 27 94 25 100', 0.4) + SL('M72 60 C75 66 71 74 74 82 C76 88 73 94 75 100', 0.4);
+        R.over = P('M31 56 C27 62 31.6 70 28.4 78 C26 84 29.8 90 27.4 97 C31.4 96 34.6 91 33.6 85 C32.8 79 36.4 73 34.8 66 C34 62 32.6 59 31 56 Z', hf, ol) + HL('M30.4 62 C29 66 31 70 29.6 75 C31.4 71 31.8 66 30.4 62 Z', 0.45);
+        R.front = F('M26.4 57 C24.4 43 25.4 28 32 20.6 C38 14 45.4 12.4 52.4 13 C60.4 13.6 67 17.6 70.6 24 C75 32 75 44 73.4 56 C72.6 50.6 71.8 46 70.2 41.6 C68.6 37 66 33.4 62 31.4 C56 33.2 50 32 45 34.6 C40 37.4 36.6 41 34.4 45.6 C32 50.6 29.6 55.4 26.4 57 Z') +
+          HL('M37 22 C43 16 51 14 59 15.4 C51 17.4 44 20.6 39.4 25.6 Z', 0.55) + SL('M62 31.6 C55 27 46 27.6 39 32.4', 0.5) + SL('M45 34.4 C40 36 36 40 33 45.6', 0.45);
+        R.hl = 33;
+        break;
+      case 10: // Pixie
+        R.front = F('M27.5 51 C26 40 26.5 28 32 21 C37 15 44 13 51 13.2 C58.5 13.5 65.5 16.5 69.5 22 C74 29 74 40 72.5 51 C71.8 46.4 71 42.4 69.6 39.4 C68 36 64.4 34 60.2 34.2 L58.4 36.8 L55 35.6 C51 37.8 46 38.6 41.4 39.8 L39 38.2 L37.4 40.6 C34.6 40.8 32.4 40.8 30.6 41.8 C29.2 44.6 28.4 47.6 27.5 51 Z') +
+          HL('M34 24.6 C39.6 17.6 47.6 15 55.6 15.8 C48 17.8 41.6 21.8 36.6 28 Z', 0.55) + SL('M59 34.4 C53 30 45 30.4 38 34.6', 0.5) + SL('M64 34.6 C62 29 58 25 52 23', 0.4) + SL('M32 38 C32.6 32 35.6 27 40 24', 0.35);
+        R.hl = 35;
+        break;
+      case 11: // Cepol ganda
+        if (!cap) R.back = [[33, 16.4], [67, 16.4]].map(function (p) {
+          return C(p[0], p[1], 7, hf, ol) + L('M' + (p[0] - 4.6) + ' ' + (p[1] - 1) + ' C' + (p[0] - 3) + ' ' + (p[1] - 5) + ' ' + (p[0] + 3) + ' ' + (p[1] - 5.4) + ' ' + (p[0] + 4.6) + ' ' + (p[1] - 1.4), c.dk, 0.7, 0.55) +
+            HL('M' + (p[0] - 4.4) + ' ' + (p[1] - 2) + ' C' + (p[0] - 3) + ' ' + (p[1] - 5) + ' ' + p[0] + ' ' + (p[1] - 6) + ' ' + (p[0] + 2) + ' ' + (p[1] - 5.6) + ' C' + p[0] + ' ' + (p[1] - 4.6) + ' ' + (p[0] - 2) + ' ' + (p[1] - 3.6) + ' ' + (p[0] - 3) + ' ' + (p[1] - 1.4) + ' Z', 0.55);
+        }).join('') + '<rect x="29" y="21.6" width="8" height="2" rx="1" transform="rotate(20 33 22.6)" fill="' + c.tie + '"/><rect x="63" y="21.6" width="8" height="2" rx="1" transform="rotate(-20 67 22.6)" fill="' + c.tie + '"/>';
+        R.front = F('M27.5 52 C25.5 40 26 28 32 21 C37.5 15 44 13.5 50 13.5 C56 13.5 62.5 15 68 21 C74 28 74.5 40 72.5 52 C71 46 70 41 68 37.5 C65 32.5 58 29 51 28.5 L50 29.8 L49 28.5 C42 29 35 32.5 32 37.5 C30 41 29 46 27.5 52 Z') + partHL;
+        R.hl = 31;
+        break;
+      case 12: // Sibak samping
+        R.back = B('M25 46 C23 31 30 14.5 50 13.5 C70 14.5 76.6 31 74.8 46 C76 60 76.6 78 78 109 L20 109 C22 80 23.4 62 25 46 Z') + SL('M71 60 C72 74 72.6 88 73 100', 0.35);
+        R.over = P('M30.4 52 C25.6 60 27.6 70 26 80 C24.8 88 27 94 25.6 100 L33.6 100 C35 94 33 88 34.4 80 C35.8 72 34.6 62 34 56 Z', hf, ol) + HL('M29.6 60 C27.6 66 28.8 74 27.6 82 C29.6 76 30.2 68 31.2 62 Z', 0.45) + SL('M31.6 60 C30 70 31 82 29.6 98', 0.4);
+        R.front = F('M26 58 C24 44 25 29 31.5 20.5 C37.5 13.5 46 11.5 54 12.5 C62 13.5 68 18 71 24 C75 32 74.8 44 73.6 56 C72.8 50 71.8 45 70.2 41 C68.6 36.6 65.6 32.6 61.6 31 C56 34 48 37 40.4 40.4 C35.4 43 32.2 48 30.6 54 C29.2 58 27.6 60 26 58 Z') +
+          HL('M35 25 C41 17.4 50 14.6 58.6 15.6 C50.6 17.6 43 21.6 37.6 28.6 Z', 0.55) + SL('M61.4 31.2 C54 30 45 33 37 39.6', 0.5) + SL('M60.6 25 C54 25.6 46 29.4 40 34.4', 0.4) + SL('M61.6 31 C62.6 25 62 20 60 15.6', 0.6, 0.8);
+        R.hl = 33;
+        break;
+      case 13: // Gimbal (panjang)
+        R.back = locs([26.6, 29.6, 32.6, 67.4, 70.4, 73.4], 30, 70, 3.6);
+        R.over = locs([30, 34, 66, 70], 52, 44, 3.3);
+        var p13 = [[27, 54]].concat(ring(50, 34, 25.5, 20.5, 165, 375, 11)).concat([[73, 54], [71.5, 46], [70, 40], [64, 36.4], [57, 37], [50, 35.6], [43, 37], [36, 36.4], [30, 40], [28.5, 46], [27, 54]]);
+        R.front = P(scallop(p13, 0.66), hf, ol) + SL('M38 36 C40 28 46 22 52 20', 0.45) + HL('M33 25 C38 18.5 45 15.5 52 15.6 C45 18.5 39.5 22 35.5 28 Z', 0.4);
+        R.hl = 36;
+        break;
+    }
+    return R;
+  }
+
+  /* ================= FACIAL HAIR ================= */
+  function beard(f, c, rnd) {
+    var hf = 'url(#' + c.id + 'hr)', ol = S(c.line, 0.8);
+    var stache = 'M42.6 67.4 C44.6 65 48 64.8 50 66 C52 64.8 55.4 65 57.4 67.4 C58 68.4 57 68.8 55.8 68.2 C53.6 67.3 51.6 67.4 50 67.9 C48.4 67.4 46.4 67.3 44.2 68.2 C43 68.8 42 68.4 42.6 67.4 Z';
+    var area = 'M28.8 54 C29.4 64 33.6 72.4 41 77 C44.4 79 47.4 79.8 50 79.8 C52.6 79.8 55.6 79 59 77 C66.4 72.4 70.6 64 71.2 54 C69.6 60.6 67 65 63.4 67 C60.4 68.2 58.6 71 57 73.6 C54.6 74.8 52 74.4 50 74 C48 74.4 45.4 74.8 43 73.6 C41.4 71 39.6 68.2 36.6 67 C33 65 30.4 60.6 28.8 54 Z';
+    function stub(d, o, cnt, box) {
+      var s = P(d, c.base, O(o)), i;
+      for (i = 0; i < cnt; i++) { var x = box[0] + rnd() * (box[2] - box[0]), y = box[1] + rnd() * (box[3] - box[1]); s += C(x, y, 0.28, c.dk, O(0.4)); }
+      return s;
+    }
+    function sHL(d, o) { return P(d, c.hl, O(o || 0.4)); }
+    switch (f) {
+      case 1: return P(stache, hf, ol) + sHL('M44.4 66.4 C46 65.6 47.8 65.6 49 66.2 C47.4 66.2 46 66.6 44.8 67.2 Z');
+      case 2: return stub(area, 0.42, 36, [32, 64, 68, 78]) + P(stache, hf, ol + O(0.85));
+      case 3:
+        var full = 'M28.4 50 C28.4 63 31 75 40 81.6 C44 84.6 47 85.8 50 85.8 C53 85.8 56 84.6 60 81.6 C69 75 71.6 63 71.6 50 C70 57 68 62 64.6 64.4 C61 65.8 58.4 66.6 57.4 68.6 C56.6 72 53.6 73.6 50 73.6 C46.4 73.6 43.4 72 42.6 68.6 C41.6 66.6 39 65.8 35.4 64.4 C32 62 30 57 28.4 50 Z';
+        return P(full, hf, ol) + L('M34 70 C37 75 40 78 44 80.6', c.dk, 0.7, 0.5) + L('M66 70 C63 75 60 78 56 80.6', c.dk, 0.7, 0.5) + L('M47 76 C48 79 49 82 50 84', c.dk, 0.7, 0.45) +
+          sHL('M31.6 60 C32.6 67 35.6 73 40 77 C37.6 72 35.6 66 34.6 60.6 Z', 0.35) + P('M42.4 67.6 C44.6 64.6 48 64.4 50 65.6 C52 64.4 55.4 64.6 57.6 67.6 C58.2 69 57 69.6 55.6 68.8 C53.4 67.8 51.6 68 50 68.4 C48.4 68 46.6 67.8 44.4 68.8 C43 69.6 41.8 69 42.4 67.6 Z', hf, ol);
+      case 4: return P('M41.4 68.8 C42.6 65 47 64 50 65.4 C53 64 57.4 65 58.6 68.8 C59.2 71.2 58.2 72.4 57.2 72 C56 70 53.4 68.4 50 68.8 C46.6 68.4 44 70 42.8 72 C41.8 72.4 40.8 71.2 41.4 68.8 Z', hf, ol) +
+        sHL('M43.6 66.8 C45.6 65.4 48 65.2 49.2 65.8 C47.4 66.2 45.6 67 44.2 68.2 Z') + L('M46 66.6 L45 69.4 M48.4 66.2 L47.8 68.8 M54 66.6 L55 69.4 M51.6 66.2 L52.2 68.8', c.dk, 0.5, 0.5);
+      case 5: return P('M43.4 67.2 C45.4 65.2 48.2 65 50 66 C51.8 65 54.6 65.2 56.6 67.2 C57.4 69.4 56.6 72 55.6 74 C55 72 54.6 69.8 53.4 68.6 C52 68 51 68 50 68.4 C49 68 48 68 46.6 68.6 C45.4 69.8 45 72 44.4 74 C43.4 72 42.6 69.4 43.4 67.2 Z', hf, ol) +
+        P('M44.4 74 C45.6 77 47.6 80.6 50 81.4 C52.4 80.6 54.4 77 55.6 74 C54 74.8 52 75 50 74.8 C48 75 46 74.8 44.4 74 Z', hf, ol) + P('M48.6 72.6 C49.4 73.4 50.6 73.4 51.4 72.6 L50 74.2 Z', hf) + sHL('M46.6 75.4 C47.6 77.6 48.8 79.2 50 79.8 C49 78.4 48.4 76.8 48 75.4 Z', 0.35);
+      case 6: return both(P('M28.8 47 C28.4 55.6 29.8 63 33.6 68.4 C35.6 68 36.8 66 36.8 63.4 C34.8 60.4 33 56 32.2 47.6 Z', hf, ol) + L('M30.8 53 C31.2 58 32.4 62 34.6 65.6', c.dk, 0.6, 0.45));
+      case 7:
+        return P('M29 52 C29 64 31.6 74 39.6 80 C43.6 82.8 47 83.6 50 83.6 C53 83.6 56.4 82.8 60.4 80 C68.4 74 71 64 71 52 C69.4 58.4 67.2 62.6 64 64.6 C60.6 66 58.2 67 57.2 69 C56.4 72.2 53.6 73.6 50 73.6 C46.4 73.6 43.6 72.2 42.8 69 C41.8 67 39.4 66 36 64.6 C32.8 62.6 30.6 58.4 29 52 Z', hf, ol) +
+          '<g>' + [0, 1, 2, 3].map(function (i) { var y = 83 + i * 3.4, w = 3.4 - i * 0.35; return '<ellipse cx="50" cy="' + n(y) + '" rx="' + n(w) + '" ry="2.1" fill="' + hf + '"' + S(c.line, 0.6) + '/>' + L('M' + n(50 - w * 0.6) + ' ' + n(y - 0.4) + ' q' + n(w * 0.6) + ' 1.4 ' + n(w * 1.2) + ' 0', c.dk, 0.5, 0.6); }).join('') + '</g>' +
+          C(50, 97.2, 1.7, '#e0b64c', S('#7a5518', 0.5)) + C(49.4, 96.6, 0.5, '#fff6d0') + P('M48.6 98.6 L47.8 109 L52.2 109 L51.4 98.6 Z', hf) +
+          P('M42.4 67.6 C44.6 64.6 48 64.4 50 65.6 C52 64.4 55.4 64.6 57.6 67.6 C58 69.6 57 70.4 55.6 69.2 C53.4 67.8 51.6 68 50 68.4 C48.4 68 46.6 67.8 44.4 69.2 C43 70.4 42 69.6 42.4 67.6 Z', hf, ol) + L('M36 70 C38 75 41 78 45 80', c.dk, 0.6, 0.45) + L('M64 70 C62 75 59 78 55 80', c.dk, 0.6, 0.45);
+      case 8:
+        return P('M50 66 C47.6 64.8 44 64.8 41.4 66.4 C39.8 67.4 38.6 67.2 38 66 C38.4 67.8 40 69 42 68.6 C44.6 68 47.6 67.2 50 67.8 C52.4 67.2 55.4 68 58 68.6 C60 69 61.6 67.8 62 66 C61.4 67.2 60.2 67.4 58.6 66.4 C56 64.8 52.4 64.8 50 66 Z', hf, ol) +
+          L('M38.4 66.4 C36.4 66 35.4 64.2 36.2 62.8 C37 61.6 38.6 62 38.6 63.2', c.line, 1.8) + L('M38.4 66.4 C36.4 66 35.4 64.2 36.2 62.8 C37 61.6 38.6 62 38.6 63.2', hf, 1.1) +
+          L('M61.6 66.4 C63.6 66 64.6 64.2 63.8 62.8 C63 61.6 61.4 62 61.4 63.2', c.line, 1.8) + L('M61.6 66.4 C63.6 66 64.6 64.2 63.8 62.8 C63 61.6 61.4 62 61.4 63.2', hf, 1.1) + sHL('M43 66.2 C45 65.4 47.6 65.4 49 66 C47 66.2 45 66.6 43.4 67.2 Z');
+      case 9: return stub(area, 0.2, 60, [30, 60, 70, 79]) + stub(stache, 0.25, 10, [43, 65, 57, 68]);
+    }
+    return '';
+  }
+
+  /* ================= HEADGEAR =================
+     cap = batas atas rambut yang masih terlihat (rambut di atasnya dipotong).
+     bot = tepi bawah topi di dahi (bayangan AO). */
+  var HAT_META = {
+    peci: { cap: 31, bot: 36.5 }, blangkon: { cap: 31.5, bot: 37.6 }, bandana: { cap: 33, bot: 38 }, tricorne: { cap: 32, bot: 38 },
+    kapten: { cap: 31, bot: 40.5 }, bicorne: { cap: 31, bot: 35.5 }, plumed: { cap: 30, bot: 37.5 }, udeng: { cap: 31.5, bot: 37.6 },
+    iket: { cap: 31.5, bot: 37.6 }, caping: { cap: 33, bot: 41 }, serban: { cap: 31.5, bot: 37.6 }, beret: { cap: 30, bot: 35.5 },
+    kupluk: { cap: 33, bot: 40.4 }, brim: { cap: 31, bot: 38.5 }, bowler: { cap: 31, bot: 38.5 }, ikat: { cap: 0, bot: 40.5 },
+    tudung: { cap: 27.5, bot: 30 }, hijab: { cap: 1, bot: 34 }
+  };
+  function hatBack(h, c) {
+    switch (h) {
+      case 'blangkon': return E(73.6, 38.4, 5, 6.2, 'url(#' + c.id + 'ht)', S('#1e120a', 0.8)) + L('M71 35 C74 36.6 75.6 39 75.4 42', '#c9a04a', 0.6, 0.6);
+      case 'bandana': return P('M71.6 36.4 C77.6 38.6 82.4 44.4 84 52 L79.4 50.4 C78.2 45.4 75 41.6 70.4 39.6 Z', '#9a2e22', S('#4a140e', 0.7)) + P('M71.6 37.6 C76.6 41.4 78.2 49 76.6 57.6 L73 54.6 C74 48.6 72.8 43.6 69.6 40.6 Z', '#b23a2a', S('#4a140e', 0.7));
+      case 'ikat': return P('M72.6 37 C78.6 34.4 84 33.4 88.6 35.4 C84.4 37.4 80 38.2 74.6 39.6 Z', '#a8302a', S('#4a140e', 0.7)) + P('M72.4 39.4 C77.6 41.8 80.8 46.8 81.4 53 C78 50 75.4 45.6 71.8 42.4 Z', '#c23e2e', S('#4a140e', 0.7));
+      case 'tudung': return P('M20 62 C15 38 27 12 50 11 C73 12 85 38 80 62 C84 74 88 86 92 109 L8 109 C12 86 16 74 20 62 Z', 'url(#' + c.id + 'hd)', S(c.hoodLine, 1));
+    }
+    return '';
+  }
+  function hatFront(h, c) {
+    var id = c.id, gd = 'url(#' + id + 'gd)', ht = 'url(#' + id + 'ht)';
+    var k = S('#140c08', 0.9);
+    switch (h) {
+      case 'peci':
+        return P('M26.6 36.8 C36 33.2 64 33.2 73.4 36.8 L70.6 19.4 C64 16.6 36 16.6 29.4 19.4 Z', ht, k) + P('M29.4 19.4 C36 22.2 64 22.2 70.6 19.4 C64 16.6 36 16.6 29.4 19.4 Z', '#2e2622') +
+          P('M33 20.8 C34 26 34.2 31 34 34.6 L38 34 C38 30 37.6 25 36.6 21.4 Z', '#fff', O(0.09)) + L('M27.2 35.6 C36 32.2 64 32.2 72.8 35.6', '#4a3e36', 0.6, 0.8);
+      case 'blangkon':
+        var bl = 'M26.6 38.4 C26 26 32 17.4 42 15 C47 13.8 53 13.8 58 15 C68 17.4 74 26 73.4 38.4 C66 35.2 58 34.2 50 34.4 C42 34.2 34 35.2 26.6 38.4 Z';
+        var pat = '';
+        for (var i = -3; i < 9; i++) pat += L('M' + (22 + i * 6) + ' 40 C' + (25 + i * 6) + ' 32 ' + (29 + i * 6) + ' 26 ' + (36 + i * 6) + ' 12', '#d9b25a', 0.8, 0.35) + L('M' + (24.6 + i * 6) + ' 37 l1.4 -1.4 M' + (27.4 + i * 6) + ' 30 l1.4 -1.4', '#e8d3a0', 0.6, 0.45);
+        return P(bl, ht, k) + '<g clip-path="url(#' + id + 'hk)">' + pat + '</g>' + P('M26.6 38.4 C34 35.2 42 34.2 50 34.4 C58 34.2 66 35.2 73.4 38.4 L73.2 35.8 C66 32.8 58 32 50 32.2 C42 32 34 32.8 26.8 35.8 Z', '#2e1c10', O(0.85)) +
+          L('M28.4 30 L33 34 M30 26 L35.6 32.8 M71.6 30 L67 34 M70 26 L64.4 32.8', '#1a0f08', 0.7, 0.6) + L('M36 17.4 C44 15.4 56 15.4 64 17.4', '#fff', 0.8, 0.12);
+      case 'bandana':
+        var bd = 'M26.4 42 C25 29 31 17 45 14.8 C48 14.4 52 14.4 55 14.8 C69 17 75 29 73.6 42 C72 38.6 70 36.6 67 35.6 C60 33.8 40 33.8 33 35.6 C30 36.6 28 38.6 26.4 42 Z';
+        return P(bd, ht, S('#4a140e', 0.9)) + [[36, 25], [44, 19.6], [53, 18.4], [61, 22], [66.6, 28.6], [40, 30.6], [48, 26], [57, 28.8], [31, 32]].map(function (p) { return C(p[0], p[1], 0.95, '#f6ead0', O(0.9)); }).join('') +
+          L('M30 36 C38 33 62 33 70 36', '#5a1810', 0.7, 0.5) + L('M40 18 C46 24 50 30 51 34', '#5a1810', 0.6, 0.35) + P('M69.6 34.4 C72.4 33.4 75 35 75.2 37.8 C75.4 40.4 72.8 41.6 70.6 40.4 Z', '#9a2e22', S('#4a140e', 0.7)) + P('M33 18 C40 15.2 47 14.8 52 15.4 C45 17 39 19.6 34.6 23.6 Z', '#fff', O(0.16));
+      case 'tricorne':
+        return P('M33 26 C33 13.6 41 8.6 50 8.6 C59 8.6 67 13.6 67 26 Z', '#16110e', k) + P('M9 32 C14 26 22 22.4 31 24 C37 16 44 14.4 50 17.4 C56 14.4 63 16 69 24 C78 22.4 86 26 91 32 C84 35 74 34.6 66 34.2 C60 36 55 38.6 50 41.6 C45 38.6 40 36 34 34.2 C26 34.6 16 35 9 32 Z', ht, k) +
+          L('M9.6 32 C16 34.8 26 34.4 34 34 C40 35.8 45 38.4 50 41.2 C55 38.4 60 35.8 66 34 C74 34.4 84 34.8 90.4 32', gd, 1.5) + L('M12 30.6 C18 26.4 25 24.6 31 25.4 C36 18.4 43 16.6 50 19 C57 16.6 64 18.4 69 25.4 C75 24.6 82 26.4 88 30.6', '#4a3a30', 0.7, 0.7) +
+          C(31, 27.6, 2.4, '#2a2224', S(gd, 0.8)) + C(31, 27.6, 1, gd) + P('M40 12 C44 10 49 9.6 52 10 C47 11.4 43.6 13.4 41.6 16.4 Z', '#fff', O(0.12));
+      case 'kapten':
+        return P('M20.4 22.6 C22 15.4 36 11.8 50 11.8 C64 11.8 78 15.4 79.6 22.6 C79 26.6 70 29.2 50 29.2 C30 29.2 21 26.6 20.4 22.6 Z', 'url(#' + id + 'hw)', S('#6a6358', 0.9)) +
+          P('M27.6 27.6 C38 30 62 30 72.4 27.6 L72.8 35.6 C62 37.8 38 37.8 27.2 35.6 Z', '#1b1c24', k) + L('M28 33.6 C38 35.8 62 35.8 72 33.6', gd, 1.3) + C(28.6, 33.8, 1, gd) + C(71.4, 33.8, 1, gd) +
+          P('M27.4 35.6 C38 37.8 62 37.8 72.6 35.6 C71.6 39.2 64 41.8 50 42 C36 41.8 28.4 39.2 27.4 35.6 Z', '#111117', k) + L('M32 38.4 C40 40.2 52 40.4 62 39', '#fff', 0.7, 0.28) +
+          E(50, 25.6, 5, 4.4, gd, S('#7a5518', 0.5)) + L('M50 22.4 L50 28.6 M47.8 23.8 L52.2 23.8 M47 27 C48 29 52 29 53 27', '#3a2410', 0.8) + L('M44.4 24.8 C43.6 27 44.6 29 46.4 30 M55.6 24.8 C56.4 27 55.4 29 53.6 30', gd, 0.9);
+      case 'bicorne':
+        return P('M5 33 C8 22 22 10.6 50 7.6 C78 10.6 92 22 95 33 C85 30 70 31 60 33.6 C56 34.6 53 35.6 50 35.8 C47 35.6 44 34.6 40 33.6 C30 31 15 30 5 33 Z', ht, k) +
+          L('M8.4 31 C12 22.4 25 13.6 50 10.8 C75 13.6 88 22.4 91.6 31', gd, 1.2) + L('M6 33 C16 30.4 30 31.2 40 33.6 C44 34.6 47 35.4 50 35.6 C53 35.4 56 34.6 60 33.6 C70 31.2 84 30.4 94 33', '#3a302a', 0.7) +
+          C(37, 22.4, 3.6, '#f4efe4', S('#6a6358', 0.5)) + C(37, 22.4, 2.4, '#b8322a') + C(37, 22.4, 1, '#f4efe4') + L('M37 18.8 L41 30.4', gd, 1.1) + C(5.6, 33, 1.4, gd) + C(94.4, 33, 1.4, gd) + P('M30 14 C38 11 46 10 52 10.2 C44 12 37 14.4 32 17.6 Z', '#fff', O(0.12));
+      case 'plumed':
+        var fe = 'M67 27.4 C71.6 14 63 3.6 46 2.6 C34 2 25.4 7.6 21.4 13.6 C29.6 8.8 40 7.8 48 9.4 C58 11.4 64 18 67 27.4 Z', barbs = '';
+        for (var j = 0; j < 9; j++) { var t = j / 9, x = cub(67, 71.6, 63, 46, t), y = cub(27.4, 14, 3.6, 2.6, t); barbs += L('M' + n(x) + ' ' + n(y) + ' l' + n(-2.2 + t) + ' ' + n(2.6 - t * 1.4), '#c9c2b4', 0.5, 0.6); }
+        return P('M31 29 C31 17 39 11 50 11 C61 11 69 17 69 29 Z', '#1a1412', k) + P('M31.2 24.4 C40 27 60 27 68.8 24.4 L69 29 C60 31.6 40 31.6 31 29 Z', '#9a2a24', S('#3a0e0a', 0.7)) +
+          P('M3 32 C6 27 14 25 24 27.6 C33 29.6 42 30.6 50 30.6 C58 30.6 67 29.6 76 27.6 C86 25 94 27 97 32 C92 36.6 76 38.6 50 38.6 C24 38.6 8 36.6 3 32 Z', ht, k) +
+          P('M3 32 C2 24 8 17 16 16 C20 20 24 24 28 28 C18 27 9 28 3 32 Z', '#221a17', k) + L('M4 33 C12 36.4 28 37.6 50 37.6 C72 37.6 88 36.4 96 33', gd, 1.1) +
+          P(fe, '#f4efe6', S('#8a8074', 0.6)) + barbs + P('M66 26 C68 18 64 11 56 8 C62 12.6 64.6 19 64 26 Z', '#b8322a', O(0.9)) + C(66.4, 27, 1.6, gd, S('#7a5518', 0.4));
+      case 'udeng':
+        return P('M26.6 38.4 C26 27 31 19 40 16.6 C46 15 54 15 60 16.6 C69 19 74 27 73.4 38.4 C66 35.2 58 34.2 50 34.4 C42 34.2 34 35.2 26.6 38.4 Z', 'url(#' + id + 'hw)', S('#8a8070', 0.9)) +
+          L('M28 34 C34 28 40 24 47 21', '#9a9080', 0.7, 0.55) + L('M72 34 C66 28 60 24 53 21', '#9a9080', 0.7, 0.55) + L('M30 29 C35 23.6 40 20.6 45 19', '#9a9080', 0.6, 0.4) + L('M70 29 C65 23.6 60 20.6 55 19', '#9a9080', 0.6, 0.4) +
+          L('M27.4 37.2 C34 34.2 42 33.2 50 33.4 C58 33.2 66 34.2 72.6 37.2', gd, 1.1) +
+          P('M43.6 34.6 C44.6 26 46.8 17.6 50 9.6 C53.2 17.6 55.4 26 56.4 34.6 C53.2 33 46.8 33 43.6 34.6 Z', '#f8f5ee', S('#8a8070', 0.8)) + L('M50 11 C49.4 18 49.2 26 49.6 33', '#b8ae9c', 0.6, 0.7) + L('M45.2 33.4 L50 27 L54.8 33.4', gd, 0.8, 0.9);
+      case 'iket':
+        var ik = 'M26.4 38.4 C26 31.4 27.2 26.4 29.6 22.8 L21.6 20.6 L32.4 17.8 C37.6 15.2 44 14.4 50 14.4 C56 14.4 62.4 15.2 67.6 17.8 L78.4 20.6 L70.4 22.8 C72.8 26.4 74 31.4 73.6 38.4 C66 35.2 58 34.2 50 34.4 C42 34.2 34 35.2 26.4 38.4 Z', ip = '';
+        for (var a = 0; a < 7; a++) for (var b = 0; b < 4; b++) ip += P('M' + (29 + a * 7 + (b % 2) * 3.5) + ' ' + (18 + b * 5) + ' l1.6 1.6 l-1.6 1.6 l-1.6 -1.6 Z', '#e0c48a', O(0.55));
+        return P(ik, ht, k) + '<g clip-path="url(#' + id + 'hk)">' + ip + '</g>' + L('M33 36 L50 21.4 L67 36', '#1a120c', 0.9, 0.7) + L('M33.6 34.6 L50 20.4 L66.4 34.6', '#e0c48a', 0.7, 0.6) + L('M27 37.2 C34 34.2 42 33.2 50 33.4 C58 33.2 66 34.2 73 37.2', '#e0c48a', 0.8, 0.7);
+      case 'caping':
+        var cp = 'M3 38.4 C18 30 34 13 50 5 C66 13 82 30 97 38.4 C84 43 66 44.4 50 44.4 C34 44.4 16 43 3 38.4 Z', w = '';
+        for (var q = 0; q < 13; q++) { var tx = 6 + q * 7.33, ty = 39.6 + Math.sin((tx - 3) / 94 * Math.PI) * 4.6; w += L('M50 5.6 L' + n(tx) + ' ' + n(ty), '#8a6a2a', 0.5, 0.45); }
+        for (var rr = 1; rr < 4; rr++) { var f = rr / 4; w += L('M' + n(50 - 47 * f) + ' ' + n(5 + 33.4 * f) + ' C' + n(50 - 30 * f) + ' ' + n(5 + 39 * f) + ' ' + n(50 + 30 * f) + ' ' + n(5 + 39 * f) + ' ' + n(50 + 47 * f) + ' ' + n(5 + 33.4 * f), '#8a6a2a', 0.6, 0.5); }
+        return P(cp, ht, S('#5a4218', 0.9)) + w + L('M4 38.8 C18 43 34 44 50 44 C66 44 82 43 96 38.8', '#6a4e1e', 1.2, 0.9) + P('M50 5 C44 9 36 16 28 24 C38 18 45 12.6 50 9 Z', '#fff', O(0.2)) + C(50, 5.4, 1.2, '#7a5a24');
+      case 'serban':
+        return P('M25.4 38.6 C22.8 30 25 20 33 15 C39 11 45 10 50 10 C55 10 61 11 67 15 C75 20 77.2 30 74.6 38.6 C66 35 58 34 50 34.2 C42 34 34 35 25.4 38.6 Z', 'url(#' + id + 'hw)', S('#8a7c64', 0.9)) +
+          L('M26.4 34 C36 24 52 18.4 72 20', '#a89878', 0.9, 0.6) + L('M27.6 27 C40 31 56 31 73.4 31.4', '#a89878', 0.9, 0.55) + L('M32.6 16.6 C44 22 58 24 70 22', '#a89878', 0.8, 0.5) + L('M27 30.6 C38 26 52 22.8 70 25.6', '#fff', 0.8, 0.5) +
+          L('M50 23 L50 13', '#f4efe6', 2.4) + L('M50 23 C49 18 50 14 52.4 10.6', '#e8e0d0', 1.2) + E(50, 27, 3.4, 3.8, gd, S('#7a5518', 0.5)) + E(50, 27, 2, 2.4, '#b8203a') + C(49.3, 26.2, 0.7, '#fff', O(0.8)) + C(50, 31.4, 1, '#fbf6ea');
+      case 'beret':
+        return P('M24 33 C20 26 26 16.6 40 14.8 C54 13 70 15.4 76.2 22 C79.2 26 77 31 72 33.6 C62 32 40 31.6 28 35.6 C26 35.6 24.4 34.6 24 33 Z', ht, k) +
+          L('M27.6 35.4 C40 31.4 62 31.8 72 33.4', '#2a0e12', 1.4) + P('M51 14.6 L52 11.6 L54 11.8 L53.4 14.8 Z', '#3a1218') + P('M30 20 C38 16 50 15 58 15.8 C48 17.2 38 20 32 24 Z', '#fff', O(0.14));
+      case 'kupluk':
+        var rib = '';
+        for (var ri = 0; ri < 20; ri++) rib += L('M' + n(27.6 + ri * 2.4) + ' ' + n(33.4 - Math.sin((ri + 0.5) / 20 * Math.PI) * 2.4) + ' l0 6.2', '#0e1626', 0.6, 0.45);
+        return P('M26.4 40 C25.4 26 34 13.8 50 13.8 C66 13.8 74.6 26 73.6 40 Z', ht, S('#0e1626', 0.9)) + L('M38 16.6 C36 24 36 30 37 33', '#0e1626', 0.6, 0.35) + L('M50 14 L50 31', '#0e1626', 0.6, 0.35) + L('M62 16.6 C64 24 64 30 63 33', '#0e1626', 0.6, 0.35) +
+          P('M25.8 32.8 C38 30 62 30 74.2 32.8 L74.2 40.6 C62 38 38 38 25.8 40.6 Z', 'url(#' + id + 'hr2)', S('#0e1626', 0.8)) + rib + P('M33 18 C38 15.4 45 14.4 50 14.6 C44 16.6 39 19 35.4 23 Z', '#fff', O(0.14));
+      case 'brim':
+        return P('M31 31 C31 22 34 15 41 14 C45 13.6 47.6 16 50 16 C52.4 16 55 13.6 59 14 C66 15 69 22 69 31 Z', ht, k) + L('M50 16.6 C49.4 21 49.6 25 50.4 28', '#3a2a14', 0.7, 0.5) +
+          P('M31 26.4 C40 28.6 60 28.6 69 26.4 L69 31 C60 33.2 40 33.2 31 31 Z', '#3a2616', S('#1a0f08', 0.6)) + L('M31.4 29.6 C40 31.4 60 31.4 68.6 29.6', '#c9a876', 0.5, 0.5) +
+          P('M7.6 35 C12 30 22 28.6 31 29.6 C40 30.6 60 30.6 69 29.6 C78 28.6 88 30 92.4 35 C88 39.2 72 40.6 50 40.6 C28 40.6 12 39.2 7.6 35 Z', ht, k) + L('M9.6 35.6 C16 38.4 30 39.4 50 39.4 C70 39.4 84 38.4 90.4 35.6', '#3a2a14', 0.6, 0.5) + P('M36 17 C39 15 43 14.6 45 15.4 C41.6 17 39.4 20 38.4 24 Z', '#fff', O(0.15));
+      case 'bowler':
+        var card = c.card ? '<g transform="rotate(14 61 24.4)"><rect x="57.6" y="18.6" width="7" height="10" rx="1" fill="#fbf7ee"' + S('#3a2616', 0.6) + '/><path d="M61.1 21.4 C60 20 58.6 21.4 61.1 24.2 C63.6 21.4 62.2 20 61.1 21.4 Z" fill="#b8322a"/><text x="58.4" y="27.8" font-size="2.6" font-family="Georgia,serif" fill="#b8322a">A</text></g>' : '';
+        return P('M32 34 C31.6 22 38 13.4 50 13.4 C62 13.4 68.4 22 68 34 Z', ht, k) + card + P('M32.2 29.4 C40 31.2 60 31.2 67.8 29.4 L68 33.6 C60 35.6 40 35.6 32 33.6 Z', c.trim, S('#1a1208', 0.5)) +
+          P('M22 35 C24 32 28 32 32 33.6 C40 35.8 60 35.8 68 33.6 C72 32 76 32 78 35 C77 38 70 39.6 50 39.6 C30 39.6 23 38 22 35 Z', ht, k) + P('M37 18 C41 15 46 14.2 50 14.4 C45 16.4 41 19.6 38.4 24 Z', '#fff', O(0.2));
+      case 'ikat':
+        return P('M27 36 C36 32.8 64 32.8 73 36 L73.2 41.2 C64 37.8 36 37.8 26.8 41.2 Z', ht, S('#4a140e', 0.8)) + L('M28 38.4 C38 35.4 62 35.4 72 38.4', '#5a1810', 0.6, 0.5) + L('M28 36.4 C38 33.6 62 33.6 72 36.4', '#fff', 0.6, 0.25) +
+          P('M71 35.4 C73.6 34.6 75.8 36 75.8 38.6 C75.8 41 73.4 42 71.4 41 Z', '#a8302a', S('#4a140e', 0.7));
+      case 'tudung':
+        return P('M20 62 C15 38 27 12 50 11 C73 12 85 38 80 62 C80.4 68 79 74 77 78 C75.6 62 72.6 45 68.2 37 C64 30.6 57 27.4 50 27.4 C43 27.4 36 30.6 31.8 37 C27.4 45 24.4 62 23 78 C21 74 19.6 68 20 62 Z', 'url(#' + id + 'hd)', S(c.hoodLine, 1)) +
+          L('M24.6 72 C25 58 28 44 32.6 37.4 C37 31 43 28.6 50 28.6 C57 28.6 63 31 67.4 37.4 C72 44 75 58 75.4 72', c.hoodLine, 1.6, 0.5) + L('M30 18 C36 14 43 12.4 50 12.4', '#fff', 1, 0.14) + L('M50 11.4 C50.6 18 50.4 23 50 27', c.hoodLine, 0.7, 0.5);
+    }
+    return '';
+  }
+
+  /* ================= OUTFITS ================= */
+  var TORSO = 'M41 81 C33.4 82 20 82.8 11.4 86.2 C5.6 88.6 1.4 91.6 -1 95 L-1 109 L101 109 L101 95 C98.6 91.6 94.4 88.6 88.6 86.2 C80 82.8 66.6 82 59 81 Z';
+  function epaulette(gd) {
+    var fr = '';
+    for (var i = 0; i < 6; i++) fr += L('M' + n(15.4 + i * 2.5) + ' ' + n(90.2 - i * 0.62) + ' l' + n(-0.3 + i * 0.05) + ' 3.4', gd, 1.05);
+    return both(P('M13.6 88.8 C16 85.6 24 84.4 29.6 85.2 C30.6 86.2 30.2 87.6 29 88.2 C24 88.2 18 89.4 14.8 91 Z', gd, S('#7a5518', 0.5)) + fr + C(26.4, 86.6, 0.8, '#fff3c0'));
+  }
+  function btn(x, y, r, gd) { return C(x, y, r, gd, S('#6a4a14', 0.35)) + C(x - r * 0.3, y - r * 0.3, r * 0.3, '#fff8d8', O(0.8)); }
+  function outfitSvg(style, M, T, c) {
+    var cl = 'url(#' + c.id + 'cl)', cw = 'url(#' + c.id + 'cw)', gd = 'url(#' + c.id + 'gd)', nk = 'url(#' + c.id + 'nk)';
+    var Md = mix(M, '#000000', 0.32), Ml = mix(M, '#ffffff', 0.14), ln = mix(M, '#140a05', 0.62);
+    var sw = '#f2ece0', swl = '#b9ae98';
+    var base = P(TORSO, cl, S(ln, 1.1));
+    var folds = L('M22.6 89.6 C26.6 92 29.6 96 30.6 109', ln, 0.7, 0.35) + L('M77.4 89.6 C73.4 92 70.4 96 69.4 109', ln, 0.7, 0.45);
+    var rim = L('M86.4 85.6 C92 87.4 96.6 90.2 100 94', c.rim, 1.1, 0.35);
+    var s = '';
+    switch (style) {
+      case 'jas_kapten':
+        s = base + folds + P('M43.2 81.6 L50 91 L56.8 81.6 C54 82.8 46 82.8 43.2 81.6 Z', sw, S(swl, 0.6)) + P('M47.4 83 L52.6 83 L51.4 86 L50 85.2 L48.6 86 Z', '#15151c') +
+          both(P('M43.2 81.6 L36 85.2 L39.4 87.4 L37.4 89.2 L45.6 96.6 L50 91 Z', Ml, S(ln, 0.7)) + L('M43.2 81.6 L36 85.2 L39.4 87.4 L37.4 89.2 L45.6 96.6', gd, 0.7) + btn(43.2, 95, 1.2, gd) + btn(43.2, 99.4, 1.2, gd)) +
+          P('M41.2 79.6 C45 81.6 55 81.6 58.8 79.6 L59 82 C55 83.8 45 83.8 41 82 Z', M, S(T, 0.7)) + epaulette(gd);
+        break;
+      case 'mantel': case 'mantel_up':
+        var lap = mix(T, M, 0.25);
+        s = base + folds + P('M41.6 81.4 L50 97.4 L58.4 81.4 C55 83 45 83 41.6 81.4 Z', sw, S(swl, 0.6));
+        for (var i = 0; i < 4; i++) s += P('M' + (47.2 - i * 0.2) + ' ' + n(84 + i * 3) + ' q' + n(2.8 + i * 0.2) + ' 2.6 ' + n(5.6 + i * 0.4) + ' 0 q' + n(-2.8 - i * 0.2) + ' 1.6 ' + n(-5.6 - i * 0.4) + ' 0 Z', '#fffaf0', S(swl, 0.5));
+        s += both(P('M41.4 81.4 C37 82.4 30 84 25.4 86.6 C29 90 33.4 94.6 36.4 109 L43.6 109 C43 96 45.4 92 49.6 96.6 Z', lap, S(ln, 0.8)) + L('M25.4 86.6 C29 90 33.4 94.6 36.4 109', gd, 0.7, 0.9) + btn(40.4, 92.4, 1.3, gd) + btn(41.2, 98, 1.3, gd) +
+          L('M30.4 88.6 C33 91 35.4 94 37 97.6', '#000', 0.8, 0.18));
+        if (style === 'mantel_up') s += both(P('M36.8 82.4 C35.2 77 36 72.2 39.4 70.4 C42 74.6 42.4 78.6 43.4 82.2 Z', Md, S(ln, 0.8)) + L('M38.8 74 C39.6 77 40.4 79.6 41.4 82', '#000', 0.7, 0.3));
+        break;
+      case 'rompi':
+        s = P(TORSO, cw, S(swl, 1)) + L('M20 90 C24 92 27 96 28 109', swl, 0.7, 0.6) + L('M80 90 C76 92 73 96 72 109', swl, 0.7, 0.6) +
+          P('M43 81.3 L50 88.4 L57 81.3 C54.6 82.6 45.4 82.6 43 81.3 Z', nk) +
+          both(P('M41.2 81.4 C38 83 33 84.6 30 86 C31 91 31 96 30.4 109 L50 109 L50 96.4 Z', cl, S(ln, 0.9)) + L('M33 90 C36 92 40 93 44 93', ln, 0.6, 0.4) + L('M34.4 95.4 L40.4 95.4', ln, 0.8, 0.6) +
+            P('M41.2 80.2 C40 83 40.8 86.2 43 88.6 L47 85.6 C45 84.6 43.6 83 43 81.2 Z', sw, S(swl, 0.7))) + btn(50, 97.8, 0.9, gd) + L('M42 93.4 C44 95 46 95.2 48 94', gd, 0.5, 0.8);
+        break;
+      case 'kemeja':
+        s = base + L('M20 91 C26 92 30 96 32 109', ln, 0.6, 0.3) + L('M64 86 C66 90 66 96 64 109', ln, 0.6, 0.25) + L('M36 86 C34 90 34 96 36 109', ln, 0.6, 0.25) +
+          P('M42.2 81.3 L50 99.4 L57.8 81.3 C55 82.8 45 82.8 42.2 81.3 Z', nk) + L('M48 86 C49 88 51 88 52 86', c.skinD, 0.6, 0.4) +
+          both(P('M42 80.6 C39 82 35.4 83.4 33 85 C35.4 87.6 38.4 90.6 41 94 L45.4 90 Z', Ml, S(ln, 0.7))) +
+          L('M45.4 88.4 L54.6 91.4 M54.6 88.4 L45.4 91.4 M46.8 92.6 L53.2 95.2 M53.2 92.6 L46.8 95.2', '#6b4a2a', 0.7) + C(45.4, 88.4, 0.45, '#3a2616') + C(54.6, 88.4, 0.45, '#3a2616') + C(46.8, 92.6, 0.45, '#3a2616') + C(53.2, 92.6, 0.45, '#3a2616');
+        break;
+      case 'beskap':
+        s = base + folds + P('M40.6 78.6 C45 80.8 55 80.8 59.4 78.6 L59.8 83.8 C55 86.2 45 86.2 40.2 83.8 Z', Md, S(ln, 0.8)) + L('M40.8 79.6 C45 81.8 55 81.8 59.2 79.6', gd, 0.7) + L('M41.2 81.2 C45 83 55 83 58.8 81.2', '#fff', 0.5, 0.2) +
+          L('M55 85.6 C54.4 90 50 95.6 44 109', ln, 1.3) + L('M55.6 85.8 C55 90.2 50.6 95.8 44.8 109', T, 0.6, 0.8) + btn(54.4, 88.4, 0.9, gd) + btn(52.6, 92.4, 0.9, gd) + btn(49.6, 96, 0.9, gd) +
+          L('M36 91 C38 93 41 93.6 44 93', gd, 0.5, 0.7) + C(44, 93, 0.7, gd);
+        break;
+      case 'kebaya':
+        var bat = '#6b4524';
+        s = base + folds + P('M42 81.2 L50 94 L58 81.2 C55 82.6 45 82.6 42 81.2 Z', nk) + P('M44.8 87.6 L55.2 87.6 L50 94 Z', bat) + C(48, 89.4, 0.45, '#e0c48a') + C(52, 89.4, 0.45, '#e0c48a') + C(50, 91.4, 0.45, '#e0c48a') +
+          both(L('M42 81.2 L50 94', T, 1.4, 0.9, ' stroke-dasharray="0.1 1.6"') + L('M42.6 81.6 L50 93.4', T, 0.5, 0.8)) +
+          L('M50 94 L50 109', ln, 0.8, 0.6) + C(50, 95.2, 2, gd, S('#7a5518', 0.5)) + C(50, 95.2, 0.9, '#b8203a') + C(49.6, 94.8, 0.35, '#fff') + C(50, 99.2, 1.3, gd, S('#7a5518', 0.4)) + C(50, 99.2, 0.55, '#2a7a5a') +
+          both(C(24, 91, 0.9, T, O(0.28)) + C(27.6, 88.6, 0.7, T, O(0.28)) + C(21, 94.6, 0.8, T, O(0.28)) + C(30, 92.6, 0.6, T, O(0.22)));
+        break;
+      case 'koko':
+        s = base + folds + P('M41 80 C45 82 55 82 59 80 L59.2 82.4 C55 84.4 45 84.4 40.8 82.4 Z', Md, S(ln, 0.6)) + L('M41.4 81.2 C45 83 55 83 58.6 81.2', T, 0.6, 0.9, ' stroke-dasharray="0.8 0.8"') +
+          P('M47.6 83.6 L52.4 83.6 L52.4 109 L47.6 109 Z', Ml, S(ln, 0.6)) + L('M48.4 85 L51.6 87 L48.4 89 L51.6 91 L48.4 93 L51.6 95 L48.4 97 L51.6 99', T, 0.7) +
+          C(50, 86, 0.5, gd) + C(50, 90, 0.5, gd) + C(50, 94, 0.5, gd) + C(50, 98, 0.5, gd) + L('M34 91 L41 91', T, 0.6, 0.8, ' stroke-dasharray="0.8 0.8"') + L('M34 91 L34 97 L41 97 L41 91', ln, 0.5, 0.4);
+        break;
+      case 'kulit':
+        var st2 = ' stroke-dasharray="0.9 0.8"';
+        s = base + P('M43 81.3 L50 92 L57 81.3 Z', '#2a2420', S('#140e0a', 0.6)) + L('M50 92 L50 109', ln, 0.9) +
+          both(P('M41.4 81 C37.4 82 32.4 83.6 29 85.6 L34.4 91 L40.4 88.4 L45.4 92 L48 84.4 Z', Ml, S(ln, 0.8)) + L('M31 85.8 L35 89.8 L40.4 87.4 L44.6 90.4', T, 0.45, 0.8, st2) + L('M26 90 C28 92 29 96 29.4 109', T, 0.45, 0.6, st2)) +
+          P('M20 87.4 L23 85.6 L72 109 L64.6 109 Z', '#2e1f14', S('#140a05', 0.6)) + '<rect x="37.8" y="91.6" width="4.4" height="3.6" rx=".5" transform="rotate(18 40 93.4)" fill="none"' + S('#e0b64c', 0.9) + '/>' + L('M24 88 L66 100.6', T, 0.4, 0.5, st2) +
+          L('M18 90 C22 88 26 87.6 30 88', '#fff', 1, 0.14);
+        break;
+      case 'seragam':
+        s = base + folds + P('M40.8 78.2 C45 80.4 55 80.4 59.2 78.2 L59.6 83.6 C55 86 45 86 40.4 83.6 Z', M, S(ln, 0.8)) + L('M40.9 79.3 C45 81.5 55 81.5 59.1 79.3', gd, 0.9) + L('M40.6 82.6 C45 85 55 85 59.4 82.6', gd, 0.9) +
+          L('M50 85.8 L50 109', ln, 0.7) + L('M50.8 85.8 L50.8 109', gd, 0.5, 0.8) + btn(50, 88.6, 1.1, gd) + btn(50, 93, 1.1, gd) + btn(50, 97.4, 1.1, gd) + epaulette(gd);
+        break;
+      case 'pelaut':
+        var stripes = '';
+        for (var y = 83; y < 101; y += 3.2) stripes += '<rect x="0" y="' + n(y) + '" width="100" height="1.5" fill="' + M + '"/>';
+        s = P(TORSO, cw, S(swl, 1)) + '<g clip-path="url(#' + c.id + 'tc)" opacity=".9">' + stripes + '</g>' + P('M42.6 81.8 L50 93.6 L57.4 81.8 C55 83 45 83 42.6 81.8 Z', nk) +
+          both(P('M41 81.2 C37 82.2 31 83.6 27 85.2 C33 88.6 41 93 50 97.6 L50 93.6 C46 90 43.6 86 42.6 81.8 Z', cl, S(ln, 0.7)) + L('M28.6 85.6 C34 88.6 41.4 92.8 49.6 96.8', '#fff', 0.6) + L('M30.4 85.4 C35.4 88.2 42 92 49.6 95.6', '#fff', 0.4, 0.8)) +
+          P('M47.4 93.4 L52.6 93.4 L51.8 96.6 L48.2 96.6 Z', '#b8322a', S('#5a1410', 0.5)) + P('M48.2 96.6 L45.4 109 L48.8 109 L50 97.4 Z', '#a02a22') + P('M51.8 96.6 L54.6 109 L51.2 109 L50 97.4 Z', '#a02a22');
+        break;
+      case 'jubah':
+        s = base + folds + P('M46 88 C44 92 42 96 41 109 L59 109 C58 96 56 92 54 88 Z', mix(M, '#000000', 0.45)) + L('M46 88 C44 92 42 96 41 109', T, 0.8, 0.8) + L('M54 88 C56 92 58 96 59 109', T, 0.8, 0.8) +
+          P('M35.4 81 C38 76.6 44 75.6 50 75.6 C56 75.6 62 76.6 64.6 81 C69 82.6 71 86 69.4 88.6 C63 85.6 56 84.6 50 84.8 C44 84.6 37 85.6 30.6 88.6 C29 86 31 82.6 35.4 81 Z', Md, S(ln, 0.9)) +
+          P('M37.4 80.6 C41 78.4 59 78.4 62.6 80.6 C58 80 42 80 37.4 80.6 Z', '#000', O(0.3)) + L('M34 84 C40 81.6 60 81.6 66 84', '#fff', 0.7, 0.12) +
+          L('M46 88.4 Q50 90.4 54 88.4', gd, 0.6) + C(45.6, 88.2, 1.6, gd, S('#6a4a14', 0.4)) + C(54.4, 88.2, 1.6, gd, S('#6a4a14', 0.4)) + C(45.6, 88.2, 0.6, '#2a5a7a') + C(54.4, 88.2, 0.6, '#2a5a7a');
+        break;
+      case 'saudagar':
+        var brc = '';
+        for (var bi = 0; bi < 7; bi++) brc += P('M42.6 ' + n(85 + bi * 2.4) + ' l.8 1 l-.8 1 l-.8 -1 Z', '#7a3a10', O(0.7));
+        s = base + folds + P('M44 83.4 L56 83.4 L55 109 L45 109 Z', '#e8d6a8', S('#9a7a3a', 0.6)) + L('M46.6 86 L53.4 86 M46.4 90 L53.6 90 M46.2 94 L53.8 94 M46 98 L54 98', '#c9a04a', 0.6, 0.6) +
+          btn(50, 88, 0.9, gd) + btn(50, 92, 0.9, gd) + btn(50, 96, 0.9, gd) +
+          both(P('M44 83.4 L45 109 L41.6 109 L41 83.8 Z', gd, S('#7a5518', 0.5)) + brc) + P('M41 79.8 C45 81.8 55 81.8 59 79.8 L59.3 83 C55 85 45 85 40.7 83 Z', gd, S('#7a5518', 0.6)) + L('M42 81.6 C45 83 55 83 58 81.6', '#7a3a10', 0.5, 0.6, ' stroke-dasharray="0.6 1"');
+        break;
+      case 'jas': case 'jas_v': case 'navigator':
+        var vest = style === 'jas' ? T : (style === 'jas_v' ? mix(M, '#ffffff', 0.08) : null), tie = style === 'jas' ? '#9a2030' : (style === 'jas_v' ? '#5a1a24' : '#15151c');
+        s = base + folds + P('M43 81.4 L50 97 L57 81.4 C54.6 82.6 45.4 82.6 43 81.4 Z', sw, S(swl, 0.6));
+        if (vest) s += P('M45.2 86.4 L50 96 L54.8 86.4 L57 109 L43 109 Z', vest, S(mix(vest, '#000000', 0.5), 0.6)) + btn(50, 98.4, 0.7, gd);
+        s += style === 'navigator' ? P('M47.2 83 C48.6 82.4 51.4 82.4 52.8 83 L52 86 C51 87.6 49 87.6 48 86 Z', '#15151c') + P('M48.4 86.4 L47 90.4 L50 89 L53 90.4 L51.6 86.4 Z', '#f6f1e6', S(swl, 0.4))
+          : P('M48.6 82.6 L51.4 82.6 L50.9 84.6 L52 92 L50 94.4 L48 92 L49.1 84.6 Z', tie, S(mix(tie, '#000000', 0.5), 0.4));
+        s += both(P('M43 81.4 C40.4 82 38.6 82.6 37.4 83.4 L40.6 88 L38.6 89.4 L46 98.6 L50 97 Z', Ml, S(ln, 0.7)) + (style !== 'jas_v' ? L('M37.4 83.4 L40.6 88 L38.6 89.4 L46 98.6', gd, 0.6, 0.9) : ''));
+        if (style === 'navigator') s += btn(44.4, 99.6, 1.1, gd) + btn(55.6, 99.6, 1.1, gd);
+        s += P('M31.8 93.4 L32.8 91.6 L33.8 92.8 L34.8 91.4 L36 93.2 Z', '#f6f1e6', S('#b9ae98', 0.3)) + L('M31.4 93.4 L36.4 93.2', mix(M, '#000000', 0.5), 0.6, 0.6);
+        break;
+      case 'jaket': case 'jaket_b':
+        s = base + folds + P('M43 81.4 L50 90 L57 81.4 Z', '#e9e0cc', S(swl, 0.5)) + L('M50 90 L50 109', ln, 0.8) + btn(50, 93.2, 0.8, 'url(#' + c.id + 'cl)') + btn(50, 97.6, 0.8, 'url(#' + c.id + 'cl)') +
+          both(P('M41.2 80.6 C38.4 81.6 35 83 32.8 84.6 L36.4 89 L42 86.8 L45.4 89.6 L47 84 Z', Ml, S(ln, 0.7)) + P('M28.6 90 L39.4 90 L39.4 92.6 L34 93.6 L28.6 92.6 Z', Ml, S(ln, 0.6)) + L('M29 93 L29 99.4 L39 99.4 L39 93', ln, 0.5, 0.45) + btn(34, 92.4, 0.7, gd) +
+            P('M16 89.2 L27.4 85.6 L28.2 87.4 L17 90.8 Z', Ml, S(ln, 0.5)) + C(26.6, 86.6, 0.55, ln));
+        if (style === 'jaket_b') s += P('M72.4 84.2 L76.2 86.2 L41 109 L34.4 109 Z', '#4a2e1a', S('#1e1008', 0.6)) + L('M73 86.4 L38.6 100.6', '#c9a876', 0.4, 0.7, ' stroke-dasharray="0.9 0.8"') + '<rect x="55" y="90.6" width="4" height="3.4" rx=".5" transform="rotate(-24 57 92.3)" fill="none"' + S('#e0b64c', 0.8) + '/>';
+        break;
+      case 'apron':
+        s = base + L('M20 91 C26 92 30 96 32 109', ln, 0.6, 0.3) + P('M43 81.3 L50 88 L57 81.3 C54.6 82.6 45.4 82.6 43 81.3 Z', nk) + both(P('M42 80.6 C39.6 82 37 83.4 35 85 C37 86.6 39 88 40.6 89.6 L45 86.4 Z', Ml, S(ln, 0.6))) +
+          L('M40.6 88.4 C41 85 42 83 43.6 81.8', '#e8dcc4', 1.3) + L('M59.4 88.4 C59 85 58 83 56.4 81.8', '#e8dcc4', 1.3) +
+          P('M39.4 88 L60.6 88 L62 109 L38 109 Z', '#f6f0e2', S('#b9a987', 0.7)) + P('M39.4 88 L60.6 88 L60.8 89.6 L39.2 89.6 Z', T) + L('M45 94.6 L55 94.6 L55 99.4 L45 99.4 Z', '#b9a987', 0.6, 0.8) + L('M50 94.6 L50 99.4', '#b9a987', 0.5, 0.7);
+        break;
+      default:
+        s = base + folds;
+    }
+    return s + rim;
+  }
+
+  /* ================= NECK GEAR ================= */
+  function neckSvg(nk, c) {
+    var gd = 'url(#' + c.id + 'gd)';
+    switch (nk) {
+      case 'scarf':
+        var sc = c.scarf, sd = mix(sc, '#000000', 0.35);
+        return P('M40.4 80 C44 83.8 56 83.8 59.6 80 L60.2 84.2 C56 87.8 44 87.8 39.8 84.2 Z', sc, S(sd, 0.7)) + L('M42 84 C46 86 54 86 58 84', sd, 0.6, 0.5) +
+          P('M45.4 86.2 L41.2 94.4 L44.8 93.4 L46.8 88 Z', sc, S(sd, 0.6)) + P('M47.4 86.6 L48.6 95.6 L50.8 92.8 L48.8 86.8 Z', mix(sc, '#000000', 0.12), S(sd, 0.6)) + E(46.8, 86.4, 2.2, 1.7, sc, S(sd, 0.6)) + L('M42 81.6 C46 84 54 84 58 81.6', '#fff', 0.6, 0.25);
+      case 'chain':
+        return L('M40.8 82 C42 90 46 94.4 50 94.8 C54 94.4 58 90 59.2 82', '#6a4a14', 1.9) + L('M40.8 82 C42 90 46 94.4 50 94.8 C54 94.4 58 90 59.2 82', '#f0cc66', 1.3, null, ' stroke-dasharray="1.5 .6"') +
+          C(50, 96.4, 1.9, gd, S('#6a4a14', 0.5)) + C(50, 96.4, 0.9, '#b8203a');
+      case 'pearls':
+        var pr = '';
+        for (var i = 0; i <= 14; i++) { var t = i / 14, x, y; if (t < 0.5) { x = cub(41.4, 43, 46.4, 50, t * 2); y = cub(82, 88.4, 91.4, 91.8, t * 2); } else { x = cub(50, 53.6, 57, 58.6, t * 2 - 1); y = cub(91.8, 91.4, 88.4, 82, t * 2 - 1); } pr += C(x, y, 0.95, '#f6f2ea', S('#a89c8a', 0.3)) + C(x - 0.3, y - 0.3, 0.3, '#fff'); }
+        return pr + C(50, 93.6, 1.3, '#f6f2ea', S('#a89c8a', 0.3)) + C(49.6, 93.2, 0.4, '#fff');
+      case 'medallion':
+        return L('M41.8 81.8 C43.4 88 46.4 91.6 50 92', '#3a2616', 0.8) + L('M58.2 81.8 C56.6 88 53.6 91.6 50 92', '#3a2616', 0.8) + C(50, 94.8, 3, gd, S('#6a4a14', 0.5)) + C(50, 94.8, 2, '#f3ead2') +
+          L('M50 93 L50 96.6 M48.2 94.8 L51.8 94.8', '#7a2a1c', 0.5) + P('M50 92.9 L50.6 94.8 L50 96.7 L49.4 94.8 Z', '#b8322a') + C(50, 94.8, 0.35, '#3a2616');
+      case 'jabot':
+        return P('M45 81.4 C44 85 43.6 88 44.4 91.2 Q46 90 47.2 92.2 Q48.6 90.6 50 93 Q51.4 90.6 52.8 92.2 Q54 90 55.6 91.2 C56.4 88 56 85 55 81.4 Z', '#fbf6ea', S('#b8ad98', 0.6)) +
+          P('M46.6 84 C46 86.4 46 88.6 46.8 90 Q48.4 89 50 90.8 Q51.6 89 53.2 90 C54 88.6 54 86.4 53.4 84 Z', '#fffdf6', S('#c8bda8', 0.5)) + L('M47 86 Q50 87.6 53 86', '#c8bda8', 0.5) + E(50, 82.6, 2.2, 1.4, '#f4eee0', S('#b8ad98', 0.5)) + C(50, 84.6, 0.9, gd);
+      case 'tooth':
+        return L('M41.8 82 C43.4 88.6 46.4 91.6 50 92 C53.6 91.6 56.6 88.6 58.2 82', '#4a2e1a', 0.8) + P('M48.6 91.6 C48.8 94.6 49.6 96.6 50.6 97.8 C51.2 96 51.6 93.6 51.4 91.6 Z', '#f4efe2', S('#8a7c64', 0.5)) +
+          L('M49.4 92.6 C49.6 94.4 50 95.8 50.4 96.6', '#fff', 0.4, 0.7) + C(46.8, 91.2, 0.85, '#c2452f') + C(53.2, 91.2, 0.85, '#2f7fa3') + C(44.6, 89.8, 0.7, '#e8dcc0') + C(55.4, 89.8, 0.7, '#e8dcc0') + '<rect x="48.8" y="90.8" width="2.4" height="1.2" rx=".4" fill="' + gd + '"/>';
+    }
+    return '';
+  }
+
+  /* ================= SVG ================= */
   function svg(ap, opts) {
     ap = ap || {}; opts = opts || {};
-    var outfit = (ap.role && ROLE_OUTFIT[ap.role]) || ARCH_OUTFIT[opts.arch] || ARCH_OUTFIT.adventurer;
-    var skin = SKIN[ap.skin | 0] || SKIN[2], hair = HAIR[ap.hair | 0] || HAIR[0];
-    var sh = U.shadeHex(skin, -28), hs = U.shadeHex(hair, 30);
-    var fem = !!ap.fem;
-    var head = ap.head === 'arch' || !ap.head ? outfit.head : ap.head;
+    var id = 'mf' + (++uid) + '_';
+    var fem = !!ap.fem, seed = ap.seed | 0;
+    var base = (ap.role && ROLE_OUTFIT[ap.role]) || ARCH_OUTFIT[opts.arch] || ARCH_OUTFIT.adventurer;
+    var isRole = !!(ap.role && ROLE_OUTFIT[ap.role]);
+    function res(v, key) {
+      if (v == null || v === '' || v === 'arch') { if (fem && isRole && base[key + 'F'] != null) return base[key + 'F']; return base[key]; }
+      return v;
+    }
+    var head = LEGACY_HEAD[ap.head] || ap.head;
+    head = res(head, 'head');
     if (head === 'hijab' && !fem) head = 'none';
-    var acc = outfit.acc;
-    var r = U.rng((ap.seed | 0) + 7);
-    var jaw = fem ? 0 : (ap.seed % 3) - 1;
-    var iris = IRIS[(ap.seed >> 3) % IRIS.length];
-    var sw = 1.8;
-    var st = ' stroke="' + OUT + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round"';
-    var s = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="face-svg">';
+    if (!HAT_META[head]) head = 'none';
+    var style, M, T;
+    var outSel = res(ap.outfit, 'outfit');
+    if (ap.outfit == null || ap.outfit === '' || ap.outfit === 'arch') { M = base.coat; T = base.trim; style = outSel; }
+    else { style = ap.outfit; M = (OUT_COL[style] || OUT_COL.jaket)[0]; T = (OUT_COL[style] || OUT_COL.jaket)[1]; }
+    if (!OUT_COL[style]) style = 'jaket';
+    var cloth = ap.cloth | 0;
+    if (cloth > 0 && CLOTH[cloth]) M = CLOTH[cloth];
+    var eye = res(ap.eye, 'eye'), ear = res(ap.ear, 'ear'), neck = res(ap.neck, 'neck'), item = res(ap.item, 'item'), mark = ap.mark || 'none';
+    var rnd = U.rng(seed * 7 + 13);
+
+    /* ---- warna ---- */
+    var s0 = SKIN[ap.skin == null ? 2 : ap.skin | 0] || SKIN[2];
+    var sL = mix(s0, '#fff4e6', 0.26), sD = mix(s0, '#6a2a18', 0.3), sDD = mix(s0, '#3a160a', 0.62), sLine = mix(s0, '#2a1208', 0.68);
+    var h0 = HAIR[ap.hair | 0] || HAIR[0];
+    var dark = U.hex(h0)[0] + U.hex(h0)[1] + U.hex(h0)[2] < 150;
+    var hL = mix(h0, dark ? '#c9b8a8' : '#fff4e0', dark ? 0.3 : 0.38), hD = mix(h0, '#000000', 0.38), hLine = mix(h0, '#120904', dark ? 0.4 : 0.6);
+    var browC = (ap.hair | 0) === 7 || (ap.hair | 0) === 4 ? mix(h0, '#5a5048', 0.35) : ((ap.hair | 0) === 6 ? mix(h0, '#5a3a20', 0.35) : mix(h0, '#000000', 0.1));
+    var bgc = opts.bgColors || ['#3a5a7a', '#14202c'];
+    var rim = mix(bgc[0], '#fff8e8', 0.55);
+    var ci = ap.iris != null ? (ap.iris | 0) : [0, 0, 1, 2, 0, 1][(seed >> 3) % 6];
+    var irisC = IRIS[ci] || IRIS[0];
+    var W = opts.fat ? 25.4 : (fem ? 20.8 : 21.5), J = opts.fat ? 24.2 : (fem ? 17.2 : 19.2 + ((seed % 3) - 1) * 0.9), chinY = opts.fat ? 82 : (fem ? 77.6 : 79.4), Q = opts.fat ? 13 : (fem ? 6.4 : 9.6);
+    var k = W / 21.5, HT = k === 1 ? '' : 'matrix(' + n(k * 1000) / 1000 + ' 0 0 1 ' + n(50 - 50 * k) + ' 0)';
+    var FT = opts.fat ? 'matrix(1.26 0 0 1.03 -13 -3)' : '';
+    var hijab = head === 'hijab', hood = head === 'tudung';
+    var hm = HAT_META[head] || {};
+    var cap = head === 'none' ? 0 : (hm.cap || 0);
+    var hairStyle = Math.max(0, Math.min(13, ap.hairStyle | 0));
+    var ctx = { id: id, base: h0, hl: hL, dk: hD, line: hLine, tie: fem ? mix(T, '#b8322a', 0.5) : '#3a2616' };
+    var H = hijab ? { back: '', over: '', front: '', hl: 34 } : hairParts(hairStyle, fem, cap, ctx);
+    if (hood) { H.back = ''; H.over = ''; }
+    var earVis = !hijab && !hood && !H.earHide;
+    var hijabC = cloth > 0 ? mix(M, '#ffffff', 0.18) : HIJAB[seed % HIJAB.length];
+    var hatC = { peci: '#1f1a17', blangkon: '#4a2e1a', bandana: '#b23a2a', tricorne: '#231d1a', bicorne: '#1e1a18', plumed: '#231c19', iket: '#2e2838', caping: '#ddbd72', beret: '#7a2030', kupluk: '#2a3a58', brim: '#86703e', bowler: '#1f1a17', ikat: '#b8392a', serban: '#efe6d2', udeng: '#f2eee4', kapten: '#f4f1ea', tudung: M }[head] || '#333';
+    var hoodC = mix(M, '#000000', 0.12);
+
+    /* ---- defs ---- */
+    var fp = facePath(W, J, chinY, Q, fem);
+    var d = '<defs>';
+    d += rad(id + 'sk', 41, 43, 40, [[0, sL], [0.55, s0], [1, sD]]);
+    d += lin(id + 'nk', 0, 70, 0, 86, [[0, mix(s0, sDD, 0.5)], [0.55, sD], [1, s0]]);
+    d += lin(id + 'hr', 32, 8, 66, 80, [[0, hL], [0.42, h0], [1, hD]]);
+    d += lin(id + 'hb', 0, 20, 0, 100, [[0, hD], [1, mix(hD, '#000000', 0.35)]]);
+    d += lin(id + 'cl', 14, 82, 86, 101, [[0, mix(M, '#ffffff', 0.16)], [0.5, M], [1, mix(M, '#000000', 0.38)]]);
+    if (style === 'rompi' || style === 'pelaut') d += lin(id + 'cw', 14, 82, 86, 101, [[0, '#fbf8f0'], [0.55, '#ebe3d2'], [1, '#bfb49e']]);
+    d += lin(id + 'gd', 0, 0, 1, 1, [[0, '#fff2b8'], [0.35, '#e6be5a'], [0.7, '#b9862e'], [1, '#7a5518']], 1);
+    d += rad(id + 'bl', 0.5, 0.5, 0.5, [[0, '#e8705a', 0.9], [1, '#e8705a', 0]], 1);
+    d += lin(id + 'ao', 0, 0, 0, 1, [[0, sDD, 0.6], [1, sDD, 0]], 1);
+    var hasHat = head !== 'none';
+    if (hasHat) d += lin(id + 'ht', 20, 8, 80, 44, [[0, mix(hatC, '#ffffff', 0.2)], [0.5, hatC], [1, mix(hatC, '#000000', 0.42)]]);
+    if (head === 'kapten' || head === 'udeng' || head === 'serban') d += lin(id + 'hw', 20, 8, 80, 44, [[0, '#ffffff'], [0.5, hatC], [1, mix(hatC, '#5a4a30', 0.3)]]);
+    if (head === 'kupluk') d += lin(id + 'hr2', 20, 30, 80, 42, [[0, mix(hatC, '#ffffff', 0.12)], [1, mix(hatC, '#000000', 0.3)]]);
+    if (hood) d += lin(id + 'hd', 20, 10, 85, 100, [[0, mix(hoodC, '#ffffff', 0.14)], [0.5, hoodC], [1, mix(hoodC, '#000000', 0.45)]]);
+    if (hijab) d += lin(id + 'hj', 20, 12, 80, 100, [[0, mix(hijabC, '#ffffff', 0.2)], [0.5, hijabC], [1, mix(hijabC, '#000000', 0.3)]]);
+    d += '<clipPath id="' + id + 'fc"><path d="' + fp + '"/></clipPath>';
+    if (style === 'pelaut') d += '<clipPath id="' + id + 'tc"><path d="' + TORSO + '"/></clipPath>';
+    if (cap > 1) d += '<clipPath id="' + id + 'cp"><rect x="-20" y="' + cap + '" width="140" height="130"/></clipPath>';
+    if (head === 'blangkon') d += '<clipPath id="' + id + 'hk"><path d="M26.6 38.4 C26 26 32 17.4 42 15 C47 13.8 53 13.8 58 15 C68 17.4 74 26 73.4 38.4 C66 35.2 58 34.2 50 34.4 C42 34.2 34 35.2 26.6 38.4 Z"/></clipPath>';
+    if (head === 'iket') d += '<clipPath id="' + id + 'hk"><path d="M26.4 38.4 C26 31.4 27.2 26.4 29.6 22.8 L21.6 20.6 L32.4 17.8 C37.6 15.2 44 14.4 50 14.4 C56 14.4 62.4 15.2 67.6 17.8 L78.4 20.6 L70.4 22.8 C72.8 26.4 74 31.4 73.6 38.4 C66 35.2 58 34.2 50 34.4 C42 34.2 34 35.2 26.4 38.4 Z"/></clipPath>';
+
+    var s = '';
+    /* ---- latar ---- */
     if (opts.bg !== false) {
-      var bgc = opts.bgColors || ['#3a5a7a', '#14202c'];
-      s += '<defs><radialGradient id="fbg' + (ap.seed | 0) + '" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="' + bgc[0] + '"/><stop offset="1" stop-color="' + bgc[1] + '"/></radialGradient></defs>';
-      s += '<rect width="100" height="100" fill="url(#fbg' + (ap.seed | 0) + ')"/>';
+      d += rad(id + 'bg', 50, 40, 72, [[0, mix(bgc[0], '#ffffff', 0.16)], [0.5, bgc[0]], [1, bgc[1]]]);
+      d += rad(id + 'vg', 50, 46, 72, [[0.55, '#000000', 0], [1, '#000000', 0.5]]);
+      d += rad(id + 'gl', 48, 38, 36, [[0, '#fff6e0', 0.28], [1, '#fff6e0', 0]]);
+      var pc = mix(bgc[0], '#ffffff', 0.55), rose = '';
+      for (var ri = 0; ri < 32; ri++) { var ang = ri * Math.PI / 16, ln2 = ri % 4 === 0 ? 50 : (ri % 2 ? 34 : 42); rose += 'M50 44 L' + n(50 + Math.cos(ang) * ln2) + ' ' + n(44 + Math.sin(ang) * ln2) + ' '; }
+      s += '<rect width="100" height="100" fill="url(#' + id + 'bg)"/>' + '<g opacity=".1" fill="none" stroke="' + pc + '" stroke-width=".45"><path d="' + rose + '"/><circle cx="50" cy="44" r="31"/><circle cx="50" cy="44" r="43"/><circle cx="50" cy="44" r="44.6" stroke-dasharray="1 2"/></g>' +
+        '<rect width="100" height="100" fill="url(#' + id + 'gl)"/><rect width="100" height="100" fill="url(#' + id + 'vg)"/>';
     }
-    // rambut belakang (panjang / hijab belakang)
-    var hsIdx = ap.hairStyle | 0;
-    if (head === 'hijab') {
-      s += '<path d="M22 50 C20 28 34 16 50 16 C66 16 80 28 78 50 L84 100 L16 100 Z" fill="' + outfit.trim + '"' + st + '/>';
-    } else if (head === 'hood') {
-      s += '<path d="M18 60 C16 30 32 14 50 14 C68 14 84 30 82 60 L90 100 L10 100 Z" fill="' + outfit.coat + '"' + st + '/>';
-    } else if (fem && head !== 'bandana' && (hsIdx === 1 || hsIdx === 2 || hsIdx === 5)) {
-      s += '<path d="M24 46 C22 26 36 18 50 18 C64 18 78 26 76 46 L80 84 C70 90 30 90 20 84 Z" fill="' + hair + '"' + st + '/>';
-    } else if (!fem && hsIdx === 4 && head !== 'hood') {
-      s += '<path d="M25 46 C24 28 36 19 50 19 C64 19 76 28 75 46 L77 72 C68 76 32 76 23 72 Z" fill="' + hair + '"' + st + '/>';
+
+    var bgEnd = s.length;
+    /* ---- item di belakang: pedang ---- */
+    if (item === 'sword') s += G('<rect x="-1.3" y="-9" width="2.6" height="12" rx="1" fill="#3a2414"/>' + L('M-1.3 -7 L1.3 -5.4 M-1.3 -4 L1.3 -2.4 M-1.3 -1 L1.3 .6', '#6a4a2a', 0.6) + C(0, -10.2, 1.9, 'url(#' + id + 'gd)', S('#6a4a14', 0.4)) +
+      '<rect x="-6" y="2.6" width="12" height="2" rx="1" fill="url(#' + id + 'gd)"' + S('#6a4a14', 0.4) + '/>' + P('M-1.6 4.6 L1.6 4.6 L1.2 14 L-1.2 14 Z', '#b8c0c8', S('#5a646e', 0.4)), 'translate(78.6 70) rotate(28)');
+
+    /* ---- belakang: topi, rambut ---- */
+    var hb2 = hatBack(head, { id: id, hoodLine: mix(hoodC, '#000000', 0.55) });
+    s += HT ? G(hb2, HT) : hb2;
+    if (H.back) s += G(cap > 1 ? '<g clip-path="url(#' + id + 'cp)">' + H.back + '</g>' : H.back, HT);
+
+    /* ---- leher & badan ---- */
+    var body = '';
+    if (!hijab) {
+      body += P('M42.8 67 C43.2 73.6 42.8 78.6 41.4 82.6 C45 85.4 55 85.4 58.6 82.6 C57.2 78.6 56.8 73.6 57.2 67 Z', 'url(#' + id + 'nk)', S(sLine, 0.8));
+      if (!fem) body += L('M45.4 76 C46.4 79 47.6 81 48.6 82', sDD, 0.6, 0.25) + L('M54.6 76 C53.6 79 52.4 81 51.4 82', sDD, 0.6, 0.25);
+      if (mark === 'tattoo') body += L('M54.4 72 C55.2 75.6 55.8 78.6 55.2 82.4', '#1f3a44', 0.7, 0.55) + L('M56 72.6 L54.4 74.6 L56.2 76.6 L54.6 78.6', '#1f3a44', 0.5, 0.5);
     }
-    // badan / pakaian (opts.fat: bertubuh besar)
-    if (opts.fat) s += '<path d="M-2 100 C0 78 18 70 32 70 L68 70 C82 70 100 78 102 100 Z" fill="' + outfit.coat + '"' + st + '/>';
-    else s += '<path d="M8 100 C10 84 24 78 36 76 L64 76 C76 78 90 84 92 100 Z" fill="' + outfit.coat + '"' + st + '/>';
-    if (acc === 'kebaya') s += '<path d="M40 77 L50 96 L60 77" fill="none" stroke="' + outfit.trim + '" stroke-width="3"/><path d="M8 100 C10 88 20 82 30 80 L36 100Z" fill="#6b2a18" opacity=".5"/>';
-    else if (acc === 'apron') s += '<path d="M36 80 L64 80 L66 100 L34 100 Z" fill="#f7f1e2"' + st + '/>';
-    else s += '<path d="M38 76 L50 92 L62 76" fill="' + (acc === 'epaulette' ? '#efe9dc' : '#efe2c2') + '"' + st + '/><path d="M38 76 L44 100 M62 76 L56 100" stroke="' + outfit.trim + '" stroke-width="2.2" fill="none"/>';
-    if (acc === 'epaulette') s += '<path d="M16 86 h14 M70 86 h14" stroke="' + outfit.trim + '" stroke-width="4" stroke-linecap="round"/>';
-    if (acc === 'chain') s += '<path d="M40 84 Q50 94 60 84" fill="none" stroke="#e0b64c" stroke-width="1.6" stroke-dasharray="2 1.5"/>';
-    if (acc === 'scarf') s += '<path d="M34 76 C40 82 60 82 66 76 L64 84 C58 88 42 88 36 84 Z" fill="#c2452f"' + st + '/>';
-    // leher
-    s += '<path d="M41 66 L41 78 C45 82 55 82 59 78 L59 66 Z" fill="' + sh + '"' + st + '/>';
-    // telinga
-    var ex0 = opts.fat ? 22 : 27, ex1 = opts.fat ? 78 : 73;
-    if (head !== 'hijab' && head !== 'hood') s += '<ellipse cx="' + ex0 + '" cy="53" rx="4" ry="6" fill="' + skin + '"' + st + '/><ellipse cx="' + ex1 + '" cy="53" rx="4" ry="6" fill="' + skin + '"' + st + '/>';
-    if (acc === 'patch' || opts.arch === 'pirate') s += '<circle cx="73" cy="60" r="2" fill="none" stroke="#e0b64c" stroke-width="1.6"/>';
-    // wajah
-    var jx = 4 + jaw * 2;
-    if (opts.fat) {
-      s += '<path d="M50 23 C70 23 80 36 79 52 C78 70 66 82 50 83 C34 82 22 70 21 52 C20 36 30 23 50 23 Z" fill="' + skin + '"' + st + '/>';
-      s += '<path d="M30 70 C36 80 44 84 50 84 C56 84 64 80 70 70 C64 78 56 81 50 81 C44 81 36 78 30 70 Z" fill="' + sh + '" opacity=".55"/>';
-    } else s += '<path d="M50 24 C66 24 74 36 73 50 C72 62 ' + (66 + jx * 0.4) + ' 72 50 ' + (76 + (fem ? -1 : 0)) + ' C' + (34 - jx * 0.4) + ' 72 28 62 27 50 C26 36 34 24 50 24 Z" fill="' + skin + '"' + st + '/>';
-    s += '<path d="M31 60 C36 70 44 74 50 74 C56 74 64 70 69 60 C64 72 56 76 50 76 C44 76 36 72 31 60 Z" fill="' + sh + '" opacity=".45"/>';
-    // pipi
-    s += '<circle cx="37" cy="61" r="4.5" fill="#e0624a" opacity="' + (fem ? .22 : .12) + '"/><circle cx="63" cy="61" r="4.5" fill="#e0624a" opacity="' + (fem ? .22 : .12) + '"/>';
-    // mata
-    var ey = 52, eyeRy = [3.4, 2.6, 3.8][ap.eyes | 0] || 3.2;
-    [[40, -1], [60, 1]].forEach(function (e) {
-      var ex = e[0];
-      if (acc === 'patch' && ex === 60) {
-        s += '<path d="M24 40 L76 48" stroke="#1a1210" stroke-width="1.6"/><ellipse cx="60" cy="52" rx="6" ry="5" fill="#1a1210"/>';
-        return;
-      }
-      s += '<ellipse cx="' + ex + '" cy="' + ey + '" rx="4.6" ry="' + eyeRy + '" fill="#fbf7ee" stroke="' + OUT + '" stroke-width="1.3"/>';
-      s += '<circle cx="' + (ex + 0.6) + '" cy="' + (ey + 0.3) + '" r="2.5" fill="' + iris + '"/><circle cx="' + (ex + 0.6) + '" cy="' + (ey + 0.3) + '" r="1.2" fill="#0e0906"/><circle cx="' + (ex - 0.4) + '" cy="' + (ey - 0.8) + '" r=".8" fill="#fff"/>';
-      s += '<path d="M' + (ex - 5) + ' ' + (ey - 1) + ' Q' + ex + ' ' + (ey - eyeRy - 2.4) + ' ' + (ex + 5) + ' ' + (ey - 1) + '" fill="none" stroke="' + OUT + '" stroke-width="' + (fem ? 2.2 : 1.6) + '"/>';
-      if (fem) s += '<path d="M' + (ex + e[1] * 4.6) + ' ' + (ey - 2) + ' l' + (e[1] * 2) + ' -1.6" stroke="' + OUT + '" stroke-width="1.4"/>';
-    });
-    // alis
-    var brow = opts.arch === 'pirate' || ap.role === 'bajak' ? 3 : (opts.arch === 'gambler' ? -2 : 0);
-    var bw = fem ? 1.8 : 3;
-    s += '<path d="M34 ' + (44 + brow * 0.3) + ' Q40 ' + (41 - (brow < 0 ? 2 : 0)) + ' 46 ' + (44 + brow * 0.6) + '" fill="none" stroke="' + (ap.hair === 4 ? '#6b6b6b' : hair) + '" stroke-width="' + bw + '"/>';
-    s += '<path d="M54 ' + (44 + brow * 0.6) + ' Q60 41 66 ' + (44 + brow * 0.3) + '" fill="none" stroke="' + (ap.hair === 4 ? '#6b6b6b' : hair) + '" stroke-width="' + bw + '"/>';
+    body += outfitSvg(style, M, T, { id: id, rim: rim, skinD: sD });
+    if (opts.medals) body += [[27, '#b8322a', '#f4efe4'], [32.2, '#2a5a9a', '#e0b64c'], [37.4, '#2a7a4a', '#f4efe4'], [42.6, '#6a2a7a', '#e0b64c']].map(function (m, i) {
+      return '<rect x="' + (m[0] - 2.3) + '" y="86.8" width="4.6" height="3" fill="' + m[1] + '"' + S('#1a0f08', 0.3) + '/><rect x="' + (m[0] - 0.7) + '" y="86.8" width="1.4" height="3" fill="' + m[2] + '"/>' +
+        P('M' + (m[0] - 1) + ' 89.8 L' + (m[0] + 1) + ' 89.8 L' + (m[0] + 0.6) + ' 91 L' + (m[0] - 0.6) + ' 91 Z', m[1]) + C(m[0], 92.8, 2, i % 2 ? '#d8dde2' : 'url(#' + id + 'gd)', S('#5a4a2a', 0.4)) +
+        P('M' + m[0] + ' 91.4 l.45 1 1 .1 -.75 .7 .25 1 -.95 -.5 -.95 .5 .25 -1 -.75 -.7 1 -.1 Z', i % 2 ? '#8a9098' : '#9a6a1c');
+    }).join('');
+    var nkS = neck === 'masker' ? '' : neckSvg(neck, { id: id, scarf: base === ARCH_OUTFIT.explorer ? '#b8402c' : '#b53a2a' });
+    body += nkS;
+    if (item === 'sword') body += P('M71 84 L75.4 85.6 L40 109 L33.6 109 Z', '#4a2e1a', S('#1e1008', 0.6)) + '<rect x="54" y="90.8" width="4" height="3.4" rx=".5" transform="rotate(-24 56 92.5)" fill="none"' + S('#e0b64c', 0.8) + '/>';
+    if (item === 'spyglass') body += G('<rect x="-15" y="-2.3" width="9" height="4.6" rx=".8" fill="url(#' + id + 'gd)"' + S('#6a4a14', 0.5) + '/><rect x="-6" y="-1.9" width="8" height="3.8" fill="#4a2e1a"' + S('#1e1008', 0.4) + '/>' + L('M-4 -1.9 L-2 1.9 M-1 -1.9 L1 1.9', '#6a4a2a', 0.6) +
+      '<rect x="2" y="-1.5" width="6.4" height="3" rx=".5" fill="url(#' + id + 'gd)"' + S('#6a4a14', 0.4) + '/><rect x="8.4" y="-1.1" width="4.6" height="2.2" rx=".5" fill="url(#' + id + 'gd)"' + S('#6a4a14', 0.4) + '/>' + E(-15, 0, 0.8, 2.3, '#8ab4c8', S('#6a4a14', 0.4)) + L('M-14 -1.6 L-7 -1.6', '#fff8d8', 0.5, 0.7), 'translate(22 90) rotate(-52) scale(1.3)');
+    s += FT ? G(body, FT) : body;
+
+    /* ---- hijab / tudung (kain di atas badan) ---- */
+    if (hijab) s += G(P('M50 13 C70 13.6 82 34 79.6 56 C80 66 82.4 74 86.6 81 C80 91 66 98.4 50 99.4 C34 98.4 20 91 13.4 81 C17.6 74 20 66 20.4 56 C18 34 30 13.6 50 13 Z', 'url(#' + id + 'hj)', S(mix(hijabC, '#000000', 0.5), 1)) +
+      L('M22 70 C28 84 40 92 50 93', mix(hijabC, '#000000', 0.4), 0.8, 0.35) + L('M78 70 C74 82 66 90 58 93', mix(hijabC, '#000000', 0.4), 0.8, 0.35) + L('M18 84 C26 90 36 94 46 95', mix(hijabC, '#000000', 0.4), 0.7, 0.3) + L('M26 30 C32 20 40 16 50 15', '#fff', 1.2, 0.18), HT);
+    if (H.over) s += G(H.over, HT);
+
+    /* ---- telinga ---- */
+    if (earVis) {
+      var ears = earSvg(W, -1, id, sD, sLine) + earSvg(W, 1, id, sD, sLine);
+      var lx = 50 - W - 1.2, rxx = 50 + W + 1.2, gdu = 'url(#' + id + 'gd)';
+      if (ear === 'hoop' || ear === 'hoop2') ears += C(lx, 63.8, 2.3, 'none', S('#6a4a14', 1.6)) + C(lx, 63.8, 2.3, 'none', S('#f0cc66', 0.9)) + C(rxx, 63.8, 2.3, 'none', S('#6a4a14', 1.6)) + C(rxx, 63.8, 2.3, 'none', S('#e0b64c', 0.9)) + (ear === 'hoop2' ? C(lx - 1.9, 57.6, 1.4, 'none', S('#6a4a14', 1.2)) + C(lx - 1.9, 57.6, 1.4, 'none', S('#f0cc66', 0.7)) + C(rxx + 1.9, 57.6, 1.4, 'none', S('#6a4a14', 1.2)) + C(rxx + 1.9, 57.6, 1.4, 'none', S('#e0b64c', 0.7)) : '');
+      else if (ear === 'pearl') ears += C(lx + 0.2, 61.4, 0.7, gdu) + L('M' + n(lx + 0.2) + ' 61.8 L' + n(lx + 0.2) + ' 63', '#c9a04a', 0.4) + E(lx + 0.2, 64.4, 1.4, 1.7, '#f6f2ea', S('#8a7c6a', 0.35)) + C(lx - 0.2, 63.9, 0.45, '#fff') + C(rxx - 0.2, 61.4, 0.7, gdu) + L('M' + n(rxx - 0.2) + ' 61.8 L' + n(rxx - 0.2) + ' 63', '#c9a04a', 0.4) + E(rxx - 0.2, 64.4, 1.4, 1.7, '#e8e2d6', S('#8a7c6a', 0.35));
+      else if (ear === 'stud') ears += C(lx + 0.2, 61.4, 1.1, gdu, S('#6a4a14', 0.3)) + C(lx + 0.2, 61.4, 0.55, '#3aa0d0') + C(lx, 61.1, 0.25, '#fff') + C(rxx - 0.2, 61.4, 1.1, gdu, S('#6a4a14', 0.3)) + C(rxx - 0.2, 61.4, 0.55, '#3aa0d0');
+      s += ears;
+    }
+
+    /* ---- wajah ---- */
+    var f = '<path d="' + fp + '" fill="url(#' + id + 'sk)"/>';
+    var sh = '';
+    // bayangan AO di bawah rambut / topi
+    var aoY = hijab ? 31 : (hood ? 28 : (head !== 'none' && hm.bot ? hm.bot - 1.2 : H.hl - 1.2));
+    if (!H.bald || head !== 'none') sh += '<rect x="20" y="' + n(aoY) + '" width="60" height="' + (head === 'caping' || head === 'kapten' || head === 'tricorne' || head === 'brim' || head === 'plumed' ? 9 : 6) + '" fill="url(#' + id + 'ao)"/>';
+    sh += E(50 + W + 2, 54, 8, 26, sD, O(0.32)); // sisi bayangan kanan
+    sh += L('M' + n(50 - J + 1) + ' 64 C' + n(50 - J + 4) + ' 72 ' + n(50 - 8) + ' ' + n(chinY - 1.4) + ' 50 ' + n(chinY - 1) + ' C' + n(50 + 8) + ' ' + n(chinY - 1.4) + ' ' + n(50 + J - 4) + ' 72 ' + n(50 + J - 1) + ' 64', sD, 2.6, 0.28);
+    sh += P('M34 58 C36 62 39 64 42 64.6 C39 62.6 36.6 60.6 35 57 Z', sD, O(0.22)) + P('M66 58 C64 62 61 64 58 64.6 C61 62.6 63.4 60.6 65 57 Z', sD, O(0.3)); // tulang pipi
+    sh += E(40.5, 48.2, 5.6, 2.2, sD, O(0.14)) + E(59.5, 48.2, 5.6, 2.2, sD, O(0.18)); // cekung mata
+    sh += E(44, 38, 9, 5, sL, O(0.35)); // kilau dahi
+    if (H.bald && head === 'none') sh += '<ellipse cx="41" cy="26.4" rx="7.4" ry="3.2" transform="rotate(-24 41 26.4)" fill="#fff" opacity=".3"/>' + E(50, 23, 14, 3, sDD, O(0.08));
+    sh += L(fp, rim, 1.6, 0.0) + '<path d="M' + n(50 + W - 0.6) + ' 40 C' + n(50 + W - 0.2) + ' 52 ' + n(50 + W - 1.6) + ' 60 ' + n(50 + J - 0.4) + ' 64.4 C' + n(50 + J - 2.6) + ' 70 ' + n(50 + Q + 2) + ' ' + n(chinY - 1.4) + ' 52 ' + n(chinY - 0.6) + '" fill="none"' + S(rim, 1.2) + O(0.4) + '/>';
+    // pipi merona
+    sh += E(38.2, 60.4, 5.2, 3.4, 'url(#' + id + 'bl)', O(fem ? 0.5 : 0.2)) + E(61.8, 60.4, 5.2, 3.4, 'url(#' + id + 'bl)', O(fem ? 0.5 : 0.2));
+    // tanda di wajah (di bawah fitur)
+    if (mark === 'freckles') { var fr = [[43, 57.4], [45, 58.6], [41.4, 59.4], [44, 60.6], [39.4, 57.8], [57, 57.4], [55, 58.6], [58.6, 59.4], [56, 60.6], [60.6, 57.8], [47.6, 57], [52.4, 57], [38, 60.4], [62, 60.4]]; fr.forEach(function (p, i) { sh += C(p[0], p[1], 0.36 + (i % 3) * 0.08, mix(s0, '#7a3a1a', 0.5), O(0.65)); }); }
+    if (mark === 'tattoo') sh += L('M66.4 56.6 C64.4 60.4 64.6 64 67 66.6', '#1f3a44', 0.8, 0.6) + L('M69 55.4 C67 60 67.2 65 69.6 68', '#1f3a44', 0.6, 0.55) + C(63.8, 58, 0.45, '#1f3a44', O(0.6)) + C(64.2, 61.4, 0.45, '#1f3a44', O(0.6));
+    if (mark === 'warpaint') sh += both(L('M31.6 57.8 L39.2 58.8', '#b8322a', 1.4, 0.85) + L('M32.4 60.8 L39.4 61.4', '#b8322a', 1.4, 0.85) + L('M33.6 63.6 L38.4 63.8', '#f4efe4', 1, 0.8));
+    if (mark === 'scar_cheek') sh += L('M33.6 56.6 L39.6 65.4', mix(s0, '#9a3a30', 0.6), 1.6, 0.9) + L('M33.9 56.9 L39.3 65', mix(s0, '#ffe8dc', 0.4), 0.5, 0.8) + L('M34.4 59.6 l1.8 -1 M36 62 l1.8 -1 M37.6 64.2 l1.7 -.9', mix(s0, '#8a3a2a', 0.5), 0.5, 0.6);
+    if (mark === 'mole') sh += C(57.6, 67, 0.6, '#3a2014');
+    if (opts.clown) sh += P('M40.5 41.2 L45 51.6 L40.5 61.6 L36 51.6 Z', '#fbf8f2', O(0.95)) + P('M59.5 41.2 L64 51.6 L59.5 61.6 L55 51.6 Z', '#fbf8f2', O(0.95)) + L('M40.5 58.6 L40.5 60.4 M59.5 58.6 L59.5 60.4', '#2f6fb3', 1);
+    // usia
+    var age = ap.age || 0;
+    if (age > 0.72) sh += L('M42 39.6 Q50 38.4 58 39.6 M44 42 Q50 41.2 56 42', sDD, 0.6, 0.25) + both(L('M33 50.4 l-1.6 -.8 M33.2 52.2 l-1.8 .2 M33 54 l-1.4 .9', sDD, 0.5, 0.4));
+    if (age > 0.6 || (!fem && !opts.clown)) sh += both(L('M45.2 62.8 C43.6 64.8 43 67 43.6 69.4', sDD, 0.7, age > 0.6 ? 0.4 : 0.12));
+    f += '<g clip-path="url(#' + id + 'fc)">' + sh + '</g>';
+    if (opts.fat) f += P('M33 74 C37 83.6 44 87.4 50 87.4 C56 87.4 63 83.6 67 74 C62 80.6 56 83.2 50 83.2 C44 83.2 38 80.6 33 74 Z', 'url(#' + id + 'sk)', S(sLine, 0.7)) + L('M39 82.4 C44 85.6 56 85.6 61 82.4', sD, 0.9, 0.45) + L('M31 64 C32 69 34 72 37 74.4 M69 64 C68 69 66 72 63 74.4', sD, 0.9, 0.4);
+    f += '<path d="' + fp + '" fill="none"' + S(sLine, 1.1) + '/>';
+
+    /* ---- fitur ---- */
+    var patch = eye === 'patch';
+    var brT = (base === ARCH_OUTFIT.pirate || base === ARCH_OUTFIT.smuggler || ap.role === 'bajak') ? 1 : 0;
+    f += eyeSvg(40.5, -1, ap.eyes | 0, fem, irisC, id, sDD, false, sD);
+    f += eyeSvg(59.5, 1, ap.eyes | 0, fem, irisC, id, sDD, patch, sD);
+    f += browSvg(40.5, -1, ap.brows | 0, fem, browC, brT, base === ARCH_OUTFIT.gambler ? 0 : 0);
+    f += browSvg(59.5, 1, ap.brows | 0, fem, browC, brT, base === ARCH_OUTFIT.gambler ? 1.4 : 0);
     // hidung
-    s += '<path d="M50 53 C49 58 47 61 48 62.5 C49.5 63.5 52 63 53 62" fill="none" stroke="' + OUT + '" stroke-width="1.4"/>';
-    // kumis/jenggot
-    var fac = fem ? 0 : ap.facial | 0;
-    if (fac === 2 || fac === 3) s += '<path d="M31 60 C34 72 42 78 50 78 C58 78 66 72 69 60 C66 70 60 74 50 74 C40 74 34 70 31 60 Z" fill="' + hair + '" opacity="' + (fac === 3 ? 1 : .55) + '"' + (fac === 3 ? st : '') + '/>';
-    if (fac === 3) s += '<path d="M36 70 C40 82 60 82 64 70 C60 78 40 78 36 70Z" fill="' + hair + '"/>';
+    var nw = 3.3 + ((seed >> 5) % 3) * 0.25;
+    f += L('M52.4 50.6 C53 54 53.8 57.4 54 60', sD, 1.6, 0.35) + L('M48.8 51 C48.5 55 48.6 58 49 60', sL, 1.1, 0.4) +
+      L('M' + n(50 - nw) + ' 61.2 C' + n(50 - nw - 0.4) + ' 62.8 ' + n(50 - nw + 0.8) + ' 63.8 ' + n(50 - nw + 2) + ' 63.4 C49.4 64 50.6 64 ' + n(50 + nw - 2) + ' 63.4 C' + n(50 + nw - 0.8) + ' 63.8 ' + n(50 + nw + 0.4) + ' 62.8 ' + n(50 + nw) + ' 61.2', sDD, 0.9, 0.7) +
+      E(48.4, 63, 0.75, 0.45, sDD, O(0.5)) + E(51.6, 63, 0.75, 0.45, sDD, O(0.5)) + C(49.6, 60.8, 1.1, '#fff', O(0.24)) + E(50, 64.8, 3, 0.9, sD, O(0.28));
+    if (opts.clown) f += C(50, 61.4, 3.4, '#e0342a', S('#8a1a14', 0.6)) + C(48.8, 60.2, 1, '#fff', O(0.75));
     // mulut
-    var smile = ap.role ? 1 : (opts.arch === 'smuggler' ? 0 : 1);
-    if (opts.arch === 'adventurer' || ap.role === 'lapau') s += '<path d="M43 67 Q50 73 57 67 Z" fill="#fbf7ee" stroke="' + OUT + '" stroke-width="1.4"/>';
-    else s += '<path d="M43 ' + (67 - smile * 0.3) + ' Q50 ' + (67 + smile * 3.4) + ' 57 ' + (67 - smile * 0.3) + '" fill="none" stroke="' + OUT + '" stroke-width="1.6"/>';
-    if (fem) s += '<path d="M45 68.4 Q50 70.4 55 68.4" fill="none" stroke="#b8453a" stroke-width="1.6" opacity=".7"/>';
-    if (fac === 1 || fac === 4) s += '<path d="M40 ' + (65.5 - (fac === 4 ? .5 : 0)) + ' C44 62 48 63.5 50 64.5 C52 63.5 56 62 60 ' + (65.5 - (fac === 4 ? .5 : 0)) + ' C56 ' + (fac === 4 ? 68.5 : 66.5) + ' 52 65.5 50 66 C48 65.5 44 ' + (fac === 4 ? 68.5 : 66.5) + ' 40 65.5 Z" fill="' + hair + '"' + st + '/>';
-    if (opts.arch === 'pirate' || ap.role === 'bajak') s += '<path d="M33 48 L38 60" stroke="#a0453a" stroke-width="1.4" opacity=".8"/>';
-    // rambut depan
-    if (head !== 'hijab' && head !== 'hood') {
-      var hp;
-      if (fem) {
-        hp = ['M27 48 C25 28 38 20 50 20 C62 20 75 28 73 48 C70 38 64 32 54 32 C48 36 38 36 30 40 Z',
-              'M26 52 C24 28 38 20 50 20 C62 20 76 28 74 52 C70 38 62 30 50 32 C40 32 30 40 26 52 Z',
-              'M27 50 C25 28 38 20 50 20 C62 20 75 28 73 50 C68 36 58 30 50 31 C42 30 32 36 27 50 Z',
-              'M26 52 C22 28 38 18 50 19 C64 19 78 28 74 50 C70 40 62 34 54 34 C46 34 38 38 26 52 Z',
-              'M27 48 C25 28 38 20 50 20 C62 20 75 28 73 48 L70 42 L64 44 L58 40 L52 44 L46 40 L40 44 L34 40 L30 44 Z',
-              'M27 48 C25 28 38 20 50 20 C62 20 75 28 73 48 C68 34 58 30 48 32 C40 34 32 38 27 48 Z'][hsIdx % 6];
-        s += '<path d="' + hp + '" fill="' + hair + '"' + st + '/>';
-        if (hsIdx === 0) s += '<circle cx="50" cy="16" r="8" fill="' + hair + '"' + st + '/><path d="M44 16 h12" stroke="#e0b64c" stroke-width="1.6"/>';
-        if (hsIdx === 5) s += '<path d="M72 34 C84 38 86 54 80 64 C78 52 76 44 70 40 Z" fill="' + hair + '"' + st + '/>';
-        if (hsIdx === 2) s += '<path d="M73 48 C78 60 76 72 72 82" fill="none" stroke="' + hair + '" stroke-width="5"/><path d="M73 48 C78 60 76 72 72 82" fill="none" stroke="' + hs + '" stroke-width="1" stroke-dasharray="3 3"/>';
-      } else {
-        hp = ['M27 46 C26 28 38 21 50 21 C62 21 74 28 73 46 C70 36 62 32 50 33 C40 33 31 37 27 46 Z',
-              'M27 47 C25 27 40 20 52 21 C64 22 75 30 73 46 C68 34 58 30 44 36 C38 38 31 40 27 47 Z',
-              'M28 44 C27 26 40 20 50 20 C62 20 74 27 72 44 C66 32 58 29 50 29 C42 29 34 32 28 44 Z',
-              'M27 48 L26 34 L32 30 L34 22 L42 26 L48 18 L54 25 L62 20 L66 28 L73 30 L73 48 C68 36 60 32 50 33 C40 33 32 37 27 48 Z',
-              'M26 50 C24 28 38 20 50 20 C62 20 76 28 74 50 C70 36 60 31 50 32 C40 31 30 36 26 50 Z',
-              ''][hsIdx % 6];
-        if (hp) s += '<path d="' + hp + '" fill="' + hair + '"' + st + '/>';
-        else s += '<path d="M34 30 C40 26 60 26 66 30" fill="none" stroke="' + hs + '" stroke-width="1.2" opacity=".5"/>';
-        if (hp) s += '<path d="M36 30 C42 27 52 26 60 28" fill="none" stroke="' + hs + '" stroke-width="1.4" opacity=".6"/>';
-      }
-    }
-    // penutup kepala
-    var tr = outfit.trim;
-    switch (head) {
-      case 'peci': s += '<path d="M31 32 L33 18 C40 15 60 15 67 18 L69 32 C60 29 40 29 31 32 Z" fill="#1a1512"' + st + '/><path d="M33 22 C42 20 58 20 67 22" stroke="#3a302a" stroke-width="1.2" fill="none"/>'; break;
-      case 'tricorne': s += '<path d="M12 32 Q24 22 34 24 Q42 12 50 12 Q58 12 66 24 Q76 22 88 32 Q72 40 50 44 Q28 40 12 32 Z" fill="#1e1a18"' + st + '/><path d="M16 32 Q30 39 50 42 Q70 39 84 32" stroke="' + tr + '" stroke-width="2" fill="none"/><path d="M34 25 Q50 20 66 25" stroke="#3a302a" stroke-width="1.2" fill="none"/>'; break;
-      case 'bandana': s += '<path d="M26 40 C26 22 38 16 50 16 C62 16 74 22 74 40 C64 34 36 34 26 40 Z" fill="#b23a2a"' + st + '/><circle cx="36" cy="28" r="1.4" fill="#f4e7c8"/><circle cx="50" cy="23" r="1.4" fill="#f4e7c8"/><circle cx="63" cy="29" r="1.4" fill="#f4e7c8"/><path d="M74 38 L86 46 L80 50 Z M74 38 L84 34 L86 40 Z" fill="#b23a2a"' + st + '/>'; break;
-      case 'brim': s += '<path d="M12 38 C24 30 76 30 88 38 C76 44 24 44 12 38 Z" fill="#7a6438"' + st + '/><path d="M30 36 C30 20 40 14 50 14 C60 14 70 20 70 36 Z" fill="#8a7444"' + st + '/><path d="M30 32 H70" stroke="#4a3a20" stroke-width="3"/>'; break;
-      case 'bowler': s += '<path d="M22 36 C32 32 68 32 78 36 C68 40 32 40 22 36 Z" fill="#1a1512"' + st + '/><path d="M32 35 C32 20 40 14 50 14 C60 14 68 20 68 35 Z" fill="#221c18"' + st + '/><path d="M32 30 H68" stroke="' + tr + '" stroke-width="2.4"/>' + (acc === 'card' ? '<rect x="58" y="20" width="7" height="10" rx="1" fill="#fbf7ee" stroke="' + OUT + '" stroke-width="1" transform="rotate(12 61 25)"/><path d="M60 24 l2 2 l2 -2" stroke="#b23a2a" stroke-width="1" fill="none" transform="rotate(12 61 25)"/>' : ''); break;
-      case 'blangkon': s += '<path d="M27 38 C26 20 38 15 50 15 C62 15 74 20 73 38 C64 33 36 33 27 38 Z" fill="#5a3a1e"' + st + '/><path d="M32 24 L40 32 M44 20 L52 30 M56 20 L64 30 M62 24 L68 32" stroke="#c9a04a" stroke-width="1.3"/><ellipse cx="74" cy="42" rx="5" ry="6" fill="#5a3a1e"' + st + '/>'; break;
-      case 'headband': s += '<path d="M27 40 C36 34 64 34 73 40 L73 45 C64 39 36 39 27 45 Z" fill="#c2452f"' + st + '/><path d="M73 42 L84 38 M73 43 L82 50" stroke="#c2452f" stroke-width="3" stroke-linecap="round"/>'; break;
-      case 'hijab': s += '<path d="M24 50 C22 26 36 16 50 16 C64 16 78 26 76 50 C72 36 64 30 50 30 C36 30 28 36 24 50 Z" fill="' + tr + '"' + st + '/><path d="M24 50 C26 64 34 76 50 80 C66 76 74 64 76 50 C74 66 66 74 50 77 C34 74 26 66 24 50 Z" fill="' + tr + '"' + st + '/><path d="M30 34 C40 28 60 28 70 34" stroke="' + U.shadeHex(tr, -30) + '" stroke-width="1.2" fill="none"/>'; break;
-      case 'hood': s += '<path d="M24 56 C22 32 36 20 50 20 C64 20 78 32 76 56 C72 40 62 34 50 34 C38 34 28 40 24 56 Z" fill="' + U.shadeHex(outfit.coat, 16) + '"' + st + '/>'; break;
-      case 'caping': s += '<path d="M8 40 L50 10 L92 40 C70 44 30 44 8 40 Z" fill="#d8b86a"' + st + '/><path d="M20 36 L50 14 L80 36" stroke="#a88a3a" stroke-width="1" fill="none"/>'; break;
-    }
-    if (acc === 'glasses') s += '<circle cx="40" cy="52" r="6" fill="none" stroke="#3a2a18" stroke-width="1.6"/><circle cx="60" cy="52" r="6" fill="none" stroke="#3a2a18" stroke-width="1.6"/><path d="M46 52 H54" stroke="#3a2a18" stroke-width="1.6"/>';
-    if (acc === 'mask') s += '<path d="M30 60 C36 58 64 58 70 60 L68 72 C60 78 40 78 32 72 Z" fill="#3a332c"' + st + '/>';
-    // riasan badut (opts.clown): cat putih di mata, hidung merah, senyum merah
-    if (opts.clown) {
-      s += '<path d="M33 44 L40 38 L47 44 L40 58 Z M53 44 L60 38 L67 44 L60 58 Z" fill="#fbf7ee" opacity=".55"/>';
-      s += '<path d="M40 60 L40 64 M60 60 L60 64" stroke="#2f6fb3" stroke-width="1.6"/>';
-      s += '<path d="M41 68 Q50 76 59 68" fill="none" stroke="#d63a2f" stroke-width="2.6" stroke-linecap="round"/>';
-      s += '<circle cx="50" cy="60" r="4.6" fill="#e0342a" stroke="' + OUT + '" stroke-width="1.2"/><circle cx="48.6" cy="58.4" r="1.3" fill="#fff" opacity=".8"/>';
-    }
-    // tanda jasa di dada (opts.medals)
-    if (opts.medals) {
-      [[30, '#e0b64c'], [37, '#c2452f'], [44, '#2f7fa3']].forEach(function (m) { s += '<rect x="' + (m[0] - 2.5) + '" y="84" width="5" height="3" fill="' + m[1] + '"/><circle cx="' + m[0] + '" cy="91" r="2.6" fill="#e0b64c" stroke="' + OUT + '" stroke-width=".8"/>'; });
-    }
-    s += '</svg>';
-    return s;
+    var smile = (base === ARCH_OUTFIT.smuggler) ? 0.15 : 0.8, grin = !opts.clown && (base === ARCH_OUTFIT.adventurer || ap.role === 'lapau'), smirk = base === ARCH_OUTFIT.pirate || ap.role === 'bajak' || base === ARCH_OUTFIT.gambler;
+    f += mouthSvg(fem, s0, sDD, sD, sL, smile, grin, smirk, opts.clown);
+    // kumis/jenggot
+    var fac = fem ? 0 : Math.max(0, Math.min(9, ap.facial | 0));
+    if (fac) f += beard(fac, ctx, U.rng(seed + 5));
+    if (mark === 'scar_eye') f += L('M62 41.6 L58.6 60.6', mix(s0, '#9a3a30', 0.6), 1.6, 0.9) + L('M61.8 42 L58.8 60.2', mix(s0, '#ffe8dc', 0.4), 0.5, 0.8) + L('M59.8 45.6 l1.8 .4 M59.2 50 l1.8 .4 M58.8 55.4 l1.8 .4', mix(s0, '#8a3a2a', 0.5), 0.5, 0.6);
+    if (opts.clown) f += P('M40.6 67.6 Q50 77 59.4 67.6 Q58.6 72.2 50 74.6 Q41.4 72.2 40.6 67.6 Z', '#d6302a', O(0.92)) + L('M42.6 68.6 Q50 74 57.4 68.6', '#5a1010', 0.9);
+    if (neck === 'masker') f += G(P('M29.2 59.6 C34 57.2 44 57.4 50 58 C56 57.4 66 57.2 70.8 59.6 C70.6 67 67 74.6 60 78.6 C56.6 80.6 53 81.4 50 81.4 C47 81.4 43.4 80.6 40 78.6 C33 74.6 29.4 67 29.2 59.6 Z', 'url(#' + id + 'mk)', S('#140e0a', 0.9)) +
+      L('M46.4 60.8 Q50 58.4 53.6 60.8', '#fff', 0.8, 0.2) + L('M33 66 C40 67.6 60 67.6 67 66 M35 71 C42 72.6 58 72.6 65 71', '#000', 0.6, 0.3) + L('M29.4 60.4 C28 57 27.2 54 27 50.6 M70.6 60.4 C72 57 72.8 54 73 50.6', '#2a241e', 0.9), HT);
+    if (neck === 'masker') d += lin(id + 'mk', 30, 58, 70, 82, [[0, '#5a5048'], [0.5, '#3a332c'], [1, '#1e1a16']]);
+    if (item === 'pipe' && neck !== 'masker') f += L('M54 70.4 C57 72.2 60 74.4 62.2 77', '#3a2414', 1.6) + L('M54 70.2 C57 72 60 74.2 62.2 76.8', '#8a5a2e', 0.9) +
+      P('M60.6 75.6 L66.2 74.8 L65.6 80.6 C64.6 82.2 62 82.2 61.4 80.6 Z', 'url(#' + id + 'pp)', S('#2a1408', 0.6)) + E(63.4, 75.2, 2.7, 0.8, '#2a1408') + C(63.6, 75.1, 0.7, '#f08a30', O(0.9)) +
+      L('M63.6 73.6 C61.6 70 65.6 67 63.6 63 C62.2 60 64.8 57 63.8 54', '#eeece6', 1.2, 0.35) + L('M64.6 73 C66.4 70 64.4 67.4 66.2 64.4', '#eeece6', 0.7, 0.25);
+    if (eye === 'patch') d += lin(id + 'pt', 0, 0, 1, 1, [[0, '#3a302a'], [1, '#0e0a08']], 1);
+    if (item === 'pipe') d += lin(id + 'pp', 0, 0, 1, 1, [[0, '#a8703a'], [1, '#4a2a14']], 1);
+    s += f;
+
+    /* ---- rambut depan ---- */
+    if (H.front) s += G(cap > 1 ? '<g clip-path="url(#' + id + 'cp)">' + H.front + '</g>' : H.front, HT);
+    if (hijab) s += G(P('M50 13 C70 13.6 82 34 79.6 56 C79 70 70 84 50 86.6 C30 84 21 70 20.4 56 C18 34 30 13.6 50 13 Z M50 31.4 C40 31.4 33 36 31.4 46 C30.4 55 32 66 37 73 C41 78.6 45.6 80.6 50 80.6 C54.4 80.6 59 78.6 63 73 C68 66 69.6 55 68.6 46 C67 36 60 31.4 50 31.4 Z', 'url(#' + id + 'hj)', ' fill-rule="evenodd"' + S(mix(hijabC, '#000000', 0.5), 1)) +
+      P('M32.4 41 C34.6 34.4 42 31.4 50 31.4 C58 31.4 65.4 34.4 67.6 41 C63 36.6 57 34.8 50 34.8 C43 34.8 37 36.6 32.4 41 Z', mix(hijabC, '#ffffff', 0.45), S(mix(hijabC, '#000000', 0.4), 0.5)) +
+      L('M31.6 46 C30.6 55 32.2 66 37.2 73 C41.2 78.6 45.6 80.4 50 80.4 C54.4 80.4 58.8 78.6 62.8 73 C67.8 66 69.4 55 68.4 46', mix(hijabC, '#000000', 0.45), 1.6, 0.35) +
+      L('M24 40 C26 30 34 20 44 17', '#fff', 1.2, 0.2) + L('M66 76 C72 70 76 62 77 52', mix(hijabC, '#000000', 0.4), 0.7, 0.4) + C(66, 76.6, 1.1, '#f6f2ea', S('#a89c8a', 0.4)) + C(65.7, 76.3, 0.35, '#fff'), HT);
+
+    /* ---- kacamata ---- */
+    var gd = 'url(#' + id + 'gd)';
+    if (eye === 'patch') s += L('M55.4 49 L38 35 L30 31', '#1a1210', 1.3) + L('M64.6 50.6 L72 49.2', '#1a1210', 1.3) +
+      P('M53.8 47.8 C56 46 63.2 45.8 65.6 48.4 C66.6 51.8 65.2 56.4 59.5 57.6 C54.8 56.4 53 51.6 53.8 47.8 Z', 'url(#' + id + 'pt)', S('#050302', 0.7)) + L('M55.2 49 C57.4 47.8 62.6 47.6 64.4 49.4', '#fff', 0.6, 0.2) + L('M54.8 49.4 C54.4 52.6 56 55.6 59.5 56.6 C63 55.6 64.8 52.6 64.8 49.4', '#6a5a4a', 0.4, 0.5, ' stroke-dasharray=".8 .7"') + C(59.5, 52, 0.55, gd, O(0.85));
+    else if (eye === 'monocle') s += C(59.5, 51.6, 5.2, '#dfe8ee', O(0.14)) + C(59.5, 51.6, 5.2, 'none', S(gd, 1.1)) + L('M56 48.8 A4.2 4.2 0 0 1 61 47.2', '#fff', 0.6, 0.6) + L('M64.4 54 C66 62 67.6 70 66 80', gd, 0.6, 0.9, ' stroke-dasharray=".9 .5"');
+    else if (eye === 'glasses') s += C(40.5, 51.6, 5.3, '#e8f0f2', O(0.12)) + C(59.5, 51.6, 5.3, '#e8f0f2', O(0.12)) + C(40.5, 51.6, 5.3, 'none', S('#3a2618', 1)) + C(59.5, 51.6, 5.3, 'none', S('#3a2618', 1)) +
+      L('M45.6 50.8 Q50 49.2 54.4 50.8 M35.2 50.6 L29.4 49.6 M64.8 50.6 L70.6 49.6', '#3a2618', 1) + L('M37 49.2 L39.6 47.4 M56 49.2 L58.6 47.4', '#fff', 0.8, 0.45);
+    else if (eye === 'halfmoon') s += both(P('M35.2 53.8 L45.8 53.8 C45.6 57.4 43.4 59.2 40.5 59.2 C37.6 59.2 35.4 57.4 35.2 53.8 Z', '#e8f0f2', O(0.14)) + P('M35.2 53.8 L45.8 53.8 C45.6 57.4 43.4 59.2 40.5 59.2 C37.6 59.2 35.4 57.4 35.2 53.8 Z', 'none', S(gd, 0.9)) + L('M35.2 54 L29.4 51.6', gd, 0.8)) + L('M45.8 54.2 Q50 52.8 54.2 54.2', gd, 0.8);
+
+    /* ---- topi ---- */
+    if (head !== 'none' && head !== 'hijab') s += G(hatFront(head, { id: id, trim: T, card: item === 'card', hoodLine: mix(hoodC, '#000000', 0.55) }), HT);
+
+    /* ---- burung beo ---- */
+    if (item === 'parrot') s += G(P('M80 86 C82 92 84 97 86 109 L90.4 109 C88.4 95 85.4 90 83 85 Z', '#2b64b8', S('#12305a', 0.6)) +
+      P('M74.6 74 C74 68 77.6 63.4 82 63.4 C86.6 63.4 89 67.6 88.6 72.6 C88 79 85.6 85 81 88.6 C77 86 75 80 74.6 74 Z', 'url(#' + id + 'pr)', S('#5a0e0a', 0.7)) +
+      P('M79 74 C82.6 72 87.6 73 88.6 76.6 C88 81 85 85.6 81.6 88 C80 84 79 79 79 74 Z', 'url(#' + id + 'pw)', S('#12305a', 0.5)) + L('M80.6 77 C83 76.4 85.6 77 87 78.4 M80.8 80.4 C83 80 85 80.6 86 81.6', '#12305a', 0.5, 0.5) +
+      E(79.6, 67.4, 2.7, 2.3, '#fbf3ea') + L('M78 68.4 l.8 .2 M78.4 69.6 l.8 .1', '#d8c8b8', 0.4) + C(79.4, 67.2, 1.15, '#1a1210') + C(79, 66.8, 0.4, '#fff') +
+      P('M77.6 66.4 C74.2 65.6 72 68.4 72.8 71.6 C73.4 70.4 74.6 69.8 76 70 L77.8 69.6 Z', '#f2ebdf', S('#6a5a4a', 0.5)) + P('M76 70 C75.2 70.8 75.4 72 76.6 72.4 C77.6 71.8 78 70.8 77.8 69.6 Z', '#2a2420') +
+      L('M78 88 q1 1.6 2.4 .6 M82 88.2 q1 1.6 2.4 .4', '#5a5a5a', 0.8) + P('M82 63.6 C83.6 62 86 62 87.4 63.6 C85.6 63.2 84 63.6 82.8 64.6 Z', '#fff', O(0.35)), FT);
+    if (item === 'parrot') d += lin(id + 'pr', 76, 63, 88, 88, [[0, '#f0503a'], [0.6, '#d42a20'], [1, '#8a1410']]) + lin(id + 'pw', 80, 72, 86, 88, [[0, '#f2c230'], [0.35, '#3aa05a'], [0.7, '#2b64b8'], [1, '#1a3a7a']]);
+
+    s = s.slice(0, bgEnd) + '<g transform="matrix(.93 0 0 .93 3.5 1)">' + s.slice(bgEnd) + '</g>';
+    if (opts.frame) s += '<rect x="1.4" y="1.4" width="97.2" height="97.2" rx="7" fill="none" stroke="url(#' + id + 'gd)" stroke-width="1.4"/><rect x="3.4" y="3.4" width="93.2" height="93.2" rx="5.4" fill="none" stroke="#fff3c8" stroke-opacity=".25" stroke-width=".5"/>';
+    d += '</defs>';
+    return '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="face-svg">' + d + s + '</svg>';
   }
 
-  return { svg: svg, defaults: defaults, npc: npc, sanitize: sanitize, SKIN: SKIN, HAIR: HAIR, HAIR_M: HAIR_M, HAIR_F: HAIR_F, FACIAL: FACIAL, HEADS: HEADS, ARCH_OUTFIT: ARCH_OUTFIT };
+  function facePath(W, J, chinY, Q, fem) {
+    var t = 21, R = 50 + W, Lx = 50 - W, jc = fem ? 3.4 : 2.4;
+    return 'M50 ' + t + ' C' + n(50 + W * 0.58) + ' ' + t + ' ' + n(R) + ' ' + (t + 8.5) + ' ' + n(R) + ' 43' +
+      ' C' + n(R) + ' 51 ' + n(R - 0.7) + ' 57.5 ' + n(50 + J) + ' 63' +
+      ' C' + n(50 + J - jc) + ' 69.8 ' + n(50 + Q) + ' ' + n(chinY - 0.2) + ' 50 ' + chinY +
+      ' C' + n(50 - Q) + ' ' + n(chinY - 0.2) + ' ' + n(50 - J + jc) + ' 69.8 ' + n(50 - J) + ' 63' +
+      ' C' + n(Lx + 0.7) + ' 57.5 ' + n(Lx) + ' 51 ' + n(Lx) + ' 43' +
+      ' C' + n(Lx) + ' ' + (t + 8.5) + ' ' + n(50 - W * 0.58) + ' ' + t + ' 50 ' + t + ' Z';
+  }
+  function earSvg(W, s, id, sD, sLine) {
+    var x = 50 + s * (W - 0.8);
+    function X(dx) { return n(x + s * dx); }
+    return P('M' + X(0) + ' 48.4 C' + X(3.2) + ' 45.4 ' + X(5.6) + ' 48 ' + X(5) + ' 53 C' + X(4.6) + ' 57.6 ' + X(3.2) + ' 61.6 ' + X(0.6) + ' 61.8 C' + X(-0.6) + ' 61.8 ' + X(-1) + ' 60 ' + X(-0.8) + ' 58 Z', 'url(#' + id + 'sk)', S(sLine, 0.9)) +
+      P('M' + X(0.9) + ' 50.4 C' + X(3.2) + ' 48.8 ' + X(4) + ' 51.4 ' + X(3.4) + ' 54.6 C' + X(3) + ' 56.8 ' + X(2) + ' 57.6 ' + X(1) + ' 57 C' + X(2) + ' 55 ' + X(2.2) + ' 52.6 ' + X(0.9) + ' 50.4 Z', sD, O(0.55)) +
+      L('M' + X(1.2) + ' 49.8 C' + X(3.6) + ' 48.4 ' + X(4.6) + ' 51 ' + X(4) + ' 54.6', sLine, 0.6, 0.55) + (s > 0 ? P('M' + X(0) + ' 48.4 C' + X(3.2) + ' 45.4 ' + X(5.6) + ' 48 ' + X(5) + ' 53 C' + X(4.6) + ' 57.6 ' + X(3.2) + ' 61.6 ' + X(0.6) + ' 61.8 Z', sD, O(0.25)) : '');
+  }
+  var EYE_SH = [{ up: 3.3, lo: 2.0, tilt: 0 }, { up: 2.0, lo: 1.3, tilt: 0.5 }, { up: 3.9, lo: 2.6, tilt: 0 }, { up: 2.7, lo: 1.6, tilt: 1.2 }, { up: 2.8, lo: 2.1, tilt: -0.9 }];
+  function eyeSvg(ex, s, shape, fem, irisC, id, sDD, closed, sD) {
+    var e = EYE_SH[shape] || EYE_SH[0], ey = EY, hw = fem ? 4.4 : 4.2, up = e.up * (fem ? 1 : 0.92) + (fem ? 0.25 : 0), lo = e.lo, tilt = e.tilt;
+    var xi = ex - s * hw, yi = ey + 0.3, xo = ex + s * hw, yo = ey - tilt;
+    if (closed) return '';
+    var upper = 'M' + n(xi) + ' ' + n(yi) + ' C' + n(xi + s * hw * 0.45) + ' ' + n(ey - up * 1.05) + ' ' + n(xo - s * hw * 0.35) + ' ' + n(ey - up - tilt * 0.5) + ' ' + n(xo) + ' ' + n(yo);
+    var lower = ' C' + n(xo - s * hw * 0.3) + ' ' + n(ey + lo - tilt * 0.3) + ' ' + n(xi + s * hw * 0.4) + ' ' + n(ey + lo) + ' ' + n(xi) + ' ' + n(yi) + ' Z';
+    var cid = id + 'e' + (s > 0 ? 1 : 0), ig = id + 'ir';
+    var o = '<clipPath id="' + cid + '"><path d="' + upper + lower + '"/></clipPath>';
+    if (s < 0) o += '<radialGradient id="' + ig + '" cx="0.45" cy="0.4" r="0.6">' + stops([[0, mix(irisC, '#ffffff', 0.35)], [0.6, irisC], [1, mix(irisC, '#000000', 0.55)]]) + '</radialGradient>';
+    o += P(upper + lower, '#f6f1e8');
+    o += '<g clip-path="url(#' + cid + ')">' + C(ex + s * 0.1, ey + 0.2, 2.6, 'url(#' + ig + ')') + C(ex + s * 0.1, ey + 0.2, 1.15, '#120a06') +
+      C(ex - 0.9, ey - 0.9, 0.8, '#fff') + C(ex + 1, ey + 0.9, 0.38, '#fff', O(0.8)) + L(upper, sDD, 1.8, 0.28) + '</g>';
+    var lw = fem ? 1.5 : 1.25;
+    o += L(upper, '#2a160c', lw) + L('M' + n(xo) + ' ' + n(yo) + ' q' + n(s * 1.2) + ' ' + n(-0.2) + ' ' + n(s * (fem ? 2.2 : 1.4)) + ' ' + n(fem ? -1.4 : -0.8), '#2a160c', fem ? 1.1 : 0.9);
+    if (fem) o += L('M' + n(xo - s * 1) + ' ' + n(yo - 0.8) + ' l' + n(s * 1.2) + ' -1.6', '#2a160c', 0.7);
+    if (shape !== 1) o += L('M' + n(xi + s * 0.8) + ' ' + n(yi - 1.4) + ' C' + n(xi + s * hw * 0.45) + ' ' + n(ey - up - 2.3) + ' ' + n(xo - s * hw * 0.35) + ' ' + n(ey - up - 2.1 - tilt * 0.5) + ' ' + n(xo + s * 0.2) + ' ' + n(yo - 1.3), sDD, shape === 4 ? 0.9 : 0.6, shape === 4 ? 0.5 : 0.35);
+    o += L('M' + n(xo - s * 0.4) + ' ' + n(yo + 0.4) + lower.replace(' Z', '').replace(/^ C/, ' C'), sDD, 0.55, 0.3);
+    return o;
+  }
+  function browSvg(ex, s, st, fem, col, tilt, raise) {
+    var t = [1.8, 2.8, 1.1, 2.3][st] || 1.8; if (fem) t *= 0.72;
+    var by = EY - 6.6 + (fem ? 0 : 0.5) - (raise || 0), xi = ex - s * 3.9, xo = ex + s * 5.4, xp = ex + s * (st === 3 ? 2.4 : 1.6);
+    var yi = by + 0.6 + tilt * 1.2 + (st === 3 ? 0.8 : 0), yo = by + 0.9 + (fem ? -0.2 : 0), yp = by - (fem ? 2 : 1.5) - (st === 3 ? 0.8 : 0) + tilt * 0.3;
+    var d = 'M' + n(xi) + ' ' + n(yi - t / 2) + ' Q' + n(xp) + ' ' + n(yp - t / 2) + ' ' + n(xo) + ' ' + n(yo) + ' Q' + n(xp) + ' ' + n(yp + t / 2) + ' ' + n(xi) + ' ' + n(yi + t / 2) + ' Z';
+    return P(d, col, S(col, 0.3)) + L('M' + n(xi + s * 0.6) + ' ' + n(yi) + ' l' + n(s * 0.3) + ' ' + n(-t * 0.6) + ' M' + n(xi + s * 1.4) + ' ' + n(yi - 0.2) + ' l' + n(s * 0.4) + ' ' + n(-t * 0.6), col, 0.4, 0.6);
+  }
+  function mouthSvg(fem, s0, sDD, sD, sL, sm, grin, smirk, clown) {
+    var my = 69.4, mw = fem ? 4.4 : 5, lip = fem ? mix(s0, '#b8434a', 0.5) : mix(s0, '#9a4a40', 0.3);
+    var lc = sm, rc = smirk ? sm + 0.9 : sm;
+    var line = 'M' + n(50 - mw) + ' ' + n(my - lc) + ' Q50 ' + n(my + sm * 0.9) + ' ' + n(50 + mw) + ' ' + n(my - rc);
+    var o = '';
+    if (grin) {
+      o += P('M' + n(50 - mw - 0.4) + ' ' + n(my - 0.8) + ' Q50 ' + n(my + 5) + ' ' + n(50 + mw + 0.4) + ' ' + n(my - 0.8) + ' Q50 ' + n(my + 0.6) + ' ' + n(50 - mw - 0.4) + ' ' + n(my - 0.8) + ' Z', '#5a1e1a', S(sDD, 0.8)) +
+        P('M' + n(50 - mw + 0.6) + ' ' + n(my - 0.2) + ' Q50 ' + n(my + 2) + ' ' + n(50 + mw - 0.6) + ' ' + n(my - 0.2) + ' Q50 ' + n(my + 0.8) + ' ' + n(50 - mw + 0.6) + ' ' + n(my - 0.2) + ' Z', '#fbf7ee') + L('M47 ' + n(my + 3.4) + ' Q50 ' + n(my + 4.2) + ' 53 ' + n(my + 3.4), '#c8584e', 0.8, 0.7);
+    } else {
+      o += P('M' + n(50 - mw) + ' ' + n(my - lc) + ' C' + n(50 - mw * 0.6) + ' ' + n(my - 1.4) + ' 48.6 ' + n(my - 2.2) + ' 50 ' + n(my - 1.5) + ' C51.4 ' + n(my - 2.2) + ' ' + n(50 + mw * 0.6) + ' ' + n(my - 1.4 - (rc - lc)) + ' ' + n(50 + mw) + ' ' + n(my - rc) + ' Q50 ' + n(my + sm * 0.9) + ' ' + n(50 - mw) + ' ' + n(my - lc) + ' Z', mix(lip, '#000000', 0.12), O(fem ? 0.95 : 0.6));
+      o += P('M' + n(50 - mw * 0.82) + ' ' + n(my - lc * 0.7 + 0.3) + ' C' + n(50 - mw * 0.5) + ' ' + n(my + 3.4) + ' ' + n(50 + mw * 0.5) + ' ' + n(my + 3.4) + ' ' + n(50 + mw * 0.82) + ' ' + n(my - rc * 0.7 + 0.3) + ' Q50 ' + n(my + sm * 0.9 + 0.3) + ' ' + n(50 - mw * 0.82) + ' ' + n(my - lc * 0.7 + 0.3) + ' Z', lip, O(fem ? 0.95 : 0.55));
+      o += E(50, my + 1.9, 1.8, 0.5, '#fff', O(fem ? 0.35 : 0.2));
+      o += L(line, sDD, 1.05, 0.85) + L('M' + n(50 - mw - 0.3) + ' ' + n(my - lc - 0.6) + ' q-.5 .6 -.2 1.3', sDD, 0.5, 0.4) + L('M' + n(50 + mw + 0.3) + ' ' + n(my - rc - 0.6) + ' q.5 .6 .2 1.3', sDD, 0.5, 0.4);
+    }
+    o += L('M47 ' + n(my + 4.6) + ' Q50 ' + n(my + 5.5) + ' 53 ' + n(my + 4.6), sD, 0.8, 0.35) + E(50, my + 7.2, 2.6, 1.1, sL, O(0.18));
+    return o;
+  }
+
+  return {
+    svg: svg, defaults: defaults, npc: npc, sanitize: sanitize,
+    SKIN: SKIN, HAIR: HAIR, IRIS: IRIS, CLOTH: CLOTH,
+    HAIR_M: HAIR_M, HAIR_F: HAIR_F, FACIAL: FACIAL, EYES: EYES, IRIS_N: IRIS_N, BROWS: BROWS,
+    HEADS: HEADS, OUTFITS: OUTFITS, EYEWEAR: EYEWEAR, EARS: EARS, NECKS: NECKS, MARKS: MARKS, ITEMS: ITEMS,
+    ARCH_OUTFIT: ARCH_OUTFIT, ROLE_OUTFIT: ROLE_OUTFIT
+  };
 })();
 
 /* =============================== MTCities =============================== */
