@@ -1,0 +1,38 @@
+# Kirim semua migrasi database ke Supabase.
+# Jalan otomatis saat ada perubahan di supabase/migrations (branch main), atau manual dari tab Actions.
+# Butuh secret repo: SUPABASE_DB_URL (Session pooler connection string dari Supabase > Connect).
+name: Deploy database
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**']
+  workflow_dispatch:
+concurrency: { group: deploy-db, cancel-in-progress: false }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm test
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cek secret
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          if [ -z "$DB" ]; then echo "::error::Secret SUPABASE_DB_URL belum diisi (Settings > Secrets and variables > Actions)."; exit 1; fi
+      - name: Pasang psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
+      - name: Jalankan migrasi (satu transaksi - gagal = tidak ada yang berubah)
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          args=""
+          for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
+          psql "$DB" -v ON_ERROR_STOP=1 --single-transaction -q $args
+          psql "$DB" -At -c "select 'Endpoint aktif: ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'api_%'"
+          psql "$DB" -q -c "notify pgrst, 'reload schema'"
