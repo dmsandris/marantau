@@ -1,0 +1,306 @@
+<script>
+/* =====================================================================
+ * TIDE v19 — Mobile UI
+ *  - HUD atas bisa diketuk: lokasi → info kota, gold → Bank, kapal → Ship,
+ *    palka → Cargo, jam → Log.
+ *  - Teks HUD dipaskan otomatis (font mengecil, angka besar diringkas
+ *    "12.3 jt"), jadi tidak pernah terpotong.
+ *  - Dock bawah 5 tab (Market, Cargo, Tasks, Ship, Menu) + lembar Menu.
+ *  - Petunjuk keyboard disembunyikan di perangkat sentuh, getar halus saat ketuk.
+ * ===================================================================== */
+(function () {
+  var MQ = window.matchMedia('(max-width: 780px), (orientation: landscape) and (max-height: 500px)');
+  var TOUCH = window.matchMedia('(hover: none) and (pointer: coarse)');
+  var PRIMARY = ['market', 'cargo', 'tasks', 'ship'];
+  function isMob() { return MQ.matches; }
+  function $(id) { return document.getElementById(id); }
+  function buzz(ms) { try { if (TOUCH.matches && navigator.vibrate) navigator.vibrate(ms || 8); } catch (e) { /* abaikan */ } }
+  function panelOpen() { return typeof currentPanel !== 'undefined' ? currentPanel : null; }
+  function inCombat() { return typeof combatSceneOpen !== 'undefined' && combatSceneOpen; }
+
+  /* ---------------- 1. Teks pas ---------------- */
+  function overflows(el) { return el.scrollWidth > el.clientWidth + 0.5; }
+  // Kecilkan font sampai muat (dari ukuran CSS ke minPx). true = muat.
+  function fit(el, minPx) {
+    if (!el) return true;
+    el.style.fontSize = '';
+    if (!isMob() || !el.clientWidth) return true;
+    if (!overflows(el)) return true;
+    var fs = parseFloat(getComputedStyle(el).fontSize), n = 0;
+    while (overflows(el) && fs > minPx && n++ < 40) { fs = Math.max(minPx, fs - 0.5); el.style.fontSize = fs + 'px'; }
+    return !overflows(el);
+  }
+  function compactGold(v) {
+    v = Math.round(Number(v) || 0);
+    var a = Math.abs(v), s = v < 0 ? '-' : '';
+    function f(x, u) { var d = x >= 100 ? 0 : (x >= 10 ? 1 : 2); return s + Number(x.toFixed(d)).toLocaleString('en-US', { maximumFractionDigits: d }) + ' ' + u; }
+    if (a >= 1e12) return f(a / 1e12, 'T');
+    if (a >= 1e9) return f(a / 1e9, 'M');
+    if (a >= 1e6) return f(a / 1e6, 'jt');
+    if (a >= 1e5) return f(a / 1e3, 'rb');
+    return formatGold(v);
+  }
+  function setGold(el, v) {
+    el.textContent = formatGold(v);
+    if (!isMob()) { el.style.fontSize = ''; el.removeAttribute('title'); return; }
+    if (!fit(el, 12.5)) { el.textContent = compactGold(v); fit(el, 11); }
+    if (el.textContent !== formatGold(v)) el.title = formatGold(v) + ' gold'; else el.removeAttribute('title');
+  }
+  // Animasi gold HUD versi pas-layar (menggantikan versi lama, logika sama).
+  window.animateGoldTo_ = function (elId, newVal) {
+    var el = $(elId);
+    if (!el) return;
+    var put = elId === 'ledgerCash' ? function (v) { setGold(el, v); } : function (v) { el.textContent = formatGold(v); };
+    var start = window.lastGoldShown === null || window.lastGoldShown === undefined ? newVal : window.lastGoldShown;
+    if (start === newVal) { put(newVal); window.lastGoldShown = newVal; return; }
+    spawnGoldFloat_(newVal - start);
+    var t0 = null, dur = 650;
+    function step(ts) {
+      if (!t0) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      put(Math.round(start + (newVal - start) * e));
+      if (p < 1) requestAnimationFrame(step);
+    }
+    window.lastGoldShown = newVal;
+    requestAnimationFrame(step);
+  };
+
+  function fitBanner() {
+    var b = $('cityBanner');
+    if (!b) return;
+    b.classList.remove('two');
+    if (!fit(b, 16)) { b.classList.add('two'); b.style.fontSize = ''; }
+  }
+  // Kicker di ponsel: buang awalan "Pelabuhan · " (ikon lambang sudah bercerita) bila tak muat.
+  var KICK_SHORT = { 'Dicegat di tengah laut!': 'Dicegat!', 'Berlayar menuju': 'Menuju' };
+  function shortKicker() {
+    var k = $('locKicker');
+    if (!k) return;
+    var full = k.dataset.full && k.textContent === k.dataset.short ? k.dataset.full : k.textContent;
+    k.textContent = full;
+    k.dataset.full = full; k.dataset.short = '';
+    if (fit(k, 9)) return;
+    var sh = KICK_SHORT[full] || full.replace(/^Pelabuhan\s*·\s*/, '');
+    if (sh !== full) { k.textContent = sh; k.dataset.short = sh; fit(k, 9); }
+  }
+  function fitAll() {
+    fitBanner();
+    fit($('hullText'), 11);
+    fit($('holdText'), 10.5);
+    fit($('logDateHud'), 10);
+    shortKicker();
+    var g = $('ledgerCash');
+    if (g && typeof state !== 'undefined' && state && state.player) setGold(g, window.lastGoldShown != null ? window.lastGoldShown : state.player.gold);
+  }
+
+  /* ---------------- 2. Lencana lokasi & utang ---------------- */
+  function updateBadges() {
+    if (typeof state === 'undefined' || !state) return;
+    var badge = $('locBadge'), sea = state.voyage && state.voyage.inTransit;
+    var on = false, warn = false;
+    if (!sea) {
+      var m = state.mission, cid = state.city && state.city.CityId;
+      var here = m && m.hasActive && cid && (m.type === 'procure' && (m.loadedQty || 0) < m.qty ? cid === m.sourceCityId : cid === m.deliverToCityId);
+      on = !!(state.cityEvent || here);
+      warn = !!(state.cityEvent && /storm|unrest/.test(state.cityEvent.eventType || ''));
+    }
+    if (badge) { badge.classList.toggle('on', on); badge.classList.toggle('warn', warn); }
+    var gold = document.querySelector('.res.gold'), debt = state.bank && state.bank.debtBalance > 0;
+    if (gold) gold.classList.toggle('has-debt', !!debt);
+  }
+
+  /* ---------------- 3. HUD bisa diketuk ---------------- */
+  function goPanel(p) {
+    if (inCombat()) return;
+    buzz();
+    closeDock();
+    if (panelOpen() === p) { closeModal(); return; }
+    openPanel(p);
+  }
+  function openSheet_(id, html) {
+    currentPanel = id;
+    document.querySelectorAll('#menuList .btn').forEach(function (b) { b.classList.remove('active'); });
+    var box = $('modalBox');
+    box.classList.remove('size-wide', 'size-mid');
+    setModal_(html);
+    box.scrollTop = 0;
+    $('modalOverlay').classList.add('open');
+    if (typeof scene !== 'undefined' && scene) scene.setThrottle(3);
+  }
+  function openLocInfo() {
+    if (typeof state === 'undefined' || !state || inCombat()) return;
+    buzz();
+    closeDock();
+    if (panelOpen() === 'locinfo') { closeModal(); return; }
+    var sea = !!(state.voyage && state.voyage.inTransit);
+    var icoEl = document.querySelector('#locCrest [data-icon]');
+    var html = panelHeader_(icoEl ? icoEl.getAttribute('data-icon') : 'anchor', esc_($('cityBanner').textContent), esc_($('locKicker').dataset.full || $('locKicker').textContent));
+    var flavor = $('cityTypeFlavor').innerHTML;
+    if (flavor) html += '<div class="loc-info">' + flavor + '</div>';
+    if (!sea && state.city && window.CITY_LORE && CITY_LORE[state.city.CityId]) {
+      var lore = CITY_LORE[state.city.CityId];
+      html += '<div class="card loc-lore">' + ic('chat') + '<i>&ldquo;' + esc_(lore[Math.floor(Math.random() * lore.length)]) + '&rdquo;</i></div>';
+    }
+    var acts = sea
+      ? [['log', 'journal', 'Log'], ['cargo', 'crate', 'Palka'], ['ship', 'ship', 'Kapal']]
+      : [['market', 'scales', 'Market'], ['tavern', 'cup', 'Lapau'], ['setsail', 'anchor', 'Berlayar']];
+    html += '<div class="loc-acts">' + acts.map(function (a) {
+      return '<button class="btn' + (a[0] === 'setsail' ? ' btn-gold' : '') + '" onclick="openPanel(\'' + a[0] + '\')">' + ic(a[1]) + a[2] + '</button>';
+    }).join('') + '</div>';
+    openSheet_('locinfo', html);
+  }
+  function bindHud() {
+    document.querySelectorAll('#hudTop [data-go]').forEach(function (el) {
+      el.addEventListener('click', function (e) { e.stopPropagation(); goPanel(el.dataset.go); });
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); goPanel(el.dataset.go); }
+      });
+    });
+    var plate = $('locationPlate');
+    plate.addEventListener('click', function (e) { if (!e.target.closest('#locTools')) openLocInfo(); });
+    plate.addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === plate) { e.preventDefault(); openLocInfo(); }
+    });
+  }
+
+  /* ---------------- 4. Jam & tombol suara pindah ke pelat lokasi (mobile) ---------------- */
+  var tools = null;
+  function placeTools() {
+    var clock = document.querySelector('.res.clock'), mute = $('muteBtn'), bar = $('resourceBar'), plate = $('locationPlate');
+    if (!clock || !mute || !bar || !plate) return;
+    if (!tools) { tools = document.createElement('div'); tools.id = 'locTools'; plate.appendChild(tools); }
+    if (isMob()) {
+      if (clock.parentNode !== tools) { tools.appendChild(clock); tools.appendChild(mute); }
+    } else if (clock.parentNode !== bar) {
+      var sync = bar.querySelector('.res.sync');
+      bar.insertBefore(mute, sync);
+      bar.appendChild(clock);
+    }
+  }
+
+  /* ---------------- 5. Dock bawah + lembar Menu ---------------- */
+  var menu, sheet, grid, moreBtn, backdrop, original = [];
+  function buildDock() {
+    menu = $('menuList');
+    original = Array.prototype.slice.call(menu.children);
+    sheet = document.createElement('div');
+    sheet.id = 'dockSheet';
+    sheet.setAttribute('role', 'menu');
+    sheet.innerHTML = '<div class="ds-head"><span class="ds-t">Menu Kapten</span><button class="ds-close" aria-label="Tutup menu">' + ic('x') + '</button></div><div class="ds-grid"></div>';
+    grid = sheet.querySelector('.ds-grid');
+    moreBtn = document.createElement('button');
+    moreBtn.className = 'btn dock-more';
+    moreBtn.id = 'dockMore';
+    moreBtn.setAttribute('aria-label', 'Buka menu');
+    moreBtn.innerHTML = '<span class="mi">' + ic('grid') + '</span><span class="ml">Menu</span>';
+    backdrop = document.createElement('div');
+    backdrop.id = 'dockBackdrop';
+    moreBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (document.getElementById('game').classList.contains('dock-open')) { closeDock(); return; }
+      if (panelOpen()) closeModal();
+      openDock();
+    });
+    sheet.addEventListener('click', function (e) { if (e.target.closest('.btn') || e.target.closest('.ds-close')) closeDock(); });
+    backdrop.addEventListener('click', closeDock);
+  }
+  function setDockH() {
+    var sb = $('sidebar');
+    if (!sb) return;
+    document.documentElement.style.setProperty('--dock-h', sb.offsetHeight + 'px');
+    document.documentElement.style.setProperty('--dock-w', sb.offsetWidth + 'px');
+  }
+  function openDock() {
+    setDockH();
+    $('game').classList.add('dock-open');
+    moreBtn.classList.add('active');
+    buzz(10);
+  }
+  function closeDock() {
+    var g = $('game');
+    if (!g || !g.classList.contains('dock-open')) return;
+    g.classList.remove('dock-open');
+    if (moreBtn) moreBtn.classList.remove('active');
+  }
+  function placeDock() {
+    if (!menu) return;
+    if (isMob()) {
+      if (!menu.classList.contains('dock-mode')) {
+        menu.classList.add('dock-mode');
+        original.forEach(function (n) {
+          var p = n.dataset ? n.dataset.panel : null;
+          if (!(p && PRIMARY.indexOf(p) >= 0)) grid.appendChild(n);
+        });
+        PRIMARY.forEach(function (p) {
+          var b = menu.querySelector('.btn[data-panel="' + p + '"]');
+          if (b) menu.appendChild(b);
+        });
+        menu.appendChild(moreBtn);
+        menu.appendChild(sheet);
+        var sc = $('scenicBtn'), scl = sc && sc.querySelector('.ml');
+        if (scl) { scl.dataset.full = scl.textContent; scl.textContent = 'Panorama'; }
+        $('sidebar').appendChild(backdrop);
+      }
+      setDockH();
+    } else if (menu.classList.contains('dock-mode')) {
+      closeDock();
+      menu.classList.remove('dock-mode');
+      original.forEach(function (n) { menu.appendChild(n); });
+      var scl2 = document.querySelector('#scenicBtn .ml');
+      if (scl2 && scl2.dataset.full) scl2.textContent = scl2.dataset.full;
+      moreBtn.remove(); sheet.remove(); backdrop.remove();
+    }
+  }
+  function syncMoreActive() {
+    if (!moreBtn) return;
+    var p = panelOpen();
+    moreBtn.classList.toggle('sub-active', !!(p && PRIMARY.indexOf(p) < 0 && grid.querySelector('.btn[data-panel="' + p + '"]')));
+  }
+
+  /* ---------------- 6. Balon bicara warga tidak keluar layar ---------------- */
+  function clampSpeech() {
+    var all = document.querySelectorAll('#sceneHotspots .speech');
+    var el = all[all.length - 1];
+    if (!el) return;
+    // ukur tanpa transform animasi: tepi = pusat - setengah lebar
+    var lay = el.parentNode.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, pad = 8, dx = 0;
+    var left = lay.left + parseFloat(el.style.left) - w / 2, right = left + w, top = lay.top + parseFloat(el.style.top) - h;
+    if (left < pad) dx = pad - left;
+    else if (right > window.innerWidth - pad) dx = window.innerWidth - pad - right;
+    if (isMob() && top < pad + 110) el.style.top = (parseFloat(el.style.top) + (pad + 110 - top)) + 'px';
+    if (!dx) return;
+    el.style.left = (parseFloat(el.style.left) + dx) + 'px';
+    el.style.setProperty('--tail', 'calc(50% - ' + Math.round(dx) + 'px)');
+  }
+
+  /* ---------------- 7. Pasang ---------------- */
+  function relayout() { placeTools(); placeDock(); fitAll(); updateBadges(); }
+  document.addEventListener('DOMContentLoaded', function () {
+    if (TOUCH.matches) document.documentElement.classList.add('touch');
+    buildDock();
+    bindHud();
+    relayout();
+    var after = function () { requestAnimationFrame(function () { fitAll(); updateBadges(); }); };
+    ['renderScene', 'renderAtSeaScene', 'updateHullHud_', 'updateHoldHud_', 'renderSidebar', 'renderLedgerSecondary_', 'applyFreshState_'].forEach(function (fn) { wrap_(fn, after); });
+    var lastDay = '';
+    wrap_('updateClockHud_', function () {
+      var d = $('logDateHud');
+      if (d && d.textContent !== lastDay) { lastDay = d.textContent; fit(d, 10); }
+    });
+    wrap_('openPanel', syncMoreActive, function () { closeDock(); });
+    wrap_('speak_', clampSpeech);
+    wrap_('speakAt_', clampSpeech);
+    wrap_('closeModal', syncMoreActive);
+    wrap_('openCombatScene_', null, function () { closeDock(); });
+    var rt = null;
+    window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(relayout, 120); });
+    if (MQ.addEventListener) MQ.addEventListener('change', relayout); else if (MQ.addListener) MQ.addListener(relayout);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDock(); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+    // getar halus untuk tombol dock & aksi tempur
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('#menuList .btn, .combat-action-btn, .hot-plaque')) buzz(7);
+    }, true);
+  });
+})();
+</script>

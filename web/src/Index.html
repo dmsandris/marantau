@@ -1961,6 +1961,291 @@
     @media (prefers-reduced-motion: reduce) {
       .fx-rays, .fx-shine::before, .fx-stage::before, .fx-medal.pop .fx-por svg, .fx-dice.spin .ico, .fx-body.fx-in { animation: none !important; }
     }
+
+    /* =====================================================================
+     * TIDE v19 — MOBILE UI (standar game mobile)
+     * HUD atas ringkas 2 baris, semua bisa diketuk, teks selalu terbaca;
+     * dock bawah 5 tab + lembar Menu; sentuhan & safe-area.
+     * Ditaruh PALING AKHIR supaya menimpa lapisan lama.
+     * ===================================================================== */
+    html { -webkit-tap-highlight-color: transparent; }
+    button, [role=button], .btn, .combat-action-btn, .hot-plaque, .res[data-go] { touch-action: manipulation; }
+
+    /* ---- HUD bisa diketuk (semua ukuran layar) ---- */
+    #locationPlate { cursor: pointer; position: relative; -webkit-user-select: none; user-select: none; transition: transform .14s var(--ease-spring); }
+    #resourceBar { -webkit-user-select: none; user-select: none; }
+    .res[data-go] { cursor: pointer; transition: transform .14s var(--ease-spring), background .15s ease, filter .15s ease; }
+    .res[data-go]:hover { background: rgba(240,207,120,.08); }
+    .res[data-go]:active, #locationPlate:active { transform: scale(.96); }
+    .res[data-go]:focus-visible, #locationPlate:focus-visible { outline: none; box-shadow: var(--ui-focus); }
+    .loc-text { min-width: 0; flex: 1 1 auto; }
+    .loc-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .loc-name-row #cityBanner { min-width: 0; }
+    .loc-more { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: var(--brass-300); opacity: .65; transition: transform .2s var(--ease-out), opacity .2s; }
+    .loc-more .ico { width: 14px; height: 14px; stroke-width: 2.6; }
+    #locationPlate:hover .loc-more { transform: translateX(3px); opacity: 1; }
+    #locCrest { position: relative; }
+    #locBadge { position: absolute; top: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; display: none;
+      background: radial-gradient(circle at 35% 30%, #fff1c4, #f0b83c 60%, #a8701a); box-shadow: 0 0 0 2px #1b130b, 0 0 10px rgba(255,200,80,.85); }
+    #locBadge.on { display: block; animation: locBadgePulse 1.8s ease-in-out infinite; }
+    #locBadge.warn { background: radial-gradient(circle at 35% 30%, #ffd2c4, #ff6a4d 60%, #a3301c); box-shadow: 0 0 0 2px #1b130b, 0 0 10px rgba(255,100,70,.85); }
+    @keyframes locBadgePulse { 50% { transform: scale(1.22); } }
+    .res-plus, .res-debt-dot, #locTools { display: none; }
+    /* lembar info lokasi */
+    .loc-info { color: var(--teak-700); line-height: 1.45; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .loc-info .world-event-desc { font-style: italic; }
+    .loc-info .loc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .loc-info .chip { font-size: .7em; padding: 5px 10px; color: var(--teak-800); background: rgba(255,252,241,.8); border-color: rgba(143,101,34,.4); }
+    .loc-info .chip .ico { width: 13px; height: 13px; }
+    .loc-info .chip.good { background: rgba(86,184,114,.18); border-color: rgba(47,122,69,.5); color: #24603a; }
+    .loc-info .chip.bad { background: rgba(207,75,51,.14); border-color: rgba(178,58,42,.5); color: #8a2a1a; }
+    .loc-info .chip.gold { background: rgba(211,163,66,.22); border-color: rgba(143,101,34,.55); }
+    .loc-lore { display: flex; gap: 10px; align-items: flex-start; color: var(--teak-700); }
+    .loc-lore .ico { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--brass-500, #8f6522); }
+    .loc-acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    .loc-acts .btn { display: flex; align-items: center; min-height: 60px; flex-direction: column; justify-content: center; gap: 5px; padding: 8px 4px; font-size: .78em; letter-spacing: .05em; white-space: nowrap; }
+    .loc-acts .btn .ico { width: 18px; height: 18px; margin: 0; }
+
+    /* ---- tempur: nilai HP di HUD gelap harus terang ---- */
+    .combat-hud .bar-label-row .v { color: #fff3dc; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    #combatLogBox:empty { display: none !important; }
+    .speech { max-width: min(240px, calc(100vw - 24px)); }
+    .speech::after { left: var(--tail, 50%); }
+
+    /* ---- petunjuk keyboard vs sentuh ---- */
+    .hint-touch { display: none; }
+    html.touch .hint-desk, html.touch .kbd, html.touch kbd.hk, html.touch .hk-s, html.touch .combat-action-btn::before { display: none !important; }
+    html.touch .hint-touch { display: inline; }
+    @media (hover: none) {
+      .btn:active:not(:disabled), .combat-action-btn:active, .hot-plaque:active { transform: scale(.95); filter: brightness(1.1); }
+    }
+
+    /* ============================ PONSEL ============================ */
+    @media (max-width: 780px), (orientation: landscape) and (max-height: 500px) {
+      /* ---------- HUD atas: baris 1 lokasi + jam + suara ---------- */
+      #hudTop { top: calc(6px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); gap: 6px; }
+      #locationPlate { max-width: none; min-height: 54px; padding: 6px 7px 6px 7px; gap: 9px; border-radius: 14px; animation-duration: .5s; }
+      #locCrest { width: 40px; height: 40px; }
+      #locCrest .ico { width: 21px; height: 21px; }
+      .loc-kicker { font-size: 9.5px; letter-spacing: .2em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #cityBanner { font-size: 22px; line-height: 1.12; padding-bottom: 1px; text-overflow: clip; }
+      #cityBanner.two { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 16px; line-height: 1.12; overflow-wrap: break-word; }
+      .loc-more { width: 14px; height: 14px; }
+      .loc-more .ico { width: 12px; height: 12px; }
+      #cityTypeFlavor { display: none !important; }
+      #locTools { display: flex; align-items: center; gap: 5px; flex: none; }
+      #locTools .res { position: relative; }
+      #locTools .res::before { display: none; }
+      #locTools .res.clock { height: 38px; padding: 0 10px 0 4px; gap: 5px; border-radius: 999px; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px rgba(240,207,120,.24); }
+      #locTools .res.clock .ri { display: flex; width: 28px; height: 28px; }
+      #locTools .res.clock .ri .ico { width: 16px; height: 16px; }
+      #locTools .res.clock .rl { display: none; }
+      #locTools .res.clock > div:last-of-type { min-width: 0; overflow: hidden; }
+      #locTools .res.clock .rv { font-size: 13px; max-width: 64px; overflow: hidden; }
+      #locTools .res.mute { width: 38px; height: 38px; padding: 0; justify-content: center; border-radius: 50%; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px rgba(240,207,120,.24); }
+      #locTools .res.mute .ri { width: 22px; height: 22px; }
+      #locTools .res:active { transform: scale(.92); }
+
+      /* ---------- HUD atas: baris 2 pil sumber daya ---------- */
+      #resourceBar { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 6px; padding: 0; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      #resourceBar::before, #resourceBar::after { display: none; }
+      #resourceBar .res.bank, #resourceBar .res.debt, #resourceBar .res.sync { display: none; }
+      #resourceBar .res { min-width: 0; height: 40px; padding: 0 11px 0 5px; gap: 6px; border-radius: 999px;
+        background: linear-gradient(180deg, rgba(24,32,44,.88), rgba(8,12,18,.92));
+        box-shadow: inset 0 0 0 1px rgba(240,207,120,.34), inset 0 1px 0 rgba(255,255,255,.06), 0 4px 12px rgba(0,0,0,.35); }
+      #resourceBar .res + .res::before { display: none; }
+      #resourceBar .res > div:last-of-type { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+      #resourceBar .res .rl { display: none; }
+      #resourceBar .res .rv { font-size: 15px; line-height: 1.2; overflow: hidden; text-overflow: clip; }
+      #resourceBar .res.gold .rv { font-size: 15.5px; }
+      #resourceBar .res .ri { width: 30px; height: 30px; }
+      #resourceBar .res .ri .ico { width: 17px; height: 17px; }
+      #resourceBar .res.meter .ring { width: 30px; height: 30px; }
+      #resourceBar .res.meter .ring .ico { width: 14px; height: 14px; }
+      #resourceBar .res.gold { padding-right: 5px; }
+      #resourceBar .res:active { transform: scale(.95); filter: brightness(1.18); }
+      .res-plus { display: flex; flex: none; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; color: #2b1905;
+        background: radial-gradient(circle at 35% 28%, #fff1c4, #e9b54a 55%, #a8701a); box-shadow: 0 0 0 1.5px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.5); }
+      .res-plus .ico { width: 14px; height: 14px; stroke-width: 3; }
+      .res.gold.has-debt .res-debt-dot { display: block; position: absolute; top: 1px; left: 26px; width: 11px; height: 11px; border-radius: 50%; background: #ff6a4d; box-shadow: 0 0 0 2px #120b07, 0 0 8px rgba(255,90,60,.8); }
+
+      /* ---------- notifikasi tidak menutupi HUD dan tidak terpotong ---------- */
+      #toastContainer { top: calc(env(safe-area-inset-top) + 114px); width: calc(100vw - 24px); }
+      #toastContainer > * { max-width: 100%; }
+      #achToast { top: calc(env(safe-area-inset-top) + 8px); min-width: 0; width: calc(100vw - 20px); max-width: 440px; padding: 10px 14px 10px 10px; gap: 12px; border-radius: 14px; }
+      #achToast .ach-medal { width: 46px; height: 46px; }
+      #achToast .ach-medal .ico { width: 22px; height: 22px; }
+      #achToast > div:last-child { min-width: 0; }
+      .ach-k { font-size: 9.5px; letter-spacing: .22em; }
+      .ach-n { font-size: 19px; line-height: 1.12; }
+      .ach-d { font-size: 12.5px; line-height: 1.3; }
+      #npcToast { bottom: calc(var(--dock-h, 70px) + 84px); }
+      #welcomeBanner { width: calc(100% - 32px); }
+      .wb-k { font-size: 11px; letter-spacing: .32em; }
+      .wb-n { font-size: clamp(32px, 10.5vw, 46px); overflow-wrap: break-word; }
+
+      /* ---------- panel: judul boleh 2 baris, bukan terpotong ---------- */
+      #modalBox, #modalBox.size-wide, #modalBox.size-mid { max-height: calc(92dvh - env(safe-area-inset-top)); }
+      .ph h2 { white-space: normal; text-overflow: clip; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        font-size: clamp(20px, 6.2vw, 25px); line-height: 1.12; overflow-wrap: break-word; }
+      .mkt-head .bar-label-row { flex-wrap: wrap; row-gap: 2px; }
+      .mkt-head .bar-label-row span { white-space: nowrap; }
+      .amt-row .btn { flex: 0 0 auto; padding-left: 14px; padding-right: 14px; }
+      .au-row { grid-template-columns: 20px minmax(56px, auto) minmax(0, 1fr) 30px !important; gap: 8px; }
+      .au-row input[type=range] { min-width: 0; width: 100%; }
+      .au-row .au-l { letter-spacing: .04em; font-size: .72em; }
+
+      /* ---------- dock bawah: 5 tab tetap, tanpa geser ---------- */
+      #sidebar { -webkit-mask-image: none; mask-image: none; overflow: visible; scroll-snap-type: none; padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); }
+      #menuList.dock-mode { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; width: 100%; }
+      #menuList.dock-mode > .btn { min-width: 0; width: 100%; min-height: 56px; padding: 6px 2px 5px; gap: 4px; font-size: 10.5px; letter-spacing: .06em; }
+      #menuList.dock-mode > .btn .ml { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #menuList.dock-mode > .btn .mi { width: 32px; height: 32px; }
+      #menuList.dock-mode > .btn .mi .ico { width: 18px; height: 18px; }
+      #menuList.dock-mode > .btn:active { transform: scale(.92); }
+      #menuList .dock-more.sub-active .mi { background: rgba(211,163,66,.22); box-shadow: inset 0 0 0 1.5px var(--brass-300); color: var(--brass-100); }
+      #game.dock-open #sidebar { z-index: 45; }
+      #dockBackdrop { position: fixed; left: 0; right: 0; top: 0; bottom: var(--dock-h, 70px); z-index: 1; background: rgba(3,5,8,.58); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+      #game.dock-open #dockBackdrop { opacity: 1; pointer-events: auto; }
+      #dockSheet { position: fixed; z-index: 2; left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); bottom: calc(var(--dock-h, 70px) + 8px);
+        max-height: calc(100dvh - var(--dock-h, 70px) - 24px - env(safe-area-inset-top)); overflow-y: auto; overscroll-behavior: contain;
+        padding: 12px 12px 14px; border-radius: 18px;
+        background: var(--wood-grain), radial-gradient(120% 60% at 50% 0%, rgba(211,163,66,.14), transparent 60%), linear-gradient(180deg, #2e1d12, #160d08);
+        box-shadow: 0 0 0 1px rgba(211,163,66,.55), 0 -12px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,231,163,.12);
+        opacity: 0; transform: translateY(18px) scale(.97); transform-origin: 80% 100%; pointer-events: none; visibility: hidden;
+        transition: opacity .18s ease, transform .3s var(--ease-spring), visibility 0s linear .3s; }
+      #game.dock-open #dockSheet { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition: opacity .18s ease, transform .3s var(--ease-spring), visibility 0s; }
+      .ds-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 4px 4px; }
+      .ds-t { font-family: var(--font-title); font-weight: 700; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--brass-300); }
+      .ds-close { width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer;
+        background: rgba(255,255,255,.06); color: var(--parch-100); box-shadow: inset 0 0 0 1px rgba(240,207,120,.3); }
+      .ds-close .ico { width: 16px; height: 16px; }
+      .ds-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      #menuList .ds-grid .menu-section-label { display: block; grid-column: 1 / -1; margin: 10px 4px 2px; font-family: var(--font-title); font-weight: 700; font-size: 10px; letter-spacing: .26em; text-transform: uppercase; color: rgba(240,207,120,.6); }
+      #menuList .ds-grid .menu-section-label:first-child { margin-top: 2px; }
+      #menuList .ds-grid .btn { flex-direction: column; justify-content: flex-start; width: 100%; min-width: 0; min-height: 78px; padding: 9px 3px 8px; gap: 6px;
+        font-size: 10.5px; letter-spacing: .05em; border-radius: 14px; background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(240,207,120,.14); }
+      #menuList .ds-grid .btn .mi { width: 40px; height: 40px; }
+      #menuList .ds-grid .btn .mi .ico { width: 20px; height: 20px; }
+      #menuList .ds-grid .btn .ml { white-space: normal; overflow: visible; text-overflow: clip; text-align: center; line-height: 1.18; overflow-wrap: break-word; max-width: 100%; }
+      #menuList .ds-grid .btn .mk { display: none; }
+      #menuList .ds-grid .btn.active { background: rgba(211,163,66,.16); box-shadow: inset 0 0 0 1.5px rgba(240,207,120,.55); }
+      #menuList .ds-grid .btn.active::before { display: none; }
+      #menuList .ds-grid .btn:active { transform: scale(.94); }
+
+      /* ---------- tempur ---------- */
+      .combat-hud .hud-name { font-size: 15px; line-height: 1.12; }
+      .combat-hud .hud-name > span:not(.hud-face) { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .combat-hud .bar-label-row { font-size: 10px; letter-spacing: .1em; gap: 4px; }
+      .combat-hud .hud-sub { font-size: 11.5px; }
+      #combatLogBox { display: block; left: 10px; right: 10px; width: auto; bottom: calc(5.5vh + 104px); max-height: none; overflow: hidden; padding: 7px 12px; font-size: 12px; line-height: 1.32; text-align: center; border-radius: 12px; pointer-events: none; }
+      #combatLogBox p { margin: 0; line-height: 1.32; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      #combatLogBox p:not(:first-child) { display: none; }
+    }
+    @media (max-width: 360px) {
+      #cityBanner { font-size: 20px; }
+      #resourceBar .res .rv { font-size: 14px; }
+      #resourceBar .res.gold .rv { font-size: 14.5px; }
+      #resourceBar .res .ri, #resourceBar .res.meter .ring { width: 26px; height: 26px; }
+      #menuList.dock-mode > .btn { font-size: 9.5px; letter-spacing: .03em; }
+      .combat-hud .hud-name { font-size: 13px; }
+      .loc-acts .btn { letter-spacing: .02em; font-size: .72em; }
+    }
+    /* ===================== PONSEL MIRING (landscape) =====================
+     * Tinggi layar sempit: rel ikon di kiri, HUD satu baris, panel tengah. */
+    @media (orientation: landscape) and (max-height: 500px) {
+      #game { flex-direction: row; }
+      #mainArea { order: 1; min-width: 0; }
+      #sidebar { order: 0; width: calc(74px + env(safe-area-inset-left)); height: 100%; flex-direction: column; justify-content: center; align-items: stretch; gap: 0;
+        padding: 6px 4px 6px calc(4px + env(safe-area-inset-left)); overflow: visible; border-top: 0; border-right: 1px solid rgba(211,163,66,.4);
+        box-shadow: 6px 0 20px rgba(0,0,0,.5); -webkit-mask-image: none; mask-image: none; }
+      #sidebar::before, .brand, #portraitWrap, #charName, #archLabel, #sidebarFoot, #menuList.dock-mode > .menu-section-label { display: none; }
+      #menuList.dock-mode { display: grid; grid-template-columns: 1fr; grid-template-rows: repeat(5, minmax(0, 1fr)); height: 100%; max-height: 380px; width: 100%; margin: auto 0; gap: 2px; }
+      #menuList.dock-mode > .btn { flex-direction: column; justify-content: center; min-width: 0; min-height: 0; height: 100%; width: 100%; padding: 4px 2px; gap: 3px; font-size: 9.5px; letter-spacing: .04em; }
+      #menuList.dock-mode > .btn .mi { width: 30px; height: 30px; }
+      #menuList.dock-mode > .btn .mk { display: none; }
+      #menuList.dock-mode > .btn.active::before { left: 0; right: auto; top: 22%; bottom: 22%; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
+      #dockBackdrop { left: var(--dock-w, 78px); right: 0; top: 0; bottom: 0; }
+      #dockSheet { left: calc(var(--dock-w, 78px) + 8px); right: auto; top: 8px; bottom: 8px; width: min(460px, calc(100vw - var(--dock-w, 78px) - 16px)); max-height: none; transform-origin: 0 50%; transform: translateX(-14px) scale(.98); }
+      #dockSheet { top: auto; width: min(560px, calc(100vw - var(--dock-w, 78px) - 16px)); max-height: calc(100dvh - 16px); }
+      .ds-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+      #menuList .ds-grid .menu-section-label { display: none; }
+      #menuList .ds-grid .btn { min-height: 76px; }
+      #menuList .ds-grid .btn .mi { width: 34px; height: 34px; }
+
+      /* HUD satu baris */
+      #hudTop { top: calc(6px + env(safe-area-inset-top)); left: 8px; right: calc(8px + env(safe-area-inset-right)); flex-direction: row; align-items: stretch; gap: 6px; }
+      #locationPlate { flex: 1 1 0; min-width: 0; max-width: 48%; min-height: 0; height: 46px; padding: 3px 5px 3px 4px; gap: 7px; border-radius: 12px; }
+      #locCrest { width: 36px; height: 36px; }
+      #locCrest .ico { width: 19px; height: 19px; }
+      .loc-kicker { font-size: 8.5px; letter-spacing: .18em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #cityBanner { font-size: 19px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+      #cityBanner.two { font-size: 14px; }
+      #cityTypeFlavor { display: none !important; }
+      .loc-more { width: 12px; height: 12px; }
+      #locTools { display: flex; align-items: center; gap: 4px; flex: none; }
+      #locTools .res::before { display: none; }
+      #locTools .res.clock { height: 34px; padding: 0 8px 0 3px; gap: 4px; border-radius: 999px; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px rgba(240,207,120,.24); }
+      #locTools .res.clock .ri { display: flex; width: 26px; height: 26px; }
+      #locTools .res.clock .rl { display: none; }
+      #locTools .res.clock .rv { font-size: 12px; }
+      #locTools .res.mute { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; background: rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px rgba(240,207,120,.24); }
+      #resourceBar { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: 1.6fr 1fr 1fr; align-items: center; gap: 6px; padding: 0; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      #resourceBar::before, #resourceBar::after { display: none; }
+      #resourceBar .res.bank, #resourceBar .res.debt, #resourceBar .res.sync { display: none; }
+      #resourceBar .res { min-width: 0; height: 40px; padding: 0 10px 0 4px; gap: 5px; border-radius: 999px;
+        background: linear-gradient(180deg, rgba(24,32,44,.88), rgba(8,12,18,.92)); box-shadow: inset 0 0 0 1px rgba(240,207,120,.34), 0 4px 12px rgba(0,0,0,.35); }
+      #resourceBar .res + .res::before { display: none; }
+      #resourceBar .res > div:last-of-type { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+      #resourceBar .res .rl { display: none; }
+      #resourceBar .res .rv { font-size: 14.5px; line-height: 1.2; overflow: hidden; text-overflow: clip; }
+      #resourceBar .res .ri, #resourceBar .res.meter .ring { width: 28px; height: 28px; }
+      #resourceBar .res.gold { padding-right: 4px; }
+      .res-plus { display: flex; flex: none; width: 24px; height: 24px; border-radius: 50%; align-items: center; justify-content: center; color: #2b1905;
+        background: radial-gradient(circle at 35% 28%, #fff1c4, #e9b54a 55%, #a8701a); box-shadow: 0 0 0 1.5px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.5); }
+      .res-plus .ico { width: 13px; height: 13px; stroke-width: 3; }
+      .res.gold.has-debt .res-debt-dot { display: block; position: absolute; top: 1px; left: 24px; width: 10px; height: 10px; border-radius: 50%; background: #ff6a4d; box-shadow: 0 0 0 2px #120b07; }
+
+      /* adegan: plakat ikon saja, tombol layar ringkas */
+      .hot-plaque .lbl { display: none; }
+      .hot-plaque.ship .lbl { display: inline; }
+      .cta-mini { display: none !important; }
+      #travelRow { right: calc(10px + env(safe-area-inset-right)); bottom: 10px; left: auto; align-items: flex-end; }
+      .cta-sail { padding: 8px 16px 8px 8px; gap: 10px; }
+      .cta-sail .cta-ico { width: 34px; height: 34px; }
+      #voyageCard { width: min(440px, 62vw); min-width: 0; padding: 10px 14px 12px; }
+      #logStrip { display: none; }
+      #toastContainer { top: 62px; }
+      #npcToast { left: 10px; bottom: 10px; width: min(380px, 50vw); }
+      #achToast { top: 6px; min-width: 0; width: min(440px, calc(100vw - 120px)); padding: 8px 14px 8px 8px; gap: 10px; }
+      #achToast .ach-medal { width: 40px; height: 40px; }
+      .ach-n { font-size: 17px; }
+
+      /* panel: lembar tengah selebar nyaman */
+      #modalOverlay { padding: 0; align-items: flex-end; }
+      #modalBox, #modalBox.size-wide, #modalBox.size-mid { width: min(720px, calc(100% - 16px)); max-height: calc(100dvh - 10px); margin: 0 auto; border-radius: 18px 18px 0 0;
+        padding: 0 16px calc(14px + env(safe-area-inset-bottom)); }
+      .ph { margin: 0 -16px 12px; padding: 14px 56px 10px 16px; }
+      .ph h2 { font-size: 22px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: clip; line-height: 1.12; }
+      #modalClose { top: 10px; }
+
+      /* tempur: buang letterbox, HUD & aksi lebih ringkas */
+      #combatOverlay.open #combatLetterboxTop, #combatOverlay.open #combatLetterboxBottom { height: 0; }
+      .combat-hud { top: 8px; min-width: 0; width: min(300px, calc(50% - 20px)); padding: 7px 10px; font-size: .85em; }
+      .combat-hud.hud-left { left: calc(10px + env(safe-area-inset-left)); } .combat-hud.hud-right { right: calc(10px + env(safe-area-inset-right)); }
+      .combat-hud .hud-face { width: 30px; height: 30px; }
+      .combat-hud .hud-name { font-size: 14px; }
+      .combat-hud .bar-label-row { margin-top: 5px; }
+      #combatCloseHint { display: none; }
+      #combatActionBar { left: 50%; right: auto; transform: translateX(-50%); flex-wrap: nowrap; max-width: none; bottom: 8px; padding: 5px; gap: 5px; border-radius: 14px; width: min(560px, calc(100% - 20px)); }
+      .combat-action-btn { flex: 1 1 0; min-width: 0; padding: 6px 2px 5px; }
+      .combat-action-btn .cab-icon { width: 30px; height: 30px; }
+      .combat-action-btn .cab-icon .ico { width: 17px; height: 17px; }
+      .combat-action-btn .cab-label { font-size: 9.5px; }
+      #combatLogBox { display: block; left: calc(10px + env(safe-area-inset-left)); right: auto; width: min(320px, 38vw); bottom: 84px; max-height: none; overflow: hidden; padding: 6px 10px; font-size: 11.5px; text-align: left; }
+      #combatLogBox p { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      #combatLogBox p:not(:first-child) { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -2029,7 +2314,7 @@
         <button class="btn" id="scenicBtn" onclick="toggleScenic_()"><span class="mi" data-icon="landscape"></span><span class="ml">Pemandangan</span><span class="mk">V</span></button>
         <button class="btn" data-panel="settings"><span class="mi" data-icon="gear"></span><span class="ml">Settings</span><span class="mk">O</span></button>
       </div>
-      <div id="sidebarFoot">Tide v18</div>
+      <div id="sidebarFoot">Tide v19</div>
     </aside>
 
     <main id="mainArea">
@@ -2040,23 +2325,23 @@
         <div id="sceneVignette"></div>
 
         <div id="hudTop" class="scene-layer">
-          <div id="locationPlate" class="glass">
-            <div id="locCrest"><span data-icon="anchor"></span></div>
-            <div style="min-width:0;">
+          <div id="locationPlate" class="glass" role="button" tabindex="0" aria-label="Info lokasi">
+            <div id="locCrest"><span data-icon="anchor"></span><span id="locBadge" aria-hidden="true"></span></div>
+            <div class="loc-text">
               <div class="loc-kicker" id="locKicker">Pelabuhan</div>
-              <div id="cityBanner">&hellip;</div>
+              <div class="loc-name-row"><div id="cityBanner">&hellip;</div><span class="loc-more" data-icon="chevron" aria-hidden="true"></span></div>
               <div id="cityTypeFlavor"></div>
             </div>
           </div>
           <div id="resourceBar" class="glass">
-            <div class="res gold" title="Gold di tangan"><div class="ri" data-icon="coin"></div><div><div class="rl">Gold</div><div class="rv" id="ledgerCash">0</div></div></div>
-            <div class="res bank" title="Simpanan bank"><div class="ri" data-icon="bank"></div><div><div class="rl">Bank</div><div class="rv" id="ledgerBank">0</div></div></div>
-            <div class="res debt" id="resDebt" title="Utang ke Moneylender"><div class="ri" data-icon="skull"></div><div><div class="rl">Debt</div><div class="rv" id="ledgerDebt">0</div></div></div>
-            <div class="res meter" id="resHull" title="Kondisi kapal"><div class="ring"><svg viewBox="0 0 36 36"><circle class="trk" cx="18" cy="18" r="15" fill="none" stroke-width="3.5"/><circle class="val" id="hullRing" cx="18" cy="18" r="15" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="0"/></svg><span data-icon="shield"></span></div><div><div class="rl">Kapal</div><div class="rv" id="hullText">&ndash;</div></div></div>
-            <div class="res meter" id="resHold" title="Muatan palka"><div class="ring"><svg viewBox="0 0 36 36"><circle class="trk" cx="18" cy="18" r="15" fill="none" stroke-width="3.5"/><circle class="val" id="holdRing" cx="18" cy="18" r="15" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="94.25"/></svg><span data-icon="crate"></span></div><div><div class="rl">Palka</div><div class="rv" id="holdText">&ndash;</div></div></div>
+            <div class="res gold" data-go="bank" role="button" tabindex="0" title="Gold di tangan - ketuk untuk Bank"><div class="ri" data-icon="coin"></div><div><div class="rl">Gold</div><div class="rv" id="ledgerCash">0</div></div><span class="res-plus" data-icon="plus" aria-hidden="true"></span><span class="res-debt-dot" aria-hidden="true"></span></div>
+            <div class="res bank" data-go="bank" role="button" tabindex="0" title="Simpanan bank"><div class="ri" data-icon="bank"></div><div><div class="rl">Bank</div><div class="rv" id="ledgerBank">0</div></div></div>
+            <div class="res debt" id="resDebt" data-go="bank" role="button" tabindex="0" title="Utang ke Moneylender"><div class="ri" data-icon="skull"></div><div><div class="rl">Debt</div><div class="rv" id="ledgerDebt">0</div></div></div>
+            <div class="res meter" id="resHull" data-go="ship" role="button" tabindex="0" title="Kondisi kapal"><div class="ring"><svg viewBox="0 0 36 36"><circle class="trk" cx="18" cy="18" r="15" fill="none" stroke-width="3.5"/><circle class="val" id="hullRing" cx="18" cy="18" r="15" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="0"/></svg><span data-icon="shield"></span></div><div><div class="rl">Kapal</div><div class="rv" id="hullText">&ndash;</div></div></div>
+            <div class="res meter" id="resHold" data-go="cargo" role="button" tabindex="0" title="Muatan palka"><div class="ring"><svg viewBox="0 0 36 36"><circle class="trk" cx="18" cy="18" r="15" fill="none" stroke-width="3.5"/><circle class="val" id="holdRing" cx="18" cy="18" r="15" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="94.25"/></svg><span data-icon="crate"></span></div><div><div class="rl">Palka</div><div class="rv" id="holdText">&ndash;</div></div></div>
             <button class="res mute" id="muteBtn" title="Bisukan suara (N)"><div class="ri" data-icon="volume"></div></button>
             <div class="res sync" title="Tersimpan"><span id="syncDot"></span></div>
-            <div class="res clock" title="Hari-game"><div class="ri" id="clockIcon" data-icon="sun"></div><div><div class="rl" id="clockLabel">Siang</div><div class="rv" id="logDateHud">Hari 1</div></div></div>
+            <div class="res clock" data-go="log" role="button" tabindex="0" title="Hari-game - ketuk untuk Log"><div class="ri" id="clockIcon" data-icon="sun"></div><div><div class="rl" id="clockLabel">Siang</div><div class="rv" id="logDateHud">Hari 1</div></div></div>
           </div>
         </div>
 
@@ -2132,11 +2417,12 @@
   <div id="toastContainer"></div>
 
   <div id="achToast" role="status"></div>
-  <div id="scenicCatcher"><div id="scenicHint"><span data-icon="landscape"></span> Mode Pemandangan &middot; klik atau tekan <b>V</b> untuk kembali</div></div>
+  <div id="scenicCatcher"><div id="scenicHint"><span data-icon="landscape"></span> Mode Pemandangan &middot; <span class="hint-desk">klik atau tekan <b>V</b> untuk kembali</span><span class="hint-touch">ketuk layar untuk kembali</span></div></div>
   <?!= include('JavaScript'); ?>
   <?!= include('Fishing'); ?>
   <?!= include('Quest'); ?>
   <?!= include('Toogood'); ?>
   <?!= include('Warwerwor'); ?>
+  <?!= include('MobileUI'); ?>
 </body>
 </html>

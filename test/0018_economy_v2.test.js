@@ -59,7 +59,9 @@ const fs = require('fs'), path = require('path');
 
   // drift: stok produsen yang dikuras terisi kembali (~90% dalam 60 menit)
   await go('bjorneo');
-  await u.call('api_buy', ['bjorneo', 'pala', 30]);
+  // stok awal bisa bergeser oleh siklus Kabar Pasar (jam dinding) - kuras sebanyak yang ada
+  const p0 = (await item('bjorneo', 'pala')).stock;
+  await u.call('api_buy', ['bjorneo', 'pala', Math.min(30, p0)]);
   const p1 = (await item('bjorneo', 'pala')).stock;
   await H.sql(`update game.market set at = at - interval '60 minutes' where city_id = 'bjorneo'`);
   const p2 = (await item('bjorneo', 'pala')).stock;
