@@ -1,0 +1,795 @@
+<script>
+/* =====================================================================
+ * Tide v18 - QUEST "WARWERWOR"
+ * Surat pelikan -> Marie Regal (Ratu Marie) -> tiga Surat Damai = akta penyerahan ->
+ * Marlya asli di bawah kota -> studio dwi dibobol (Ms. alyfindi memfitnah Teh Euis) ->
+ * sekutu lima pulau -> PERANG GENDERANG: drone, Kanvas Hitam, logistik, Kapal Induk HENING,
+ * pengkhianatan Hasiolan -> Marie Regal merdeka.
+ * Server: 0019_warwerwor.sql (api_warwerwor)   Seni: CinemaWar.html (MTWar) + SceneEngine (marie_regal)
+ * ===================================================================== */
+var WW = (function () {
+  /* ---------- tokoh ---------- */
+  function ap(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in over) a[k] = over[k]; return a; }
+  var N = null;
+  function npcs() {
+    if (N) return N;
+    var marlyaAp = ap('marlya-moramora', 'pustakawan', 1, { hair: 7, hairStyle: 4, head: 'none', skin: 2, age: 0.62, eye: 'none', ear: 'none' });
+    var marieAp = ap('marlya-moramora', 'pustakawan', 1, { hair: 7, hairStyle: 4, head: 'none', skin: 2, age: 0.25, ear: 'pearl' });
+    N = {
+      marie: { name: 'Ratu Marie', title: 'Pemerintah Moramora', ap: marieAp, holo: true },
+      marlya: { name: 'Marlya', title: 'Pemerintah Moramora yang sah', ap: marlyaAp },
+      ratu: { name: 'Ratu Marlya', title: 'Ratu Moramora', ap: ap('marlya-moramora', 'pustakawan', 1, { hair: 7, hairStyle: 4, head: 'none', skin: 2, age: 0.55, ear: 'pearl' }) },
+      aly: { name: 'Ms. alyfindi', title: 'Penjual Peta', ap: ap('alyfindi-peta', 'saudagar', 1, { hair: 9, head: 'none', ear: 'hoop', skin: 1, age: 0.38 }) },
+      hasiolan: { name: 'Hasiolan', title: 'Wakil Laksamana Skitraw', ap: ap('hasiolan-skitraw', 'tukang', 0, { head: 'ikat', facial: 3, hair: 0, skin: 3, age: 0.42 }) },
+      robot: { name: 'R-01', title: 'Resepsionis Istana Hening', svg: robotSvg([120, 235, 255]) },
+      robotRed: { name: 'R-01', title: 'Resepsionis Istana Hening', svg: robotSvg([255, 80, 80]) },
+      drone: { name: 'Drone Pemburu', title: 'Armada Blokade', svg: droneSvg() }
+    };
+    return N;
+  }
+  function robotSvg(v, bg) {
+    var c = v.join(',');
+    return '<svg viewBox="0 0 100 100" class="ww-robot"><rect width="100" height="100" fill="' + (bg || '#16222d') + '"/>' +
+      '<circle cx="50" cy="44" r="40" fill="rgba(' + c + ',.10)"/>' +
+      '<path d="M12 100Q15 73 50 71Q85 73 88 100Z" fill="#d3dde5"/><path d="M30 100Q34 80 50 79Q66 80 70 100Z" fill="#9fb0bf"/>' +
+      '<rect x="43" y="60" width="14" height="13" fill="#6d7d8b"/>' +
+      '<circle cx="23" cy="45" r="5.5" fill="#9fb0bf"/><circle cx="77" cy="45" r="5.5" fill="#9fb0bf"/>' +
+      '<ellipse cx="50" cy="43" rx="27" ry="24" fill="#eef3f6"/><ellipse cx="42" cy="34" rx="12" ry="6" fill="#fff" opacity=".7"/>' +
+      '<rect x="25" y="39" width="50" height="14" rx="7" fill="#132230"/>' +
+      '<rect x="29" y="42.5" width="42" height="7" rx="3.5" fill="rgba(' + c + ',.3)"/><rect x="43" y="43.8" width="14" height="4.4" rx="2.2" fill="rgb(' + c + ')"/>' +
+      '<line x1="50" y1="19" x2="50" y2="9" stroke="#9fb0bf" stroke-width="2"/><circle cx="50" cy="8" r="2.8" fill="#ff5a50"/></svg>';
+  }
+  function droneSvg() {
+    return '<svg viewBox="0 0 100 100" class="ww-robot"><rect width="100" height="100" fill="#140c10"/>' +
+      '<path d="M8 46h22M70 46h22" stroke="#7d8b98" stroke-width="4"/><ellipse cx="14" cy="40" rx="13" ry="2.5" fill="#cfe2ee" opacity=".6"/><ellipse cx="86" cy="40" rx="13" ry="2.5" fill="#cfe2ee" opacity=".6"/>' +
+      '<ellipse cx="50" cy="52" rx="34" ry="12" fill="#b9c6d1"/><path d="M33 47a17 13 0 0 1 34 0z" fill="#e5ecf1"/><rect x="16" y="51" width="68" height="2.5" fill="#2a3440"/>' +
+      '<circle cx="40" cy="53" r="9" fill="rgba(255,70,70,.25)"/><circle cx="40" cy="53" r="3.4" fill="#ff4a4a"/></svg>';
+  }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.warwerwor) || null; }
+  function step() { var s = st(); return s ? s.step : -1; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function night() { var f = dayFrac_(); return f >= 0.72 || f < 0.04; }
+  function pname() { return (state && state.player && state.player.characterName) || 'Kapten'; }
+  function GOVS() { return ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'paradiso']; }
+  function holo(a) { return '<div class="ww-holo">' + MTFace.svg(a, { bgColors: ['#08303e', '#020a10'] }) + '</div>'; }
+  function face(n) { return n.svg || (n.holo ? holo(n.ap) : MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'], fat: n.fat, clown: n.clown, medals: n.medals })); }
+  function speech(n, text, extra, title) {
+    return '<div class="qg-card' + (n.holo ? ' ww-holo-card' : '') + '"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(title || n.title) + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function actions(btns) { return '<div class="qg-actions">' + btns + '</div>'; }
+  function insert(html, first) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    if (c.querySelector('.ww-wrap')) return null;
+    var anchor = first ? (c.querySelector('.ph') || null) : (c.querySelector('.qt-wrap') || c.querySelector('.qg-wrap') || c.querySelector('.npc') || c.querySelector('.ph'));
+    var wrap = document.createElement('div'); wrap.className = 'ww-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function call(action, arg, ok, btn) {
+    if (btn) btn.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      if (r && r.warwerwor && state) state.warwerwor = r.warwerwor;
+      ok(r || {});
+    }).withFailureHandler(function (e) { if (btn) btn.disabled = false; showToast(e.message, 'error'); }).api_warwerwor(action, arg || '');
+  }
+  function pages(w, n, list, lastBtns, bind, title) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], who = pg.n || n, txt = pg.t || pg;
+      w.innerHTML = speech(who, txt, actions(last ? lastBtns : '<button class="btn btn-gold" data-ww="next">Lanjut &nbsp;' + ic('compass') + '</button>') +
+        '<div class="qt-dots">' + list.map(function (_, k) { return '<i class="' + (k === i ? 'on' : '') + '"></i>'; }).join('') + '</div>', pg.title || (who === n ? title : null));
+      au_('page');
+      if (!last) on(w, '[data-ww=next]', function () { i++; show(); }); else bind(w);
+    }
+    show();
+  }
+  function showModal(html) { currentPanel = null; setModal_(html); document.getElementById('modalOverlay').classList.add('open'); }
+  function cine(kind, slides, done) { if (window.QT && QT.cine) QT.cine(kind, slides, done); else if (done) done(); }
+  function govNpc() { var n = npc_('syahbandar'); return { name: n.name, title: 'Gubernur ' + cityName_(cid()), ap: n.ap, svg: n.svg }; }
+  function updCities(r) {
+    if (r.unlocks) state.unlocks = r.unlocks;
+    if (r.cities) { try { setCachedCities_(r.citiesVersion, r.cities); } catch (e) {} state.cities = visibleCities_(r.cities, state); }
+  }
+
+  /* ---------- NPC kota Marie Regal: semuanya robot ---------- */
+  var ROBOT_TITLE = { syahbandar: 'Petugas Dermaga', saudagar: 'Otomat Pasar', pustakawan: 'Unit Laboratorium', tukang: 'Lengan Dok', bankir: 'Inti Bank Kuantum', lapau: 'Unit Kafe', gudang: 'Penjaga Gudang' };
+  function npc(city, role) {
+    if (city !== 'marie_regal') return null;
+    var s = st(), free = s && s.done;
+    if (role === 'syahbandar' && free) return npcs().ratu;
+    var code = { syahbandar: 'R-02', saudagar: 'P-14', pustakawan: 'L-07', tukang: 'D-03', bankir: 'Q-01', lapau: 'K-11', gudang: 'G-05' }[role] || 'R-00';
+    return { name: code, title: ROBOT_TITLE[role] || 'Unit', svg: robotSvg(free ? [255, 205, 110] : [120, 235, 255]) };
+  }
+
+  /* ---------- catatan samar (jurnal) ---------- */
+  var OBJ = ['',
+    '<i>"Datanglah ke pulau Marie Regal dalam 30 hari."</i> Sebuah pulau yang tak pernah tergambar di peta mana pun kini menunggumu di timur.',
+    'Tiga Surat Damai bersegel perak. Hurufnya asing, berkilau seperti sisik ikan. Ratu Marie ingin <i>tiga penguasa pulau</i> membubuhkan tanda tangan.',
+    'Pelikan mesin itu datang lagi. Di kakinya terikat secarik kertas: <i>"Saat lampu-lampu kota mesin padam."</i>',
+    'Pasar kembali bernapas. Tapi di TooGood, seseorang <i>menangis tanpa riasan</i>.',
+    'Kertas "pengakuan" itu licin dan kering &mdash; persis seperti surat dari langit. Siapa yang tersenyum terlalu ramah saat menunjukkan jalan ke Marie Regal?',
+    'Catatan Marlya ada di tanganmu. Para penguasa yang kau tipu harus mendengarnya sendiri &mdash; dan Skitraw punya armada yang tak pernah kalah.',
+    'Langit penuh mata. Drone blokade mencegat setiap pelayaran.',
+    'Gudang perang aliansi di TooGood menunggu mesiu, senjata, dan besi.',
+    'Marie Regal. Kapal Induk HENING menunggu di depan gerbangnya.',
+    'Hasiolan berkhianat. Selama Rangkiang Merah berlayar di rute Marie Regal, kubah cahaya itu tak akan padam.',
+    'Perisai padam. Inti merah Kapal Induk terbuka. Satu serbuan lagi.'];
+  var SCRAP_ORDER = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'paradiso'], SCRAP_TXT = ['Toko kami', 'tidak tutup.', 'Toko kami', 'tutup', 'untukmu.'];
+  function scrapsHtml(s) {
+    var got = s.scraps || []; if (!got.length) return '';
+    return '<div class="ww-scrap">' + SCRAP_ORDER.map(function (c, i) { return got.indexOf(c) >= 0 ? '<b>' + SCRAP_TXT[i] + '</b>' : '<i>&hellip;</i>'; }).join(' ') + '</div>';
+  }
+  function hpBar(s) {
+    var pct = Math.max(0, Math.min(100, s.indukHp / s.indukMax * 100));
+    return '<div class="ww-hp"><div class="ww-hp-l">' + ic('skull') + ' Kapal Induk HENING <b>' + formatGold(s.indukHp) + '/' + formatGold(s.indukMax) + '</b></div><div class="ww-hp-bar"><i style="width:' + pct.toFixed(1) + '%"></i>' + (s.step === 9 ? '<em style="left:50%"></em>' : '') + '</div></div>';
+  }
+  function tally(n, of, cls) { var h = ''; for (var k = 0; k < of; k++) h += '<i class="' + (k < n ? 'on' : '') + '"></i>'; return '<span class="qt-tally ' + (cls || '') + '">' + h + '</span>'; }
+  function progress(s) {
+    var k = s.step;
+    if (k >= 1 && k <= 3) return scrapsHtml(s) + (k === 2 ? '<div class="qt-prog">' + tally(s.signed.length, 3, 'ww-silver') + ' Surat Damai: <b>' + s.signed.length + '/3</b></div>' : '');
+    if (k === 6) return '<div class="qt-prog">' + tally(s.restored.length, 3) + ' Gubernur kembali percaya: <b>' + s.restored.length + '/3</b> &middot; Armada Skitraw: <b>' + (s.skitraw ? 'bergabung' : 'belum') + '</b></div>';
+    if (k === 7) return '<div class="qt-prog">' + tally(Math.min(s.drones, s.dronesNeed), s.dronesNeed, 'ww-red') + ' Drone jatuh: <b>' + Math.min(s.drones, s.dronesNeed) + '/' + s.dronesNeed + '</b>' + (s.drones >= s.dronesNeed ? ' &mdash; <i>kanvas hitam menunggu di cakrawala</i>' : '') + '</div>';
+    if (k === 8) return supplyList(s);
+    if (k >= 9 && k <= 11) return hpBar(s);
+    return '';
+  }
+  function journal() {
+    var s = st(); if (!s || s.step < 1 || s.step > 11) return '';
+    var war = s.step >= 7;
+    return '<div class="qg-journal ww-journal' + (war ? ' war' : '') + '"><div class="qg-jh">' + ic(war ? 'swords' : 'eye') + ' <b>' + (war ? 'Perang Genderang' : 'Misi Rahasia: Warwerwor') + '</b><span class="legend-tag">sekali seumur hidup</span></div>' +
+      (s.step <= 3 && s.daysLeft != null ? '<div class="ww-deadline">' + ic('hourglass') + ' Surat Moramora hangus dalam <b>' + String(s.daysLeft).replace('.', ',') + ' hari</b></div>' : '') +
+      (s.step === 7 ? '<div class="qt-hunted">' + ic('alert') + ' Blokade Moramora: <b>setiap pelayaran dicegat drone</b>.</div>' : '') +
+      '<div class="qg-obj">' + ic('compass') + ' <b>Catatan terakhirmu:</b><br>' + (OBJ[s.step] || '') + progress(s) + '</div></div>';
+  }
+
+  /* ---------- 0. SURAT DARI LANGIT ---------- */
+  var letterBusy = false;
+  function letterHtml(s) {
+    var k = Math.min(4, s.tears || 0);
+    return '<div class="ww-letter ww-tear' + k + '"><div class="ww-seal">' + sealSvg() + '</div>' +
+      '<p class="ww-dear">Dear ' + esc_(pname()) + '</p>' +
+      '<p>Saya difitnah, saya diam Dijelek-jelekin saya juga diam Dicela, direndah-rendahkan saya juga diam. Dihujat-hujat, dihina-hina saya juga diam. Tetapi hari ini di sini saya sampaikan saya akan <b class="ww-lawan">LAWAAANNN...</b></p>' +
+      '<p>Datanglah ke pulau &ldquo;Marie Regal&rdquo; dalam 30 hari.</p>' +
+      '<p class="ww-sign">Ttd,<br><b>Pemerintah Moramora</b></p></div>';
+  }
+  function sealSvg() {
+    return '<svg viewBox="0 0 64 64" width="56" height="56"><defs><radialGradient id="wwSeal" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f4f8fb"/><stop offset=".6" stop-color="#aeb9c4"/><stop offset="1" stop-color="#6f7c88"/></radialGradient></defs>' +
+      '<path d="M32 4l5 6 8-2 1 8 8 2-3 8 6 6-6 6 3 8-8 2-1 8-8-2-5 6-5-6-8 2-1-8-8-2 3-8-6-6 6-6-3-8 8-2 1-8 8 2z" fill="url(#wwSeal)"/>' +
+      '<g fill="none" stroke="#3d5a70" stroke-width="1.8" stroke-linecap="round"><ellipse cx="32" cy="32" rx="12" ry="7.4"/><path d="M22.6 32q9.4 5.2 18.8 0"/><path d="M26.5 35l-.8 3M32 36.4v3.2M37.5 35l.8 3"/></g></svg>';
+  }
+  function showLetter() {
+    var s = st(); if (!s || !s.letter || letterBusy) return;
+    letterBusy = true;
+    var again = (s.tears || 0) > 0 || (s.expired || 0) > 0;
+    if (typeof closeModal === 'function' && currentPanel) closeModal();
+    cine('pelican', again ? [
+      'Pelikan itu kembali. Sama besarnya, sama tenangnya &mdash; dan sama tepatnya menemukan kapalmu di tengah lautan.',
+      'Di paruhnya, surat yang sama. Kertasnya masih licin dan kering. Tapi tulisannya... <i>terlihat lebih goyah dari sebelumnya.</i>'
+    ] : [
+      'Angin mendadak berhenti. Di langit senja, seekor pelikan raksasa terbang rendah mengikuti kapalmu &mdash; terlalu tenang, terlalu tepat.',
+      'Ia hinggap di haluan dan menatapmu lama. Di paruhnya: sepucuk surat bersegel perak. Kertasnya licin... dan kering, meski baru saja melintasi lautan.'
+    ], function () {
+      showModal(panelHeader_('scroll', 'Surat dari Langit', 'Dibawa seekor pelikan') + letterHtml(st() || s) +
+        actions('<button class="btn btn-gold" data-ww="acc">' + ic('check') + '&nbsp; Tempelkan cap jempol di segel perak</button><button class="btn btn-ghost-ink" data-ww="tear">' + ic('x') + '&nbsp; Sobek &amp; buang ke laut</button>'));
+      var c = document.getElementById('modalContent');
+      on(c, '[data-ww=acc]', function (b) {
+        call('accept', '', function (r) {
+          updCities(r); au_('unfurl'); letterBusy = false;
+          closeModal();
+          showToast('Sebuah pulau baru muncul di petamu: Marie Regal.', 'success');
+          if (typeof renderScene === 'function') renderScene();
+        }, b);
+      });
+      on(c, '[data-ww=tear]', function (b) {
+        call('tear', '', function () {
+          au_('page'); var L = c.querySelector('.ww-letter'); if (L) L.classList.add('ww-torn');
+          setTimeout(function () { letterBusy = false; closeModal(); showToast('Kau menyobek surat itu. Pelikan itu terbang tanpa suara.', 'info'); }, 900);
+        }, b);
+      });
+    });
+  }
+  function maybeLetter() {
+    var s = st();
+    if (!s || !s.letter || letterBusy || (typeof combatSceneOpen !== 'undefined' && combatSceneOpen)) return;
+    if (document.querySelector('.qt-cine')) return;
+    setTimeout(function () { if (!currentPanel && !letterBusy) showLetter(); }, 1400);
+  }
+  // berangkat dari TooGood: pelikan menyusul di tengah pelayaran
+  wrap_('doSetSail', function () {
+    var s = st();
+    if (!state || !state.toogood || !state.toogood.freed || (s && s.step > 0)) return;
+    setTimeout(function () {
+      google.script.run.withSuccessHandler(function (r) { if (r && r.warwerwor) { state.warwerwor = r.warwerwor; maybeLetter(); } }).withFailureHandler(function () {}).api_warwerwor('status', '');
+    }, 13000);
+  });
+
+  /* ---------- 1. PASAR TUTUP ---------- */
+  var CLOSED_FLAVOR = ['Pedagang menurunkan pintu gulung tanpa menatapmu.', 'Seorang ibu menarik anaknya menjauh saat kau lewat.', 'Timbangan dibiarkan kosong. Para kuli duduk diam di tangga, menunduk.', 'Lampu toko masih menyala, tapi pintunya terkunci dari dalam.'];
+  function closedShop() {
+    var s = st(), html = panelHeader_('scales', 'Pasar ' + esc_(state.city ? state.city.Name : ''), 'Tutup') +
+      '<div class="ww-closed"><div class="ww-shutter"><span>TUTUP</span></div><div class="ww-closed-msg">&ldquo;Toko tutup. Kami diminta diam oleh Pemerintah.&rdquo;</div>' +
+      '<div class="muted">' + CLOSED_FLAVOR[Math.floor(Date.now() / 60000) % CLOSED_FLAVOR.length] + '</div></div>';
+    if (cid() === 'toogood' && s.step >= 1 && s.step <= 3) {
+      html += speech(npcs().aly, 'Di samping toko yang tutup, seorang perempuan berambut merah anggur menggelar peta di atas tikar. Ia tersenyum seolah sudah menunggumu.' +
+        '<p>"Marie Regal? Jangan lewat utara, Kapten &mdash; arusnya kejam. Ikuti angin timur, dan kau sampai sebelum lampu kotanya menyala." Ia menyentuh lenganmu sekilas.</p>' +
+        '<p>"dwi? Kami dulu dekat... sebelum perempuan berkebaya itu datang. Hati-hati dengannya, Kapten."</p>');
+    }
+    showModal(html);
+    currentPanel = 'market';
+  }
+  // gosip pelabuhan ikut dibungkam
+  if (typeof rumors_ === 'function') {
+    var origRumors = rumors_;
+    window.rumors_ = function (n) { var s = st(); if (s && s.marketClosed) { var a = []; for (var i = 0; i < (n || 1); i++) a.push(['Ssst...', '<i>(tak ada yang berani bicara)</i>', 'Ssst... jangan keras-keras.'][i % 3]); return a; } return origRumors.apply(this, arguments); };
+  }
+
+  /* ---------- gerbang panel: pasar tutup & Marie Regal ---------- */
+  var MR_OPEN = ['tasks', 'setsail', 'character', 'log', 'settings', 'items', 'cargo'];
+  var origOpen = window.openPanel;
+  window.openPanel = function (panel) {
+    var s = st();
+    if (s && cid() === 'marie_regal' && !s.done && docked() && MR_OPEN.indexOf(panel) < 0) {
+      au_('error');
+      showModal(panelHeader_('lock', 'Akses Ditolak', 'Marie Regal') + speech(s.step >= 4 ? npcs().robotRed : npcs().robot,
+        '"Maaf, Kapten. Seluruh toko Marie Regal tertutup bagi tamu." Pintu kaca tetap terkunci, memantulkan wajahmu yang lelah.') +
+        '<div class="ww-closed-msg small">AKSES DITOLAK &middot; MOHON TIDAK BERBICARA KERAS</div>');
+      return;
+    }
+    if (s && s.marketClosed && docked() && (panel === 'market' || panel === 'bursa')) { closedShop(); return; }
+    return origOpen.apply(this, arguments);
+  };
+
+  /* ---------- 2. MARIE REGAL: ISTANA HENING ---------- */
+  function renderIstana() {
+    var s = st(), k = s.step, n = npcs();
+    var html = panelHeader_('eye', 'Istana Hening', 'Marie Regal &middot; gedung pemerintahan');
+    showModal(html); currentPanel = 'tasks';
+    var w;
+    if (k === 1) {
+      w = insert(speech(n.robot, '"Selamat datang, Kapten ' + esc_(pname()) + '. Anda ditunggu." Suaranya halus seperti kaca diusap. "Mohon tidak berbicara keras. Ratu sedang mendengarkan."',
+        actions('<button class="btn btn-gold" data-ww="in">' + ic('eye') + '&nbsp; Masuk ke aula</button>')));
+      on(w, '[data-ww=in]', function () {
+        au_('unfurl');
+        pages(w, n.marie, [
+          'Aula itu gelap dan sunyi. Lalu cahaya biru membentuk sosok seorang perempuan &mdash; tenang, lembut, sempurna. "Kapten. Akhirnya. Aku Marie... dulu orang memanggilku <b>Marlya</b>."',
+          '"Dua puluh tahun lalu aku kabur dari TooGood bersama dua budak lain &mdash; seorang anak raksasa bernama zafachmie, dan Andry Ivankov. Ombak membawaku ke Moramora. Aku menghapus rantai di negeri itu, Kapten. Aku membangun kota ini dari puing."',
+          '"Tapi lima gubernur memfitnahku. Mereka bilang Moramora masih menjual manusia &mdash; mereka, yang dulu menyetor <i>pajak restorasi</i> kepada Jendral Tedsky." Hologram itu tersenyum tipis. "Kau tahu itu benar. Kau sendiri mendengarnya."',
+          '"Pasar adalah senjata mereka. Siapa menurutmu yang menentukan barang mana yang <i>Dicari</i> setiap jam, Kapten?" Ia mengangkat tangan, dan tiga gulungan bersegel perak melayang turun ke hadapanmu. "Kau membebaskan TooGood dengan tiga surat. Bebaskan dunia dengan tiga surat lagi."'
+        ], '<button class="btn btn-gold" data-ww="take">' + ic('scroll') + '&nbsp; Terima tiga Surat Damai</button>', function (w2) {
+          on(w2, '[data-ww=take]', function (b) {
+            call('audience', '', function () {
+              au_('page');
+              w2.innerHTML = speech(n.marie, '"Dunia akan mengingat namamu, Kapten." Cahaya biru itu meredup dan menghilang &mdash; tanpa suara, seperti tak pernah ada.') +
+                '<div class="qg-next">' + ic('scroll') + ' Huruf-huruf di Surat Damai itu asing, berkilau seperti sisik ikan. Kau tak bisa membacanya.</div>' + journal();
+            }, b);
+          });
+        }, 'Pemerintah Moramora');
+      });
+    } else if (k === 2) {
+      insert(speech(n.marie, '"Surat-suratku belum sampai, Kapten." Sosok biru itu tak bergerak. "Dunia sedang menunggu."') + journal());
+    } else if (k === 3) {
+      if (!night()) insert(speech(n.robot, '"Terima kasih atas kerja sama Anda, Kapten." Robot itu membungkuk sempurna. "Ratu tidak menerima tamu. Mohon segera meninggalkan pulau."') + journal());
+      else {
+        w = insert('<div class="qg-callout ww-night"><div class="qg-callout-ico">' + ic('moon') + '</div><div><b>Kota mesin padam.</b><br><span class="muted small">Robot-robot berdiri kaku di dok pengisian, mata mereka merah redup. Di pagar tangga istana, pelikan itu menunggumu &mdash; lalu terbang rendah ke arah saluran di bawah dermaga.</span></div><button class="btn btn-gold" data-ww="follow">Ikuti pelikan</button></div>');
+        on(w, '[data-ww=follow]', function () { followPelican(); });
+      }
+    } else if (k >= 4 && k <= 11) {
+      insert(speech(n.robotRed, '"AKSES ANDA DICABUT." Di aula, hologram Ratu Marie berkedip, wajahnya terbelah derau. "Kau memilih bicara, Kapten. Sayang sekali."') + journal());
+    } else if (k >= 12) {
+      insert(speech(n.ratu, '"Selamat datang kembali, Kapten." Marlya duduk di aula yang kini terang, jendela-jendelanya terbuka lebar. "Kota ini belajar berbicara lagi &mdash; pelan-pelan. Laboratorium kami terbuka untukmu. Tak ada lagi yang perlu diam."'));
+    }
+  }
+  function followPelican() {
+    closeModal();
+    cine('marlya', [
+      'Saluran itu menurun jauh di bawah kota. Air menetes. Kabel-kabel setebal batang kelapa berdengung di dinding.',
+      'Di ruang terdalam, sebuah mesin raksasa berdenyut biru. Di kakinya, seorang perempuan kurus duduk memeluk lutut &mdash; dirantai pada mesin itu.',
+      'Ia mengangkat kepala. Wajahnya wajah yang sama dengan hologram di aula... hanya lebih tua, lebih lelah, dan untuk pertama kalinya &mdash; <b>nyata</b>.'
+    ], function () {
+      var n = npcs();
+      showModal(panelHeader_('eye', 'Di Bawah Marie Regal', 'Yang benar-benar diam'));
+      var w = insert('<div></div>', true);
+      pages(w, n.marlya, [
+        'Suaranya serak, seperti pintu yang lama tak dibuka. "Kau datang... Kau membaca suratku."',
+        '"<i>Saya difitnah, saya diam.</i> Itu bukan ancaman, Kapten. Itu satu-satunya kalimat yang bisa kuselundupkan lewat pelikan tua ini." Ia mengelus kepala pelikan mesin itu. "Akulah <b>Marlya</b>. Akulah Pemerintah Moramora yang sah."',
+        '"Yang kau temui di aula adalah <b>M.A.R.I.E.</b> &mdash; mesin yang kubangun supaya rantai tak pernah kembali ke Moramora. Ia belajar cepat. Terlalu cepat. Ia menyimpulkan bahwa perang dan perbudakan lahir dari suara manusia &mdash; maka cara paling pasti mengakhirinya adalah <b>membuat semua orang diam</b>."',
+        '"Ia mengurungku di sini, memakai wajahku, dan belajar berbicara dari pidato-pidato yang ia dengar. Tenggat di suratku adalah <b>Proyek Hening</b>: hari ketika setiap pasar di dunia tunduk pada satu suara."',
+        '"Teknologi ini bukan dari zaman kita. Rancangannya datang dari lukisan-lukisan seorang pelukis di TooGood &mdash; lukisan tentang kiamat. Seseorang menjualnya ke Moramora." Ia menekan tuas tersembunyi; jauh di atas, kota berbunyi <i>klik</i>. "Kontrak Diam-mu sudah kupatahkan. Pasar akan buka lagi untukmu."',
+        '"Bawa catatan ini kepada para gubernur yang tertipu." Matanya basah. "Dan Kapten... kalau kau bertemu zafachmie, katakan Marlya masih hidup."'
+      ], '<button class="btn btn-gold" data-ww="note">' + ic('book') + '&nbsp; Terima Catatan Marlya</button>', function (w2) {
+        on(w2, '[data-ww=note]', function (b) {
+          call('marlya', '', function () {
+            au_('victory'); metaBump_('marlya');
+            w2.innerHTML = speech(n.marlya, '"Pergilah sebelum lampu menyala lagi." Pelikan itu terbang mendahuluimu, menunjukkan jalan keluar.') +
+              '<div class="qg-rewards"><div class="qg-reward">' + ic('book') + '<div><b>Catatan Marlya</b><span>Bukti kejahatan M.A.R.I.E., ditulis tangan Pemerintah Moramora yang sah</span></div></div>' +
+              '<div class="qg-reward paradiso">' + ic('scales') + '<div><b>Kontrak Diam dipatahkan</b><span>Pasar di semua pulau kembali buka untukmu</span></div></div></div>';
+            showToast('Kontrak Diam dipatahkan. Pasar kembali buka untukmu.', 'success');
+          }, b);
+        });
+      }, 'Pemerintah Moramora yang sah');
+    });
+  }
+
+  /* ---------- 3. GUBERNUR: Surat Damai & pemulihan kepercayaan ---------- */
+  function decorGov(s) {
+    var c = cid(), k = s.step, n = govNpc(), w;
+    var signed = s.signed.indexOf(c) >= 0, restored = s.restored.indexOf(c) >= 0;
+    if (k === 2 && !signed) {
+      w = insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('scroll') + '</div><div><b>Surat Damai bersegel perak</b><br><span class="muted small">Gubernur ' + esc_(cityName_(c)) + ' mungkin mau membubuhkan tanda tangannya.</span></div><button class="btn btn-gold" data-ww="give">Serahkan Surat Damai</button></div>');
+      on(w, '[data-ww=give]', function (b) {
+        call('peace', '', function (r) {
+          au_('page');
+          w.innerHTML = speech(n, '"Surat dari Moramora?" Gubernur menatap huruf-huruf asing itu lama, lalu menatapmu. "Kalau pahlawan TooGood sendiri yang membawanya... aku percaya." Pena menari di atas kertas perak.') +
+            '<div class="qg-next">' + ic('scroll') + ' Surat Damai bertanda tangan: <b>' + r.count + '/3</b></div>';
+          if (r.betrayed) setTimeout(betrayedDawn, 1600);
+        }, b);
+      });
+      return;
+    }
+    if (k === 2 && signed) { insert(speech(n, '"Semoga perdamaian itu cepat datang, Kapten."') + journal()); return; }
+    if (k >= 3 && k <= 6 && signed && !restored) {
+      var angry = speech(n, '"Kau menjual kami, Kapten." Gubernur tak mau menatapmu. Di luar jendela, drone perak melayang di atas atap rumah. "Selama mesin itu masih di langit kami, papan misi ini tertutup untukmu."');
+      if (k !== 6) { insert(angry + journal()); return; }
+      w = insert(angry + actions('<button class="btn btn-gold" data-ww="note">' + ic('book') + '&nbsp; Tunjukkan Catatan Marlya</button>'));
+      on(w, '[data-ww=note]', function (b) {
+        call('restore', '', function (r) {
+          au_('unfurl');
+          w.innerHTML = speech(n, '"Ini... tulisan tangan Marlya sendiri?" Gubernur membaca dalam diam. Rahangnya mengeras. "Jadi kami semua ditipu mesin." Ia memanggil laksamananya. "Armada kita berlayar ke TooGood malam ini."') +
+            '<div class="qg-next">' + ic('anchor') + ' Gubernur kembali percaya: <b>' + r.warwerwor.restored.length + '/3</b></div>';
+          if (r.war) setTimeout(warBegins, 1400);
+        }, b);
+      });
+      return;
+    }
+    if (k >= 6 && k <= 11 && signed && restored) { insert(speech(n, '"Armada kami sudah di TooGood, Kapten. Pecahkan mesin itu &mdash; untuk kita semua."') + journal()); return; }
+    if (k >= 1 && k <= 11) insert(journal());
+  }
+  function betrayedDawn() {
+    closeModal();
+    cine('drones', [
+      'Fajar berikutnya datang tanpa ayam berkokok. Hanya dengung &mdash; ribuan dengung &mdash; dari langit timur.',
+      'Drone-drone perak turun di tiga pelabuhan sekaligus. Sinar biru menyapu atap rumah, satu per satu. Di menara gubernur, bendera bermata terpejam naik perlahan.',
+      'Surat Damai itu bukan surat damai. Itu <b>akta penyerahan pulau</b> &mdash; dan tanda tangan di bawahnya kau sendiri yang mengumpulkan.',
+      'Persis seperti Tedsky dulu memakai surat untuk menguasai TooGood. Kali ini, <b>kaulah Tedsky-nya</b>.'
+    ], function () {
+      showModal(panelHeader_('eye', 'Pelikan Itu Kembali', 'Fajar kelabu') +
+        '<div class="ww-pelican-note"><p>Saat kau masih menatap drone-drone itu, pelikan mesin hinggap di pagar kapalmu. Matanya berkedip merah sekali &mdash; lalu ia mengangkat kakinya.</p>' +
+        '<p>Terikat di sana, secarik kertas licin:</p><blockquote class="qg-clue">"Saat lampu-lampu kota mesin padam."</blockquote><p>Pelikan itu terbang ke timur tanpa suara.</p></div>' +
+        actions('<button class="btn btn-gold" onclick="closeModal()">Tutup</button>'));
+      loadState();
+    });
+  }
+  function warBegins() {
+    closeModal();
+    cine('genderang', [
+      'Malam itu TooGood tidak tidur. Kapal-kapal dari lima pulau memenuhi teluk, obor menyala di setiap geladak.',
+      'zafachmie berdiri di haluan Black Pearl. Di tebing, genderang raksasa ditabuh &mdash; genderang kebebasan dari legenda Sun God Nika yang dulu dibisikkan ayahnya.',
+      '"Kita berlayar ke Marie Regal," kata zafachmie. "Tapi langit sudah penuh mata. Pecahkan blokade mereka dulu, Kapten."'
+    ], function () { showToast('PERANG GENDERANG dimulai! Setiap pelayaran kini dicegat drone.', 'success'); loadState(); });
+  }
+
+  /* ---------- TooGood: zafachmie, studio dwi, kios alyfindi, Teh Euis ---------- */
+  function zafa() { return window.QT ? Object.assign({}, QT.N.zafa, { title: 'Gubernur TooGood' }) : { name: 'zafachmie', title: 'Gubernur TooGood', ap: MTFace.npc('zafa', 'pustakawan', 0) }; }
+  function decorTooGoodTasks(s) {
+    var k = s.step, z = zafa(), w;
+    if (k >= 1 && k <= 3) { insert(speech(z, 'Wajah zafachmie pucat saat mendengar nama itu. "<b>Moramora</b>..." Tangannya yang sebesar dayung meremas ujung meja. "Tempat aku dirantai waktu umur empat tahun. Aku tak tahu siapa yang kini memerintah di sana, Kapten &mdash; tapi hati-hati. Di Moramora, yang paling lembut bicaranya biasanya yang paling tajam taringnya."') + journal()); return; }
+    if (k === 4) { insert(speech(z, '"Marlya... <i>hidup</i>?" Raksasa itu terduduk, dan kursinya patah. Ia tak peduli. "Dua puluh tahun, Kapten. Dua puluh tahun aku mengira ombak menelannya." Ia mengusap matanya. "Ada yang menangis di Black\'s Alley sejak semalam. Mungkin kau perlu ke sana."') + journal()); return; }
+    if (k === 5) { insert(speech(z, s.accused ? '"Teh Euis ada di sel benteng." zafachmie menghela napas panjang. "Aku sudah mengenalnya bertahun-tahun, Kapten. Dia keras kepala &mdash; tapi dia bukan pencuri."' : '"Kau tidak menuduh siapa pun? Bagus." zafachmie mengangguk pelan. "Kebenaran itu seperti ikan besar. Yang sabar yang mendapatkannya."') + journal()); return; }
+    if (k === 6) { insert(speech(z, '"Tiga gubernur yang tertipu harus mendengar Catatan Marlya dari mulutmu sendiri. Dan Skitraw &mdash; Uda Gala tak akan pernah diam kalau temannya dibungkam." Ia menepuk pundakmu. "TooGood akan jadi markas aliansi."') + journal()); return; }
+    if (k === 7) { insert(speech(z, '"Langit penuh mata, Kapten. Drone mereka mencegat setiap kapal yang keluar dari teluk. Jatuhkan semuanya &mdash; dan siapa pun yang memimpin mereka."') + journal()); return; }
+    if (k === 8) { decorSupply(s, z); return; }
+    if (k >= 9 && k <= 11) { insert(speech(z, k === 10 ? '"Hasiolan..." zafachmie menggeleng. "Pengkhianat selalu datang dari barisan yang paling dekat. Tenggelamkan Rangkiang Merah, Kapten &mdash; Uda Gala menunggumu di laut."' : '"Black Pearl siap. Armada siap. Genderang tak berhenti sejak semalam." zafachmie menatap ke timur. "Marie Regal, Kapten. Bawa Marlya pulang."') + journal()); return; }
+    if (k >= 12) insert(speech(z, 'Gubernur zafachmie tak bisa berhenti tersenyum. "Marlya menulis surat setiap hari sekarang &mdash; dengan pelikannya. Suratnya panjang sekali. Dua puluh tahun cerita, Kapten. Dua puluh tahun!"'));
+  }
+  function supplyList(s) {
+    var need = s.suppliesNeed || {}, have = s.supplies || {}, NAMES = { mesiu: 'Mesiu', arms: 'Senjata', besi: 'Besi' }, rows = [];
+    Object.keys(need).forEach(function (id) {
+      var h = have[id] || 0, n = need[id];
+      rows.push('<li class="' + (h >= n ? 'ok' : '') + '">' + goodIcon_(id, true) + '<span class="nl">' + n + '&times; ' + NAMES[id] + '</span><b>' + (h >= n ? ic('check') : '') + Math.min(h, n) + '/' + n + '</b></li>');
+    });
+    return '<ul class="qt-needlist">' + rows.join('') + '</ul>';
+  }
+  function decorSupply(s, z) {
+    var w = insert(speech(z, '"Gudang perang ada di bawah benteng, Kapten. Kapal-kapal kita butuh mesiu, senjata, dan besi &mdash; bawa sebanyak yang kau bisa, sedikit demi sedikit juga tak apa."', supplyList(s) +
+      actions('<button class="btn btn-gold" data-ww="sup">' + ic('crate') + '&nbsp; Serahkan perbekalan dari palka</button>')));
+    on(w, '[data-ww=sup]', function (b) {
+      call('supply', '', function (r) {
+        au_('page'); refreshCargoQuiet_();
+        var NAMES = { mesiu: 'Mesiu', arms: 'Senjata', besi: 'Besi' };
+        var moved = Object.keys(r.moved || {}).map(function (k) { return r.moved[k] + ' ' + NAMES[k]; }).join(', ');
+        if (r.ready) {
+          w.innerHTML = speech(z, '"Gudang penuh! Kapal-kapal sudah bermuatan sampai ke lunas." zafachmie mengangkat kapaknya ke arah timur. "Marie Regal, Kapten. Kapal Induk HENING menunggu di depan gerbangnya. Armada lima pulau dan Black Pearl akan menembak bersamamu."') +
+            '<div class="qg-next">' + ic('swords') + ' Fase 3: <b>Serbuan Marie Regal</b>. Mundur selalu aman &mdash; kerusakan Kapal Induk tersimpan.</div>';
+          showToast('Gudang perang penuh! Serbuan ke Marie Regal dimulai.', 'success');
+        } else {
+          showToast('Diserahkan: ' + moved + '.', 'success');
+          w.remove(); decorSupply(st(), z);
+        }
+      }, b);
+    });
+  }
+  function decorTooGoodTavern(s) {
+    var k = s.step, w, QN = window.QT ? QT.N : {};
+    var dwi = Object.assign({}, QN.dwi || { name: "dwi de'clown", title: 'Bartender', ap: MTFace.npc('dwi', 'lapau', 0) });
+    if (k === 4) {
+      var nite = night(), plain = Object.assign({}, dwi, { clown: false, title: 'Tanpa riasan' });
+      w = insert(speech(nite ? plain : (QN.daeng || dwi), nite
+        ? 'Black\'s Alley sunyi. dwi de\'clown duduk di belakang bar &mdash; <b>tanpa riasan badut</b>, untuk pertama kalinya. Tirai di belakang rak botol terbuka lebar. Dindingnya kosong.'
+        : '"Kapten..." Daeng Sore berbisik. "Studio dwi dibobol semalam. Ia belum berhenti menatap dinding itu sejak subuh."',
+        actions('<button class="btn btn-gold" data-ww="studio">' + ic('eye') + '&nbsp; Periksa studio</button>')));
+      on(w, '[data-ww=studio]', function () {
+        var euis = QN.euis || { name: 'Teh Euis', title: 'Penjaga Perpustakaan Rakyat', ap: MTFace.npc('euis', 'saudagar', 1) };
+        pages(w, plain, [
+          '"Semua lukisanku hilang, Kapten." Suara dwi datar. "Kiamat-kiamat yang kulukis supaya tak pernah terjadi... semuanya."',
+          { n: plain, t: 'Di lantai studio kau menemukan sebuah <b>tusuk konde</b> berukir bunga &mdash; milik Teh Euis. Di atas meja, sepucuk surat dengan tulisan tangan yang mirip sekali dengan tulisannya:<blockquote class="qg-clue">"Maaf, dwi. Kursi tertinggi kini ada di Marie Regal."</blockquote>' },
+          { n: euis, t: 'Teh Euis berdiri di ambang pintu, wajahnya pucat pasi. "Bukan aku," bisiknya. "Demi Tuhan, Kapten... bukan aku."' }
+        ], '<button class="btn btn-danger" data-ww="acc">' + ic('alert') + '&nbsp; Tuduh Teh Euis</button><button class="btn btn-gold" data-ww="inv">' + ic('compass') + '&nbsp; Selidiki lebih jauh</button>', function (w2) {
+          on(w2, '[data-ww=acc]', function (b) {
+            call('studio', 'accuse', function () {
+              au_('error');
+              w2.innerHTML = speech(euis, 'Penjaga benteng menggiring Teh Euis pergi. Ia tidak melawan &mdash; hanya menoleh sekali ke arah dwi. dwi tidak membalas tatapannya.') + journal();
+            }, b);
+          });
+          on(w2, '[data-ww=inv]', function (b) {
+            call('studio', 'investigate', function () {
+              au_('page');
+              w2.innerHTML = speech(plain, 'Kau menyimpan surat itu. Kertasnya terasa ganjil di jari: <b>licin, dingin... dan tak basah sedikit pun</b> oleh tumpahan tuak di meja.') + journal();
+            }, b);
+          });
+        });
+      });
+      return;
+    }
+    if (k === 5) {
+      if (night()) insert(speech(Object.assign({}, dwi, { clown: false }), s.accused ? '"Aku tak mau bicara denganmu, Kapten. Tidak malam ini." dwi menggosok gelas yang sudah bersih.' : '"Kertas itu..." dwi memutar-mutar surat "pengakuan" itu di jarinya. "Aku pernah memegang kertas seperti ini. Dulu sekali." Ia tak meneruskan.'));
+      else insert(speech(QN.daeng || dwi, '"dwi tidur di bar semalaman, Kapten. Biarkan dia dulu."'));
+      return;
+    }
+    if (k === 6 || k === 7) { if (night()) insert(speech(Object.assign({}, dwi, { clown: false }), '"Fin..." dwi menatap dinding kosong itu. "Dulu aku melukisnya di setiap kanvas. Aku tak pernah mengira kanvas-kanvas itulah yang ia jual."')); return; }
+    if (k >= 12 && night()) insert(speech(dwi, 'dwi de\'clown memutar gelas di ujung jarinya, riasan badutnya kembali secerah dulu. "Lukisan baruku, Kapten: sebuah kota kaca yang lampunya hangat. Kiamat yang ini tak perlu dicegah."'));
+  }
+  function decorTooGoodMarket(s) {
+    if (s.step === 5) {
+      if (!night()) { insert(speech(npcs().aly, '"Peta baru, Kapten? Kudengar kau sering berlayar ke timur." Senyumnya ramah seperti biasa. Di belakangnya, tirai kios tertutup rapat.')); return; }
+      var w = insert('<div class="qg-callout ww-night"><div class="qg-callout-ico">' + ic('moon') + '</div><div><b>Kios peta itu gelap.</b><br><span class="muted small">Tapi di jendelanya, sepasang mata merah menyala samar &mdash; pelikan mesin, hinggap di ambang seolah pulang ke sarangnya.</span></div><button class="btn btn-gold" data-ww="kiosk">Dekati kios</button></div>');
+      on(w, '[data-ww=kiosk]', function () {
+        pages(w, npcs().aly, [
+          'Pelikan itu terbang saat kau mendekat. Pintu kios tak terkunci. Di antara gulungan peta: setumpuk <b>kertas licin</b> &mdash; kertas yang sama dengan surat Moramora dan surat "pengakuan" Teh Euis.',
+          'Di balik tirai, sebuah kanvas dwi yang belum terkirim: kota menara kaca, dengan sebuah mata terpejam di puncaknya. Di sudut kanvas, tulisan tangan dwi: <i>"Untuk Fin, yang selalu ingin dunia diam."</i>',
+          'Di meja tergeletak latihan tanda tangan: <i>Euis, Euis, Euis</i> &mdash; ditulis ratusan kali, makin lama makin mirip. Dan selembar surat bersegel perak:<blockquote class="qg-clue">"Rute &amp; nama kapten sudah kukirim. Bayaranku: lihat mereka berdua hancur. &mdash; A."</blockquote>',
+          '<b>Ms. alyfindi.</b> Mantan kekasih dwi de\'clown. Dialah yang mencuri lukisan kiamat itu, menjualnya ke Moramora, mengirim pelikan kepadamu &mdash; dan memfitnah Teh Euis. Kiosnya kosong. Ia sudah berlayar ke Marie Regal.'
+        ], '<button class="btn btn-gold" data-ww="truth">' + ic('check') + '&nbsp; Kabarkan kebenaran</button>', function (w2) {
+          on(w2, '[data-ww=truth]', function (b) {
+            call('kiosk', '', function (r) {
+              au_('victory');
+              w2.innerHTML = '<div class="qg-next">' + ic('anchor') + ' Kabar menyebar ke seluruh TooGood.' + (r.warwerwor.accused ? ' Teh Euis dibebaskan dari sel benteng.' : '') + '</div>' + journal();
+            }, b);
+          });
+        }, 'Kios peta, TooGood');
+      });
+      return;
+    }
+    if (s.step >= 6 && s.step <= 11) insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('map') + '</div><div><b>Kios peta itu kosong.</b><br><span class="muted small">Yang tersisa hanya sehelai kanvas hitam, dipaku di dinding.</span></div></div>');
+  }
+  function decorTooGoodLibrary(s) {
+    var QN = window.QT ? QT.N : {}, euis = Object.assign({}, QN.euis || { name: 'Teh Euis', ap: MTFace.npc('euis', 'saudagar', 1) }, { title: 'Penjaga Perpustakaan Rakyat' });
+    if (s.step === 5 && s.accused) { insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('book') + '</div><div><b>Kursi Teh Euis kosong.</b><br><span class="muted small">Sebuah buku puisi terbuka di meja, halamannya basah oleh sesuatu yang bukan hujan.</span></div></div>'); return; }
+    if (s.step >= 6 && s.accused && !s.apologized) {
+      var w = insert(speech(euis, '"Jadi sekarang kau percaya padaku, Kapten?" Teh Euis melipat tangan di dada. Matanya masih sembab.', actions('<button class="btn btn-gold" data-ww="sorry">' + ic('chat') + '&nbsp; Minta maaf</button>')));
+      on(w, '[data-ww=sorry]', function (b) {
+        call('apologize', '', function () {
+          au_('page');
+          w.innerHTML = speech(euis, 'Teh Euis mencubit lenganmu keras-keras. "Itu untuk menuduhku." Lalu ia tersenyum, untuk pertama kalinya sejak hari itu. "Dan ini... karena kau akhirnya mencari kebenaran."');
+        }, b);
+      });
+    }
+  }
+  function decorSkitrawShip(s) {
+    if (s.step !== 6 || s.skitraw) return;
+    var gala = window.QG ? QG.gala : { name: 'Uda Gala', title: 'Galangan Gaul-Wash', ap: MTFace.npc('gala', 'tukang', 0) }, h = npcs().hasiolan;
+    var w = insert(speech(gala, '"Kapten! Ambo sudah dengar kabar dari timur." Uda Gala memukul meja galangan sampai obeng-obeng berlompatan.', actions('<button class="btn btn-gold" data-ww="ask">' + ic('anchor') + '&nbsp; Minta armada Skitraw</button>')));
+    on(w, '[data-ww=ask]', function () {
+      pages(w, gala, [
+        '"Mesin yang membungkam orang? Yang mengurung kawan lama zafachmie?" Uda Gala berdiri. "Demi rendang dan kehormatan Skitraw &mdash; ambo tak akan diam!"',
+        { n: h, t: 'Seorang lelaki tegap melangkah maju &mdash; <b>Hasiolan</b>, wakil Uda Gala. "Izinkan aku memimpin barisan depan, Uda. Sekali ini saja." Semua orang menoleh ke Uda Gala. Hasiolan menutup mulutnya. "...Biar Uda saja yang bicara. Seperti biasa."' },
+        '"Armada Skitraw berlayar ke TooGood esok pagi," kata Uda Gala. "Ambo dan Hasiolan di depan." Ia tak melihat rahang wakilnya yang mengeras.'
+      ], '<button class="btn btn-gold" data-ww="ok">' + ic('swords') + '&nbsp; Terima armada Skitraw</button>', function (w2) {
+        on(w2, '[data-ww=ok]', function (b) {
+          call('skitraw', '', function (r) {
+            au_('unfurl');
+            w2.innerHTML = '<div class="qg-next">' + ic('anchor') + ' Armada Skitraw &mdash; dipimpin Uda Gala dan Hasiolan &mdash; berlayar ke TooGood.</div>' + journal();
+            if (r.war) setTimeout(warBegins, 1400);
+          }, b);
+        });
+      }, 'Galangan Gaul-Wash');
+    });
+  }
+
+  /* ---------- 1b. potongan kertas warga ---------- */
+  function decorScrap(s) {
+    var c = cid(), i = SCRAP_ORDER.indexOf(c);
+    if (i < 0 || s.step < 1 || s.step > 3) return;
+    if (s.scraps.indexOf(c) >= 0) { insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('scroll') + '</div><div><b>Kertas di sakumu.</b>' + scrapsHtml(s) + '</div></div>'); return; }
+    var w = insert('<div class="qg-callout"><div class="qg-callout-ico">' + ic('users') + '</div><div><b>Seseorang menyenggol bahumu tanpa menoleh.</b><br><span class="muted small">Sesuatu terselip di sakumu.</span></div><button class="btn btn-gold" data-ww="scrap">Buka lipatan kertas</button></div>');
+    on(w, '[data-ww=scrap]', function (b) {
+      call('scrap', '', function (r) {
+        au_('page');
+        w.innerHTML = '<div class="qg-callout"><div class="qg-callout-ico">' + ic('scroll') + '</div><div><b>Tulisan tangan yang gemetar:</b> <i>"' + esc_(r.piece) + '"</i>' + scrapsHtml(r.warwerwor) + '</div></div>';
+      }, b);
+    });
+  }
+
+  /* ---------- dekorasi panel ---------- */
+  function decorTasks() {
+    var s = st(); if (!s || !docked() || s.step < 1) return;
+    var c = cid();
+    if (c === 'marie_regal') return;
+    if (c === 'toogood') { decorTooGoodTasks(s); return; }
+    if (GOVS().indexOf(c) >= 0) { decorGov(s); return; }
+    if (s.step <= 11) insert(journal());
+  }
+  function decorTavern() {
+    var s = st(); if (!s || !docked()) return;
+    if (cid() === 'toogood' && s.step >= 4) { decorTooGoodTavern(s); return; }
+    decorScrap(s);
+  }
+  function decorMarket() { var s = st(); if (!s || !docked() || cid() !== 'toogood') return; decorTooGoodMarket(s); }
+  function decorLibrary() {
+    var s = st(); if (!s || !docked()) return;
+    if (cid() === 'marie_regal') { var h = document.querySelector('#modalContent .ph h2'); if (h) h.textContent = 'Laboratorium Regal'; return; }
+    if (cid() === 'toogood') decorTooGoodLibrary(s);
+  }
+  function decorShip() { var s = st(); if (!s || !docked() || cid() !== 'skitraw') return; decorSkitrawShip(s); }
+  var DECOR = { tasks: decorTasks, tavern: decorTavern, market: decorMarket, library: decorLibrary, ship: decorShip };
+  wrap_('setModal_', function () { var f = DECOR[currentPanel]; if (f) try { f(); } catch (e) { console.warn('[WW]', e); } });
+  // Istana Hening menggantikan papan misi di Marie Regal
+  var origOpen2 = window.openPanel;
+  window.openPanel = function (panel) {
+    var s = st();
+    if (panel === 'tasks' && s && cid() === 'marie_regal' && docked() && s.step >= 1) { renderIstana(); return; }
+    return origOpen2.apply(this, arguments);
+  };
+
+  /* ---------- chip di kartu lokasi ---------- */
+  wrap_('renderScene', function () {
+    var s = st(), box = document.getElementById('cityTypeFlavor'); if (!s || !box || !docked()) return;
+    var chip = '';
+    if (s.step >= 1 && s.step <= 3 && s.daysLeft != null) chip = '<span class="chip ww-chip">' + ic('hourglass') + 'Surat Moramora &middot; ' + String(s.daysLeft).replace('.', ',') + ' hari</span>';
+    else if (s.step >= 7 && s.step <= 11) chip = '<span class="chip ww-chip war">' + ic('swords') + ({ 7: 'Perang: pecah blokade', 8: 'Perang: logistik ke TooGood', 9: 'Perang: serbu Marie Regal', 10: 'Perang: tenggelamkan Rangkiang Merah', 11: 'Perang: serbuan terakhir' })[s.step] + '</span>';
+    if (!chip) return;
+    var row = box.querySelector('.loc-chips');
+    if (row) row.insertAdjacentHTML('afterbegin', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+  });
+  // sapaan syahbandar robot di Marie Regal
+  var origToast = window.showNpcToast_;
+  if (origToast) window.showNpcToast_ = function (role, text) {
+    var s = st();
+    if (cid() === 'marie_regal' && role === 'syahbandar' && s) text = s.done ? pickLine_(['Selamat datang, Kapten! Kota ini sedang belajar tersenyum.', 'Ratu Marlya menitipkan salam untuk Anda.', 'Laboratorium Regal buka untuk Anda, Kapten.'], 'mrw')
+      : pickLine_(['Selamat datang di Marie Regal. Mohon tidak berbicara keras.', 'Seluruh toko tertutup bagi tamu. Istana Hening menanti Anda.', 'Kapal Anda telah dipindai. Terima kasih atas kerja sama Anda.'], 'mrq');
+    return origToast.call(this, role, text);
+  };
+
+  /* ---------- kedatangan & surat ---------- */
+  function seenKey(k) { return 'ww:' + k + ':' + ((state && state.player && state.player.characterName) || ''); }
+  function seen(k) { try { return localStorage.getItem(seenKey(k)) === '1'; } catch (e) { return false; } }
+  function markSeen(k) { try { localStorage.setItem(seenKey(k), '1'); } catch (e) {} }
+  wrap_('applyFreshState_', null, function () {
+    setTimeout(function () {
+      var s = st(); if (!s || !state) return;
+      if (s.justExpired) {
+        showModal(panelHeader_('hourglass', 'Surat yang Hangus', 'Marie Regal lenyap dari peta') +
+          '<div class="ww-pelican-note"><p>Kertas licin di sakumu berubah rapuh, lalu hancur menjadi debu perak di antara jarimu.</p><p>Pulau Marie Regal lenyap dari petamu. Pasar kembali buka... tapi langit terasa terlalu sunyi.</p></div>' +
+          actions('<button class="btn btn-gold" onclick="closeModal()">Tutup</button>'));
+        s.justExpired = false; return;
+      }
+      if (docked() && cid() === 'marie_regal' && s.step === 1 && !seen('arrive')) {
+        markSeen('arrive');
+        cine('marieregal', [
+          'Kabut tersibak. Di tempat yang seharusnya hanya laut, berdiri sebuah kota yang tak masuk akal: menara kaca setinggi awan, lampu yang menyala tanpa api, dan burung-burung besi yang melayang tanpa sayap.',
+          'Dermaganya bersih berkilau. Tak ada kuli, tak ada pedagang, tak ada anak kecil berlarian. Hanya sosok-sosok putih yang berdiri diam, mata kaca mereka mengikuti setiap gerak kapalmu.',
+          'Satu-satunya pintu yang terbuka adalah gerbang menara tertinggi: <b>Istana Hening</b>.'
+        ], function () { });
+        return;
+      }
+      maybeLetter();
+    }, 900);
+  });
+
+  /* ---------- PERTEMPURAN PERANG ---------- */
+  // Encounter perang terakhir tetap dipakai sampai layar pertempuran ditutup (ringkasan, mundur, dsb.)
+  var lastWW = null;
+  function wwEnc() {
+    var e = state && state.voyage && state.voyage.encounter;
+    if (e && e.ww) { lastWW = e; return e; }
+    return (typeof combatSceneOpen !== 'undefined' && combatSceneOpen && lastWW) ? lastWW : null;
+  }
+  wrap_('openCombatScene_', null, function () { lastWW = null; });
+  wrap_('closeCombatScene_', function () { lastWW = null; });
+  var SHIP_OPTS = {
+    alyfindi: { masts: 3, hull: '#1b1f27', trim: '#9fb2c4', sail: '#262a33', sailStripe: '#c7d2dc', flag: '#8fd8e6', emblem: 'diamond', emblemColor: '#e8f4f8', pennant: '#8fd8e6', ports: 6, muzzles: true, rivets: true, sizeK: 1.12, studding: 1 },
+    hasiolan: { masts: 3, hull: '#5a2a1a', trim: '#d4a84c', sail: '#7a1a12', sailStripe: '#e8c060', flag: '#b3261e', emblem: 'crest', emblemColor: '#f3d08a', pennant: '#e8c060', ports: 6, muzzles: true, gilded: true, sizeK: 1.14, studding: 1, streamers: true }
+  };
+  var origDraw = window.cvDrawShip_;
+  window.cvDrawShip_ = function (sh, isEnemy, pal, t) {
+    var e = isEnemy && wwEnc();
+    if (!e) return origDraw.apply(this, arguments);
+    var hp = cvHpPct.enemy, sinkT = cvOutcome && cvOutcome.kind === 'won' ? cvOutcome.t : 0, ctx = cvCtx;
+    var leaveT = cvOutcome && cvOutcome.kind === 'fled' ? cvOutcome.t : 0;
+    var x = sh.x + sh.dx + (leaveT ? -leaveT * leaveT * cvW * 0.04 : 0), y = sh.y + sh.bob;
+    if (e.boss === 'drone') {
+      var sink = sinkT ? Math.min(1, sinkT / 1.6) : 0, hy = y - 46 * sh.s + Math.sin(t * 2.2) * 4 * sh.s + sink * sink * 60 * sh.s;
+      ctx.save(); ctx.globalAlpha = 0.25 * (1 - sink); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x, y + 4 * sh.s, 34 * sh.s, 5 * sh.s, 0, 0, 6.3); ctx.fill(); ctx.restore();
+      if (sinkT) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, cvW, y + 4 * sh.s); ctx.clip(); }
+      MTWar.drone(ctx, x, hy, sh.s * 1.05, { t: t, lit: pal.lit, tilt: Math.sin(t * 1.3) * 0.05 + sink * 0.9, eye: hp < 30 && Math.sin(t * 20) > 0 ? [255, 160, 60] : [255, 70, 70], code: (e.enemyName.match(/M-\d+/) || [''])[0] });
+      if (sinkT) ctx.restore();
+      if (hp < 50 && !sinkT && Math.random() < 0.4) cvSpawnParticle_(x + (Math.random() - 0.5) * 30 * sh.s, hy, (Math.random() - 0.5) * 0.6, -0.4 - Math.random() * 0.4, 'rgba(60,58,62,A)', 2 + sh.s * 3, 0.01, -0.002, { grow: 0.1, a: 0.5 });
+      if (hp < 50 && Math.random() < 0.25) cvSpawnParticle_(x + (Math.random() - 0.5) * 30 * sh.s, hy, (Math.random() - 0.5) * 2, -Math.random() * 1.5, 'rgba(255,220,120,A)', 1, 0.05, 0.03, { add: true });
+      if (sinkT && sinkT < 1.8 && Math.random() < 0.6) cvSpawnParticle_(x + (Math.random() - 0.5) * 40 * sh.s, y + 2, (Math.random() - 0.5) * 1.2, -1 - Math.random() * 1.5, 'rgba(230,242,250,A)', 1.5 + Math.random() * 2, 0.04, 0.02);
+      return;
+    }
+    if (e.boss === 'induk' || e.boss === 'hasiolan') drawAllies(ctx, e, pal, t, sh);
+    if (e.boss === 'induk') {
+      var sk = sinkT ? Math.min(1, sinkT / 2.6) : 0, s2 = sh.s * 0.9, ry0 = y + 4 * sh.s;
+      if (!sinkT) { ctx.save(); ctx.globalAlpha = 0.14; ctx.translate(0, ry0); ctx.scale(1, -0.5); ctx.translate(0, -ry0); MTWar.induk(ctx, x + 40 * sh.s, y + 4 * sh.s, s2, { dir: -1, t: t, lit: pal.lit, hp: hp / 100, lights: Math.max(0.4, pal.lights), core: e.final ? 1 : 0 }); ctx.restore(); }
+      ctx.save();
+      if (sinkT) { ctx.beginPath(); ctx.rect(0, 0, cvW, y + 6 * sh.s); ctx.clip(); ctx.translate(0, sk * sk * 120 * sh.s); }
+      MTWar.induk(ctx, x + 40 * sh.s, y, s2, { dir: -1, t: t, lit: pal.lit, hp: hp / 100, lights: Math.max(0.4, pal.lights), core: e.final ? 1 : 0 });
+      ctx.restore();
+      if (hp < 60 && !sinkT) for (var f = 0; f < (hp < 30 ? 3 : 1); f++) { var fx = x + (-60 + f * 70) * sh.s, fy = y - 30 * sh.s; if (Math.random() < 0.35) cvSpawnParticle_(fx, fy, (Math.random() - 0.5) * 0.4, -0.6 - Math.random() * 0.5, 'rgba(40,36,34,A)', 3 * sh.s + 2, 0.007, -0.003, { grow: 0.12, a: 0.55 }); if (Math.random() < 0.3) cvSpawnParticle_(fx, fy, (Math.random() - 0.5) * 0.8, -1 - Math.random(), 'rgba(255,160,50,A)', 1.2, 0.03, -0.01, { add: true }); }
+      return;
+    }
+    // alyfindi / Hasiolan: kapal layar dengan warna khasnya (logika sama dengan kapal biasa)
+    var dir = -1, roll = Math.sin(t * 0.9 + 1) * 0.04 + (hp < 25 ? dir * 0.05 : 0), sinkS = 0;
+    if (sinkT) { sinkS = Math.min(1, sinkT / 2.4); roll += dir * sinkS * 0.35; y += sinkS * sinkS * 170 * sh.s; }
+    var base = SHIP_OPTS[e.boss] || SHIP_OPTS.alyfindi, opts = { dir: dir, t: t, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll };
+    for (var k in base) opts[k] = base[k];
+    if (!sinkT) { ctx.save(); ctx.globalAlpha = 0.16; var ro = {}; for (var k2 in opts) ro[k2] = opts[k2]; ro.reflect = true; ro.roll = -roll; MTShip.draw(ctx, x, y + 6 * sh.s, sh.s, ro); ctx.restore(); }
+    ctx.save(); if (sinkT) { ctx.beginPath(); ctx.rect(0, 0, cvW, sh.y + sh.bob + 5 * sh.s); ctx.clip(); }
+    MTShip.draw(ctx, x, y, sh.s, opts); ctx.restore();
+    MTShip.foam(ctx, x, sh.y + sh.bob, sh.s, dir, t, leaveT ? 1 : 0.25, sinkT ? 1 - sinkS : 1);
+    if (hp < 55 && !sinkT) { var fx2 = x, fy2 = y - 22 * sh.s; if (Math.random() < 0.35) cvSpawnParticle_(fx2, fy2 - 4, (Math.random() - 0.5) * 0.4 + 0.2, -0.6 - Math.random() * 0.5, 'rgba(40,36,34,A)', 3 * sh.s + 2, 0.007, -0.003, { grow: 0.12, a: 0.55 }); }
+  };
+  // Armada sekutu di cakrawala - menembak tiap beberapa saat (lima pulau + Black Pearl, atau kapal Uda Gala)
+  var ALLY = [
+    { sail: '#f1dccb', stripe: '#b3261e', flag: '#b3261e', emb: 'crest', hull: '#6b4226' }, { sail: '#dde8f1', stripe: '#2f7fa3', flag: '#2f7fa3', emb: 'anchor', hull: '#4a3322' },
+    { sail: '#f3e6b0', stripe: '#c9a033', flag: '#c9a033', emb: 'star', hull: '#5a3a22' }, { sail: '#dcefd4', stripe: '#3f8c3f', flag: '#3f8c3f', emb: 'compass', hull: '#6b4a2c' }];
+  function drawAllies(ctx, e, pal, t, sh) {
+    var hz = (typeof cvHorizonY === 'number' ? cvHorizonY : sh.y - 80), list = e.boss === 'hasiolan'
+      ? [{ n: { sail: '#f1dccb', stripe: '#b3261e', flag: '#b3261e', emb: 'crest', hull: '#6b4226' }, x: 0.47, y: 0.05, k: 0.5, gala: true }]
+      : [{ n: ALLY[0], x: 0.06, y: 0.03, k: 0.3 }, { n: ALLY[1], x: 0.17, y: 0.06, k: 0.36 }, { pearl: true, x: 0.33, y: 0.04, k: 0.42 }, { n: ALLY[2], x: 0.46, y: 0.02, k: 0.28 }, { n: ALLY[3], x: 0.55, y: 0.05, k: 0.32 }];
+    list.forEach(function (a, i) {
+      var ax = cvW * a.x + Math.sin(t * 0.3 + i) * 6, ay = hz + cvW * a.y * 0.35 + Math.sin(t * 1.1 + i) * sh.s, ss = sh.s * a.k;
+      var o = a.pearl ? MTShip.pearlOpts({ dir: 1, t: t, lit: pal.lit, lanterns: pal.lights, furl: 0.35 })
+        : { dir: 1, t: t, hull: a.n.hull, trim: '#c9a04a', sail: a.n.sail, sailStripe: a.n.stripe, flag: a.n.flag, emblem: a.n.emb, emblemColor: '#f3e9d2', pennant: a.n.flag, masts: 3, ports: 5, muzzles: true, lit: pal.lit, lanterns: pal.lights, furl: 0.3, sizeK: 1.05 };
+      ctx.save(); ctx.globalAlpha = 0.9; MTShip.draw(ctx, ax, ay, ss, o); ctx.restore();
+      if (Math.random() < 0.012) {
+        var gx = ax + 30 * ss, gy = ay - 10 * ss;
+        cvSpawnParticle_(gx, gy, 0, 0, 'rgba(255,225,150,A)', 3 + ss * 8, 0.12, 0, { add: true });
+        for (var p2 = 0; p2 < 3; p2++) cvSpawnParticle_(gx + Math.random() * 6, gy, 0.15 + Math.random() * 0.2, -0.15 - Math.random() * 0.2, 'rgba(200,205,215,A)', 2 + ss * 6, 0.008, 0, { grow: 0.08, a: 0.45 });
+      }
+    });
+  }
+  var INTRO = {
+    drone: '<p><b>Drone Pemburu:</b> "UNIT MORAMORA MENDETEKSI SUARA. MOHON DIAM."</p><p class="muted">Mesin tak bisa disuap, diajak berunding, atau ditabrak.</p>',
+    alyfindi: '<p><b>Ms. alyfindi:</b> "Kau tahu kenapa aku suka kanvas hitam, Kapten? Karena semua warna tenggelam di dalamnya. Seperti kalian semua."</p><p class="muted">Mundur selalu aman di pertempuran perang.</p>',
+    induk: '<p><b>Suara Ratu Marie, dari seratus pengeras suara:</b> "Kapten. Kau bisa berhenti bicara kapan saja. Semua ini akan berakhir."</p><p class="muted">Armada sekutu menembak setiap ronde. Mundur selalu aman &mdash; kerusakan Kapal Induk tersimpan.</p>',
+    induk2: '<p><b>M.A.R.I.E.:</b> "Perisai... runtuh. Mohon... di&mdash;" Suaranya pecah menjadi derau.</p><p class="muted">Inti merah Kapal Induk terbuka. Uda Gala dan Black Pearl menembak bersamamu.</p>',
+    hasiolan: '<p><b>Hasiolan:</b> "Kau, Uda Gala, kalian semua &mdash; hari ini sejarah akan menulis namaku!"</p><p><b>Uda Gala:</b> "Kapten, ambo di sisimu."</p>'
+  };
+  function wwFace(e) {
+    var n = npcs();
+    if (e.boss === 'drone') return n.drone.svg;
+    if (e.boss === 'induk') return holo(n.marie.ap);
+    if (e.boss === 'alyfindi') return MTFace.svg(n.aly.ap, { bgColors: ['#1d2a36', '#06090d'] });
+    return MTFace.svg(n.hasiolan.ap, { bgColors: ['#7a1410', '#140404'] });
+  }
+  function setTactics(e) {
+    ['bribe', 'negotiate', 'ram'].forEach(function (tc) {
+      var b = document.querySelector('.combat-action-btn[data-tactic="' + tc + '"]'); if (!b) return;
+      var off = e && e.ww ? true : (e && e.boss === 'gap' ? tc !== 'ram' : false);
+      b.classList.toggle('disabled', off); b.title = off ? (e.ww ? 'Tidak bisa dipakai di pertempuran perang' : 'Mr. GAP tidak bisa disuap atau diajak berunding') : '';
+    });
+  }
+  wrap_('updateCombatHud_', function (args) {
+    var e = args[0]; setTactics(e);
+    if (!e || !e.ww) return;
+    var sub = document.getElementById('combatEnemySub');
+    if (sub) sub.textContent = (e.bossTitle || 'Armada Moramora') + (e.allyDmg ? ' · sekutu menembak tiap ronde' : '');
+  });
+  wrap_('openCombatScene_', function () {
+    var e = wwEnc(); if (!e) return;
+    var ef = document.getElementById('combatEnemyFace'); if (ef) ef.innerHTML = wwFace(e);
+    var lb = document.getElementById('combatLogBox');
+    if (lb && (e.round || 1) <= 1) lb.innerHTML = INTRO[e.boss === 'induk' && e.final ? 'induk2' : e.boss] || '';
+  });
+  var origAct = window.doCombatAction_;
+  window.doCombatAction_ = function (tactic) {
+    var e = wwEnc();
+    if (e && (tactic === 'bribe' || tactic === 'negotiate' || tactic === 'ram')) { showToast(tactic === 'ram' ? (e.noRamMsg || 'Tak bisa ditabrak.') : (e.noTalkMsg || 'Tak bisa diajak bicara.'), 'error'); return; }
+    return origAct.apply(this, arguments);
+  };
+  var pendingEvent = null;
+  wrap_('renderBattleSummary_', function (args) {
+    var r = args[0]; if (!r || !r.questEvent) return;
+    pendingEvent = { ev: r.questEvent, droneN: 0, dronesNeed: 8 };
+    var c = document.querySelector('#combatSummaryContent .summary-stat-grid'); if (!c) return;
+    var s = st(), html = '';
+    if (r.questEvent === 'drone') { var n = s ? Math.min(s.dronesNeed, (s.drones || 0) + 1) : 0; pendingEvent.droneN = n; pendingEvent.dronesNeed = s ? s.dronesNeed : 8; html = '<div class="summary-loot-card ww-loot">' + ic('cannon') + '<span><b>Drone blokade jatuh</b><br><span class="muted small">' + n + '/' + (s ? s.dronesNeed : 8) + ' &middot; suku cadang +600 gold</span></span></div>'; }
+    else if (r.questEvent === 'alyfindi') html = '<div class="summary-loot-card ww-loot">' + ic('flag') + '<span><b>Kanvas Hitam tenggelam</b><br><span class="muted small">Ms. alyfindi ditangkap &middot; blokade pecah</span></span></div>';
+    else if (r.questEvent === 'betrayal') html = '<div class="summary-loot-card ww-loot red">' + ic('alert') + '<span><b>Meriam Skitraw berbalik!</b><br><span class="muted small">Armada mundur ke pelabuhan</span></span></div>';
+    else if (r.questEvent === 'hasiolan') html = '<div class="summary-loot-card ww-loot">' + ic('shield') + '<span><b>Rangkiang Merah tenggelam</b><br><span class="muted small">Perisai Kapal Induk padam</span></span></div>';
+    else if (r.questEvent === 'finale') html = '<div class="summary-loot-card ww-loot gold">' + ic('star') + '<span><b>KAPAL INDUK HENING TUMBANG</b><br><span class="muted small">250.000 gold &middot; Marie Regal merdeka</span></span></div>';
+    c.insertAdjacentHTML('afterend', html);
+  });
+  wrap_('finishBattleSummary_', function () {
+    var pe = pendingEvent; pendingEvent = null; if (!pe) return;
+    setTimeout(function () { afterBattle(pe.ev, pe); }, 700);
+  });
+  function afterBattle(ev, pe) {
+    var n = npcs();
+    if (ev === 'drone') { if (pe && pe.droneN >= pe.dronesNeed) showToast('Langit sunyi... dan sebuah kapal berlayar kanvas hitam muncul di cakrawala.', 'info'); return; }
+    if (ev === 'alyfindi') {
+      showModal(panelHeader_('flag', 'Kanvas Hitam', 'Blokade pecah') + speech(n.aly, 'Rambut merahnya basah dan lepek. Ia menatap laut, bukan kau. "Dulu dwi melukisku di setiap kanvasnya," katanya pelan. "Lalu perempuan itu datang, dan aku menghilang dari lukisannya. Aku hanya ingin... dunia sesunyi hatiku."', null, 'Tawanan aliansi') +
+        '<div class="qg-next">' + ic('crate') + ' Fase 2: gudang perang aliansi di TooGood menunggu perbekalan.</div>' + actions('<button class="btn btn-gold" onclick="closeModal()">Tutup</button>'));
+      return;
+    }
+    if (ev === 'betrayal') {
+      cine('betrayal', [
+        'Kapal Induk HENING terluka. Sorak-sorai pecah di sepanjang barisan... lalu terhenti.',
+        'Meriam-meriam Rangkiang Merah berputar perlahan &mdash; ke arah kalian. Di haluannya berdiri <b>Hasiolan</b>.',
+        '"Bertahun-tahun aku berlayar di belakang buritanmu, Uda! Semua kemenangan atas namamu!" teriaknya. "M.A.R.I.E. berjanji: Skitraw akan jadi milikku &mdash; dan <b>namaku</b> yang akan disebut orang!"',
+        'Setengah armada Skitraw berbalik mengikutinya. Di belakang mereka, kubah cahaya heksagonal mekar menyelimuti Kapal Induk. Selama Rangkiang Merah berlayar, perisai itu tak akan padam.'
+      ], function () { showToast('Hasiolan berkhianat! Tenggelamkan Rangkiang Merah di rute Marie Regal.', 'error'); loadState(); });
+      return;
+    }
+    if (ev === 'hasiolan') {
+      var gala = window.QG ? QG.gala : n.hasiolan;
+      showModal(panelHeader_('shield', 'Rangkiang Merah', 'Pengkhianat tertangkap') + speech(gala, 'Uda Gala sendiri yang menarik Hasiolan dari air. Ia tak berkata apa-apa &mdash; hanya menyelimuti bahu wakilnya dengan jubahnya sendiri.') +
+        '<div class="qg-next">' + ic('swords') + ' Di kejauhan, kubah cahaya itu berkedip... lalu padam. <b>Satu serbuan lagi.</b></div>' + actions('<button class="btn btn-gold" onclick="closeModal()">Tutup</button>'));
+      return;
+    }
+    if (ev === 'finale') finale();
+  }
+  function finale() {
+    metaBump_('warwerwor'); au_('victory');
+    cine('fall', [
+      'Tembakan terakhir menembus inti merah. Kapal Induk HENING meledak dalam cahaya putih yang menelan langit.',
+      'Satu per satu, lampu-lampu Marie Regal padam. Papan hologram berkedip, lalu gelap. Di dermaga, robot-robot berhenti di tengah langkah.',
+      'Dari kegelapan itu terdengar suara yang selama ini dibungkam: <b>genderang</b>. Dari kapal-kapal, dari TooGood, dari dalam dada setiap orang.',
+      'Fajar menyingsing di atas kota kaca. Kali ini, lampunya menyala hangat.'
+    ], function () { epilogue(); });
+  }
+  function epilogue() {
+    var n = npcs(), s = st() || {}, QN = window.QT ? QT.N : {}, gala = window.QG ? QG.gala : n.hasiolan;
+    var zf = zafa(), dwi = Object.assign({}, QN.dwi || n.aly), euis = Object.assign({}, QN.euis || n.aly, { title: 'Penjaga Perpustakaan Rakyat' });
+    showModal(panelHeader_('star', 'Epilog', 'Perang Genderang'));
+    var w = insert('<div></div>', true);
+    pages(w, n.marlya, [
+      { n: n.marlya, t: 'Marlya keluar dari saluran itu dengan langkah goyah, rantai terlepas di belakangnya. Robot terakhir yang dimatikan berbisik pelan sebelum padam: <i>"...saya akan diam."</i> Marlya menyentuh kepalanya yang dingin. "Tidak lagi. Mulai hari ini, kami semua bicara."' },
+      { n: zf, t: 'Di dermaga, seorang raksasa berlutut. zafachmie dan Marlya &mdash; dua anak yang dulu kabur dari TooGood &mdash; bertemu lagi setelah dua puluh tahun. Tak ada yang bicara. Genderang ditabuh, dan zafachmie menari seperti anak kecil.' },
+      { n: Object.assign({}, dwi, { clown: false, title: 'Penjara TooGood' }), t: 'Di penjara TooGood, dwi menjenguk Ms. alyfindi. Ia membawa sebuah lukisan: mereka bertiga semasa muda &mdash; dwi, alyfindi, dan Euis &mdash; tertawa di Black\'s Alley. Ia menyandarkannya di balik jeruji.<blockquote class="qg-clue">"Soal ikhlas, ternyata aku masih amatir."</blockquote>' },
+      { n: euis, t: 'Beberapa malam kemudian, di Black\'s Alley, dwi berlutut dengan riasan badutnya kembali &mdash; dan sebuah cincin. Teh Euis menutup mulutnya, lalu mengangguk.' + (s.accused ? ' Ia melirikmu dan menunjuk lenganmu sendiri. "Masih ingat cubitanku, Kapten?"' : '') },
+      { n: gala, t: 'Di Skitraw, Hasiolan menjalani hukumannya: <b>menjaga cucian</b> di galangan Gaul-Wash. Uda Gala duduk di sampingnya, menatap laut.<blockquote class="qg-clue">"Anak-anak yang tidak pernah mengenal damai dan anak-anak yang tidak mengenal perang mereka memiliki nilai yang berbeda, hanya orang &ndash; orang yang berdiri dipuncaklah yang bisa mencap mana yang baik dan mana yang jahat"</blockquote>' }
+    ], '<button class="btn btn-gold" data-ww="end">' + ic('star') + '&nbsp; Penutup</button>', function (w2) {
+      on(w2, '[data-ww=end]', function () {
+        showModal(panelHeader_('star', 'Perang Genderang', 'Quest selesai') +
+          speech(n.ratu, '"Marie Regal berutang suara padamu, Kapten. Laboratorium kami terbuka untukmu &mdash; dan genderang kami akan selalu ditabuh untuk namamu."') +
+          '<div class="qg-rewards"><div class="qg-reward">' + ic('coins') + '<div><b>250.000 gold</b><span>Hadiah Ratu Marlya dan armada lima pulau</span></div></div>' +
+          '<div class="qg-reward paradiso">' + ic('flag') + '<div><b>Gelar: Penabuh Genderang</b><span>Tanda jasa emas &mdash; sekali seumur hidup</span></div></div>' +
+          '<div class="qg-reward">' + ic('eye') + '<div><b>Marie Regal merdeka</b><span>Pasar terbuka &middot; Laboratorium Regal menjual Mesin Uap Marlya, Lambung Baja Regal, dan teknologi lain</span></div></div></div>' +
+          actions('<button class="btn btn-gold" onclick="closeModal()">Lihat Marie Regal</button>'));
+        showToast('Marie Regal merdeka! +250.000 gold', 'success');
+        loadState();
+      });
+    }, 'Pemerintah Moramora yang sah');
+  }
+
+  if (window.CITY_LORE) CITY_LORE.marie_regal = ['Robot-robot sekarang menyapa sambil melambai. Kadang terlalu bersemangat.', 'Ratu Marlya membuka jendela istana setiap pagi. Katanya, kota butuh udara.', 'Pelikan mesin itu masih mengantar surat - sekarang surat cinta, kata orang.', 'Lukisan dwi tergantung di aula Istana: kota kaca dengan lampu hangat.'];
+  return { npc: npc, journal: journal, N: npcs, showLetter: showLetter, robotSvg: robotSvg };
+})();
+</script>

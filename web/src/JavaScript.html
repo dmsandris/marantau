@@ -47,7 +47,8 @@
     TradeHub: { icon: 'scales', label: 'Pusat Dagang' }, Agricultural: { icon: 'sack', label: 'Lumbung' },
     Remote: { icon: 'compass', label: 'Terpencil' }, Capital: { icon: 'star', label: 'Ibu Kota' },
     Outlaw: { icon: 'skull', label: 'Sarang Penyamun' }, FallenCapital: { icon: 'warehouse', label: 'Ibu Kota Runtuh' },
-    Paradise: { icon: 'gem', label: 'Pulau Surga' }, Freed: { icon: 'star', label: 'Pulau Merdeka' }
+    Paradise: { icon: 'gem', label: 'Pulau Surga' }, Freed: { icon: 'star', label: 'Pulau Merdeka' },
+    Regal: { icon: 'eye', label: 'Ibu Kota Mesin' }
   };
   var COMMODITY_META = {
     beras: { icon: 'rice', c1: '#efe6cf', c2: '#a8946a' }, ikan_asin: { icon: 'fishdry', c1: '#c9b48a', c2: '#6b5a3a' },
@@ -659,7 +660,7 @@
 
     var city = state.city;
     var tm = TYPE_META[city && city.Type] || { icon: 'anchor', label: 'Pelabuhan' };
-    if (scene) scene.configure({ mode: 'port', cityId: city ? (city.CityId === 'toogood' && city.Type === 'Freed' ? 'toogood_free' : city.CityId) : 'x', cityType: city ? city.Type : 'TradeHub', weather: state.cityEvent ? state.cityEvent.eventType : null, clockFrac: dayFrac_(), ship: shipVisual_(), encounter: false });
+    if (scene) scene.configure({ mode: 'port', cityId: city ? (city.CityId === 'toogood' && city.Type === 'Freed' ? 'toogood_free' : (city.CityId === 'marie_regal' && state.warwerwor && state.warwerwor.done ? 'marie_regal_free' : city.CityId)) : 'x', cityType: city ? city.Type : 'TradeHub', weather: state.cityEvent ? state.cityEvent.eventType : null, clockFrac: dayFrac_(), ship: shipVisual_(), encounter: false });
     setPhotoMode_(city && city.ImageUrl);
 
     var crest = document.getElementById('locCrest');
@@ -1754,8 +1755,8 @@
   }
 
   function tierBadge_(tier) {
-    var colorClass = tier === 'IV' ? 'legend' : tier === 'III' ? 'bad' : (tier === 'II' ? 'normal' : 'good');
-    return '<span class="price-badge ' + colorClass + '">Tier ' + esc_(tier) + (tier === 'IV' ? ' &middot; Legenda' : '') + '</span>';
+    var colorClass = tier === 'V' ? 'tech' : tier === 'IV' ? 'legend' : tier === 'III' ? 'bad' : (tier === 'II' ? 'normal' : 'good');
+    return '<span class="price-badge ' + colorClass + '">Tier ' + esc_(tier) + (tier === 'IV' ? ' &middot; Legenda' : tier === 'V' ? ' &middot; Teknologi' : '') + '</span>';
   }
   function bookEffectSummary(b) {
     var parts = [];
@@ -1764,7 +1765,7 @@
     return parts.join(', ') || '&mdash;';
   }
   function specialEffectLabel(keyword) {
-    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka' };
+    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)' };
     return labels[keyword] || keyword;
   }
 
@@ -3037,6 +3038,7 @@
   function npc_(role) {
     var cid = (state && state.city && state.city.CityId) || 'x';
     if (cid === 'skitraw' && role === 'tukang' && window.QG) return QG.gala;
+    if (window.WW) { var wn = WW.npc(cid, role); if (wn) return wn; }
     if (window.QT) { var qn = QT.npc(cid, role); if (qn) return qn; }
     var outlaw = state && state.city && state.city.Type === 'Outlaw';
     var ap = MTFace.npc(cid + '|' + role, outlaw && role !== 'bankir' ? 'bajak' : role);
@@ -3045,7 +3047,7 @@
   }
   function npcHtml_(role, text) {
     var n = npc_(role);
-    return '<div class="npc"><div class="npc-face">' + MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'], fat: n.fat, clown: n.clown, medals: n.medals }) + '</div>' +
+    return '<div class="npc"><div class="npc-face">' + (n.svg || MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'], fat: n.fat, clown: n.clown, medals: n.medals })) + '</div>' +
       '<div class="npc-body"><div class="npc-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(n.title) + '</span></div><div class="npc-text">' + text + '</div></div></div>';
   }
   function pickLine_(arr, salt) { var r = MTUtil.rng(MTUtil.hashStr((state ? state.gameDay : 0) + '|' + salt + '|' + Math.floor(Date.now() / 90000))); return MTUtil.pick(r, arr); }
@@ -4151,7 +4153,7 @@
     var inf = HOT_INFO[id] || { fn: '', key: '' }, label = hs ? (hs.ship ? 'Kapalmu' : hs.label) : id;
     var n = inf.role ? npc_(inf.role) : null;
     var faceKey = id + '|' + cid_();
-    if (n && !tipCache_[faceKey]) tipCache_[faceKey] = MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'] });
+    if (n && !tipCache_[faceKey]) tipCache_[faceKey] = n.svg || MTFace.svg(n.ap, { bgColors: ['#7a6440', '#2a1e12'] });
     return '<div class="tip-head"><span class="tip-ico">' + ic(hs ? hs.icon : 'compass') + '</span><div><div class="tip-t">' + esc_(label) + '</div><div class="tip-s">' + esc_(inf.fn) + '</div></div>' + (inf.key ? '<kbd>' + inf.key + '</kbd>' : '') + '</div>' +
       (n ? '<div class="tip-npc"><span class="tip-face">' + tipCache_[faceKey] + '</span><div><div class="tip-who"><b>' + esc_(n.name) + '</b> &middot; ' + esc_(n.title) + '</div><div class="tip-live">' + hotLive_(id) + '</div></div></div>' : '') +
       '<div class="tip-cta">' + ic('check') + (id === 'setsail' ? 'Klik untuk memilih tujuan' : 'Klik untuk masuk') + '</div>';
@@ -4215,7 +4217,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v17';
+  TIDE_VERSION = 'Tide v18';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {
@@ -4805,6 +4807,8 @@
     { id: 'gala_quest', t: 3, ic: 'star', n: 'Sahabat Uda Gala', d: 'Kembalikan harta terpenting Uda Gala dan temukan Paradiso.', g: function (m) { return [m.c.galaquest || 0, 1]; } },
     { id: 'toogood_quest', t: 3, ic: 'skull', n: 'Pembebas TooGood', d: 'Bongkar kejahatan Jendral Tedsky dan merdekakan TooGood bersama zafachmie.', g: function (m) { return [m.c.toogoodquest || 0, 1]; } },
     { id: 'black_pearl', t: 3, ic: 'anchor', n: 'Nakhoda Black Pearl', d: 'Buka gua rahasia TooGood dengan kode sandi dan nakhodai kapal perang legenda.', g: function (m) { return [m.c.blackpearl || 0, 1]; } },
+    { id: 'marlya', t: 2, ic: 'eye', n: 'Mata yang Terbuka', d: 'Temukan siapa yang benar-benar dibungkam di bawah Marie Regal.', g: function (m) { return [m.c.marlya || 0, 1]; } },
+    { id: 'warwerwor', t: 3, ic: 'flag', n: 'Penabuh Genderang', d: 'Menangkan Perang Genderang, tumbangkan Kapal Induk HENING, dan kembalikan suara Marie Regal.', g: function (m) { return [m.c.warwerwor || 0, 1]; } },
     { id: 'fish_book', t: 2, ic: 'book', n: 'Kolektor Samudra', d: 'Temukan 8 jenis tangkapan berbeda di Buku Ikan.', g: function (m) { return [m.c.fishnew || 0, 8]; } },
     { id: 'fish_perfect', t: 2, ic: 'fish', n: 'Tangan Dingin', d: 'Daratkan 5 ikan dengan tarikan sempurna.', g: function (m) { return [m.c.fishperf || 0, 5]; } },
     { id: 'lapau_dice', t: 1, ic: 'dice', n: 'Besar atau Kecil?', d: 'Menang 5 kali di meja dadu lapau.', g: function (m) { return [m.c.lapaudice || 0, 5]; } },
