@@ -129,15 +129,20 @@ const assert = require('assert');
   // sunda (25,55) -> joungjava (60,30): sqrt(35^2+25^2) = 43.01
   assert.strictEqual(jo.distance, 43);
   assert.strictEqual(jo.name, 'Joungjava');
-  // 43.01 * 0.25 / 1 = 10.75 * 0.65 = 6.99 -> 7
-  assert.strictEqual(jo.etaMinutes, 7);
+  // waktu tempuh dalam detik: 60 (terdekat) .. 130 (terjauh) untuk kapal standar
+  assert(jo.etaSeconds > 60 && jo.etaSeconds < 130, 'eta ' + jo.etaSeconds);
+  const all = opts.map(o => o.etaSeconds); assert(all.every(x => x >= 60 && x <= 130), 'rentang ' + all);
   assert.strictEqual(jo.eventLabel, null); assert.strictEqual(jo.eventType, null);
   const ikn = opts.find(o => o.cityId === 'ikn'); // (50,62): sqrt(625+49)=25.96 -> 26.0; 6.49*0.65=4.2 -> min 5
-  assert.strictEqual(ikn.distance, 26); assert.strictEqual(ikn.etaMinutes, 5);
+  assert.strictEqual(ikn.distance, 26); assert(ikn.etaSeconds < jo.etaSeconds, 'IKN lebih dekat dari Joungjava');
   // Speed ship stat 100 -> factor 2
   await H.sql('update game.ships set speed = 100 where player_id = $1', [pid]);
   const opts2 = await u.call('api_getSailOptions', []);
-  assert.strictEqual(opts2.find(o => o.cityId === 'bjorneo').etaMinutes, 5); // sqrt(2500+400)=53.85*.25/2*.65=4.4->5 min
+  const bj1 = opts.find(o => o.cityId === 'bjorneo').etaSeconds, bj2 = opts2.find(o => o.cityId === 'bjorneo').etaSeconds;
+  assert(bj2 < bj1 && bj2 >= 60, 'kapal cepat lebih singkat tapi >= 60: ' + bj1 + ' -> ' + bj2);
+  // pasangan pulau terdekat = 60 dtk, terjauh = 130 dtk
+  const ext = (await H.sql(`select min(game.voy_travel_seconds(game.voy_map_distance(a.city_id, b.city_id), '{"Speed":50,"SpeedMultiplier":1}'::jsonb)) lo, max(game.voy_travel_seconds(game.voy_map_distance(a.city_id, b.city_id), '{"Speed":50,"SpeedMultiplier":1}'::jsonb)) hi from game.cities a join game.cities b on a.city_id < b.city_id`))[0];
+  assert(ext.lo === 60 && ext.hi === 130, 'batas ' + JSON.stringify(ext));
   await H.sql('update game.ships set speed = 50 where player_id = $1', [pid]);
   console.log('sail options OK');
 
@@ -147,9 +152,9 @@ const assert = require('assert');
   const bj = opts.find(o => o.cityId === 'bjorneo');
   let ss = await u.call('api_setSail', ['bjorneo']);
   assert.strictEqual(ss.originCityId, 'sunda_empire'); assert.strictEqual(ss.destinationCityId, 'bjorneo');
-  assert.strictEqual(ss.travelRealMinutes, bj.etaMinutes);
+  assert.strictEqual(ss.travelSeconds, bj.etaSeconds);
   assert(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(ss.departAt));
-  assert.strictEqual(new Date(ss.arriveAt) - new Date(ss.departAt), bj.etaMinutes * 60000);
+  assert.strictEqual(new Date(ss.arriveAt) - new Date(ss.departAt), bj.etaSeconds * 1000);
   assert.strictEqual(await lastLog(), 'Set sail from Sunda Empire toward Bjorneo.');
   await H.expectError(() => u.call('api_setSail', ['joungjava']), /^Kamu sudah dalam perjalanan menuju kota lain\./);
   await H.expectError(() => u.call('api_repairShip', ['sunda_empire']), /^Kamu sedang berlayar - reparasi hanya bisa/);
@@ -159,12 +164,12 @@ const assert = require('assert');
   assert.strictEqual(v.inTransit, true); assert.strictEqual(v.originCityId, 'sunda_empire'); assert.strictEqual(v.destinationCityId, 'bjorneo');
   assert.strictEqual(v.encounterPending, false); assert.strictEqual(v.encounter, null);
   assert(v.progress >= 0 && v.progress < 0.05, 'progress awal ' + v.progress);
-  assert(Math.abs(v.etaSeconds - bj.etaMinutes * 60) <= 2);
+  assert(Math.abs(v.etaSeconds - bj.etaSeconds) <= 2);
   assert.strictEqual(await resolve(), null); // belum waktunya
-  await H.shiftTime(bj.etaMinutes * 30000);  // separuh jalan
+  await H.shiftTime(bj.etaSeconds * 500);  // separuh jalan
   v = await voyage();
   assert(Math.abs(v.progress - 0.5) < 0.02, 'progress tengah ' + v.progress);
-  assert(Math.abs(v.etaSeconds - bj.etaMinutes * 30) <= 2);
+  assert(Math.abs(v.etaSeconds - bj.etaSeconds / 2) <= 2);
   console.log('set sail + progress OK');
 
   // ================= ARRIVAL (damai) =================
@@ -180,7 +185,7 @@ const assert = require('assert');
   await H.sql(`select game.cfg_set('PirateEncounterBaseChance', '0')`);
   await H.sql(`select game.cfg_set('WorldEventRollChancePercent', '0')`);
   await setStats({ luck: 100 });
-  await H.shiftTime(bj.etaMinutes * 30000 + 1000);
+  await H.shiftTime(bj.etaSeconds * 500 + 1000);
   v = await voyage(); assert.strictEqual(v.progress, 1); assert.strictEqual(v.etaSeconds, 0);
   let g1 = await gold();
   let arr = await arrivePeaceful();
@@ -233,7 +238,7 @@ const assert = require('assert');
   await H.sql(`update game.player_location set city_id = 'sunda_empire' where player_id = $1`, [pid]);
   await setCond(130);
   ss = await u.call('api_setSail', ['toogood']);
-  await H.shiftTime(ss.travelRealMinutes * 60000 + 1000);
+  await H.shiftTime(ss.travelSeconds * 1000 + 1000);
   const res1 = await resolve();
   assert.strictEqual(res1.pendingCombat, true); assert.strictEqual(res1.cityId, null); assert.strictEqual(res1.event, null);
   const enc = res1.encounter;

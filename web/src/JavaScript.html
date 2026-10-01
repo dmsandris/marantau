@@ -1902,7 +1902,7 @@
         var tm = TYPE_META[c.Type] || { icon: 'anchor', label: '' };
         return '<div class="card dest-item hover' + (o.cityId === sailSel ? ' sel' : '') + '" data-city="' + esc_(o.cityId) + '" onclick="selectSailDest_(\'' + o.cityId + '\')">' +
           '<span class="di-ico">' + ic(tm.icon) + '</span><div style="min-width:0;flex:1;"><div class="di-name">' + esc_(o.name) + '</div>' +
-          '<div class="di-meta"><span>' + ic('route') + ' ' + o.distance + '</span><span>' + ic('hourglass') + ' ' + formatMinutes(o.etaMinutes) + '</span>' +
+          '<div class="di-meta"><span>' + ic('route') + ' ' + o.distance + '</span><span>' + ic('hourglass') + ' ' + etaText_(o) + '</span>' +
           (o.eventLabel ? '<span style="color:var(--bad-ink);">' + ic(WORLD_EVENT_ICON[o.eventType] || 'star') + ' ' + esc_(o.eventLabel) + '</span>' : '') +
           (c.Type === 'Outlaw' ? '<span style="color:var(--bad-ink);">' + ic('skull') + ' Bajak laut!</span>' : '') + '</div></div></div>';
       }).join('') + '</div>';
@@ -1939,7 +1939,7 @@
     var c = cityById_(o.cityId) || {};
     el.innerHTML = '<div class="card sail-confirm">' +
       '<span class="di-ico" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#ffe7a3,#c9922f 60%,#7a5313);color:#2b1905;">' + ic((TYPE_META[c.Type] || {}).icon || 'anchor') + '</span>' +
-      '<div class="grow"><div class="sc-t">' + esc_(o.name) + '</div><div class="muted small">' + esc_((TYPE_META[c.Type] || {}).label || '') + ' &middot; jarak ' + o.distance + ' &middot; tiba dalam ' + formatMinutes(o.etaMinutes) +
+      '<div class="grow"><div class="sc-t">' + esc_(o.name) + '</div><div class="muted small">' + esc_((TYPE_META[c.Type] || {}).label || '') + ' &middot; jarak ' + o.distance + ' &middot; tiba dalam ' + etaText_(o) +
       (c.Type === 'Outlaw' ? ' &middot; <b style="color:var(--bad-ink);">hampir pasti dicegat bajak laut</b>' : '') + '</div></div>' +
       '<button class="btn btn-gold btn-lg sail-action" onclick="doSetSail(\'' + o.cityId + '\')">' + ic('anchor') + '&nbsp; Angkat Sauh</button></div>';
   }
@@ -1968,7 +1968,7 @@
     txPending = true; voySeq++;
     var o = (lastSailOptions || []).filter(function (x) { return x.cityId === cityId; })[0];
     var prevVoyage = state.voyage;
-    state.voyage = { inTransit: true, originCityId: state.city.CityId, destinationCityId: cityId, progress: 0, etaSeconds: o ? Math.round(o.etaMinutes * 60) : 60, encounterPending: false, encounter: null, _at: Date.now(), _optimistic: true };
+    state.voyage = { inTransit: true, originCityId: state.city.CityId, destinationCityId: cityId, progress: 0, etaSeconds: o ? (o.etaSeconds || Math.round(o.etaMinutes * 60)) : 60, encounterPending: false, encounter: null, _at: Date.now(), _optimistic: true };
     closeModal();
     renderSidebar(); renderScene();
     showToast('Sauh diangkat! Layar terkembang menuju ' + (o ? o.name : cityName_(cityId)) + '.', 'success');
@@ -2037,9 +2037,11 @@
     var h = Math.floor(mins / 60), m = mins % 60;
     return h + 'j' + (m ? ' ' + m + 'm' : '');
   }
+  function etaText_(o) { return o.etaSeconds ? formatEta(o.etaSeconds) : formatMinutes(o.etaMinutes); }
   function formatEta(sec) {
     if (sec <= 0) return 'sebentar lagi';
     if (sec < 60) return Math.ceil(sec) + ' detik';
+    if (sec < 180) { var m = Math.floor(sec / 60), d = Math.ceil(sec - m * 60); return m + ' mnt' + (d ? ' ' + d + ' dtk' : ''); }
     return formatMinutes(Math.ceil(sec / 60));
   }
   /** Kompatibilitas nama lama - sekarang diteruskan ke MTChart (SceneEngine.html). */

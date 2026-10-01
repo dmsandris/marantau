@@ -435,6 +435,31 @@ begin
   return greatest(min_t, floor(base_min * mult + 0.5))::int;
 end $$;
 
+-- Tide v15b: lama perjalanan dalam DETIK. Pulau terdekat 60 dtk, terjauh 130 dtk (kapal standar).
+-- Kapal yang lebih cepat (upgrade layar / Speed) memangkas bagian jarak, tapi tidak pernah < minimum.
+-- Atur lewat game.config: TravelMinSeconds, TravelMaxSeconds.
+create or replace function game.voy_dist_range(out dmin double precision, out dmax double precision)
+language sql stable as $$
+  select min(game.voy_map_distance(a.city_id, b.city_id)), max(game.voy_map_distance(a.city_id, b.city_id))
+  from game.cities a join game.cities b on a.city_id < b.city_id
+$$;
+
+create or replace function game.voy_travel_seconds(p_distance double precision, p_ship jsonb) returns int
+language plpgsql stable as $$
+declare lo double precision; hi double precision; r record; frac double precision;
+  base_speed double precision; spd double precision; mult double precision; k double precision;
+begin
+  lo := greatest(10, game.cfg_num('TravelMinSeconds', 60));
+  hi := greatest(lo, game.cfg_num('TravelMaxSeconds', 130));
+  select * into r from game.voy_dist_range();
+  frac := case when r.dmax > r.dmin then least(1, greatest(0, (p_distance - r.dmin) / (r.dmax - r.dmin))) else 0 end;
+  base_speed := greatest(1, game.cfg_num('BaselineShipSpeed', 50));
+  spd := coalesce(nullif(game.voy_num(p_ship -> 'Speed'), 0), base_speed);
+  mult := coalesce(nullif(game.voy_num(p_ship -> 'SpeedMultiplier'), 0), 1);
+  k := least(1, greatest(0.3, mult * base_speed / spd));
+  return round(lo + (hi - lo) * frac * k)::int;
+end $$;
+
 -- getVoyageState
 create or replace function game.voyage_state(p_pid uuid) returns jsonb
 language plpgsql stable as $$
@@ -839,7 +864,8 @@ begin
       'cityId', c.city_id,
       'name', c.name,
       'distance', round((floor(d.dist * 10 + 0.5) / 10)::numeric, 1),
-      'etaMinutes', game.voy_travel_minutes(d.dist, ship),
+      'etaSeconds', game.voy_travel_seconds(d.dist, ship),
+      'etaMinutes', round(game.voy_travel_seconds(d.dist, ship) / 60.0, 2),
       'eventLabel', ev ->> 'label',
       'eventType', ev ->> 'eventType') order by c.sort, c.city_id), '[]'::jsonb)
     into out
@@ -858,7 +884,7 @@ declare
   v_dest text := game.arg(a, 0);
   v_me game.players;
   l game.player_location;
-  v_origin_name text; v_dest_name text; dist double precision; mins int; t_depart timestamptz; t_arrive timestamptz;
+  v_origin_name text; v_dest_name text; dist double precision; secs int; t_depart timestamptz; t_arrive timestamptz;
 begin
   select name into v_dest_name from game.cities where city_id = v_dest;
   if v_dest_name is null then raise exception 'Kota tujuan tidak dikenali: %', coalesce(v_dest, 'undefined'); end if;
@@ -880,9 +906,9 @@ begin
   if v_origin_name is null then raise exception 'Kota asal tidak dikenali: %', l.city_id; end if;
 
   dist := game.voy_map_distance(l.city_id, v_dest);
-  mins := game.voy_travel_minutes(dist, coalesce(game.ship_json(v_me.player_id), '{}'::jsonb));
+  secs := game.voy_travel_seconds(dist, coalesce(game.ship_json(v_me.player_id), '{}'::jsonb));
   t_depart := now();
-  t_arrive := t_depart + make_interval(mins => mins);
+  t_arrive := t_depart + make_interval(secs => secs);
 
   update game.player_location set destination_city_id = v_dest, depart_at = t_depart, arrive_at = t_arrive
    where player_id = v_me.player_id;
@@ -896,7 +922,7 @@ begin
   end;
 
   return jsonb_build_object('originCityId', l.city_id, 'destinationCityId', v_dest,
-    'departAt', game.iso(t_depart), 'arriveAt', game.iso(t_arrive), 'travelRealMinutes', mins);
+    'departAt', game.iso(t_depart), 'arriveAt', game.iso(t_arrive), 'travelSeconds', secs, 'travelRealMinutes', round(secs / 60.0, 2));
 end $$;
 select game.expose('api_setsail');
 
