@@ -29,24 +29,36 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   await H.expectError(() => tg(['accept']), /sudah berjanji/);
   await H.expectError(() => tg(['gov']), /Tidak ada gubernur/);
 
-  // Sunda Empire: 12 Tools
+  // Sunda Empire: 8 Emas + 4 Gaharu (barang premium)
   await go('sunda_empire');
   r = await tg(['gov']); assert(r.taskAccepted === 'sunda_empire', 'tugas diterima');
-  await H.expectError(() => tg(['gov']), /menunggu 12 Perkakas/);
-  await H.sql(`select game.adjust_inventory($1, 'tools', 15)`, [u.id]);
+  assert(r.toogood.govs.sunda_empire && !r.toogood.govs.skitraw, 'permintaan hanya terlihat setelah didengar');
+  await H.expectError(() => tg(['gov']), /menunggu: 8 Emas \(baru 0\), 4 Gaharu \(baru 0\)/);
+  await H.sql(`select game.adjust_inventory($1, 'emas', 9)`, [u.id]);
+  await H.expectError(() => tg(['gov']), /menunggu: 4 Gaharu/);
+  await H.sql(`select game.adjust_inventory($1, 'gaharu', 4)`, [u.id]);
+  s = await u.call('api_getGameState', [null]); assert(s.toogood.progress.sunda_empire.ready && s.toogood.progress.sunda_empire.items.emas === 9, 'progres siap');
   r = await tg(['gov']); assert(r.letter === 'sunda_empire' && r.count === 1, 'surat 1');
-  assert((await H.sql(`select qty from game.inventory where player_id = $1 and item_id = 'tools'`, [u.id]))[0].qty === 3, 'tools terpakai 12');
+  const inv = async id => Number(((await H.sql(`select qty from game.inventory where player_id = $1 and item_id = $2`, [u.id, id]))[0] || { qty: 0 }).qty);
+  assert(await inv('emas') === 1 && await inv('gaharu') === 0, 'barang terpakai');
   await H.expectError(() => tg(['gov']), /sudah menandatangani/);
-  // Skitraw: 5.000 gold
+  // Skitraw: 75.000 gold + 10 Mesiu
   await go('skitraw'); await tg(['gov']);
-  await H.sql('update game.players set gold = 6000 where player_id = $1', [u.id]);
-  r = await tg(['gov']); assert(r.count === 2 && (await gold()) === 1000, 'surat 2 + sumbangan');
-  // Bjorneo: menang 2 kali (kemenangan sebelum tugas diterima tidak dihitung)
+  await H.sql('update game.players set gold = 80000 where player_id = $1', [u.id]);
+  await H.expectError(() => tg(['gov']), /10 Mesiu/);
+  await H.sql(`select game.adjust_inventory($1, 'mesiu', 10)`, [u.id]);
+  await H.sql('update game.players set gold = 70000 where player_id = $1', [u.id]);
+  await H.expectError(() => tg(['gov']), /sumbangan 75000 gold/);
+  await H.sql('update game.players set gold = 80000 where player_id = $1', [u.id]);
+  r = await tg(['gov']); assert(r.count === 2 && (await gold()) === 5000 && await inv('mesiu') === 0, 'surat 2 + sumbangan');
+  // Bjorneo: menang 5 kali (kemenangan sebelum tugas diterima tidak dihitung) + 15 Senjata
   await H.sql('select game.quest_combat_won($1)', [u.id]);
   await go('bjorneo'); await tg(['gov']);
   await H.expectError(() => tg(['gov']), /baru 0/);
-  await H.sql('select game.quest_combat_won($1)', [u.id]); await H.sql('select game.quest_combat_won($1)', [u.id]);
-  s = await u.call('api_getGameState', [null]); assert(s.toogood.progress.bjorneo === 2, 'progres menang');
+  for (let i = 0; i < 5; i++) await H.sql('select game.quest_combat_won($1)', [u.id]);
+  s = await u.call('api_getGameState', [null]); assert(s.toogood.progress.bjorneo.wins === 5 && !s.toogood.progress.bjorneo.ready, 'progres menang');
+  await H.expectError(() => tg(['gov']), /15 Senjata/);
+  await H.sql(`select game.adjust_inventory($1, 'arms', 15)`, [u.id]); await H.sql(`select game.adjust_inventory($1, 'kayu_cendana', 6)`, [u.id]);
   r = await tg(['gov']); assert(r.count === 3 && r.toogood.step === 2, 'surat 3 -> langkah 2');
 
   // IKN: Tedsky, diusir, berlayar paksa ke TooGood, dicegat pemburu
@@ -81,7 +93,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
 
   // kabarkan ke 5 gubernur
   await go('ikn'); await H.expectError(() => tg(['inform']), /pulau lain/);
-  for (const c of ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw']) { await go(c); r = await tg(['inform']); assert(r.informed === c && r.toogood.step === 8, 'kabar ' + c); }
+  for (const c of ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw']) { await go(c); r = await tg(['inform']); assert(r.informed === c && r.toogood.step === 8 && r.toogood.informCount === 5, 'kabar ' + c); }
   await H.expectError(() => tg(['inform']), /sudah mendengar/);
   await H.sql(`insert into game.player_quests(player_id, quest_id, step) values ($1, 'gala', 6) on conflict do nothing`, [u.id]);
   await go('paradiso'); r = await tg(['inform']); assert(r.arrest && r.toogood.step === 9 && !r.toogood.hunted && r.toogood.pearl, 'Tedsky ditangkap');

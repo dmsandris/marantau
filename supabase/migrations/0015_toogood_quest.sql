@@ -20,17 +20,40 @@ language sql stable as $$ select coalesce((select step from game.player_quests w
 create or replace function game.toogood_freed(p_pid uuid) returns boolean
 language sql stable as $$ select game.tg_step(p_pid) >= 10 $$;
 
--- Tugas kecil tiap gubernur (pilih minimal 3)
+-- Permintaan tiap gubernur (pilih minimal 3). Tide v17: jauh lebih mahal - barang premium
+-- (stok terbatas, hanya di pulau produsen), sumbangan besar, dan pertempuran.
+--   items: {barang: jumlah}   wins: kemenangan setelah tugas diterima   gold: sumbangan
 create or replace function game.tg_govs() returns jsonb
 language sql immutable as $$
   select '{
-    "sunda_empire": {"kind": "deliver", "item": "tools",  "qty": 12},
-    "joungjava":    {"kind": "deliver", "item": "silk",   "qty": 8},
-    "bjorneo":      {"kind": "wins",                      "qty": 2},
-    "skitraw":      {"kind": "gold",                      "qty": 5000},
-    "paradiso":     {"kind": "deliver", "item": "lada",   "qty": 10}
+    "sunda_empire": {"items": {"emas": 8, "gaharu": 4}},
+    "joungjava":    {"items": {"jhonnywalker": 8, "sarang_walet": 6, "silk": 10}},
+    "bjorneo":      {"wins": 5, "items": {"arms": 15, "kayu_cendana": 6}},
+    "skitraw":      {"gold": 75000, "items": {"mesiu": 10}},
+    "paradiso":     {"items": {"jackdaniels": 10, "keris": 4, "gaharu": 3}}
   }'::jsonb
 $$;
+
+-- Kekurangan pemain untuk permintaan gubernur (null = siap)
+create or replace function game.tg_gov_missing(p_pid uuid, p_city text, p_task jsonb) returns text
+language plpgsql stable as $$
+declare g jsonb := game.tg_govs() -> p_city; k text; need int; have bigint; parts text[] := '{}'; w int; v_gold bigint;
+begin
+  for k, need in select key, value::int from jsonb_each_text(coalesce(g -> 'items', '{}'::jsonb)) loop
+    select coalesce(sum(qty), 0) into have from game.inventory where player_id = p_pid and item_id = k;
+    if have < need then parts := parts || format('%s %s (baru %s)', need, game.commodity_name(k), have); end if;
+  end loop;
+  if g ? 'wins' then
+    w := coalesce((p_task ->> 'wins')::int, 0);
+    if w < (g ->> 'wins')::int then parts := parts || format('%s kapal bajak laut tenggelam (baru %s)', g ->> 'wins', w); end if;
+  end if;
+  if g ? 'gold' then
+    select gold into v_gold from game.players where player_id = p_pid;
+    if v_gold < (g ->> 'gold')::bigint then parts := parts || format('sumbangan %s gold', g ->> 'gold'); end if;
+  end if;
+  if array_length(parts, 1) is null then return null; end if;
+  return array_to_string(parts, ', ');
+end $$;
 
 -- Pulau yang harus dikabari soal kejahatan Tedsky
 create or replace function game.tg_inform_targets() returns text[]
@@ -45,22 +68,26 @@ $$;
 
 create or replace function game.toogood_state(p_pid uuid) returns jsonb
 language plpgsql stable as $$
-declare q game.player_quests; v_step int; v_govs jsonb := game.tg_govs(); v_tasks jsonb; k text; inv int; v_prog jsonb := '{}'::jsonb;
+declare q game.player_quests; v_step int; v_govs jsonb := game.tg_govs(); v_tasks jsonb; k text; i text; inv bigint;
+  v_prog jsonb := '{}'::jsonb; v_items jsonb; v_gold bigint;
 begin
   select * into q from game.player_quests where player_id = p_pid and quest_id = 'toogood';
   v_step := coalesce(q.step, 0);
   if v_step = 0 and game.gala_step(p_pid) < 6 then return null; end if;
   v_tasks := coalesce(q.data -> 'tasks', '{}'::jsonb);
   if v_step = 1 then
-    for k in select jsonb_object_keys(v_govs) loop
-      if v_govs -> k ->> 'kind' = 'deliver' then
-        select coalesce(sum(qty), 0) into inv from game.inventory where player_id = p_pid and item_id = v_govs -> k ->> 'item';
-        v_prog := v_prog || jsonb_build_object(k, inv);
-      elsif v_govs -> k ->> 'kind' = 'wins' then
-        v_prog := v_prog || jsonb_build_object(k, coalesce((v_tasks -> k ->> 'wins')::int, 0));
-      else
-        v_prog := v_prog || jsonb_build_object(k, (select gold from game.players where player_id = p_pid));
-      end if;
+    select gold into v_gold from game.players where player_id = p_pid;
+    -- progres hanya untuk gubernur yang permintaannya sudah didengar
+    for k in select jsonb_object_keys(v_tasks) loop
+      continue when v_govs -> k is null;
+      v_items := '{}'::jsonb;
+      for i in select jsonb_object_keys(coalesce(v_govs -> k -> 'items', '{}'::jsonb)) loop
+        select coalesce(sum(qty), 0) into inv from game.inventory where player_id = p_pid and item_id = i;
+        v_items := v_items || jsonb_build_object(i, inv);
+      end loop;
+      v_prog := v_prog || jsonb_build_object(k, jsonb_build_object('items', v_items,
+        'wins', coalesce((v_tasks -> k ->> 'wins')::int, 0), 'gold', v_gold,
+        'ready', game.tg_gov_missing(p_pid, k, v_tasks -> k) is null));
     end loop;
   end if;
   return jsonb_build_object(
@@ -68,10 +95,10 @@ begin
     'letters', coalesce(q.data -> 'letters', '[]'::jsonb),
     'tasks', v_tasks,
     'progress', v_prog,
-    'govs', v_govs,
+    'govs', (select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) from jsonb_each(v_govs) where v_tasks ? key),
     'need', 3,
     'informed', coalesce(q.data -> 'informed', '[]'::jsonb),
-    'informTargets', to_jsonb(game.tg_inform_targets()),
+    'informCount', array_length(game.tg_inform_targets(), 1),
     'hunted', v_step between 3 and 8,
     'pearl', v_step between 8 and 9,
     'night', game.fish_is_night(),
@@ -110,7 +137,7 @@ language plpgsql as $$
 declare k text;
 begin
   if game.tg_step(p_pid) <> 1 then return; end if;
-  for k in select key from jsonb_each(game.tg_govs()) where value ->> 'kind' = 'wins' loop
+  for k in select key from jsonb_each(game.tg_govs()) where value ? 'wins' loop
     update game.player_quests
        set data = jsonb_set(data, array['tasks', k, 'wins'], to_jsonb(coalesce((data #>> array['tasks', k, 'wins'])::int, 0) + 1)),
            updated_at = now()
@@ -217,20 +244,12 @@ begin
        where player_id = v_pid and quest_id = 'toogood';
       return jsonb_build_object('taskAccepted', v_city, 'toogood', game.toogood_state(v_pid));
     end if;
-    if g ->> 'kind' = 'deliver' then
-      select coalesce(sum(qty), 0) into have from game.inventory where player_id = v_pid and item_id = g ->> 'item';
-      if have < (g ->> 'qty')::int then
-        raise exception 'Gubernur menunggu % %. Di palkamu baru ada %.', g ->> 'qty', game.commodity_name(g ->> 'item'), have;
-      end if;
-      perform game.adjust_inventory(v_pid, g ->> 'item', -((g ->> 'qty')::int));
-    elsif g ->> 'kind' = 'gold' then
-      if v_me.gold < (g ->> 'qty')::bigint then raise exception 'Gold-mu belum cukup untuk sumbangan % gold.', g ->> 'qty'; end if;
-      update game.players set gold = gold - (g ->> 'qty')::bigint where player_id = v_pid;
-    elsif g ->> 'kind' = 'wins' then
-      if coalesce((v_task ->> 'wins')::int, 0) < (g ->> 'qty')::int then
-        raise exception 'Kalahkan dulu % kapal bajak laut (baru %).', g ->> 'qty', coalesce((v_task ->> 'wins')::int, 0);
-      end if;
-    end if;
+    v_code := game.tg_gov_missing(v_pid, v_city, v_task);
+    if v_code is not null then raise exception 'Gubernur masih menunggu: %.', v_code; end if;
+    for v_code, have in select key, value::bigint from jsonb_each_text(coalesce(g -> 'items', '{}'::jsonb)) loop
+      perform game.adjust_inventory(v_pid, v_code, -(have::int));
+    end loop;
+    if g ? 'gold' then update game.players set gold = gold - (g ->> 'gold')::bigint where player_id = v_pid; end if;
     v_letters := v_letters || to_jsonb(v_city);
     update game.player_quests set data = jsonb_set(data, '{letters}', v_letters),
         step = case when jsonb_array_length(v_letters) >= 3 then 2 else 1 end, updated_at = now()
@@ -256,7 +275,7 @@ begin
     if v_city <> 'toogood' then raise exception 'zafachmie ada di TooGood.'; end if;
     if v_step = 3 then
       update game.player_quests set step = 4, updated_at = now() where player_id = v_pid and quest_id = 'toogood';
-      perform game.log(v_pid, 'zafachmie membuka rahasia: sebuah kapal perang legenda tersembunyi di TooGood.');
+      perform game.log(v_pid, 'zafachmie membuka rahasia: sebuah kapal perang legenda terkunci di bawah TooGood.');
       return jsonb_build_object('toogood', game.toogood_state(v_pid));
     end if;
     if v_step = 9 then
@@ -276,7 +295,7 @@ begin
     if v_step <> 4 then raise exception 'Teh Euis sedang sibuk.'; end if;
     if v_city <> 'toogood' then raise exception 'Teh Euis ada di Benteng Kapten, TooGood.'; end if;
     update game.player_quests set step = 5, updated_at = now() where player_id = v_pid and quest_id = 'toogood';
-    perform game.log(v_pid, 'Teh Euis menolak memberi kode sandi - tapi menyebut kencannya dengan dwi de''clown di Black''s Alley.');
+    perform game.log(v_pid, 'Teh Euis menolak memberi kode sandi - tapi ia tergesa-gesa berdandan untuk janji malamnya.');
     return jsonb_build_object('toogood', game.toogood_state(v_pid));
   end if;
 
@@ -288,14 +307,14 @@ begin
     v_book := game.tg_book(v_pid);
     if v_step = 5 then
       update game.player_quests set step = 6, updated_at = now() where player_id = v_pid and quest_id = 'toogood';
-      perform game.log(v_pid, 'dwi de''clown mau memberi kode sandi - asal Buku Ikan sudah lengkap.');
+      perform game.log(v_pid, 'Seorang pelukis menuntut bukti kesabaran: setiap penghuni laut harus pernah singgah di bukumu.');
       return jsonb_build_object('story', true, 'book', v_book, 'toogood', game.toogood_state(v_pid));
     end if;
     if (v_book ->> 'found')::int < (v_book ->> 'total')::int then
       return jsonb_build_object('needBook', true, 'book', v_book, 'toogood', game.toogood_state(v_pid));
     end if;
     update game.player_quests set step = 7, updated_at = now() where player_id = v_pid and quest_id = 'toogood';
-    perform game.log(v_pid, 'dwi de''clown membisikkan kode sandi dan letak kapal perang legenda "Black Pearl".');
+    perform game.log(v_pid, 'Kode sandi dibisikkan kepadamu. Pintunya ada di tempat kapal-kapal dibaringkan.');
     return jsonb_build_object('code', 'thepowerofdreams', 'toogood', game.toogood_state(v_pid));
   end if;
 
