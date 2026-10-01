@@ -1,0 +1,16 @@
+# Diagnosa ringan (manual): menampilkan konfigurasi perjalanan & durasi voyage terbaru (tanpa data pribadi).
+name: Diagnosa
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pasang psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
+      - name: Konfigurasi & durasi perjalanan
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          psql "$DB" -At -F ' = ' -c "select key, value from game.config where key ~* '(travel|speed|daylength|minutes)' order by key" | while IFS= read -r l; do echo "::notice::cfg $l"; done
+          psql "$DB" -At -c "select 'aktif berlayar: ' || count(*) || ' | durasi detik min/median/max: ' || coalesce(round(min(extract(epoch from arrive_at-depart_at)))::text,'-') || ' / ' || coalesce(round(percentile_cont(0.5) within group (order by extract(epoch from arrive_at-depart_at)))::text,'-') || ' / ' || coalesce(round(max(extract(epoch from arrive_at-depart_at)))::text,'-') from game.player_location where destination_city_id is not null" | while IFS= read -r l; do echo "::notice::$l"; done
+          psql "$DB" -At -c "select 'SpeedMultiplier pemain (sample): min ' || round(min((game.ship_json(player_id)->>'SpeedMultiplier')::numeric),2) || ' max ' || round(max((game.ship_json(player_id)->>'SpeedMultiplier')::numeric),2) || ' | Speed min ' || min((game.ship_json(player_id)->>'Speed')::numeric) || ' max ' || max((game.ship_json(player_id)->>'Speed')::numeric) from game.ships" | while IFS= read -r l; do echo "::notice::$l"; done
+          psql "$DB" -At -c "select 'contoh menit sunda->joungjava (pemain tercepat/terlambat): ' || min(game.voy_travel_minutes(game.voy_map_distance('sunda_empire','joungjava'), game.ship_json(player_id))) || ' / ' || max(game.voy_travel_minutes(game.voy_map_distance('sunda_empire','joungjava'), game.ship_json(player_id))) from game.ships" | while IFS= read -r l; do echo "::notice::$l"; done
