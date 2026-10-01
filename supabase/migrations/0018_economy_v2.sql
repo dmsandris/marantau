@@ -326,7 +326,7 @@ begin
                                   'buyMul', round(mu.buy_mul::numeric, 5), 'sellMul', round(mu.sell_mul::numeric, 5)),
       'ownedQty', coalesce((select i.qty from game.inventory i where i.player_id = pid and i.item_id = r.commodity_id and i.qty > 0), 0)));
   end loop;
-  return jsonb_build_object('items', items,
+  return jsonb_build_object('items', items, 'closed', game.ww_market_closed(pid),
     'cargoSpaceRemaining', trim_scale(greatest(0, game.cargo_free(pid))),
     'cargoUsed', trim_scale(game.cargo_used(pid)), 'cargoCapacity', coalesce(game.effective_cargo(pid), 0),
     'cycle', jsonb_build_object('index', cyc, 'endsInMs', game.mkt_cycle_ends_ms(),

@@ -232,11 +232,13 @@ begin
   book_bonus := case when coalesce(game.has_effect(p_pid, 'cargo_bonus_10'), false) then 10 else 0 end;
   e := game.voy_effective_stats(p_pid);
   cargo_bonus := book_bonus + (e ->> 'cargoBonus')::numeric;
-  eff_max := 100 + (e ->> 'maxConditionBonus')::numeric;
+  eff_max := 100 + (e ->> 'maxConditionBonus')::numeric
+    + case when coalesce(game.has_effect(p_pid, 'regal_hull'), false) then 50 else 0 end;
   cond := least(coalesce(s.condition, eff_max), eff_max);
   return jsonb_build_object(
     'ShipName', s.ship_name, 'Tier', s.tier, 'Hull', s.hull, 'MaxHull', s.max_hull,
-    'Cargo', s.cargo, 'Speed', s.speed + case when coalesce(game.has_effect(p_pid, 'ship_speed_5'), false) then 5 else 0 end,
+    'Cargo', s.cargo, 'Speed', s.speed + case when coalesce(game.has_effect(p_pid, 'ship_speed_5'), false) then 5 else 0 end
+             + case when coalesce(game.has_effect(p_pid, 'regal_engine'), false) then 10 else 0 end,
     'Combat', s.combat, 'Armor', s.armor, 'Navigation', s.navigation,
     'Condition', cond, 'ConditionDecayPerSail', s.condition_decay_per_sail, 'MaxCondition', s.max_condition,
     'DamageThreshold', s.damage_threshold,
@@ -920,6 +922,7 @@ begin
   exception when others then
     null; -- sama seperti try/catch di Code.gs
   end;
+  perform game.quest_on_sail(v_me.player_id, l.city_id, v_dest);
 
   return jsonb_build_object('originCityId', l.city_id, 'destinationCityId', v_dest,
     'departAt', game.iso(t_depart), 'arriveAt', game.iso(t_arrive), 'travelSeconds', secs, 'travelRealMinutes', round(secs / 60.0, 2));
@@ -939,7 +942,7 @@ declare
   sinking boolean; defeated boolean; ends boolean; ended boolean;
   final_msg text; final_result text; target text; loot numeric; gold_now bigint; penalty bigint; eff_max numeric;
   drop_res jsonb; drop_note text := ''; loot_item jsonb := null; drop_name text; fin jsonb;
-  is_boss boolean := false; boss_res jsonb := null;
+  is_boss boolean := false; boss_res jsonb := null; ad numeric; v_floor numeric;
 begin
   if v_tactic is null or not (v_tactic = any (array['fire', 'reload', 'flee', 'bribe', 'negotiate', 'ram'])) then
     raise exception 'Taktik tidak dikenali: %', coalesce(v_tactic, 'undefined');
@@ -959,10 +962,27 @@ begin
   lvl := game.voy_num(enc -> 'enemyLevel')::int;
   is_boss := coalesce(enc ->> 'boss', '') <> '';
   if is_boss and v_tactic in ('bribe', 'negotiate') then
+    if enc ? 'noTalkMsg' then raise exception '%', enc ->> 'noTalkMsg'; end if;
     raise exception '% tertawa: "Suap? Runding? Aku tak butuh gold-mu!" - bos ini tidak bisa disuap atau diajak berunding.', enc ->> 'enemyName';
   end if;
+  if v_tactic = 'ram' and coalesce((enc ->> 'noRam')::boolean, false) then
+    raise exception '%', coalesce(enc ->> 'noRamMsg', 'Kapal sebesar itu tak mungkin ditabrak - lambungmu yang akan hancur duluan.');
+  end if;
 
-  r := game.voy_resolve_round(v_tactic, enc, stats, ship, v_me.gold);
+  -- Tide v18: mundur selalu berhasil bila armada sekutu menutupi (pertempuran perang)
+  if v_tactic = 'flee' and coalesce((enc ->> 'retreatOk')::boolean, false) then
+    r := jsonb_build_object('ends', true, 'endResult', 'fled',
+      'message', 'Ronde ' || coalesce(enc ->> 'round', '1') || ': ' || coalesce(enc ->> 'retreatMsg', 'Armada sekutu menutupi manuvermu - kapal mundur dari pertempuran dengan selamat.'));
+  else
+    r := game.voy_resolve_round(v_tactic, enc, stats, ship, v_me.gold);
+  end if;
+  -- Tembakan armada sekutu tiap ronde yang belum berakhir
+  if game.voy_num(enc -> 'allyDmg') > 0 and not coalesce((r ->> 'ends')::boolean, false)
+     and not coalesce((r ->> 'insufficientGold')::boolean, false) and not coalesce((r ->> 'invalidAction')::boolean, false) then
+    ad := game.voy_round(game.voy_num(enc -> 'allyDmg') * (0.8 + random() * 0.4));
+    r := r || jsonb_build_object('enemyDamage', game.voy_num(r -> 'enemyDamage') + ad, 'allyDamage', ad,
+      'message', (r ->> 'message') || ' ' || coalesce(enc ->> 'allyNote', 'Armada sekutu') || ' menghujani musuh (-' || ad || ' HP).');
+  end if;
 
   -- Gold tidak cukup / meriam kosong: ronde tidak dikonsumsi
   if coalesce((r ->> 'insufficientGold')::boolean, false) or coalesce((r ->> 'invalidAction')::boolean, false) then
@@ -993,7 +1013,9 @@ begin
 
   ends := coalesce((r ->> 'ends')::boolean, false);
   sinking := new_cond <= 0;
-  defeated := not ends and hp <= 0;
+  v_floor := case when enc ? 'hpFloor' then game.voy_num(enc -> 'hpFloor') else 0 end;
+  if v_floor > 0 and hp <= v_floor then hp := v_floor; enc := jsonb_set(enc, '{enemyHp}', to_jsonb(hp)); end if;
+  defeated := not ends and hp <= v_floor;
   ended := ends or sinking or defeated;
 
   if not ended then
@@ -1018,7 +1040,15 @@ begin
     final_result := 'won';
   end if;
 
-  if sinking then
+  if sinking and coalesce((enc ->> 'softSink')::boolean, false) then
+    -- Pertempuran perang: kapal ditarik mundur armada sekutu tanpa kehilangan muatan/gold
+    eff_max := game.voy_num(game.ship_json(pid) -> 'EffectiveMaxCondition');
+    perform game.apply_condition_delta(pid, eff_max * 0.25);
+    target := voyage ->> 'originCityId';
+    final_msg := coalesce(r ->> 'message', '') || ' Lambung kapalmu jebol di bawah gempuran ' || (enc ->> 'enemyName') ||
+      '! Armada sekutu menarikmu keluar dari medan tempur - kapal selamat, tapi harus diperbaiki sebelum kembali bertempur.';
+    final_result := 'sunk';
+  elsif sinking then
     eff_max := game.voy_num(game.ship_json(pid) -> 'EffectiveMaxCondition');
     perform game.apply_condition_delta(pid, eff_max * 0.25);
     select gold into gold_now from game.players where player_id = pid;
@@ -1053,6 +1083,11 @@ begin
     end if;
   end if;
 
+  -- Pertempuran perang: kapal kembali ke pelabuhan asal kecuali kemenangan terakhir
+  if coalesce((enc ->> 'retreat')::boolean, false) and not coalesce((boss_res ->> 'arrive')::boolean, false) then
+    target := voyage ->> 'originCityId';
+  end if;
+  perform game.quest_combat_end(pid, enc, final_result);
   fin := game.voy_finalize_arrival(pid, target, final_msg);
   perform game.voy_log_combat(pid, lvl, v_tactic, final_result, coalesce(r ->> 'lootNote', '') || drop_note);
 
@@ -1066,7 +1101,8 @@ begin
     'newGold', (select gold from game.players where player_id = pid),
     'lootItem', loot_item,
     'boss', case when is_boss then enc ->> 'boss' else null end,
-    'questItem', boss_res -> 'item');
+    'questItem', boss_res -> 'item',
+    'questEvent', boss_res -> 'event');
 end $$;
 select game.expose('api_resolvecombat');
 

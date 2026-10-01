@@ -908,6 +908,7 @@ begin
   if not exists (select 1 from game.commodities where id = v_comm) then raise exception 'Komoditas tidak dikenal.'; end if;
   v_me := game.me(true);
   if game.in_transit(v_me.player_id) then raise exception 'Pasang order saat kapal merapat.'; end if;
+  if game.ww_market_closed(v_me.player_id) then raise exception 'Toko tutup. Kami diminta diam oleh Pemerintah.'; end if;
   v_city := game.current_city(v_me.player_id);
   select count(*) into v_open from game.mp_orders where seller_id = v_me.player_id and status = 'open' and qty > 0;
   if v_open >= 6 then raise exception 'Maksimal 6 order aktif. Batalkan salah satu dulu.'; end if;
@@ -933,6 +934,7 @@ begin
   if not found or o.status <> 'open' or o.qty <= 0 then raise exception 'Order sudah tidak tersedia.'; end if;
   if o.seller_id = v_id then raise exception 'Itu order milikmu sendiri.'; end if;
   if game.in_transit(v_id) or game.current_city(v_id) <> o.city_id then raise exception 'Kamu harus berada di kota order ini.'; end if;
+  if game.ww_market_closed(v_id) then raise exception 'Toko tutup. Kami diminta diam oleh Pemerintah.'; end if;
   if v_qty > o.qty then v_qty := o.qty; end if;
   v_total := v_qty * o.price;
   perform 1 from game.players where player_id in (v_id, o.seller_id) order by player_id for update;

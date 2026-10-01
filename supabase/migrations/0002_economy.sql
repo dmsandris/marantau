@@ -459,6 +459,9 @@ begin
   if game.in_transit(p_pid) then
     raise exception 'Kamu sedang berlayar - tidak bisa berdagang sampai kapal merapat.';
   end if;
+  if game.ww_market_closed(p_pid) then
+    raise exception 'Toko tutup. Kami diminta diam oleh Pemerintah.';
+  end if;
 end $$;
 
 create or replace function public.api_buy(a jsonb default '[]'::jsonb) returns jsonb

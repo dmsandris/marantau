@@ -209,3 +209,20 @@ language sql stable as $$ select coalesce(game.effective_cargo(p_pid), 0) - game
 -- Ambil stok dari pasar kota (misi Pesanan). Gagal bila stok tidak cukup.
 create or replace function game.market_take(p_city text, p_comm text, p_qty int) returns void
 language plpgsql as $$ begin null; end $$;
+
+-- [Quest Warwerwor / 0019] ----------------------------------------------
+-- Status quest untuk getGameState (boleh menulis: menangani tenggat yang lewat)
+create or replace function game.ww_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+-- Pasar (jual-beli barang) terkunci untuk pemain ini?
+create or replace function game.ww_market_closed(p_pid uuid) returns boolean
+language sql stable as $$ select false $$;
+-- Gubernur yang marah menolak memberi misi (raise exception bila menolak)
+create or replace function game.ww_mission_guard(p_pid uuid, p_city text) returns void
+language plpgsql as $$ begin null; end $$;
+-- Dipanggil setiap kali pemain berangkat berlayar
+create or replace function game.quest_on_sail(p_pid uuid, p_origin text, p_dest text) returns void
+language plpgsql as $$ begin null; end $$;
+-- Dipanggil di akhir setiap pertempuran (hasil apa pun) dengan encounter terakhir
+create or replace function game.quest_combat_end(p_pid uuid, p_enc jsonb, p_result text) returns void
+language plpgsql as $$ begin null; end $$;

@@ -359,6 +359,7 @@ begin
   if game.current_city(v_pid) is distinct from v_city then
     raise exception 'Kamu harus berada di kota ini untuk menerima misi.';
   end if;
+  perform game.ww_mission_guard(v_pid, v_city);
   if game.in_transit(v_pid) then
     raise exception 'Kamu sedang berlayar.';
   end if;
@@ -416,6 +417,7 @@ declare
   v_total bigint;
   v_free int;
 begin
+  if game.ww_market_closed(v_pid) then raise exception 'Toko tutup. Kami diminta diam oleh Pemerintah.'; end if;
   select * into m from game.player_missions where player_id = v_pid and status = 'active' order by id limit 1 for update;
   if not found then raise exception 'Tidak ada misi aktif.'; end if;
   if game.mission_norm_type(m.type) <> 'procure' then raise exception 'Misi ini bukan pesanan barang.'; end if;
