@@ -925,7 +925,7 @@ select game.expose('api_mppostorder');
 create or replace function public.api_mpBuyOrder(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_id uuid := game.uid(); v_oid text := game.arg(a, 0); v_qty bigint := game.mp_clamp(a, 1, 0, 100000);
-  o game.mp_orders; v_name text; v_total bigint; buyer game.players; v_cap int; v_used int; v_left int;
+  o game.mp_orders; v_name text; v_total bigint; buyer game.players; v_cap numeric; v_used numeric; v_left int;
 begin
   if v_qty <= 0 then raise exception 'Jumlah tidak valid.'; end if;
   -- (tanpa game.me(): jangan kunci baris pemain sebelum baris order - lihat urutan kunci)
@@ -938,8 +938,8 @@ begin
   perform 1 from game.players where player_id in (v_id, o.seller_id) order by player_id for update;
   select * into buyer from game.players where player_id = v_id;
   if coalesce(buyer.gold, 0) < v_total then raise exception 'Gold tidak cukup (butuh %).', v_total; end if;
-  v_cap := coalesce(game.effective_cargo(v_id), 0); v_used := coalesce(game.cargo_total(v_id), 0);
-  if v_used + v_qty > v_cap then raise exception 'Palka tidak cukup. Sisa ruang: %.', v_cap - v_used; end if;
+  v_cap := coalesce(game.effective_cargo(v_id), 0); v_used := coalesce(game.cargo_used(v_id), 0);
+  if v_used + v_qty * game.commodity_size(o.commodity_id) > v_cap then raise exception 'Palka tidak cukup. Sisa ruang: %.', trim_scale(v_cap - v_used); end if;
   update game.players set gold = gold - v_total where player_id = v_id;
   update game.players set gold = gold + v_total where player_id = o.seller_id;   -- dikreditkan walau penjual berlayar
   perform game.adjust_inventory(v_id, o.commodity_id, v_qty::int);
@@ -957,7 +957,7 @@ select game.expose('api_mpbuyorder');
 
 create or replace function public.api_mpCancelOrder(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
-declare v_id uuid := game.uid(); v_oid text := game.arg(a, 0); o game.mp_orders; v_here boolean; v_space int := 0;
+declare v_id uuid := game.uid(); v_oid text := game.arg(a, 0); o game.mp_orders; v_here boolean; v_space numeric := 0;
   v_where text := 'palka';
 begin
   select * into o from game.mp_orders where order_id = v_oid for update;
@@ -965,8 +965,8 @@ begin
   if o.status <> 'open' or o.qty <= 0 then raise exception 'Order sudah tidak aktif.'; end if;
   perform 1 from game.players where player_id = v_id for update;
   v_here := not coalesce(game.in_transit(v_id), false) and game.current_city(v_id) = o.city_id;
-  if v_here then v_space := coalesce(game.effective_cargo(v_id), 0) - coalesce(game.cargo_total(v_id), 0); end if;
-  if v_here and v_space >= o.qty then
+  if v_here then v_space := game.cargo_free(v_id); end if;
+  if v_here and v_space >= o.qty * game.commodity_size(o.commodity_id) then
     perform game.adjust_inventory(v_id, o.commodity_id, o.qty);
   else
     insert into game.warehouse as w (player_id, city_id, commodity_id, qty) values (v_id, o.city_id, o.commodity_id, o.qty)

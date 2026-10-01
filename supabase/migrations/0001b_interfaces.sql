@@ -196,3 +196,16 @@ language sql stable as $$ select null::text $$;
 -- Pesan bila tampilan/nama kapal sedang terkunci (null = bebas)
 create or replace function game.ship_locked(p_pid uuid) returns text
 language sql stable as $$ select null::text $$;
+
+-- [ekonomi v2 / 0018] ---------------------------------------------------
+-- Ruang palka per unit barang (Emas 0.1, Kayu Jati 2, ...)
+create or replace function game.commodity_size(p_id text) returns numeric
+language sql stable as $$ select 1::numeric $$;
+-- Ruang palka terpakai (sudah memperhitungkan ukuran barang) & sisa ruang
+create or replace function game.cargo_used(p_pid uuid) returns numeric
+language sql stable as $$ select game.cargo_total(p_pid)::numeric $$;
+create or replace function game.cargo_free(p_pid uuid) returns numeric
+language sql stable as $$ select coalesce(game.effective_cargo(p_pid), 0) - game.cargo_used(p_pid) $$;
+-- Ambil stok dari pasar kota (misi Pesanan). Gagal bila stok tidak cukup.
+create or replace function game.market_take(p_city text, p_comm text, p_qty int) returns void
+language plpgsql as $$ begin null; end $$;

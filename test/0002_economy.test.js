@@ -148,10 +148,10 @@ const deq = assert.deepStrictEqual;
   // ------------------------------------------------------------ cargo
   // sugar: 10 - 5 - 2 + 3 = 6, rum 1
   await H.sql(`insert into game.inventory(player_id, item_id, qty) values ($1, 'art_smugglers_ring', 1)`, [alice.id]);
-  deq(await alice.call('api_getCargo', []), [{ commodityId: 'sugar', name: 'Sugar', qty: 6 }, { commodityId: 'rum', name: 'Rum', qty: 1 }]);
+  deq(await alice.call('api_getCargo', []), [{ commodityId: 'sugar', name: 'Sugar', qty: 6, size: 1 }, { commodityId: 'rum', name: 'Rum', qty: 1, size: 1 }]);
   eq((await one('select game.cargo_total($1) n', [alice.id])).n, 7);
   let cst = await alice.call('api_getCargoState', ['sunda_empire']);
-  deq(cst, { cargo: [{ commodityId: 'sugar', name: 'Sugar', qty: 6 }, { commodityId: 'rum', name: 'Rum', qty: 1 }], warehouse: [], missionLoad: 0 });
+  deq(cst, { cargo: [{ commodityId: 'sugar', name: 'Sugar', qty: 6, size: 1 }, { commodityId: 'rum', name: 'Rum', qty: 1, size: 1 }], warehouse: [], missionLoad: 0, used: 7, capacity: 30 });
   // muatan misi (kontrak modul C, ditimpa sementara) ikut memakan ruang palka
   await H.sql(`create or replace function game.mission_load(p_pid uuid) returns int language plpgsql stable as $$ begin return 20; end $$`);
   eq((await alice.call('api_getCargoState', ['sunda_empire'])).missionLoad, 20);
@@ -169,11 +169,11 @@ const deq = assert.deepStrictEqual;
   const ws = await alice.call('api_warehouseStore', ['sunda_empire', 'sugar', 4]);
   deq(ws, { fee: 8, newGold: g0 - 8 });
   await alice.call('api_warehouseStore', ['sunda_empire', 'sugar', 1]);
-  deq(await alice.call('api_getWarehouse', ['sunda_empire']), [{ commodityId: 'sugar', name: 'Sugar', qty: 5 }]);
+  deq(await alice.call('api_getWarehouse', ['sunda_empire']), [{ commodityId: 'sugar', name: 'Sugar', qty: 5, size: 1 }]);
   deq(await alice.call('api_getWarehouse', ['joungjava']), []);
   cst = await alice.call('api_getCargoState', ['sunda_empire']);
-  deq(cst.cargo, [{ commodityId: 'sugar', name: 'Sugar', qty: 1 }, { commodityId: 'rum', name: 'Rum', qty: 1 }]);
-  deq(cst.warehouse, [{ commodityId: 'sugar', name: 'Sugar', qty: 5 }]);
+  deq(cst.cargo, [{ commodityId: 'sugar', name: 'Sugar', qty: 1, size: 1 }, { commodityId: 'rum', name: 'Rum', qty: 1, size: 1 }]);
+  deq(cst.warehouse, [{ commodityId: 'sugar', name: 'Sugar', qty: 5, size: 1 }]);
   eq((await one('select message from game.player_log where player_id = $1 order by id desc limit 1', [alice.id])).message,
     'Stored 1 Sugar at the warehouse (fee: 2 gold).');
   await H.sql('update game.players set gold = 1 where player_id = $1', [alice.id]);
@@ -183,7 +183,7 @@ const deq = assert.deepStrictEqual;
   await E(() => alice.call('api_warehouseWithdraw', ['sunda_empire', 'sugar', 6]), /^Jumlah di gudang tidak cukup\.$/);
   await E(() => alice.call('api_warehouseWithdraw', ['sunda_empire', 'sugar', 29]), /^Kapasitas cargo tidak cukup untuk mengambil semua ini\.$/);
   deq(await alice.call('api_warehouseWithdraw', ['sunda_empire', 'sugar', 3]), { ok: true });
-  deq(await alice.call('api_getWarehouse', ['sunda_empire']), [{ commodityId: 'sugar', name: 'Sugar', qty: 2 }]);
+  deq(await alice.call('api_getWarehouse', ['sunda_empire']), [{ commodityId: 'sugar', name: 'Sugar', qty: 2, size: 1 }]);
   eq((await alice.call('api_getCargo', []))[0].qty, 4);
   console.log('warehouse ok');
 

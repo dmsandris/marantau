@@ -239,7 +239,7 @@ declare
   v_offer  jsonb;
   v_offers jsonb := '[]'::jsonb;
 begin
-  select coalesce(array_agg(id order by sort, id), '{}') into v_comms from game.commodities;
+  select coalesce(array_agg(id order by sort, id), '{}') into v_comms from game.commodities where active and tier <> 'premium';
   select coalesce(array_agg(city_id order by sort, city_id), '{}') into v_others
     from game.cities where city_id is distinct from p_city and not hidden;
 
@@ -382,10 +382,9 @@ begin
   end if;
 
   if v_type = 'courier' then
-    v_free := game.mission_free_hold(v_pid);
-    if v_free < v_qty then
+    if game.cargo_free(v_pid) < v_qty * game.commodity_size(v_offer ->> 'commodityId') then
       raise exception 'Palka tidak cukup untuk barang titipan (butuh % ruang, sisa %). Jual atau titip barang dulu.',
-        v_qty, greatest(0, v_free);
+        trim_scale(v_qty * game.commodity_size(v_offer ->> 'commodityId')), trim_scale(greatest(0, game.cargo_free(v_pid)));
     end if;
     v_loaded := v_qty; -- barang titipan langsung dimuat
   end if;
@@ -434,10 +433,11 @@ begin
   if v_me.gold < v_total then
     raise exception 'Gold tidak cukup. Butuh % untuk % unit, kamu punya %.', v_total, v_need, v_me.gold;
   end if;
-  v_free := game.mission_free_hold(v_pid);
-  if v_free < v_need then
-    raise exception 'Palka tidak cukup (butuh % ruang, sisa %).', v_need, greatest(0, v_free);
+  if game.cargo_free(v_pid) < v_need * game.commodity_size(m.commodity_id) then
+    raise exception 'Palka tidak cukup (butuh % ruang, sisa %).', trim_scale(v_need * game.commodity_size(m.commodity_id)),
+      trim_scale(greatest(0, game.cargo_free(v_pid)));
   end if;
+  perform game.market_take(m.source_city_id, m.commodity_id, v_need);
 
   update game.players set gold = gold - v_total where player_id = v_pid;
   update game.player_missions set loaded_qty = m.qty where id = m.id;

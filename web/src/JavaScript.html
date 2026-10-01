@@ -50,9 +50,22 @@
     Paradise: { icon: 'gem', label: 'Pulau Surga' }, Freed: { icon: 'star', label: 'Pulau Merdeka' }
   };
   var COMMODITY_META = {
-    sugar: { icon: 'sack', c1: '#e3c16a', c2: '#9a7424' }, silk: { icon: 'silk', c1: '#c070b8', c2: '#6a2a66' },
-    spices: { icon: 'pepper', c1: '#e0663f', c2: '#8c2a1d' }, rum: { icon: 'bottle', c1: '#b27a45', c2: '#5a3718' },
-    tools: { icon: 'hammer', c1: '#7f96a8', c2: '#34495a' }, arms: { icon: 'swords', c1: '#737a88', c2: '#2c3038' }
+    beras: { icon: 'rice', c1: '#efe6cf', c2: '#a8946a' }, ikan_asin: { icon: 'fishdry', c1: '#c9b48a', c2: '#6b5a3a' },
+    garam: { icon: 'salt', c1: '#e9f1f4', c2: '#8aa3ad' }, sugar: { icon: 'sack', c1: '#e3c16a', c2: '#9a7424' },
+    sarang_walet: { icon: 'nest', c1: '#f3e6c4', c2: '#b0894a' },
+    tuak: { icon: 'jug', c1: '#d9b77a', c2: '#7a5a2a' }, rum: { icon: 'bottle', c1: '#b27a45', c2: '#5a3718' },
+    kopi: { icon: 'coffee', c1: '#8a5a36', c2: '#3a2414' }, jackdaniels: { icon: 'whisky', c1: '#4a4a4a', c2: '#141414' },
+    jhonnywalker: { icon: 'whisky', c1: '#c9a033', c2: '#5a3a10' },
+    kayu_manis: { icon: 'cinnamon', c1: '#c27a45', c2: '#6b3a18' }, lada: { icon: 'pepper', c1: '#e0663f', c2: '#8c2a1d' },
+    cengkeh: { icon: 'clove', c1: '#a0583a', c2: '#4a2414' }, pala: { icon: 'nutmeg', c1: '#b8744a', c2: '#5a3018' },
+    gaharu: { icon: 'incense', c1: '#7a5a8a', c2: '#2a1a34' },
+    rotan: { icon: 'rattan', c1: '#cfae6a', c2: '#7a5a24' }, kayu_jati: { icon: 'log', c1: '#a8743a', c2: '#5a3a18' },
+    besi: { icon: 'ingot', c1: '#8a96a0', c2: '#3a444c' }, kayu_cendana: { icon: 'log', c1: '#e0b67a', c2: '#9a6a2a' },
+    tools: { icon: 'hammer', c1: '#7f96a8', c2: '#34495a' }, batik: { icon: 'cloth', c1: '#b8603a', c2: '#4a2a5a' },
+    porselen: { icon: 'vase', c1: '#e8f0f8', c2: '#3a6aa0' }, keris: { icon: 'keris', c1: '#e0c070', c2: '#5a4020' },
+    mesiu: { icon: 'barrel', c1: '#5a5048', c2: '#1e1a16' }, silk: { icon: 'silk', c1: '#c070b8', c2: '#6a2a66' },
+    arms: { icon: 'swords', c1: '#737a88', c2: '#2c3038' }, mutiara: { icon: 'pearl', c1: '#f4f0ff', c2: '#8a8ab0' },
+    emas: { icon: 'goldbar', c1: '#ffe08a', c2: '#a8781a' }, spices: { icon: 'pepper', c1: '#e0663f', c2: '#8c2a1d' }
   };
   var BOOT_TIPS = [
     'Beli murah di kota Lumbung, jual mahal di kota Terpencil.',
@@ -569,14 +582,14 @@
     var cap = state.ship.EffectiveCargo || state.ship.Cargo || 0;
     var pct = cap > 0 ? used / cap * 100 : 0;
     setRing_('holdRing', pct);
-    document.getElementById('holdText').textContent = used + '/' + cap;
+    document.getElementById('holdText').textContent = fmtSpace_(used) + '/' + cap;
     var res = document.getElementById('resHold');
     res.classList.toggle('warn', pct >= 75 && pct < 100);
     res.classList.toggle('crit', false);
-    res.title = 'Palka: ' + used + ' dari ' + cap + ' unit terisi';
+    res.title = 'Palka: ' + fmtSpace_(used) + ' dari ' + cap + ' ruang terisi';
   }
   function updateHoldFromCargo_(data) {
-    var used = (data && data.cargo || []).reduce(function (sum, c) { return sum + c.qty; }, 0) + ((data && data.missionLoad) || 0);
+    var used = data && data.used != null ? Number(data.used) : (data && data.cargo || []).reduce(function (sum, c) { return sum + c.qty * (c.size || 1); }, 0) + ((data && data.missionLoad) || 0);
     updateHoldHud_(used);
   }
 
@@ -1420,16 +1433,16 @@
     if (marketCache && marketCache.cityId === cityId) { renderMarketGrid_(); return; }
     var pre = panelCache['market:' + cityId];
     if (pre) {
-      marketCache = { cityId: cityId, items: JSON.parse(JSON.stringify(pre.items || [])), cargoSpaceRemaining: pre.cargoSpaceRemaining || 0 };
+      marketCache = { cityId: cityId, items: JSON.parse(JSON.stringify(pre.items || [])), cargoSpaceRemaining: pre.cargoSpaceRemaining || 0, cargoCapacity: pre.cargoCapacity, cycle: pre.cycle, _at: pre._at || Date.now() };
       renderMarketGrid_();
     }
     google.script.run.withSuccessHandler(function (result) {
       recordPrices_(cityId, result.items);
       panelCache['market:' + cityId] = result;
       if (!txIdle_() && marketCache) return; // jangan timpa perubahan optimistis yang sedang dikirim
-      marketCache = { cityId: cityId, items: result.items || [], cargoSpaceRemaining: result.cargoSpaceRemaining || 0 };
-      var cap = state.ship ? (state.ship.EffectiveCargo || state.ship.Cargo) : 0;
-      if (cap) updateHoldHud_(Math.max(0, cap - marketCache.cargoSpaceRemaining));
+      result._at = Date.now();
+      marketCache = { cityId: cityId, items: result.items || [], cargoSpaceRemaining: result.cargoSpaceRemaining || 0, cargoCapacity: result.cargoCapacity, cycle: result.cycle, _at: result._at };
+      if (result.cargoUsed != null) updateHoldHud_(result.cargoUsed);
       if (currentPanel === 'market') renderMarketGrid_();
     }).withFailureHandler(showModalError).api_getMarket(cityId);
   }
@@ -1442,36 +1455,58 @@
     var listings = marketCache.items;
     var space = marketCache.cargoSpaceRemaining;
     var gold = state.player.gold;
-    var cap = state.ship ? (state.ship.EffectiveCargo || state.ship.Cargo) : 0;
+    var cap = marketCache.cargoCapacity || (state.ship ? (state.ship.EffectiveCargo || state.ship.Cargo) : 0);
     var box = document.getElementById('modalBox'), keepScroll = box.scrollTop;
     var qtyKeep = {};
     document.querySelectorAll('.qty input').forEach(function (i) { qtyKeep[i.id] = i.value; });
+    var cyc = marketCache.cycle || {};
+    var nm = function (id) { var x = listings.filter(function (i) { return i.commodityId === id; })[0]; return x ? x.name : id; };
 
-    var html = panelHeader_('scales', 'Market &mdash; ' + esc_(state.city.Name), 'Beli murah, jual mahal. Selisih harga antar kota adalah untungmu.');
+    var html = panelHeader_('scales', 'Market &mdash; ' + esc_(state.city.Name), 'Stok tiap pasar terbatas. Harga bergerak setiap unit yang dibeli atau dijual.');
     html += npcHtml_('saudagar', lineMarket_(listings));
     html += '<div class="mkt-head">' +
       '<div class="card">' + ic('coin') + '<div><div class="bar-label-row"><span>Gold</span></div><b class="num" style="font-family:var(--font-title);font-size:1.15em;">' + formatGold(gold) + '</b></div></div>' +
-      '<div class="card">' + ic('crate') + '<div style="flex:1;"><div class="bar-label-row"><span>Ruang palka</span><span class="v">' + space + ' sisa</span></div>' +
+      '<div class="card">' + ic('crate') + '<div style="flex:1;"><div class="bar-label-row"><span>Ruang palka</span><span class="v">' + fmtSpace_(space) + ' sisa dari ' + cap + '</span></div>' +
         '<div class="bar-track" style="margin:4px 0 0;"><div class="bar-fill ' + (space <= 0 ? 'red' : 'blue') + '" style="width:' + (cap ? Math.round((cap - space) / cap * 100) : 0) + '%;"></div></div></div></div>' +
       (state.cityEvent ? '<div class="card">' + ic(WORLD_EVENT_ICON[state.cityEvent.eventType] || 'star') + '<div><div class="bar-label-row"><span>Event</span></div><b style="font-family:var(--font-title);font-size:.85em;">' + esc_(state.cityEvent.label) + '</b></div></div>' : '') +
     '</div>';
+    if (cyc.wanted) {
+      html += '<div class="mkt-news"><div class="mn-k">' + ic('scroll') + ' Kabar Pasar</div>' +
+        '<div class="mn-v"><span class="mn-tag want">Dicari!</span> ' + cyc.wanted.map(function (id) { return '<b>' + esc_(nm(id)) + '</b>'; }).join(', ') +
+        ' <span class="mn-tag surplus">Panen Raya</span> ' + (cyc.surplus || []).map(function (id) { return '<b>' + esc_(nm(id)) + '</b>'; }).join(', ') + '</div>' +
+        '<div class="mn-t">' + ic('hourglass') + ' berganti dalam <b id="mktCycleLeft">' + cycleLeft_() + '</b></div></div>';
+    }
+    html += '<div class="mkt-tabs">' + GOOD_GROUPS.map(function (g) {
+      var n = g[0] === 'all' ? listings.length : listings.filter(function (i) { return i.group === g[0]; }).length;
+      var own = listings.some(function (i) { return (g[0] === 'all' || i.group === g[0]) && i.ownedQty > 0; });
+      return '<button class="mkt-tab' + (mktGroup_ === g[0] ? ' on' : '') + '" onclick="setMktGroup_(\'' + g[0] + '\')">' + ic(g[2]) + '<span>' + g[1] + '</span>' + (own && g[0] !== 'all' ? '<i class="mkt-dot"></i>' : '') + '<em>' + n + '</em></button>';
+    }).join('') + '</div>';
 
-    listings.forEach(function (item) {
+    var shown = listings.filter(function (i) { return mktGroup_ === 'all' || i.group === mktGroup_; });
+    shown.forEach(function (item) {
       var id = item.commodityId;
-      var maxBuy = item.buyPrice > 0 ? maxAffordable_(item, gold, space) : 0;
+      var maxBuy = maxAffordable_(item, gold, space);
       var maxSell = item.ownedQty || 0;
-      html += '<div class="card mkt-row hover' + (lastTrade && lastTrade.id === id ? ' flash-' + lastTrade.dir : '') + '" data-good="' + id + '">' +
+      var stockPct = item.refStock ? Math.min(100, Math.round(item.stock / (item.refStock * (item.tier === 'premium' ? 1.2 : 1.6)) * 100)) : 0;
+      var tags = '';
+      if (item.tier === 'premium') tags += '<span class="price-badge legend">' + ic('gem') + ' Premium</span>';
+      if (item.tag === 'wanted') tags += '<span class="price-badge bad">' + ic('alert') + ' Dicari!</span>';
+      else if (item.tag === 'surplus') tags += '<span class="price-badge good">' + ic('sack') + ' Panen Raya</span>';
+      if (item.role === 'produce') tags += '<span class="price-badge normal">Produksi lokal</span>';
+      else if (item.role === 'consume') tags += '<span class="price-badge normal">Laku di sini</span>';
+      html += '<div class="card mkt-row hover' + (item.tier === 'premium' ? ' premium' : '') + (lastTrade && lastTrade.id === id ? ' flash-' + lastTrade.dir : '') + '" data-good="' + id + '">' +
         (lastTrade && lastTrade.id === id ? '<span class="trade-float ' + lastTrade.dir + '">' + (lastTrade.dir === 'buy' ? '+' : '\u2212') + lastTrade.qty + ' ' + esc_(item.name) + '</span>' : '') +
         '<div class="mkt-good">' + goodIcon_(id) + '<div style="min-width:0;">' +
           '<div><span class="cname">' + esc_(item.name) + '</span>' + (maxSell ? '<span class="owned-pill">&times;' + maxSell + ' di palka</span>' : '') + '</div>' +
-          '<div style="margin-top:4px;">' + priceBadge_(item.priceRatio) + (item.overstockPct >= 3 ? ' <span class="price-badge bad" title="Banyak kapten menjual barang ini di sini. Harga jual pulih perlahan.">' + ic('crate') + ' Stok menumpuk &minus;' + item.overstockPct + '% jual</span>' : '') + (item.scarcityPct >= 3 ? ' <span class="price-badge bad" title="Banyak kapten memborong barang ini di sini. Harga beli pulih perlahan.">' + ic('alert') + ' Diborong +' + item.scarcityPct + '% beli</span>' : '') + '</div>' +
+          '<div class="mkt-tags">' + priceBadge_(item.priceRatio) + tags + '</div>' +
+          '<div class="mkt-stock"><span class="ms-l">Stok <b>' + item.stock + '</b></span><span class="ms-bar"><i style="width:' + stockPct + '%"></i></span><span class="ms-size" title="Ruang palka per unit">' + ic('crate') + ' ' + fmtSpace_(item.size) + '/unit</span></div>' +
           (item.flavor ? '<span class="commodity-flavor">' + esc_(item.flavor) + '</span>' : '') +
           personalBestLine_(state.city.CityId, id) + knownBestLine_(id, item.buyPrice) +
         '</div></div>' +
         '<div class="price-col">' +
-          '<div class="price-line buy"><span class="pl">BELI</span><span class="pv">' + formatGold(item.buyPrice) + '</span></div>' +
+          '<div class="price-line buy"><span class="pl">BELI</span><span class="pv">' + (item.stock > 0 ? formatGold(item.buyPrice) : '<span class="muted small">habis</span>') + '</span></div>' +
           '<div class="price-line sell"><span class="pl">JUAL</span><span class="pv">' + formatGold(item.sellPrice) + '</span></div>' +
-          (typeof item.priceRatio === 'number' ? '<div class="ratio-meter" title="Harga dibanding rata-rata kota ini: ' + item.priceRatio + '%"><span class="pin" style="left:' + ratioPinPct_(item.priceRatio) + '%"></span></div>' : '') +
+          (typeof item.priceRatio === 'number' ? '<div class="ratio-meter" title="Harga dibanding harga dasar: ' + item.priceRatio + '%"><span class="pin" style="left:' + ratioPinPct_(item.priceRatio) + '%"></span></div>' : '') +
         '</div>' +
         '<div class="trade-col">' +
           '<div class="qty"><button type="button" onclick="stepQty_(\'' + id + '\',-1)" aria-label="Kurangi">' + ic('minus') + '</button>' +
@@ -1489,7 +1524,7 @@
     html += '<p id="marketMsg" class="msg-err"></p>';
     setModal_(html);
     Object.keys(qtyKeep).forEach(function (k) { var el = document.getElementById(k); if (el) el.value = qtyKeep[k]; });
-    listings.forEach(function (item) { updTradeSum_(item.commodityId); });
+    shown.forEach(function (item) { updTradeSum_(item.commodityId); });
     box.scrollTop = keepScroll;
     lastTrade = null;
   }
@@ -1515,9 +1550,11 @@
     var it = marketItem_(id), st = it ? sellTotal_(it, q) : q * Number(sum.dataset.sell);
     var bt = it ? buyTotal_(it, q) : q * Number(sum.dataset.buy);
     var drop = it && q > 1 && st < q * it.sellPrice, rise = it && q > 1 && bt > q * it.buyPrice;
+    if (it && it.stock != null && q > it.stock) { sum.innerHTML = '<span class="glut-note">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit</span>'; return; }
     sum.innerHTML = q + ' &times; &rarr; beli <b>' + formatGold(bt) + '</b> &middot; jual <b>' + formatGold(st) + '</b>' +
-      (rise ? '<span class="glut-note" title="Setiap unit yang diborong menaikkan harga beli di kota ini">' + ic('alert') + ' harga beli naik saat memborong (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
-      (drop ? '<span class="glut-note" title="Stok di kota ini makin menumpuk setiap unit yang kamu jual">' + ic('alert') + ' harga jual turun saat menjual banyak (rata-rata ' + formatGold(Math.round(st / q)) + ')</span>' : '');
+      (rise ? '<span class="glut-note" title="Setiap unit yang dibeli mengurangi stok pasar - harga naik">' + ic('alert') + ' harga beli naik per unit (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
+      (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun per unit (rata-rata ' + formatGold(Math.round(st / q)) + ')</span>' : '') +
+      (it && it.size ? '<span class="glut-note sz">' + ic('crate') + ' ' + fmtSpace_(q * it.size) + ' ruang palka</span>' : '');
   }
 
   function commodityIcon_(commodityId) { return goodIcon_(commodityId, true); }
@@ -1569,46 +1606,45 @@
    * antrean serial. Balasan server = sumber kebenaran (newGold); kalau
    * gagal, perubahan dibatalkan (rollback delta) + toast alasan.
    */
-  /* ---- Tide v8: stok menumpuk (overstock) - harga jual turun per unit yang dijual ---- */
-  /* ---- Tide v13: permintaan - harga beli naik per unit yang dibeli ---- */
-  function demandUnit_(it, d) { return Math.round(it.buyNormal * Math.min(1 + it.demandCap, 1 + Math.max(0, d) / it.demandScale)); }
-  function buyTotal_(it, q) {
-    if (!it) return 0;
-    if (!it.demandScale || !it.buyNormal) return q * it.buyPrice;
-    var s = 0; for (var i = 0; i < q; i++) s += demandUnit_(it, (it.demand || 0) + i);
-    return s;
-  }
+  /* ---- Tide v16: Ekonomi v2 - harga lahir dari stok pasar (rumus sama persis dengan server) ----
+   *  mid(s) = base x clamp(((1.4R) / (s + ph + 0.4R)) ^ e, 0.35, 3);  beli unit ke-i di stok s-i, jual di s+i */
+  function mid_(it, s) { var c = it.curve; if (!c) return it.buyPrice; return c.base * Math.min(3, Math.max(0.35, Math.pow((c.ref * 1.4) / (Math.max(0, s) + (c.ph || 0) + c.ref * 0.4), c.e))); }
+  function buyUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, it.stock - i) * it.curve.buyMul)) : it.buyPrice; }
+  function sellUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, it.stock + i) * it.curve.sellMul)) : it.sellPrice; }
+  function buyTotal_(it, q) { if (!it) return 0; var s = 0; for (var i = 0; i < q; i++) s += buyUnit_(it, i); return s; }
+  function sellTotal_(it, q) { if (!it) return 0; var s = 0; for (var i = 0; i < q; i++) s += sellUnit_(it, i); return s; }
   function maxAffordable_(it, gold, space) {
-    var n = 0, s = 0;
-    while (n < space) { var u = it.demandScale && it.buyNormal ? demandUnit_(it, (it.demand || 0) + n) : it.buyPrice; if (u <= 0 || s + u > gold) break; s += u; n++; }
+    var lim = Math.min(it.stock == null ? 1e9 : it.stock, Math.floor((space + 1e-9) / (it.size || 1))), n = 0, s = 0;
+    while (n < lim) { var u = buyUnit_(it, n); if (s + u > gold) break; s += u; n++; }
     return n;
   }
-  function applyDemand_(it, delta) {
-    if (!it || !it.demandScale) return;
-    it.demand = Math.max(0, (it.demand || 0) + delta);
-    it.buyPrice = demandUnit_(it, it.demand);
-    it.scarcityPct = it.buyNormal > 0 ? Math.max(0, Math.round((it.buyPrice / it.buyNormal - 1) * 100)) : 0;
+  function applyStock_(it, delta) {
+    if (!it) return;
+    it.stock = Math.max(0, (it.stock || 0) + delta);
+    it.buyPrice = buyUnit_(it, 0); it.sellPrice = sellUnit_(it, 0);
+    if (it.basePrice) it.priceRatio = Math.round(mid_(it, it.stock) / it.basePrice * 100);
   }
-  function glutUnit_(it, g) { return Math.max(Math.round(it.sellNormal * it.glutFloor), Math.round(it.sellNormal / (1 + g / it.glutScale))); }
-  function sellTotal_(it, q) {
-    if (!it) return 0;
-    if (!it.glutScale || !it.sellNormal) return q * it.sellPrice;
-    var s = 0; for (var i = 0; i < q; i++) s += glutUnit_(it, (it.glut || 0) + i);
-    return s;
+  function applyGlut_() {} function applyDemand_() {}   // (lama, digantikan applyStock_)
+  var GOOD_GROUPS = [['all', 'Semua', 'crate'], ['pangan', 'Pangan', 'sack'], ['minuman', 'Minuman', 'bottle'], ['rempah', 'Rempah', 'pepper'],
+    ['bahan', 'Bahan Baku', 'log'], ['kerajinan', 'Kerajinan', 'hammer'], ['mewah', 'Mewah & Perang', 'gem']];
+  var mktGroup_ = 'all';
+  function setMktGroup_(g) { mktGroup_ = g; renderMarketGrid_(); var b = document.getElementById('modalBox'); if (b) b.scrollTop = 0; }
+  function fmtSpace_(n) { n = Math.round(n * 100) / 100; return String(n).replace('.', ','); }
+  function cycleLeft_() {
+    var c = marketCache && marketCache.cycle; if (!c) return '';
+    var ms = Math.max(0, c.endsInMs - (Date.now() - (marketCache._at || Date.now()))), m = Math.floor(ms / 60000), sec = Math.floor(ms % 60000 / 1000);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
-  function applyGlut_(it, delta) {
-    if (!it || !it.glutScale) return;
-    it.glut = Math.max(0, (it.glut || 0) + delta);
-    it.sellPrice = glutUnit_(it, it.glut);
-    it.overstockPct = it.sellNormal > 0 ? Math.max(0, Math.round((1 - it.sellPrice / it.sellNormal) * 100)) : 0;
-  }
+  setInterval(function () { var el = document.getElementById('mktCycleLeft'); if (el) el.textContent = cycleLeft_(); }, 1000);
   function marketItem_(id) { return marketCache ? marketCache.items.filter(function (i) { return i.commodityId === id; })[0] : null; }
   function doBuy(commodityId, unitPrice) {
     if (!canAct_() || !marketCache || !state.city) return;
     var qty = Math.max(1, Math.floor(Number(document.getElementById('qty_' + commodityId).value)) || 0);
-    var cost = buyTotal_(marketItem_(commodityId), qty) || qty * unitPrice;
+    var it0 = marketItem_(commodityId), size0 = (it0 && it0.size) || 1;
+    if (it0 && it0.stock != null && qty > it0.stock) { showToast('Stok ' + it0.name + ' di pasar ini tinggal ' + it0.stock + ' unit.', 'error'); return; }
+    var cost = buyTotal_(it0, qty) || qty * unitPrice;
     if (cost > state.player.gold) { showToast('Gold tidak cukup untuk ' + qty + ' unit.', 'error'); return; }
-    if (qty > marketCache.cargoSpaceRemaining) { showToast('Ruang palka tidak cukup (sisa ' + marketCache.cargoSpaceRemaining + ').', 'error'); return; }
+    if (qty * size0 > marketCache.cargoSpaceRemaining + 1e-9) { showToast('Ruang palka tidak cukup (butuh ' + fmtSpace_(qty * size0) + ', sisa ' + fmtSpace_(marketCache.cargoSpaceRemaining) + ').', 'error'); return; }
     var cityId = state.city.CityId;
     recordPersonalBest_(cityId, commodityId, 'buy', Math.round(cost / qty));
     patchGold_(state.player.gold - cost);
@@ -1658,17 +1694,17 @@
     var item = null;
     for (var i = 0; i < marketCache.items.length; i++) { if (marketCache.items[i].commodityId === commodityId) { item = marketCache.items[i]; break; } }
     if (!item) { renderMarket(); return; }
-    applyGlut_(item, direction === 'buy' ? -qty : qty);
-    applyDemand_(item, direction === 'buy' ? qty : -qty);
+    applyStock_(item, direction === 'buy' ? -qty : qty);
+    var sz = (item.size || 1) * qty;
     if (direction === 'buy') {
       item.ownedQty = (item.ownedQty || 0) + qty;
-      marketCache.cargoSpaceRemaining = Math.max(0, marketCache.cargoSpaceRemaining - qty);
+      marketCache.cargoSpaceRemaining = Math.max(0, Math.round((marketCache.cargoSpaceRemaining - sz) * 100) / 100);
     } else {
       item.ownedQty = Math.max(0, (item.ownedQty || 0) - qty);
-      marketCache.cargoSpaceRemaining = marketCache.cargoSpaceRemaining + qty;
+      marketCache.cargoSpaceRemaining = Math.round((marketCache.cargoSpaceRemaining + sz) * 100) / 100;
     }
-    var cap = state.ship ? (state.ship.EffectiveCargo || state.ship.Cargo) : 0;
-    if (cap) updateHoldHud_(Math.max(0, cap - marketCache.cargoSpaceRemaining));
+    var cap = marketCache.cargoCapacity || (state.ship ? (state.ship.EffectiveCargo || state.ship.Cargo) : 0);
+    if (cap) updateHoldHud_(Math.max(0, Math.round((cap - marketCache.cargoSpaceRemaining) * 100) / 100));
     var qEl = document.getElementById('qty_' + commodityId);
     if (qEl) qEl.value = 1;
     renderMarketGrid_();
@@ -4179,7 +4215,7 @@
   /* ================================================================
    * TIDE v6 — LOGIN AKUN + MULTIPLAYER
    * ================================================================ */
-  TIDE_VERSION = 'Tide v15';
+  TIDE_VERSION = 'Tide v16';
 
   /* ---------- 1. Akun: login, keluar, buat karakter di halaman yang sama ---------- */
   MTNet.onAuthRequired(function (msg) {

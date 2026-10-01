@@ -32,7 +32,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   // Sunda Empire: 12 Tools
   await go('sunda_empire');
   r = await tg(['gov']); assert(r.taskAccepted === 'sunda_empire', 'tugas diterima');
-  await H.expectError(() => tg(['gov']), /menunggu 12 Tools/);
+  await H.expectError(() => tg(['gov']), /menunggu 12 Perkakas/);
   await H.sql(`select game.adjust_inventory($1, 'tools', 15)`, [u.id]);
   r = await tg(['gov']); assert(r.letter === 'sunda_empire' && r.count === 1, 'surat 1');
   assert((await H.sql(`select qty from game.inventory where player_id = $1 and item_id = 'tools'`, [u.id]))[0].qty === 3, 'tools terpakai 12');

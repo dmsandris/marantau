@@ -28,7 +28,7 @@ language sql immutable as $$
     "joungjava":    {"kind": "deliver", "item": "silk",   "qty": 8},
     "bjorneo":      {"kind": "wins",                      "qty": 2},
     "skitraw":      {"kind": "gold",                      "qty": 5000},
-    "paradiso":     {"kind": "deliver", "item": "spices", "qty": 10}
+    "paradiso":     {"kind": "deliver", "item": "lada",   "qty": 10}
   }'::jsonb
 $$;
 

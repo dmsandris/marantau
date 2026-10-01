@@ -116,6 +116,19 @@ create table if not exists game.market (
   updated_at    timestamptz not null default now(),
   primary key (city_id, commodity_id)
 );
+-- Ekonomi v2 (0018): atribut barang & stok pasar
+alter table game.commodities add column if not exists grp text not null default 'pangan';
+alter table game.commodities add column if not exists tier text not null default 'common';
+alter table game.commodities add column if not exists base int not null default 100;
+alter table game.commodities add column if not exists size numeric not null default 1;
+alter table game.commodities add column if not exists spread numeric not null default 0.08;
+alter table game.commodities add column if not exists elast numeric not null default 0.6;
+alter table game.commodities add column if not exists ref numeric not null default 100;
+alter table game.commodities add column if not exists active boolean not null default true;
+alter table game.market add column if not exists role text not null default 'neutral';
+alter table game.market add column if not exists stock numeric;
+alter table game.market add column if not exists at timestamptz not null default now();
+alter table game.market add column if not exists cyc bigint;
 
 -- Tide v8: stok menumpuk (dibagi semua pemain)
 create table if not exists game.market_glut (

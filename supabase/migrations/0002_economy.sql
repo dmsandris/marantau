@@ -248,7 +248,7 @@ end $$;
 -- CargoService.getCargo: HANYA komoditas (item/artifact tidak ikut)
 create or replace function game.cargo_json(p_pid uuid) returns jsonb
 language sql stable as $$
-  select coalesce(jsonb_agg(jsonb_build_object('commodityId', i.item_id, 'name', c.name, 'qty', i.qty)
+  select coalesce(jsonb_agg(jsonb_build_object('commodityId', i.item_id, 'name', c.name, 'qty', i.qty, 'size', c.size)
     order by c.sort, c.id), '[]'::jsonb)
   from game.inventory i join game.commodities c on c.id = i.item_id
   where i.player_id = p_pid and i.qty > 0
@@ -258,7 +258,7 @@ $$;
 create or replace function game.warehouse_json(p_pid uuid, p_city text) returns jsonb
 language sql stable as $$
   select coalesce(jsonb_agg(jsonb_build_object('commodityId', w.commodity_id,
-      'name', coalesce(c.name, w.commodity_id), 'qty', w.qty) order by c.sort nulls last, w.commodity_id), '[]'::jsonb)
+      'name', coalesce(c.name, w.commodity_id), 'qty', w.qty, 'size', coalesce(c.size, 1)) order by c.sort nulls last, w.commodity_id), '[]'::jsonb)
   from game.warehouse w left join game.commodities c on c.id = w.commodity_id
   where w.player_id = p_pid and w.city_id = p_city and w.qty > 0
 $$;
@@ -550,7 +550,9 @@ begin
   return jsonb_build_object(
     'cargo', game.cargo_json(v_me.player_id),
     'warehouse', game.warehouse_json(v_me.player_id, v_city),
-    'missionLoad', coalesce(game.mission_load(v_me.player_id), 0));
+    'missionLoad', coalesce(game.mission_load(v_me.player_id), 0),
+    'used', game.cargo_used(v_me.player_id),
+    'capacity', coalesce(game.effective_cargo(v_me.player_id), 0));
 end $$;
 select game.expose('api_getcargostate');
 
@@ -607,7 +609,7 @@ begin
   if game.current_city(pid) is distinct from v_city then
     raise exception 'Kamu harus berada di kota ini untuk ambil barang dari gudang.';
   end if;
-  if game.cargo_total(pid) + v_qty > coalesce(game.effective_cargo(pid), 0) then
+  if game.cargo_used(pid) + v_qty * game.commodity_size(v_comm) > coalesce(game.effective_cargo(pid), 0) then
     raise exception 'Kapasitas cargo tidak cukup untuk mengambil semua ini.';
   end if;
 

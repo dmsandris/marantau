@@ -1,7 +1,7 @@
 // Keseimbangan dagang (permintaan sisi beli + stok menumpuk) dan perpustakaan baru.
 const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } };
 (async () => {
-  const H = await require('./harness').create();
+  const H = await require('./harness').create({ only: f => f < '0017' }); // mekanisme permintaan v13 (digantikan ekonomi v2 di 0018)
   const u = await H.user('borong'); await u.call('api_createCharacter', ['Tukang Borong', 'explorer']);
   const go = c => H.sql(`update game.player_location set city_id = $2, destination_city_id = null where player_id = $1`, [u.id, c]);
   await H.sql('update game.players set gold = 1000000 where player_id = $1', [u.id]);
