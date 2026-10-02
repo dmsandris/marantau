@@ -250,7 +250,8 @@ begin
     'ShipUpgrades', e -> 'upgrades',
     'EffectiveMaxCondition', eff_max,
     'ConditionPct', case when eff_max > 0 then game.voy_round(cond / eff_max * 100) else 100 end,
-    'DecayReductionPercent', e -> 'decayReductionPercent'
+    'DecayReductionPercent', e -> 'decayReductionPercent',
+    'Legend', game.ship_legend(p_pid)
   );
 end $$;
 
@@ -437,9 +438,7 @@ begin
   return greatest(min_t, floor(base_min * mult + 0.5))::int;
 end $$;
 
--- Tide v15b: lama perjalanan dalam DETIK. Pulau terdekat 60 dtk, terjauh 130 dtk (kapal standar).
--- Kapal yang lebih cepat (upgrade layar / Speed) memangkas bagian jarak, tapi tidak pernah < minimum.
--- Atur lewat game.config: TravelMinSeconds, TravelMaxSeconds.
+-- Lama perjalanan dalam DETIK (lihat voy_travel_seconds di bawah).
 create or replace function game.voy_dist_range(out dmin double precision, out dmax double precision)
 language sql stable as $$
   select min(game.voy_map_distance(a.city_id, b.city_id)), max(game.voy_map_distance(a.city_id, b.city_id))
@@ -448,18 +447,31 @@ $$;
 
 create or replace function game.voy_travel_seconds(p_distance double precision, p_ship jsonb) returns int
 language plpgsql stable as $$
-declare lo double precision; hi double precision; r record; frac double precision;
-  base_speed double precision; spd double precision; mult double precision; k double precision;
+-- Tide v20: kapal standar 120 dtk (pulau terdekat) .. 240 dtk (terjauh).
+-- Upgrade Speed / stat Speed memangkas SELURUH waktu tempuh secara bertahap sampai
+-- batas tercepat 25 dtk untuk pulau terdekat (pengali layar 0.24 = upgrade tertinggi).
+-- Black Pearl (kapal legenda TooGood): 15 dtk ke mana pun.
+-- Atur lewat game.config: TravelMinSeconds, TravelMaxSeconds, TravelFastestSeconds, TravelLegendSeconds.
+declare lo double precision; hi double precision; r record; frac double precision; base_t double precision;
+  base_speed double precision; spd double precision; mult double precision; eff double precision;
+  fast double precision; floor_mult constant double precision := 0.24; f double precision;
 begin
-  lo := greatest(10, game.cfg_num('TravelMinSeconds', 60));
-  hi := greatest(lo, game.cfg_num('TravelMaxSeconds', 130));
+  if coalesce(p_ship ->> 'Legend', '') = 'pearl' then
+    return greatest(5, game.cfg_num('TravelLegendSeconds', 15))::int;
+  end if;
+  lo := greatest(10, game.cfg_num('TravelMinSeconds', 120));
+  hi := greatest(lo, game.cfg_num('TravelMaxSeconds', 240));
+  fast := least(lo, greatest(5, game.cfg_num('TravelFastestSeconds', 25)));
   select * into r from game.voy_dist_range();
   frac := case when r.dmax > r.dmin then least(1, greatest(0, (p_distance - r.dmin) / (r.dmax - r.dmin))) else 0 end;
+  base_t := lo + (hi - lo) * frac;
   base_speed := greatest(1, game.cfg_num('BaselineShipSpeed', 50));
   spd := coalesce(nullif(game.voy_num(p_ship -> 'Speed'), 0), base_speed);
   mult := coalesce(nullif(game.voy_num(p_ship -> 'SpeedMultiplier'), 0), 1);
-  k := least(1, greatest(0.3, mult * base_speed / spd));
-  return round(lo + (hi - lo) * frac * k)::int;
+  eff := least(1, greatest(floor_mult, mult * base_speed / spd));
+  -- eff 1 -> waktu penuh; eff 0.24 -> fast/lo (25/120)
+  f := fast / lo + (1 - fast / lo) * (eff - floor_mult) / (1 - floor_mult);
+  return greatest(1, round(base_t * f))::int;
 end $$;
 
 -- getVoyageState

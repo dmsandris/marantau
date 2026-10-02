@@ -129,9 +129,9 @@ const assert = require('assert');
   // sunda (25,55) -> joungjava (60,30): sqrt(35^2+25^2) = 43.01
   assert.strictEqual(jo.distance, 43);
   assert.strictEqual(jo.name, 'Joungjava');
-  // waktu tempuh dalam detik: 60 (terdekat) .. 130 (terjauh) untuk kapal standar
-  assert(jo.etaSeconds > 60 && jo.etaSeconds < 130, 'eta ' + jo.etaSeconds);
-  const all = opts.map(o => o.etaSeconds); assert(all.every(x => x >= 60 && x <= 130), 'rentang ' + all);
+  // waktu tempuh dalam detik: standar 120..240; kapal tes ini punya upgrade Speed x0.65 -> faktor waktu 0.635 -> 76..152
+  assert(jo.etaSeconds > 76 && jo.etaSeconds < 152, 'eta ' + jo.etaSeconds);
+  const all = opts.map(o => o.etaSeconds); assert(all.every(x => x >= 76 && x <= 152), 'rentang ' + all);
   assert.strictEqual(jo.eventLabel, null); assert.strictEqual(jo.eventType, null);
   const ikn = opts.find(o => o.cityId === 'ikn'); // (50,62): sqrt(625+49)=25.96 -> 26.0; 6.49*0.65=4.2 -> min 5
   assert.strictEqual(ikn.distance, 26); assert(ikn.etaSeconds < jo.etaSeconds, 'IKN lebih dekat dari Joungjava');
@@ -139,10 +139,19 @@ const assert = require('assert');
   await H.sql('update game.ships set speed = 100 where player_id = $1', [pid]);
   const opts2 = await u.call('api_getSailOptions', []);
   const bj1 = opts.find(o => o.cityId === 'bjorneo').etaSeconds, bj2 = opts2.find(o => o.cityId === 'bjorneo').etaSeconds;
-  assert(bj2 < bj1 && bj2 >= 60, 'kapal cepat lebih singkat tapi >= 60: ' + bj1 + ' -> ' + bj2);
-  // pasangan pulau terdekat = 60 dtk, terjauh = 130 dtk
+  assert(bj2 < bj1 && bj2 >= 25, 'kapal cepat lebih singkat tapi >= 25: ' + bj1 + ' -> ' + bj2);
+  // pasangan pulau terdekat = 120 dtk, terjauh = 240 dtk
   const ext = (await H.sql(`select min(game.voy_travel_seconds(game.voy_map_distance(a.city_id, b.city_id), '{"Speed":50,"SpeedMultiplier":1}'::jsonb)) lo, max(game.voy_travel_seconds(game.voy_map_distance(a.city_id, b.city_id), '{"Speed":50,"SpeedMultiplier":1}'::jsonb)) hi from game.cities a join game.cities b on a.city_id < b.city_id`))[0];
-  assert(ext.lo === 60 && ext.hi === 130, 'batas ' + JSON.stringify(ext));
+  assert(ext.lo === 120 && ext.hi === 240, 'batas ' + JSON.stringify(ext));
+  // upgrade tertinggi (pengali 0.24): pulau terdekat 25 dtk; pengali di bawahnya tidak lebih cepat lagi
+  const fx = async (ship) => (await H.sql(`select min(game.voy_travel_seconds(game.voy_map_distance(a.city_id, b.city_id), $1::jsonb)) lo, max(game.voy_travel_seconds(game.voy_map_distance(a.city_id, b.city_id), $1::jsonb)) hi from game.cities a join game.cities b on a.city_id < b.city_id`, [JSON.stringify(ship)]))[0];
+  const top = await fx({ Speed: 50, SpeedMultiplier: 0.24 }), top2 = await fx({ Speed: 80, SpeedMultiplier: 0.24 });
+  assert(top.lo === 25 && top.hi === 50 && top2.lo === 25, 'tercepat ' + JSON.stringify(top) + JSON.stringify(top2));
+  const mid = await fx({ Speed: 50, SpeedMultiplier: 0.65 });
+  assert(mid.lo > 25 && mid.lo < 120, 'upgrade menengah ' + JSON.stringify(mid));
+  // Black Pearl: 15 dtk ke mana pun
+  const pearl = await fx({ Speed: 75, SpeedMultiplier: 0.24, Legend: 'pearl' });
+  assert(pearl.lo === 15 && pearl.hi === 15, 'black pearl ' + JSON.stringify(pearl));
   await H.sql('update game.ships set speed = 50 where player_id = $1', [pid]);
   console.log('sail options OK');
 
