@@ -276,7 +276,7 @@ begin
   begin v_vis := game.ship_visual(p_pid); exception when others then v_vis := null; end;
   insert into game.mp_presence as x (player_id, pub, n, a, f, t, b, c, sea, dest, ts, s)
   values (p_pid, game.mp_new_pub(), p.character_name, p.archetype, p.appearance,
-          floor(game.mp_jsnum(sh ->> 'Tier', 1))::int, game.mp_badges(p.meta), v_city, v_sea, coalesce(v_dest, ''), now(), v_vis)
+          floor(game.mp_jsnum(sh ->> 'TierNum', 1))::int, game.mp_badges(p.meta), v_city, v_sea, coalesce(v_dest, ''), now(), v_vis)
   on conflict (player_id) do update set
     n = excluded.n, a = excluded.a, f = excluded.f, t = excluded.t, b = excluded.b,
     c = excluded.c, sea = excluded.sea, dest = excluded.dest, ts = excluded.ts, s = excluded.s;
@@ -381,7 +381,7 @@ begin
   st := coalesce(game.stats_json(p_pid), '{}'::jsonb);
   select * into o from game.mp_presence where player_id = p_pid;
   if o.pub is null then raise exception 'Kapten itu sudah tidak terlihat di pelabuhan.'; end if;
-  v_tier := game.mp_jsnum(sh ->> 'Tier', 1);
+  v_tier := game.mp_jsnum(sh ->> 'TierNum', 1);
   v_cond := case when sh is null then 100 else game.mp_jsnum(sh ->> 'ConditionPct', 100) end;
   return jsonb_build_object(
     'pub', o.pub, 'n', p.character_name, 'a', p.archetype, 'f', coalesce(o.f, 'null'::jsonb), 'tier', v_tier,
@@ -706,7 +706,7 @@ begin
   return jsonb_build_object(
     'id', v_pub, 'n', p.character_name, 'a', p.archetype,
     'f', coalesce(case when o.f is null or jsonb_typeof(o.f) = 'null' then null else o.f end, p.appearance, 'null'::jsonb),
-    't', floor(game.mp_jsnum(sh ->> 'Tier', 1)), 'shipName', coalesce(sh ->> 'ShipName', ''),
+    't', floor(game.mp_jsnum(sh ->> 'TierNum', 1)), 'shipName', coalesce(sh ->> 'ShipName', ''),
     'online', game.mp_online(o), 'c', coalesce(o.c, ''), 'sea', coalesce(o.sea, false),
     'badges', game.mp_badges(p.meta), 'pvp', game.mp_pvp_rec(v_id));
 end $$;

@@ -168,8 +168,9 @@ $$;
 
 create or replace function game.voy_speed_mult_for_step(s int) returns numeric
 language sql immutable as $$
+  -- Tide v22: tiap langkah (1..20) selalu mempercepat; 0.24 (= 25 dtk pulau terdekat) baru di Level V Tier IV.
   select case when s <= 0 then 1 when s <= 4 then (array[0.80, 0.65, 0.50, 0.40]::numeric[])[s]
-    else greatest(0.15, 0.40 - 0.02 * (s - 4)) end
+    else greatest(0.24, 0.40 - 0.01 * (s - 4)) end
 $$;
 
 create or replace function game.voy_decay_red_for_step(s int) returns numeric
@@ -220,23 +221,40 @@ begin
   return jsonb_build_object('maxed', false, 'nextLevel', nl, 'nextTier', nt);
 end $$;
 
+-- Tide v22: Tier kapal = rata-rata Level keempat grup upgrade (dibulatkan ke bawah, 1..5).
+-- Black Pearl (kapal legenda) selalu Tier V.
+create or replace function game.ship_level_sum(p_up jsonb) returns int
+language sql immutable as $$
+  select coalesce(game.voy_num(p_up -> 'speed' -> 'level'), 0)::int + coalesce(game.voy_num(p_up -> 'cargo' -> 'level'), 0)::int
+       + coalesce(game.voy_num(p_up -> 'condition' -> 'level'), 0)::int + coalesce(game.voy_num(p_up -> 'cannons' -> 'level'), 0)::int
+$$;
+create or replace function game.ship_tier_num(p_pid uuid) returns int
+language sql stable as $$
+  select case when game.ship_legend(p_pid) = 'pearl' then 5
+    else greatest(1, least(5, floor(game.ship_level_sum(game.voy_player_upgrades(p_pid)) / 4.0)))::int end
+$$;
+
 -- ---------------------------------------------------------------------
 -- ShipService.getShip  (kontrak game.ship_json)
 -- ---------------------------------------------------------------------
 create or replace function game.ship_json(p_pid uuid) returns jsonb
 language plpgsql stable as $$
-declare s game.ships; e jsonb; book_bonus int; cargo_bonus numeric; eff_max numeric; cond numeric;
+declare s game.ships; e jsonb; book_bonus int; cargo_bonus numeric; eff_max numeric; cond numeric; tn int; lsum int; leg text;
 begin
   select * into s from game.ships where player_id = p_pid;
   if not found then return null; end if;
+  leg := game.ship_legend(p_pid);
   book_bonus := case when coalesce(game.has_effect(p_pid, 'cargo_bonus_10'), false) then 10 else 0 end;
   e := game.voy_effective_stats(p_pid);
   cargo_bonus := book_bonus + (e ->> 'cargoBonus')::numeric;
   eff_max := 100 + (e ->> 'maxConditionBonus')::numeric
     + case when coalesce(game.has_effect(p_pid, 'regal_hull'), false) then 50 else 0 end;
   cond := least(coalesce(s.condition, eff_max), eff_max);
+  lsum := game.ship_level_sum(e -> 'upgrades');
+  tn := case when leg = 'pearl' then 5 else greatest(1, least(5, floor(lsum / 4.0)))::int end;
   return jsonb_build_object(
-    'ShipName', s.ship_name, 'Tier', s.tier, 'Hull', s.hull, 'MaxHull', s.max_hull,
+    'ShipName', s.ship_name, 'Tier', case when leg = 'pearl' then s.tier else game.voy_roman(tn) end,
+    'TierNum', tn, 'UpgradeLevelSum', lsum, 'Hull', s.hull, 'MaxHull', s.max_hull,
     'Cargo', s.cargo, 'Speed', s.speed + case when coalesce(game.has_effect(p_pid, 'ship_speed_5'), false) then 5 else 0 end
              + case when coalesce(game.has_effect(p_pid, 'regal_engine'), false) then 10 else 0 end,
     'Combat', s.combat, 'Armor', s.armor, 'Navigation', s.navigation,
@@ -251,7 +269,7 @@ begin
     'EffectiveMaxCondition', eff_max,
     'ConditionPct', case when eff_max > 0 then game.voy_round(cond / eff_max * 100) else 100 end,
     'DecayReductionPercent', e -> 'decayReductionPercent',
-    'Legend', game.ship_legend(p_pid)
+    'Legend', leg
   );
 end $$;
 
@@ -311,26 +329,63 @@ begin
     'missing', game.voy_round(missing), 'cost', cost);
 end $$;
 
+-- Tide v22: efek nyata sebuah langkah upgrade (angka sekarang -> sesudah), dari rumus yang benar-benar dipakai.
+create or replace function game.voy_effect_line(p_pid uuid, p_group text, p_step int, p_next int, p_inc numeric) returns text
+language plpgsql stable as $$
+declare sh jsonb; r record; spd jsonb; a int; b int; c int; d int; am0 numeric; am1 numeric; base_ammo numeric;
+begin
+  sh := coalesce(game.ship_json(p_pid), '{}'::jsonb);
+  if p_group = 'speed' then
+    if sh ->> 'Legend' = 'pearl' then return 'Black Pearl selalu 15 dtk ke mana pun - upgrade Speed berlaku untuk kapalmu sendiri'; end if;
+    select * into r from game.voy_dist_range();
+    spd := coalesce(sh -> 'Speed', '50'::jsonb);
+    a := game.voy_travel_seconds(r.dmin, jsonb_build_object('Speed', spd, 'SpeedMultiplier', game.voy_speed_mult_for_step(p_step)));
+    c := game.voy_travel_seconds(r.dmax, jsonb_build_object('Speed', spd, 'SpeedMultiplier', game.voy_speed_mult_for_step(p_step)));
+    if p_next is null then return 'Pulau terdekat ' || a || ' dtk, terjauh ' || c || ' dtk'; end if;
+    b := game.voy_travel_seconds(r.dmin, jsonb_build_object('Speed', spd, 'SpeedMultiplier', game.voy_speed_mult_for_step(p_next)));
+    d := game.voy_travel_seconds(r.dmax, jsonb_build_object('Speed', spd, 'SpeedMultiplier', game.voy_speed_mult_for_step(p_next)));
+    return 'Pulau terdekat ' || a || ' &rarr; ' || b || ' dtk, terjauh ' || c || ' &rarr; ' || d || ' dtk';
+  elsif p_group = 'cargo' then
+    if p_next is null then return 'Kapasitas ' || coalesce(sh ->> 'EffectiveCargo', '?'); end if;
+    return 'Kapasitas ' || coalesce(sh ->> 'EffectiveCargo', '?') || ' &rarr; ' || (game.voy_num(sh -> 'EffectiveCargo') + p_inc);
+  elsif p_group = 'condition' then
+    if p_next is null then return 'Kondisi maks ' || coalesce(sh ->> 'EffectiveMaxCondition', '?') || ', aus per layar -' || game.voy_decay_red_for_step(p_step) || '%'; end if;
+    return 'Kondisi maks ' || coalesce(sh ->> 'EffectiveMaxCondition', '?') || ' &rarr; ' || (game.voy_num(sh -> 'EffectiveMaxCondition') + p_inc) ||
+      ', aus per layar -' || game.voy_decay_red_for_step(p_step) || '% &rarr; -' || game.voy_decay_red_for_step(p_next) || '%';
+  else
+    base_ammo := game.cfg_num('CombatBaseAmmo', 3);
+    am0 := base_ammo + game.voy_ammo_bonus_for_step(p_step);
+    if p_next is null then return 'Peluang menang +' || game.voy_combat_bonus_for_step(p_step) || '%, amunisi ' || am0; end if;
+    am1 := base_ammo + game.voy_ammo_bonus_for_step(p_next);
+    return 'Peluang menang +' || game.voy_combat_bonus_for_step(p_step) || '% &rarr; +' || game.voy_combat_bonus_for_step(p_next) || '%, amunisi ' ||
+      am0 || case when am1 <> am0 then ' &rarr; ' || am1 else ' (tetap)' end;
+  end if;
+end $$;
+
 -- getAffordableUpgrades
 create or replace function game.voy_affordable(p_pid uuid, p_gold bigint) returns jsonb
 language plpgsql stable as $$
 declare u jsonb; g text; st jsonb; slot jsonb; entry jsonb; mult numeric; cost numeric; out jsonb := '{}'::jsonb;
-  lv int; tr int; nl int; nt int;
+  lv int; tr int; nl int; nt int; fld text; inc numeric; stp int;
 begin
   u := game.voy_player_upgrades(p_pid);
   foreach g in array game.voy_groups() loop
     st := u -> g;
     lv := game.voy_num(st -> 'level')::int; tr := game.voy_num(st -> 'tier')::int;
+    stp := game.voy_abs_step(st);
     slot := game.voy_next_slot(st);
     if (slot ->> 'maxed')::boolean then
       out := out || jsonb_build_object(g, jsonb_build_object('maxed', true, 'currentLevel', st -> 'level',
-        'currentTier', st -> 'tier', 'currentLabel', game.voy_level_tier_label(lv, tr)));
+        'currentTier', st -> 'tier', 'currentLabel', game.voy_level_tier_label(lv, tr),
+        'effect', game.voy_effect_line(p_pid, g, stp, null, 0)));
       continue;
     end if;
     nl := (slot ->> 'nextLevel')::int; nt := (slot ->> 'nextTier')::int;
     entry := game.voy_catalogs() -> g -> (nt - 1);
     mult := game.voy_level_mult(nl);
     cost := game.voy_round((entry ->> 'cost')::numeric * mult);
+    fld := game.voy_accum_field(g);
+    inc := case when fld is not null then game.voy_round((entry ->> fld)::numeric * mult) else 0 end;
     out := out || jsonb_build_object(g, jsonb_build_object(
       'maxed', false,
       'currentLevel', st -> 'level',
@@ -341,6 +396,7 @@ begin
       'nextLabel', game.voy_level_tier_label(nl, nt),
       'cost', cost,
       'label', (entry ->> 'label') || case when nl > 1 then ' (skala Level ' || game.voy_roman(nl) || ')' else '' end,
+      'effect', game.voy_effect_line(p_pid, g, stp, (nl - 1) * 4 + nt, inc),
       'affordable', p_gold >= cost));
   end loop;
   return out;
@@ -468,7 +524,10 @@ begin
   base_speed := greatest(1, game.cfg_num('BaselineShipSpeed', 50));
   spd := coalesce(nullif(game.voy_num(p_ship -> 'Speed'), 0), base_speed);
   mult := coalesce(nullif(game.voy_num(p_ship -> 'SpeedMultiplier'), 0), 1);
-  eff := least(1, greatest(floor_mult, mult * base_speed / spd));
+  -- Tide v22: stat Speed memperkecil jarak ke batas tercepat (bukan mengalikan), jadi
+  -- setiap upgrade Speed tetap terasa sampai Level V Tier IV; batas 25 dtk hanya di upgrade tertinggi.
+  mult := least(1, greatest(floor_mult, mult));
+  eff := least(1, greatest(floor_mult, floor_mult + (mult - floor_mult) * base_speed / spd));
   -- eff 1 -> waktu penuh; eff 0.24 -> fast/lo (25/120)
   f := fast / lo + (1 - fast / lo) * (eff - floor_mult) / (1 - floor_mult);
   return greatest(1, round(base_t * f))::int;

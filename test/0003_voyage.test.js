@@ -71,6 +71,32 @@ const assert = require('assert');
   assert.strictEqual(st.SpeedMultiplier, 0.8); assert.strictEqual(st.CannonBonusPercent, 5); assert.strictEqual(st.MaxCannonAmmo, 4);
   assert.strictEqual(st.EffectiveMaxCondition, 130); assert.strictEqual(st.DecayReductionPercent, 5);
   assert.strictEqual(st.Condition, 100); assert.strictEqual(st.ConditionPct, 77);
+  // Tide v22: Tier kapal = rata-rata Level upgrade; efek nyata di kutipan upgrade
+  assert.strictEqual(st.Tier, 'I'); assert.strictEqual(st.TierNum, 1); assert.strictEqual(st.UpgradeLevelSum, 4);
+  up = await u.call('api_getShipUpgrades', []);
+  assert(/^Pulau terdekat \d+ &rarr; \d+ dtk, terjauh \d+ &rarr; \d+ dtk$/.test(up.affordable.speed.effect), up.affordable.speed.effect);
+  assert.strictEqual(up.affordable.cargo.effect, 'Kapasitas 50 &rarr; 80');
+  assert.strictEqual(up.affordable.condition.effect, 'Kondisi maks 130 &rarr; 160, aus per layar -5% &rarr; -10%');
+  assert.strictEqual(up.affordable.cannons.effect, 'Peluang menang +5% &rarr; +10%, amunisi 4 &rarr; 5');
+  const tierOf = async (lv) => {
+    const o = JSON.stringify({ level: lv, tier: 1, accumulated: 0 });
+    await H.sql(`update game.players set ship_upgrades = jsonb_build_object('speed', $2::jsonb, 'cargo', $2::jsonb, 'condition', $2::jsonb, 'cannons', $2::jsonb) where player_id = $1`, [pid, o]);
+    return (await u.call('api_getShipState', [])).ship;
+  };
+  const t3 = await tierOf(3); assert.strictEqual(t3.Tier, 'III'); assert.strictEqual(t3.TierNum, 3);
+  const t5 = await tierOf(5); assert.strictEqual(t5.Tier, 'V');
+  // setiap langkah Speed (1..20) mempercepat; 25 dtk pulau terdekat hanya di Level V Tier IV
+  const steps = await H.sql(`with r as (select * from game.voy_dist_range()), s as (select generate_series(0, 20) k, sp from (values (50), (65)) v(sp))
+    select sp, k, game.voy_travel_seconds(r.dmin, jsonb_build_object('Speed', sp, 'SpeedMultiplier', game.voy_speed_mult_for_step(k))) lo,
+      game.voy_travel_seconds(r.dmax, jsonb_build_object('Speed', sp, 'SpeedMultiplier', game.voy_speed_mult_for_step(k))) hi from s, r order by sp, k`);
+  for (let i = 1; i < steps.length; i++) {
+    const p0 = steps[i - 1], p1 = steps[i];
+    if (p0.sp !== p1.sp) continue;
+    assert(p1.hi < p0.hi && p1.lo <= p0.lo, 'langkah speed ' + p1.k + ' tidak mempercepat: ' + JSON.stringify([p0, p1]));
+  }
+  assert(steps.filter(x => x.k === 20).every(x => x.lo === 25), 'tercepat 25 dtk di langkah 20');
+  assert(steps.filter(x => x.k === 19).every(x => x.lo > 25), 'langkah 19 belum 25 dtk');
+  await H.sql(`update game.players set ship_upgrades = $2::jsonb where player_id = $1`, [pid, JSON.stringify(st.ShipUpgrades)]);
 
   // Level rollover: cargo sudah tier 2 -> beli tier 3, tier 4, lalu Level II tier I (biaya x2)
   await u.call('api_shipUpgrade', ['cargo']); await u.call('api_shipUpgrade', ['cargo']);

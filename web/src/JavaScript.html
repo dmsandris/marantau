@@ -546,7 +546,7 @@
     if (inner) { inner.style.setProperty('--arch-hi', col[0]); inner.style.setProperty('--arch-lo', col[1]); }
     document.getElementById('charName').textContent = state.player.characterName;
     document.getElementById('archLabel').textContent = 'The ' + capitalize_(arch);
-    var tier = (state.ship && Number(state.ship.Tier)) || 1;
+    var tier = (state.ship && (Number(state.ship.TierNum) || ROMAN_NUM_[state.ship.Tier])) || 1;
     document.getElementById('rankRibbon').textContent = ['Kapten', 'Kapten', 'Komodor', 'Laksamana', 'Laksamana Agung'][Math.min(4, tier)] || 'Kapten';
 
     animateGoldTo_('ledgerCash', state.player.gold);
@@ -626,6 +626,7 @@
     return '<span class="chip world-event-badge ' + (bad ? 'bad' : 'good') + '">' + ic(WORLD_EVENT_ICON[ev.eventType] || 'star') + esc_(ev.label) + '</span>';
   }
 
+  var ROMAN_NUM_ = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
   function shipVisual_() {
     var s = (state && state.ship) || {};
     var pct = s.ConditionPct != null ? s.ConditionPct : 100;
@@ -1195,9 +1196,30 @@
     return '<svg viewBox="0 0 30 20" width="34" height="22"><line x1="4" y1="1" x2="4" y2="19" stroke="#5a3b22" stroke-width="1.4"/><path d="' + d + 'Z" fill="' + col + '" stroke="rgba(0,0,0,.35)" stroke-width=".6"/></svg>';
   }
 
+  /** Tier kapal = rata-rata Level keempat upgrade; tampilkan syarat Tier berikutnya. */
+  function shipTierNote_(s) {
+    if (!s || s.UpgradeLevelSum == null) return '';
+    if (s.Legend === 'pearl') return '<p class="muted small tier-note">' + ic('star') + '<span>Black Pearl: kapal legenda Tier V.</span></p>';
+    var tn = Number(s.TierNum) || 1, sum = Number(s.UpgradeLevelSum) || 0;
+    return '<p class="muted small tier-note">' + ic('ship') + '<span>Tier kapal = rata-rata Level keempat upgrade (total Level <b>' + sum + '</b>/20). ' +
+      (tn < 5 ? 'Naik ke <b>Tier ' + ['I', 'II', 'III', 'IV', 'V'][tn] + '</b> saat total Level ' + ((tn + 1) * 4) + '.' : 'Tier tertinggi.') + '</span></p>';
+  }
+
+  var shipLookOpen = false;
   function renderShipLook_() {
     var el = document.getElementById('shipLookSection');
     if (!el || !state.shipVisual) return;
+    if (!shipLookOpen) {
+      var lk = lookNow_();
+      el.innerHTML = '<div class="card look-mini hover" id="lookOpenBtn" role="button" tabindex="0">' + ic('flag') +
+        '<div class="grow"><b>Tampilan &amp; Bendera</b><div class="muted small">Cat lambung, layar, bendera, lambang &amp; nama kapal</div></div>' +
+        '<span class="look-mini-sw">' + ['hull', 'sail', 'flag'].map(function (k) { return lk[k] ? '<i style="background:' + esc_(lk[k]) + '"></i>' : ''; }).join('') + '</span>' +
+        '<span class="btn btn-ghost-ink look-mini-btn">Ubah</span></div>';
+      var ob = document.getElementById('lookOpenBtn');
+      ob.onclick = function () { shipLookOpen = true; renderShipLook_(); try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {} };
+      ob.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ob.onclick(); } };
+      return;
+    }
     var L = lookNow_(), name = (document.getElementById('shipNameInp') || {}).value;
     if (name == null) name = state.shipVisual.name || (state.ship && state.ship.ShipName) || '';
     function sw(k, label) {
@@ -1205,7 +1227,8 @@
         return '<button type="button" class="sw' + (String(L[k]).toLowerCase() === c[0] ? ' on' : '') + '" data-k="' + k + '" data-v="' + c[0] + '" title="' + c[1] + '" style="--c:' + c[0] + '"></button>';
       }).join('') + '</div></div>';
     }
-    el.innerHTML = '<div class="card look-card"><div class="look-wrap"><div class="look-prev"><canvas id="shipLookPreview"></canvas><div class="lp-cap">Pratinjau langsung</div></div><div class="look-ctrl">' +
+    el.innerHTML = '<h3 class="look-h">' + ic('flag') + 'Tampilan &amp; Bendera<button type="button" class="btn btn-ghost-ink look-close" id="lookClose">Tutup</button></h3>' +
+      '<div class="card look-card"><div class="look-wrap"><div class="look-prev"><canvas id="shipLookPreview"></canvas><div class="lp-cap">Pratinjau langsung</div></div><div class="look-ctrl">' +
       '<div class="look-row"><div class="look-lbl">Nama kapal</div><input id="shipNameInp" class="look-name" maxlength="24" value="' + esc_(name) + '"></div>' +
       sw('hull', 'Lambung') + sw('trim', 'Lis') + sw('sail', 'Layar') + sw('flag', 'Bendera') + sw('emblemColor', 'Warna lambang') +
       '<div class="look-row"><div class="look-lbl">Bentuk bendera</div><div class="look-opts">' + LOOK_SHAPES.map(function (x) {
@@ -1232,6 +1255,7 @@
     var inp = document.getElementById('shipNameInp');
     inp.oninput = function () { var sv = document.getElementById('lookSave'); if (sv) sv.disabled = !shipLookDraft && inp.value.trim() === (state.shipVisual.name || ''); };
     var rs = document.getElementById('lookReset'); if (rs) rs.onclick = function () { shipLookDraft = null; renderShipLook_(); };
+    document.getElementById('lookClose').onclick = function () { shipLookOpen = false; shipLookDraft = null; renderShipLook_(); };
     document.getElementById('lookSave').onclick = saveShipLook_;
   }
 
@@ -1239,7 +1263,7 @@
     var btn = document.getElementById('lookSave'); if (btn) btn.disabled = true;
     var nm = (document.getElementById('shipNameInp') || {}).value || '';
     google.script.run.withSuccessHandler(function (r) {
-      shipLookDraft = null;
+      shipLookDraft = null; shipLookOpen = false;
       patchShip_(r.ship, r.visual);
       showToast('Tampilan kapal disimpan. Kapten lain akan melihat kapal barumu!', 'success');
       if (currentPanel === 'ship') renderShip();
@@ -1304,7 +1328,7 @@
     var conditionPct = s.ConditionPct != null ? s.ConditionPct : Math.max(0, Math.min(100, Number(s.Condition) || 0));
     var inTransit = !!(state.voyage && state.voyage.inTransit);
     var cargoVal = s.EffectiveCargo || s.Cargo;
-    shipLookDraft = null;
+    shipLookDraft = null; shipLookOpen = false;
 
     var html = panelHeader_('ship', 'Galangan Kapal', esc_(s.ShipName) + ' &middot; Tier ' + esc_(s.Tier) + ' &middot; kondisi <b>' + Math.round(conditionPct) + '%</b>') + (inTransit ? '' : npcHtml_('tukang', lineShip_())) +
       '<div class="ship-hero"><canvas id="shipHeroCanvas"></canvas>' +
@@ -1322,9 +1346,9 @@
         statTile_('shield', 'Armor', s.Armor, '') +
         statTile_('compass', 'Navig.', s.Navigation, '') +
       '</div>' +
-      (state.shipVisual ? '<h3>' + ic('flag') + 'Tampilan &amp; Bendera</h3><div id="shipLookSection"></div>' : '') +
+      (state.shipVisual ? '<div id="shipLookSection"></div>' : '') +
       '<h3>' + ic('wrench') + 'Galangan &mdash; Reparasi</h3><div id="repairSection"><div class="skeleton-block" style="height:54px;"></div></div>' +
-      '<h3>' + ic('star') + 'Upgrade Kapal</h3><div id="shipUpgradeSection"><div class="skeleton-block" style="height:64px;margin-bottom:8px;"></div><div class="skeleton-block" style="height:64px;"></div></div>' +
+      '<h3>' + ic('star') + 'Upgrade Kapal</h3>' + shipTierNote_(s) + '<div id="shipUpgradeSection"><div class="skeleton-block" style="height:64px;margin-bottom:8px;"></div><div class="skeleton-block" style="height:64px;"></div></div>' +
       '<p id="shipActionMsg" class="msg-err"></p>';
     setModal_(html);
     startShipHero_();
@@ -1411,10 +1435,10 @@
         (stg < 5 ? ' &rarr; <b>' + SHIP_LOOK_STAGES[group][stg + 1] + '</b> di ' + stepLabel_(SHIP_STAGE_STEP[stg + 1]) : ' &middot; tampilan maksimal') + '</span></div>';
       if (info.maxed) {
         return '<div class="card upg-card"><span class="upg-ico">' + ic(meta.icon) + '</span><div><div class="upg-name">' + meta.label + ' ' + prog + '</div>' +
-          '<div class="upg-next">' + (info.currentLabel || '') + '</div>' + lookLine + '</div><span class="legend-tag">' + ic('star') + ' LEGENDARY</span></div>';
+          '<div class="upg-next">' + (info.currentLabel || '') + (info.effect ? ' &middot; ' + info.effect : '') + '</div>' + lookLine + '</div><span class="legend-tag">' + ic('star') + ' LEGENDARY</span></div>';
       }
       return '<div class="card upg-card hover"><span class="upg-ico">' + ic(meta.icon) + '</span><div><div class="upg-name">' + meta.label + ' ' + prog + '</div>' +
-        '<div class="upg-next">' + (info.nextLabel || '') + ': ' + (info.label || '') + ' &middot; <b style="color:var(--teak-800);">' + formatGold(info.cost) + ' gold</b></div>' + lookLine + '</div>' +
+        '<div class="upg-next">' + (info.nextLabel || '') + ': ' + (info.effect || info.label || '') + ' &middot; <b style="color:var(--teak-800);">' + formatGold(info.cost) + ' gold</b></div>' + lookLine + '</div>' +
         '<button class="btn ' + (info.affordable ? 'btn-gold' : '') + ' ship-action" ' + (info.affordable ? '' : 'disabled') + ' onclick="doShipUpgrade(\'' + group + '\')">Upgrade</button></div>';
     }).join('') + '</div>';
   }
