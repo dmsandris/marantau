@@ -1,0 +1,2046 @@
+<!--
+  BarsatiGames.html — Quest 4 "Tiga Tanda Silang": empat mini-game khusus.
+  API: MTGames.open(kind, opts, cb)  kind = pantun | syahbandar | mercusuar | pusaran
+       cb({ win, perfect, cancelled, score, kind, attempts, ... })
+  Semua CSS & JS mandiri (tanpa aset luar). Suara lewat MTAudio (bila ada)
+  + WebAudio kecil sendiri untuk nada gamelan & kendhang.
+-->
+<style>
+  .mtg { position: fixed; inset: 0; z-index: 9800; display: flex; flex-direction: column; background: #07060a; color: var(--parch-100, #f4e7c8);
+    font-family: var(--font-body, Georgia, serif); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+    opacity: 0; transition: opacity .35s ease; overscroll-behavior: contain; }
+  .mtg.on { opacity: 1; }
+  .mtg.touch .kbd { display: none !important; }
+  .mtg.off { opacity: 0; pointer-events: none; }
+  .mtg *, .mtg *::before, .mtg *::after { box-sizing: border-box; }
+  .mtg-top { position: relative; z-index: 30; flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 14px;
+    background: var(--wood-grain, none), linear-gradient(180deg, #3d2717, #1c120b); border-bottom: 1px solid rgba(240,207,120,.38);
+    box-shadow: 0 6px 18px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,230,170,.12); padding-top: env(safe-area-inset-top, 0); height: calc(56px + env(safe-area-inset-top, 0px)); }
+  .mtg-ttl { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.05; }
+  .mtg-ttl .k { font-family: var(--font-title, serif); font-weight: 700; font-size: .58em; letter-spacing: .26em; text-transform: uppercase; color: var(--brass-300, #f0cf78); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mtg-ttl .n { font-family: var(--font-display, serif); font-size: 1.42em; color: #fff1c8; text-shadow: 0 2px 6px rgba(0,0,0,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mtg-prog { flex: none; display: flex; align-items: center; gap: 6px; }
+  .mtg-pips { display: flex; gap: 5px; align-items: center; }
+  .mtg-pip { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(240,207,120,.55); background: rgba(0,0,0,.35); transition: background .3s, transform .3s var(--ease-spring, ease), box-shadow .3s; }
+  .mtg-pip.cur { border-color: #ffe7a3; box-shadow: 0 0 0 3px rgba(240,207,120,.18); transform: scale(1.12); }
+  .mtg-pip.ok { background: radial-gradient(circle at 35% 30%, #fff3c4, #e0ae2a 55%, #8a5a12); border-color: #ffe7a3; box-shadow: 0 0 8px rgba(255,210,90,.6); }
+  .mtg-pip.no { background: radial-gradient(circle at 35% 30%, #ffb4a0, #c0392b 60%, #6a1a10); border-color: #ffb4a0; }
+  .mtg-chip { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-title, serif); font-weight: 700; font-size: .62em; letter-spacing: .12em; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 999px; background: rgba(0,0,0,.3); border: 1px solid rgba(240,207,120,.3); color: var(--parch-100, #f4e7c8); white-space: nowrap; }
+  .mtg-chip.bad { color: #ffb4a0; border-color: rgba(255,140,120,.45); }
+  .mtg-ib { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; padding: 0;
+    border: 1px solid rgba(240,207,120,.5); background: radial-gradient(circle at 35% 30%, #5a3a22, #24160d); color: var(--brass-100, #fbeabb);
+    box-shadow: inset 0 1px 0 rgba(255,236,190,.2), 0 2px 6px rgba(0,0,0,.45); transition: transform .15s var(--ease-spring, ease), filter .15s; }
+  .mtg-ib:hover { filter: brightness(1.2); transform: translateY(-1px); }
+  .mtg-ib:active { transform: scale(.94); }
+  .mtg-ib:focus-visible { outline: 2px solid var(--brass-300, #f0cf78); outline-offset: 2px; }
+  .mtg-ib svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mtg-ib.off { color: #d9776a; }
+  .mtg-body { position: relative; flex: 1; min-height: 0; }
+  .mtg-stage { position: absolute; inset: 0; overflow: hidden; }
+  .mtg-stage canvas.mtg-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .mtg-msg { position: absolute; left: 50%; top: 14px; z-index: 15; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; max-width: calc(100% - 24px);
+    padding: 8px 18px; border-radius: 999px; font-family: var(--font-title, serif); font-weight: 700; font-size: .82em; letter-spacing: .06em; text-align: center;
+    background: linear-gradient(180deg, rgba(48,32,18,.94), rgba(24,15,9,.94)); border: 1px solid rgba(240,207,120,.55); color: #fff1c8; box-shadow: 0 10px 26px rgba(0,0,0,.5);
+    transition: opacity .3s, transform .4s var(--ease-spring, ease); }
+  .mtg-msg.show { opacity: 1; transform: translate(-50%, 0); }
+  .mtg-msg.good { border-color: rgba(255,220,120,.85); box-shadow: 0 0 24px rgba(255,200,80,.35), 0 10px 26px rgba(0,0,0,.5); }
+  .mtg-msg.bad { border-color: rgba(255,130,110,.75); color: #ffd6cc; }
+
+  /* ---------- kartu layar (intro / menang / gagal) ---------- */
+  .mtg-scr { position: absolute; inset: 0; z-index: 25; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: auto;
+    background: radial-gradient(ellipse at 50% 40%, rgba(20,12,6,.35), rgba(5,3,2,.78)); opacity: 0; transition: opacity .35s ease; }
+  .mtg-scr.show { opacity: 1; }
+  .mtg-scr[hidden] { display: none; }
+  .mtg-card { position: relative; width: min(540px, 100%); margin: auto; padding: 24px 22px 20px; border-radius: 16px; text-align: center; color: var(--parch-ink, #33230f);
+    background: var(--paper-grain, none), radial-gradient(ellipse at 50% 0%, #fffaf0, transparent 70%), linear-gradient(180deg, var(--parch-50, #fcf6e6), var(--parch-200, #e8d6aa));
+    border: 1px solid #8f6522; box-shadow: 0 30px 70px rgba(0,0,0,.6), inset 0 0 0 5px rgba(143,101,34,.14), inset 0 0 50px rgba(140,95,35,.2);
+    animation: mtgCard .55s var(--ease-spring, ease) both; }
+  .mtg-card::before, .mtg-card::after { content: ''; position: absolute; width: 38px; height: 38px; border: 2px solid rgba(143,101,34,.55); pointer-events: none; }
+  .mtg-card::before { left: 8px; top: 8px; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0; }
+  .mtg-card::after { right: 8px; bottom: 8px; border-left: 0; border-top: 0; border-radius: 0 0 10px 0; }
+  @keyframes mtgCard { from { opacity: 0; transform: translateY(18px) scale(.94); } }
+  .mtg-face { width: 84px; height: 84px; margin: -2px auto 8px; border-radius: 50%; overflow: hidden; border: 3px solid #b8862b;
+    box-shadow: 0 0 0 3px rgba(255,240,200,.7), 0 6px 16px rgba(0,0,0,.35); background: #3a2814; display: grid; place-items: center; }
+  .mtg-face svg { width: 100%; height: 100%; display: block; }
+  .mtg-face .ini { font-family: var(--font-display, serif); font-size: 2.2em; color: #f0cf78; }
+  .mtg-card .kk { font-family: var(--font-title, serif); font-weight: 700; font-size: .64em; letter-spacing: .3em; text-transform: uppercase; color: #8f6522; }
+  .mtg-card h2 { font-family: var(--font-display, serif); font-weight: 400; font-size: 2.15em; line-height: 1.05; margin: 4px 0 6px; color: #4a2a10; }
+  .mtg-card .qt { font-style: italic; font-size: 1.08em; line-height: 1.38; margin: 8px auto 4px; max-width: 30em; color: #4a3418; }
+  .mtg-card .who { font-family: var(--font-title, serif); font-size: .66em; letter-spacing: .18em; text-transform: uppercase; color: #8a6a3a; margin-bottom: 10px; }
+  .mtg-card .rule { height: 1px; margin: 12px 8%; background: linear-gradient(90deg, transparent, rgba(143,101,34,.55), transparent); }
+  .mtg-steps { list-style: none; margin: 10px 0 6px; padding: 0; text-align: left; display: grid; gap: 8px; }
+  .mtg-steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-size: .98em; line-height: 1.32; }
+  .mtg-steps li i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-title, serif); font-weight: 700; font-size: .72em;
+    color: #3a2405; background: radial-gradient(circle at 35% 30%, #fff1c4, #d9a53c 55%, #8a5a12); box-shadow: inset 0 -2px 3px rgba(0,0,0,.3); margin-top: 1px; }
+  .mtg-steps li b { color: #5a3410; }
+  .mtg-ctl { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 12px 0 2px; }
+  .mtg-ctl span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; font-size: .84em; background: rgba(90,60,25,.1); border: 1px solid rgba(90,60,25,.22); }
+  .mtg-ctl kbd { font-family: var(--font-title, serif); font-weight: 700; font-size: .78em; padding: 1px 6px; border-radius: 4px; background: #fffaf0; border: 1px solid rgba(90,60,25,.35); box-shadow: 0 2px 0 rgba(90,60,25,.25); }
+  .mtg-ctl .t-touch { display: none; }
+  @media (hover: none) and (pointer: coarse) { .mtg-ctl .t-desk { display: none; } .mtg-ctl .t-touch { display: inline-flex; } }
+  .mtg-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
+  .mtg-btns .btn { min-width: 150px; min-height: 46px; }
+  .mtg-card .btn-ghost { --b-fg: #5a3410; --b-edge: rgba(143,101,34,.6); --b-bg1: rgba(255,250,235,.75); --b-bg2: rgba(228,206,160,.65); text-shadow: none; }
+  .mtg-stats { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 10px 0 2px; }
+  .mtg-stats div { min-width: 92px; padding: 8px 10px; border-radius: 10px; background: rgba(90,60,25,.08); border: 1px solid rgba(90,60,25,.2); }
+  .mtg-stats b { display: block; font-family: var(--font-title, serif); font-size: 1.3em; color: #4a2a10; }
+  .mtg-stats span { font-family: var(--font-title, serif); font-size: .6em; letter-spacing: .16em; text-transform: uppercase; color: #8a6a3a; }
+  .mtg-card.ok h2 { color: #6a4208; text-shadow: 0 0 18px rgba(255,200,80,.55); }
+  .mtg-card.ok { box-shadow: 0 0 0 2px rgba(255,220,130,.65), 0 0 60px rgba(255,200,90,.35), 0 30px 70px rgba(0,0,0,.6), inset 0 0 0 5px rgba(143,101,34,.14), inset 0 0 50px rgba(140,95,35,.2); }
+  .mtg-card.bad h2 { color: #7a2a18; }
+  .mtg-badge { display: inline-flex; align-items: center; gap: 6px; margin: 4px auto 0; padding: 5px 12px; border-radius: 999px; font-family: var(--font-title, serif); font-weight: 700; font-size: .68em;
+    letter-spacing: .16em; text-transform: uppercase; color: #3a2405; background: linear-gradient(180deg, #fff1c4, #e0ae2a); border: 1px solid #8a5a12; box-shadow: 0 0 14px rgba(255,200,80,.5); }
+  .mtg-seal { width: 92px; height: 92px; margin: -4px auto 6px; position: relative; }
+  .mtg-seal svg { width: 100%; height: 100%; }
+  @media (min-width: 900px) and (min-height: 700px) { .mtg-card { width: min(600px, 100%); font-size: 1.08em; } }
+  @media (max-width: 560px) {
+    .mtg-top { gap: 6px; padding: 0 8px 0 10px; }
+    .mtg-ttl .n { font-size: 1.18em; }
+    .mtg-ttl .k { font-size: .5em; letter-spacing: .2em; }
+    .mtg-pip { width: 10px; height: 10px; }
+    .mtg-pips { gap: 4px; }
+    .mtg-ib { width: 36px; height: 36px; }
+    .mtg-chip { font-size: .56em; padding: 3px 7px; }
+    .mtg-card { padding: 20px 16px 16px; }
+    .mtg-card h2 { font-size: 1.8em; }
+    .mtg-card .qt { font-size: 1em; }
+    .mtg-steps li { font-size: .92em; }
+    .mtg-face { width: 72px; height: 72px; }
+  }
+
+  /* ================= PANTUN ================= */
+  .mtg-pantun .mtg-stage { background:
+      radial-gradient(ellipse at 50% -10%, rgba(255,190,110,.28), transparent 55%),
+      radial-gradient(ellipse at 12% 18%, rgba(255,170,80,.18), transparent 22%),
+      radial-gradient(ellipse at 88% 18%, rgba(255,170,80,.18), transparent 22%),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 64px),
+      linear-gradient(180deg, #3a1a10, #24100a 55%, #140806); overflow-y: auto; touch-action: pan-y; }
+  .pt-orn { position: absolute; left: 0; right: 0; height: 26px; pointer-events: none; opacity: .55;
+    background: repeating-linear-gradient(45deg, transparent 0 9px, rgba(240,190,90,.35) 9px 11px, transparent 11px 20px), repeating-linear-gradient(-45deg, transparent 0 9px, rgba(240,190,90,.35) 9px 11px, transparent 11px 20px); }
+  .pt-orn.t { top: 0; border-bottom: 1px solid rgba(240,190,90,.35); }
+  .pt-lamp { position: absolute; top: 0; width: 2px; height: 46px; background: rgba(240,190,90,.35); pointer-events: none; }
+  .pt-lamp::after { content: ''; position: absolute; left: -9px; bottom: -18px; width: 20px; height: 24px; border-radius: 6px 6px 10px 10px; background: radial-gradient(circle at 50% 60%, #fff0b8, #f0a030 60%, #8a4a10);
+    box-shadow: 0 0 26px 10px rgba(255,170,60,.35); animation: ptFlick 3.2s ease-in-out infinite; }
+  .pt-lamp.l { left: 7%; } .pt-lamp.r { right: 7%; } .pt-lamp.r::after { animation-delay: -1.3s; }
+  @keyframes ptFlick { 0%, 100% { opacity: 1; } 45% { opacity: .82; } 52% { opacity: .95; } 70% { opacity: .86; } }
+  .pt-wrap { position: relative; max-width: 660px; margin: 0 auto; padding: 40px 14px 28px; display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
+  .pt-gov { display: flex; align-items: flex-end; gap: 10px; }
+  .pt-gov .mtg-face { width: 58px; height: 58px; margin: 0; flex: none; border-width: 2px; }
+  .pt-bub { position: relative; flex: 1; padding: 9px 14px; border-radius: 14px 14px 14px 4px; font-size: 1em; line-height: 1.3; color: #3a2410;
+    background: linear-gradient(180deg, #fff8e6, #f0dfb8); border: 1px solid rgba(143,101,34,.6); box-shadow: 0 6px 16px rgba(0,0,0,.35); animation: ptIn .45s var(--ease-out, ease) both; }
+  .pt-bub b { font-family: var(--font-title, serif); font-size: .68em; letter-spacing: .14em; text-transform: uppercase; color: #8f6522; display: block; margin-bottom: 2px; }
+  @keyframes ptIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .pt-scroll { position: relative; margin: 6px 6px 2px; padding: 20px 22px; border-radius: 6px; color: #33230f;
+    background: var(--paper-grain, none), linear-gradient(90deg, rgba(120,80,30,.16), transparent 12%, transparent 88%, rgba(120,80,30,.16)), linear-gradient(180deg, #fbf1d8, #ecd9ad);
+    box-shadow: 0 14px 34px rgba(0,0,0,.5), inset 0 0 30px rgba(140,95,35,.2); }
+  .pt-scroll::before, .pt-scroll::after { content: ''; position: absolute; left: -10px; right: -10px; height: 14px; border-radius: 7px;
+    background: linear-gradient(180deg, #8a5a2a, #4a2a12 60%, #2a170a); box-shadow: 0 3px 6px rgba(0,0,0,.45); }
+  .pt-scroll::before { top: -7px; } .pt-scroll::after { bottom: -7px; }
+  .pt-line { font-size: 1.22em; line-height: 1.55; font-style: italic; min-height: 1.55em; }
+  .pt-line.isi { padding-left: 14px; }
+  .pt-line .w { display: inline-block; opacity: 0; transform: translateY(5px); animation: ptW .4s var(--ease-out, ease) forwards; margin-right: .26em; }
+  @keyframes ptW { to { opacity: 1; transform: none; } }
+  .pt-line .ra { color: #8a4a00; font-weight: 700; border-bottom: 2px solid rgba(224,160,40,.8); }
+  .pt-line .rb { color: #1d5a6e; font-weight: 700; border-bottom: 2px solid rgba(47,127,163,.8); }
+  .pt-line.ph { color: rgba(90,60,25,.38); letter-spacing: .3em; font-style: normal; }
+  .pt-tag { position: absolute; right: 10px; top: 8px; font-family: var(--font-title, serif); font-weight: 700; font-size: .58em; letter-spacing: .2em; text-transform: uppercase; color: #9a7a4a; }
+  .pt-div { height: 1px; margin: 6px 0; background: linear-gradient(90deg, transparent, rgba(143,101,34,.4), transparent); }
+  .pt-ask { font-family: var(--font-title, serif); font-weight: 700; font-size: .72em; letter-spacing: .22em; text-transform: uppercase; color: var(--brass-300, #f0cf78); text-align: center; margin-top: 4px; }
+  .pt-opts { display: grid; gap: 9px; }
+  .pt-opt { position: relative; text-align: left; font-family: var(--font-body, Georgia, serif); cursor: pointer; padding: 11px 14px 11px 48px; border-radius: 12px; line-height: 1.38; font-size: 1.04em; font-style: italic;
+    color: #f8ecd0; background: linear-gradient(180deg, rgba(74,47,28,.92), rgba(40,25,15,.94)); border: 1px solid rgba(240,207,120,.38);
+    box-shadow: inset 0 1px 0 rgba(255,236,190,.12), 0 4px 12px rgba(0,0,0,.35); opacity: 0; animation: ptIn .45s var(--ease-out, ease) forwards;
+    transition: transform .15s var(--ease-spring, ease), border-color .2s, background .2s, box-shadow .2s; }
+  .pt-opt:hover:not(:disabled) { transform: translateY(-2px); border-color: rgba(255,225,150,.75); box-shadow: 0 0 0 1px rgba(255,220,140,.35), 0 8px 18px rgba(0,0,0,.4); }
+  .pt-opt:focus-visible { outline: 2px solid var(--brass-300, #f0cf78); outline-offset: 2px; }
+  .pt-opt .nn { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+    font-family: var(--font-title, serif); font-weight: 700; font-size: .8em; color: #3a2405; background: radial-gradient(circle at 35% 30%, #fff1c4, #d9a53c 55%, #8a5a12); }
+  .pt-opt:disabled { cursor: default; }
+  .pt-opt.dim { opacity: .45 !important; filter: saturate(.5); }
+  .pt-opt.ok { border-color: #ffe08a; background: linear-gradient(180deg, rgba(120,90,20,.95), rgba(70,50,10,.95)); box-shadow: 0 0 0 2px rgba(255,220,120,.5), 0 0 28px rgba(255,200,80,.35); opacity: 1 !important; }
+  .pt-opt.no { border-color: #ff9a85; background: linear-gradient(180deg, rgba(110,30,20,.95), rgba(60,15,10,.95)); animation: ptShake .45s ease; opacity: 1 !important; }
+  @keyframes ptShake { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+  .pt-note { padding: 12px 14px; border-radius: 12px; line-height: 1.4; font-size: .98em; background: rgba(0,0,0,.35); border: 1px solid rgba(240,207,120,.3); animation: ptIn .4s var(--ease-out, ease) both; }
+  .pt-note.good { border-color: rgba(255,220,120,.6); }
+  .pt-note.bad { border-color: rgba(255,140,120,.5); }
+  .pt-note h4 { margin: 0 0 4px; font-family: var(--font-title, serif); font-size: .8em; letter-spacing: .16em; text-transform: uppercase; color: #ffe7a3; }
+  .pt-note.bad h4 { color: #ffb4a0; }
+  .pt-note .btn { margin-top: 10px; width: 100%; min-height: 44px; }
+  .pt-blank { display: inline-flex; align-items: center; gap: 2px; min-width: 4.5em; min-height: 1.4em; padding: 0 6px; vertical-align: baseline; border-radius: 6px; font-style: normal; font-weight: 700;
+    border-bottom: 2px dashed rgba(143,101,34,.7); background: rgba(255,240,200,.6); color: #5a3410; }
+  .pt-blank.ok { border: 0; background: linear-gradient(180deg, #fff3c4, #f0cf78); box-shadow: 0 0 14px rgba(255,200,80,.6); }
+  .pt-blank.no { border-bottom-color: #c0392b; background: rgba(255,200,190,.6); color: #8c2a1d; text-decoration: line-through; }
+  .pt-blank .pc { cursor: pointer; padding: 0 1px; border-radius: 3px; }
+  .pt-blank .pc:hover { background: rgba(192,57,43,.15); }
+  .pt-tiles { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+  .pt-tile { min-width: 54px; min-height: 46px; padding: 6px 12px; border-radius: 10px; cursor: pointer; font-family: var(--font-title, serif); font-weight: 700; font-size: 1.05em; letter-spacing: .04em;
+    color: #3a2405; background: linear-gradient(180deg, #fff6dc, #e6cf97); border: 1px solid #8f6522; box-shadow: 0 3px 0 #8a6a3a, 0 6px 12px rgba(0,0,0,.35);
+    transition: transform .12s var(--ease-spring, ease), opacity .2s; animation: ptIn .4s var(--ease-out, ease) both; }
+  .pt-tile:hover:not(:disabled) { transform: translateY(-2px); }
+  .pt-tile:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #8a6a3a; }
+  .pt-tile:disabled { opacity: .18; cursor: default; }
+  .pt-acts { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+  .pt-acts .btn { min-height: 44px; min-width: 120px; }
+  .pt-hint { text-align: center; font-size: .95em; color: #e8d6aa; font-style: italic; }
+  .pt-hint b { color: #ffe7a3; font-style: normal; }
+  .pt-tea { width: 128px; height: 128px; margin: 6px auto 30px; position: relative; }
+  .pt-tea svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pt-tea .cd { position: absolute; left: -40px; right: -40px; bottom: -30px; text-align: center; font-family: var(--font-title, serif); font-weight: 700; font-size: 1.15em; color: #4a2a10; }
+  .pt-steam { stroke: rgba(120,90,50,.45); stroke-width: 2.4; fill: none; stroke-linecap: round; animation: ptSteam 2.6s ease-in-out infinite; }
+  .pt-steam.b { animation-delay: -.9s; } .pt-steam.c { animation-delay: -1.7s; }
+  @keyframes ptSteam { 0% { opacity: 0; transform: translateY(6px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+  @media (min-width: 900px) { .pt-wrap { font-size: 1.16em; max-width: 720px; } }
+  @media (max-width: 560px) { .pt-lamp { display: none; } .pt-line { font-size: 1.04em; } .pt-opt { font-size: .95em; padding: 10px 12px 10px 44px; } .pt-scroll { padding: 16px 14px; } .pt-wrap { padding-top: 34px; } }
+
+  /* ================= SYAHBANDAR ================= */
+  .mtg-syahbandar .mtg-stage { background: radial-gradient(ellipse at 50% 40%, #2a1d12, #0c0805 75%); }
+  .sy-side { position: absolute; z-index: 12; display: flex; flex-direction: column; color: var(--parch-ink, #33230f);
+    background: var(--paper-grain, none), linear-gradient(180deg, #fbf1d8, #e8d3a2); border: 1px solid #8f6522; box-shadow: 0 -10px 40px rgba(0,0,0,.55), inset 0 0 30px rgba(140,95,35,.2);
+    transition: transform .45s var(--ease-out, ease); }
+  .sy-side .sh { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px 14px; border-bottom: 1px solid rgba(143,101,34,.35); }
+  .sy-side .sh b { flex: 1; font-family: var(--font-display, serif); font-size: 1.35em; font-weight: 400; color: #4a2a10; line-height: 1; }
+  .sy-side .sh span { font-family: var(--font-title, serif); font-size: .58em; letter-spacing: .16em; text-transform: uppercase; color: #8a6a3a; }
+  .sy-side .sh button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(143,101,34,.5); background: rgba(255,250,235,.7); cursor: pointer; display: grid; place-items: center; color: #5a3410; }
+  .sy-side .sh button svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; }
+  .sy-list { flex: 1; min-height: 0; overflow: auto; padding: 10px; display: grid; gap: 8px; align-content: start; touch-action: pan-x pan-y; }
+  .sy-ent { display: grid; grid-template-columns: 132px 1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; background: rgba(255,252,240,.6); border: 1px solid rgba(143,101,34,.28); }
+  .sy-ent canvas { width: 132px; height: 84px; display: block; }
+  .sy-ent .nm { font-family: var(--font-title, serif); font-weight: 700; font-size: .86em; letter-spacing: .06em; color: #4a2a10; }
+  .sy-ent ul { list-style: none; margin: 3px 0 0; padding: 0; font-size: .84em; line-height: 1.28; color: #4a3418; }
+  .sy-ent li::before { content: '\2022'; color: #b8862b; margin-right: 5px; }
+  .sy-ent .fl { display: inline-block; vertical-align: middle; width: 34px; height: 22px; margin-left: 4px; }
+  .sy-tab { position: absolute; z-index: 11; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .sy-tab .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; }
+  .sy-tab svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .sy-help { position: absolute; z-index: 10; left: 0; right: 0; text-align: center; padding: 0 18px; font-size: .95em; line-height: 1.35; color: #e8d6aa; pointer-events: none; }
+  .sy-help b { color: #ffe7a3; }
+  /* HP: manifes = lembar bawah di bawah teropong */
+  .mtg-syahbandar .sy-side { left: 0; right: 0; bottom: 0; height: var(--sy-sheet, 52%); border-radius: 16px 16px 0 0; transform: translateY(105%); }
+  .mtg-syahbandar.sy-open .sy-side { transform: none; }
+  .mtg-syahbandar .sy-list { grid-auto-flow: row; }
+  .mtg-syahbandar .sy-tab { left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .mtg-syahbandar .sy-help { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  @media (min-width: 820px) and (min-aspect-ratio: 1/1) {
+    .mtg-syahbandar .sy-side { left: auto; top: 12px; right: 12px; bottom: 12px; width: 372px; height: auto; border-radius: 14px; transform: translateX(calc(100% + 30px)); }
+    .mtg-syahbandar .sy-tab { left: auto; right: 18px; transform: none; bottom: 18px; }
+    .mtg-syahbandar.sy-open .sy-tab { opacity: 0; pointer-events: none; }
+    .mtg-syahbandar .sy-help { left: 18px; right: auto; bottom: 22px; text-align: left; max-width: 44%; padding: 0; }
+  }
+
+  /* ================= MERCUSUAR ================= */
+  .mtg-mercusuar .mtg-stage { background: #050816; }
+  .mc-status { position: absolute; left: 0; right: 0; z-index: 6; text-align: center; pointer-events: none; padding: 0 12px; }
+  .mc-status .a { font-family: var(--font-display, serif); font-size: 1.7em; color: #fff1c8; text-shadow: 0 2px 12px rgba(0,0,0,.8), 0 0 22px rgba(255,210,120,.25); transition: opacity .3s; }
+  .mc-status .b { font-family: var(--font-title, serif); font-weight: 700; font-size: .68em; letter-spacing: .24em; text-transform: uppercase; color: var(--brass-300, #f0cf78); margin-top: 2px; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  .mc-keys { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; z-index: 6; font-size: .78em; color: rgba(240,228,196,.55); pointer-events: none; white-space: nowrap; }
+  @media (hover: none) and (pointer: coarse) { .mc-keys { display: none; } }
+  @media (max-width: 560px) { .mc-status .a { font-size: 1.36em; } }
+
+  /* ================= PUSARAN ================= */
+  .mtg-pusaran .mtg-stage { background: #0b0618; }
+  .ps-hud { position: absolute; left: 0; right: 0; top: 0; z-index: 6; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 10px 12px; pointer-events: none; }
+  .ps-lives { display: flex; gap: 4px; padding: 5px 8px; border-radius: 999px; background: rgba(10,4,24,.55); border: 1px solid rgba(200,170,255,.3); backdrop-filter: blur(3px); }
+  .ps-lives svg { width: 24px; height: 24px; transition: transform .3s var(--ease-spring, ease), opacity .3s, filter .3s; }
+  .ps-lives svg.lost { opacity: .25; filter: grayscale(1); transform: scale(.8); }
+  .ps-mid { flex: 1; max-width: 340px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .ps-loop { white-space: nowrap; font-family: var(--font-title, serif); font-weight: 700; font-size: .7em; letter-spacing: .24em; text-transform: uppercase; color: #ffe7a3; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  .ps-bar { width: 100%; height: 8px; border-radius: 6px; background: rgba(10,4,24,.6); border: 1px solid rgba(200,170,255,.3); overflow: hidden; position: relative; }
+  .ps-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #a77bff, #ffd36a); box-shadow: 0 0 10px rgba(255,210,110,.7); }
+  .ps-bar em { position: absolute; top: -1px; bottom: -1px; width: 1px; background: rgba(255,255,255,.4); }
+  .ps-perf { padding: 5px 9px; border-radius: 999px; background: rgba(10,4,24,.55); border: 1px solid rgba(255,220,120,.45); font-family: var(--font-title, serif); font-weight: 700; font-size: .6em; letter-spacing: .14em;
+    text-transform: uppercase; color: #ffe7a3; white-space: nowrap; transition: opacity .4s, color .4s, border-color .4s; }
+  .ps-perf.lost { color: rgba(255,255,255,.45); border-color: rgba(255,255,255,.2); text-decoration: line-through; }
+  .ps-warn { position: absolute; left: 50%; top: 64px; z-index: 6; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0; transition: opacity .2s; }
+  .ps-warn.show { opacity: 1; }
+  .ps-warn b { white-space: nowrap; font-family: var(--font-title, serif); font-weight: 900; font-size: .82em; letter-spacing: .2em; text-transform: uppercase; color: #ffb4a0; text-shadow: 0 0 12px rgba(255,80,60,.6), 0 2px 4px #000; animation: psBlink .5s steps(2) infinite; }
+  .ps-warn span { width: 120px; height: 5px; border-radius: 3px; background: rgba(0,0,0,.5); overflow: hidden; }
+  .ps-warn span i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb060, #ff4a3a); }
+  @keyframes psBlink { 50% { opacity: .55; } }
+  .ps-touch { position: absolute; bottom: 0; top: 30%; width: 50%; z-index: 5; display: none; touch-action: none; }
+  .ps-touch.l { left: 0; } .ps-touch.r { right: 0; }
+  .ps-touch .ar { position: absolute; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(20,8,40,.4); border: 1.5px solid rgba(220,200,255,.35); transition: background .12s, transform .12s, border-color .12s; }
+  .ps-touch.l .ar { left: 22px; } .ps-touch.r .ar { right: 22px; }
+  .ps-touch .ar svg { width: 28px; height: 28px; stroke: rgba(255,240,210,.85); fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .ps-touch.on .ar { background: rgba(255,200,90,.32); border-color: rgba(255,225,150,.9); transform: scale(1.08); }
+  .mtg-pusaran.touch .ps-touch { display: block; }
+  .ps-keys { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; font-size: .78em; color: rgba(230,215,255,.6); pointer-events: none; white-space: nowrap; }
+  .mtg-pusaran.touch .ps-keys { display: none; }
+  .mtg-pusaran .mtg-msg { top: 72px; }
+  .mtg-pusaran .ps-warn { top: 118px; }
+</style>
+<script>
+/* =====================================================================
+ * MTGames — mini-game Quest 4 "Tiga Tanda Silang" (BarSaTi)
+ *   MTGames.open(kind, opts, cb)
+ *     kind : 'pantun' | 'syahbandar' | 'mercusuar' | 'pusaran'
+ *     cb   : function ({ win, perfect, cancelled, score, kind, attempts, ... })
+ *   Overlay layar penuh (z-index 9800). Main ulang tanpa batas di dalam
+ *   overlay sampai menang atau keluar (✕ / Esc → cancelled).
+ * ===================================================================== */
+var MTGames = (function () {
+  'use strict';
+  var KINDS = ['pantun', 'syahbandar', 'mercusuar', 'pusaran'];
+  var GAMES = {};
+  var cur = null;
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+
+  /* ---------------- util ---------------- */
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+  function ease(t) { t = clamp(t, 0, 1); return 1 - Math.pow(1 - t, 3); }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function pick(a) { return a[Math.floor(Math.random() * a.length) % a.length]; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function h(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function au(name, o) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(name, o); } catch (e) {} }
+  function talk(text, seed) { try { if (window.MTAudio && MTAudio.talk) MTAudio.talk(text, seed); } catch (e) {} }
+  function vib(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+  function isTouch() { try { return !!(window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches) || ('ontouchstart' in window && navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches); } catch (e) { return false; } }
+  function rgba(hex, a) { var n = parseInt(String(hex).replace('#', ''), 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
+  function shadeHex(hx, amt) {
+    var n = parseInt(String(hx).replace('#', ''), 16), r = clamp(((n >> 16) & 255) + amt, 0, 255), g = clamp(((n >> 8) & 255) + amt, 0, 255), b = clamp((n & 255) + amt, 0, 255);
+    return '#' + [r, g, b].map(function (v) { v = Math.round(v).toString(16); return v.length < 2 ? '0' + v : v; }).join('');
+  }
+  function rr(c, x, y, w, hh, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + hh, r); c.arcTo(x + w, y + hh, x, y + hh, r); c.arcTo(x, y + hh, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+
+  var SVG = {
+    x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    snd: '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a7.8 7.8 0 0 1 0 11"/></svg>',
+    mute: '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
+    book: '<svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 1h13v-3"/><path d="M9 7h6M9 10h4"/></svg>',
+    left: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+    right: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+    down: '<svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg>'
+  };
+
+  /* ---------------- suara: WebAudio kecil (gamelan, kendhang, badai) ---------------- */
+  var AX = (function () {
+    var ctx = null, out = null, white = null, brown = null, loops = [];
+    function prefs() { try { return window.MTAudio && MTAudio.prefs ? MTAudio.prefs() : null; } catch (e) { return null; } }
+    function level() { var p = prefs(); if (!p) return 0.55; if (p.on === false) return 0; return (p.master == null ? 0.8 : p.master) * (p.sfx == null ? 0.8 : p.sfx); }
+    function ensure() {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      if (!ctx) {
+        try {
+          ctx = new AC();
+          var comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+          out = ctx.createGain(); out.gain.value = level(); out.connect(comp); comp.connect(ctx.destination);
+        } catch (e) { ctx = null; return null; }
+      }
+      try { if (ctx.state === 'suspended') ctx.resume(); } catch (e) {}
+      sync();
+      return ctx;
+    }
+    function sync() { if (ctx && out) { try { out.gain.setTargetAtTime(level(), ctx.currentTime, 0.05); } catch (e) {} } }
+    function ok() { return ctx && ctx.state === 'running' && level() > 0; }
+    function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+    function osc(type, f, t, dur, vol, a, dest) {
+      var o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t);
+      env(g, t, a || 0.004, vol, dur); o.connect(g); g.connect(dest || out); o.start(t); o.stop(t + (a || 0.004) + dur + 0.05); return o;
+    }
+    function buf(isBrown) {
+      if (isBrown ? brown : white) return isBrown ? brown : white;
+      var len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0), last = 0;
+      for (var i = 0; i < len; i++) { var w = Math.random() * 2 - 1; if (isBrown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+      if (isBrown) brown = b; else white = b; return b;
+    }
+    function noise(t, dur, vol, type, f0, f1, q, isBrown, a) {
+      var s = ctx.createBufferSource(); s.buffer = buf(isBrown); s.loop = true;
+      var f = ctx.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.setValueAtTime(f0 || 1000, t); if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur); f.Q.value = q || 0.7;
+      var g = ctx.createGain(); env(g, t, a || 0.004, vol, dur); s.connect(f); f.connect(g); g.connect(out); s.start(t, Math.random()); s.stop(t + (a || 0.004) + dur + 0.05);
+    }
+    function T(w) { return ctx.currentTime + (w || 0); }
+    var api = {
+      ensure: ensure, sync: sync,
+      now: function () { return ctx ? ctx.currentTime : 0; },
+      /** saron: bilah logam bernada dengan "ombak" (beating) — nada lensa mercusuar */
+      saron: function (f, vol, w) {
+        if (!ok()) return; var t = T(w); vol = vol || 0.12;
+        osc('sine', f, t, 1.4, vol, 0.003); osc('sine', f * 1.004 + 2.5, t, 1.2, vol * 0.5, 0.003);
+        osc('sine', f * 2.76, t, 0.4, vol * 0.22, 0.002); osc('triangle', f * 5.4, t, 0.09, vol * 0.08, 0.001);
+      },
+      bonang: function (f, vol, w) {
+        if (!ok()) return; var t = T(w); vol = vol || 0.1;
+        osc('sine', f, t, 0.8, vol, 0.004); osc('sine', f * 1.51, t, 0.3, vol * 0.25, 0.003); osc('triangle', f * 2.02, t, 0.14, vol * 0.12, 0.002);
+      },
+      gong: function (f, vol, w) {
+        if (!ok()) return; var t = T(w); vol = vol || 0.25;
+        osc('sine', f, t, 3.4, vol, 0.03); osc('sine', f + 1.6, t, 3, vol * 0.8, 0.03); osc('sine', f * 2.01, t, 1.6, vol * 0.25, 0.02); osc('sine', f * 2.93, t, 1, vol * 0.12, 0.02);
+        noise(t, 0.12, vol * 0.25, 'lowpass', 180, 0, 0.8, true);
+      },
+      kendhang: function (kind, vol, w) {
+        if (!ok()) return; var t = T(w); vol = vol || 0.2;
+        if (kind === 'dung') {
+          var o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+          o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(80, t + 0.13);
+          env(g, t, 0.003, vol, 0.3); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.4);
+        } else if (kind === 'tak') { noise(t, 0.05, vol * 0.7, 'bandpass', 2600, 0, 1.5); osc('triangle', 420, t, 0.05, vol * 0.35, 0.001); }
+        else noise(t, 0.03, vol * 0.35, 'highpass', 4200, 0, 1);
+      },
+      buzz: function (w) {
+        if (!ok()) return; var t = T(w), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700; lp.connect(out);
+        osc('sawtooth', 110, t, 0.35, 0.07, 0.01, lp); osc('sawtooth', 116.5, t, 0.35, 0.07, 0.01, lp); noise(t, 0.3, 0.08, 'lowpass', 300, 120, 0.8, true);
+      },
+      zap: function (w) {
+        if (!ok()) return; var t = T(w);
+        noise(t, 0.09, 0.4, 'highpass', 1800); noise(t, 1.3, 0.35, 'lowpass', 1600, 70, 0.6, true, 0.005);
+        var o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.25);
+        env(g, t, 0.002, 0.06, 0.25); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.3);
+      },
+      crash: function (w) {
+        if (!ok()) return; var t = T(w);
+        noise(t, 0.08, 0.35, 'highpass', 1500); noise(t, 0.5, 0.3, 'bandpass', 420, 120, 1.4, true);
+        for (var i = 0; i < 6; i++) noise(t + 0.04 + Math.random() * 0.3, 0.035, 0.1, 'bandpass', 1800 + Math.random() * 2600, 0, 5);
+      },
+      whoosh: function (w, vol) { if (!ok()) return; noise(T(w), 0.5, vol || 0.12, 'bandpass', 380, 2400, 1, false, 0.18); },
+      shimmer: function (w) {
+        if (!ok()) return; var t = T(w);
+        [0, 240, 480, 720, 960, 1200].forEach(function (c, i) { osc('sine', 880 * Math.pow(2, c / 1200), t + i * 0.06, 0.9, 0.03, 0.004); });
+      },
+      /** loop noise berfilter (badai/hujan). Mengembalikan {set(v), stop()} */
+      loop: function (isBrown, type, f, q, vol) {
+        if (!ensure()) return { set: function () {}, stop: function () {} };
+        var s = ctx.createBufferSource(); s.buffer = buf(isBrown); s.loop = true;
+        var fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q || 0.7;
+        var g = ctx.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(out); s.start(0, Math.random());
+        g.gain.setTargetAtTime(vol, ctx.currentTime, 0.6);
+        var L = { set: function (v) { try { g.gain.setTargetAtTime(v, ctx.currentTime, 0.3); } catch (e) {} },
+          stop: function () { try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.25); s.stop(ctx.currentTime + 1.2); } catch (e) {} var i = loops.indexOf(L); if (i >= 0) loops.splice(i, 1); } };
+        loops.push(L); return L;
+      },
+      stopAll: function () { loops.slice().forEach(function (L) { L.stop(); }); }
+    };
+    return api;
+  })();
+
+  /* ---------------- wajah NPC ---------------- */
+  function faceHtml(n) {
+    n = n || {};
+    try {
+      if (n.svg) return n.svg;
+      if (n.ap && window.MTFace && MTFace.svg) return MTFace.svg(n.ap, { bgColors: n.bg || ['#7a6440', '#2a1e12'] });
+    } catch (e) {}
+    return '<span class="ini">' + esc(String(n.name || '?').charAt(0).toUpperCase()) + '</span>';
+  }
+  function cityNpc(cityId, fallbackName, fallbackSeed, title) {
+    try {
+      if (typeof npc_ === 'function' && window.state && state.city && state.city.CityId === cityId) {
+        var n = npc_('syahbandar'); return { name: n.name, title: title, ap: n.ap, svg: n.svg };
+      }
+    } catch (e) {}
+    var ap = null; try { if (window.MTFace && MTFace.npc) ap = MTFace.npc(fallbackSeed, 'syahbandar'); } catch (e) {}
+    return { name: fallbackName, title: title, ap: ap };
+  }
+
+  /* ---------------- sesi overlay ---------------- */
+  function Session(kind, opts, cb, G) {
+    var S = this;
+    S.kind = kind; S.opts = opts; S.cb = cb; S.G = G; S.done = false; S.attempts = 0;
+    S.fns = []; S.timers = []; S.offs = []; S.keyDown = null; S.keyUp = null; S.last = 0; S.t = 0;
+    S.touch = isTouch();
+    var root = S.root = h('div', 'mtg mtg-' + kind + (S.touch ? ' touch' : ''));
+    root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', G.title);
+    root.innerHTML = '<div class="mtg-top"><div class="mtg-ttl"><span class="k">' + esc(opts.kicker || G.kicker) + '</span><span class="n">' + esc(opts.title || G.title) + '</span></div>' +
+      '<div class="mtg-prog"></div><button class="mtg-ib mtg-snd" type="button" aria-label="Suara" title="Suara">' + SVG.snd + '</button>' +
+      '<button class="mtg-ib mtg-x" type="button" aria-label="Keluar" title="Keluar (Esc)">' + SVG.x + '</button></div>' +
+      '<div class="mtg-body"><div class="mtg-stage"></div><div class="mtg-msg"></div><div class="mtg-scr" hidden></div></div>';
+    S.stage = root.querySelector('.mtg-stage'); S.scr = root.querySelector('.mtg-scr'); S.prog = root.querySelector('.mtg-prog'); S.msgEl = root.querySelector('.mtg-msg');
+    root.querySelector('.mtg-x').onclick = function () { au('close'); S.exit(); };
+    var snd = root.querySelector('.mtg-snd');
+    function paintSnd() { var on = true; try { on = !window.MTAudio || !MTAudio.prefs || MTAudio.prefs().on !== false; } catch (e) {} snd.innerHTML = on ? SVG.snd : SVG.mute; snd.classList.toggle('off', !on); }
+    snd.onclick = function () {
+      try { if (window.MTAudio && MTAudio.set) { var on = MTAudio.prefs().on !== false; MTAudio.set('on', !on); if (!on && MTAudio.unlock) MTAudio.unlock(); } } catch (e) {}
+      AX.sync(); paintSnd();
+    };
+    paintSnd();
+    document.body.appendChild(root);
+    S.prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    S.prevFocus = document.activeElement;
+    requestAnimationFrame(function () { root.classList.add('on'); });
+    // keyboard: tangkap di fase capture jendela supaya hotkey game di belakang tidak ikut jalan
+    S.on(window, 'keydown', function (e) {
+      if (S.done) return;
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); S.exit(); return; }
+      if (!S.scr.hidden) {
+        if (e.key === 'Enter' && !e.repeat) { var p = S.scr.querySelector('[data-primary]:not(:disabled)'); if (p && document.activeElement && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); p.click(); } }
+        return;
+      }
+      if (S.keyDown) S.keyDown(e);
+    }, true);
+    S.on(window, 'keyup', function (e) { if (S.done) return; e.stopPropagation(); if (S.keyUp) S.keyUp(e); }, true);
+    S.on(window, 'blur', function () { if (S.onBlur) S.onBlur(); });
+    S.raf = requestAnimationFrame(function tick(ts) {
+      if (S.done) return;
+      S.raf = requestAnimationFrame(tick);
+      var dt = Math.min(0.05, S.last ? (ts - S.last) / 1000 : 0.016); S.last = ts; S.t += dt;
+      for (var i = 0; i < S.fns.length; i++) { try { S.fns[i](dt, S.t); } catch (err) { if (!S.errShown) { S.errShown = true; try { console.error('[MTGames]', err); } catch (x) {} } } }
+    });
+  }
+  Session.prototype = {
+    on: function (tg, ev, fn, opt) { tg.addEventListener(ev, fn, opt); this.offs.push(function () { tg.removeEventListener(ev, fn, opt); }); },
+    loop: function (fn) { this.fns.push(fn); var a = this.fns; return function () { var i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); }; },
+    later: function (fn, ms) { var S = this, id = setTimeout(function () { if (!S.done) fn(); }, ms); this.timers.push(id); return id; },
+    clearTimers: function () { this.timers.forEach(clearTimeout); this.timers = []; },
+    progress: function (html) { this.prog.innerHTML = html; },
+    pips: function (n, done, curI, fails) {
+      var s = '<div class="mtg-pips" aria-label="Kemajuan">';
+      for (var i = 0; i < n; i++) s += '<span class="mtg-pip' + (done && done[i] === true ? ' ok' : done && done[i] === false ? ' no' : '') + (i === curI ? ' cur' : '') + '"></span>';
+      return s + '</div>';
+    },
+    msg: function (text, cls, ms) {
+      var el = this.msgEl; el.innerHTML = text; el.className = 'mtg-msg show ' + (cls || '');
+      clearTimeout(this.msgT); this.msgT = setTimeout(function () { el.className = 'mtg-msg'; }, ms || 1800);
+    },
+    /** Kartu layar. o: {cls, face, kicker, title, quote, who, html, steps, controls:{desk,touch}, stats, badge, buttons:[{label, cls, primary, onClick, id, disabled}]} */
+    card: function (o) {
+      var S = this, s = '<div class="mtg-card ' + (o.cls || '') + '">';
+      if (o.seal) s += '<div class="mtg-seal">' + o.seal + '</div>';
+      else if (o.face) s += '<div class="mtg-face">' + faceHtml(o.face) + '</div>';
+      if (o.kicker) s += '<div class="kk">' + o.kicker + '</div>';
+      if (o.title) s += '<h2>' + o.title + '</h2>';
+      if (o.badge) s += '<div class="mtg-badge">' + o.badge + '</div>';
+      if (o.quote) s += '<div class="qt">&ldquo;' + o.quote + '&rdquo;</div>';
+      if (o.who) s += '<div class="who">&mdash; ' + o.who + '</div>';
+      if (o.stats) s += '<div class="mtg-stats">' + o.stats.map(function (x) { return '<div><b>' + x[1] + '</b><span>' + x[0] + '</span></div>'; }).join('') + '</div>';
+      if (o.steps) s += '<div class="rule"></div><ol class="mtg-steps">' + o.steps.map(function (x, i) { return '<li><i>' + (i + 1) + '</i><span>' + x + '</span></li>'; }).join('') + '</ol>';
+      if (o.controls) s += '<div class="mtg-ctl">' + (o.controls.desk || []).map(function (x) { return '<span class="t-desk">' + x + '</span>'; }).join('') + (o.controls.touch || []).map(function (x) { return '<span class="t-touch">' + x + '</span>'; }).join('') + '</div>';
+      if (o.html) s += o.html;
+      s += '<div class="mtg-btns">' + (o.buttons || []).map(function (b, i) {
+        return '<button type="button" class="btn ' + (b.cls || (b.primary ? 'btn-gold btn-lg' : 'btn-lg')) + '" data-i="' + i + '"' + (b.primary ? ' data-primary="1"' : '') + (b.id ? ' id="' + b.id + '"' : '') + (b.disabled ? ' disabled' : '') + '>' + b.label + '</button>';
+      }).join('') + '</div></div>';
+      S.scr.innerHTML = s; S.scr.hidden = false; S.scr.scrollTop = 0;
+      requestAnimationFrame(function () { S.scr.classList.add('show'); });
+      S.scr.querySelectorAll('.mtg-btns .btn').forEach(function (btn) {
+        btn.onclick = function () { var b = o.buttons[+btn.getAttribute('data-i')]; au('click'); AX.ensure(); try { if (window.MTAudio && MTAudio.unlock) MTAudio.unlock(); } catch (e) {} if (b.onClick) b.onClick(btn); };
+      });
+      var pb = S.scr.querySelector('[data-primary]'); if (pb && !S.touch) { try { pb.focus({ preventScroll: true }); } catch (e) {} }
+      return S.scr.querySelector('.mtg-card');
+    },
+    hideCard: function () { var sc = this.scr; sc.classList.remove('show'); sc.hidden = true; sc.innerHTML = ''; },
+    /** Intro standar: tombol Mulai & Keluar */
+    intro: function (o, start) {
+      var S = this;
+      o.buttons = [{ label: o.cta || 'Mulai', primary: true, onClick: function () { S.hideCard(); start(); } }];
+      S.card(o);
+    },
+    /** Menang: kartu emas lalu "Lanjutkan" menutup overlay & memanggil cb. */
+    win: function (res, o) {
+      var S = this; if (S.done) return;
+      S.won = res; res.win = true; res.cancelled = false;
+      au('victory'); vib([40, 60, 80]);
+      o = o || {}; o.cls = 'ok ' + (o.cls || '');
+      o.buttons = [{ label: o.cta || 'Lanjutkan', primary: true, onClick: function () { S.finish(res); } }];
+      S.card(o);
+    },
+    fail: function (info) { this.attempts++; try { if (this.opts.onFail) this.opts.onFail(info || {}); } catch (e) {} },
+    exit: function () { if (this.won) this.finish(this.won); else this.finish({ win: false, perfect: false, cancelled: true, score: 0 }); },
+    finish: function (res) {
+      var S = this; if (S.done) return; S.done = true;
+      res = res || {}; res.kind = S.kind; res.attempts = S.attempts + (res.win ? 1 : 0);
+      if (res.win == null) res.win = false; if (res.perfect == null) res.perfect = false; if (res.cancelled == null) res.cancelled = !res.win; if (res.score == null) res.score = 0;
+      cancelAnimationFrame(S.raf); S.clearTimers(); clearTimeout(S.msgT);
+      try { if (S.game && S.game.destroy) S.game.destroy(); } catch (e) {}
+      AX.stopAll();
+      S.offs.forEach(function (f) { try { f(); } catch (e) {} }); S.offs = [];
+      document.body.style.overflow = S.prevOverflow || '';
+      S.root.classList.remove('on'); S.root.classList.add('off');
+      setTimeout(function () { if (S.root.parentNode) S.root.parentNode.removeChild(S.root); }, 380);
+      if (cur === S) cur = null;
+      try { if (S.prevFocus && S.prevFocus.focus) S.prevFocus.focus({ preventScroll: true }); } catch (e) {}
+      if (typeof S.cb === 'function') setTimeout(function () { try { S.cb(res); } catch (e) { try { console.error('[MTGames] cb', e); } catch (x) {} } }, 0);
+    },
+    /** canvas penuh panggung; kembalikan {cv, c, W, H, dpr, fit()} */
+    canvas: function (parent, maxDpr) {
+      var cv = h('canvas', 'mtg-cv'), o = { cv: cv, c: cv.getContext('2d'), W: 10, H: 10, dpr: 1 };
+      (parent || this.stage).appendChild(cv);
+      o.fit = function () {
+        var r = cv.getBoundingClientRect(), dpr = Math.min(maxDpr || 2, window.devicePixelRatio || 1), W = Math.max(10, r.width), H = Math.max(10, r.height), ch = false;
+        if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ch = true; }
+        o.W = W; o.H = H; o.dpr = dpr; o.c.setTransform(dpr, 0, 0, dpr, 0, 0); return ch;
+      };
+      o.pos = function (e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+      return o;
+    }
+  };
+
+  /* ---------------- API publik ---------------- */
+  function open(kind, opts, cb) {
+    if (typeof opts === 'function') { cb = opts; opts = null; }
+    opts = opts || {};
+    if (cur) cur.exit();
+    var G = GAMES[kind];
+    if (!G) { if (typeof cb === 'function') setTimeout(function () { cb({ win: false, perfect: false, cancelled: true, score: 0, kind: kind, error: 'unknown kind' }); }, 0); return null; }
+    try { if (window.MTAudio && MTAudio.unlock) MTAudio.unlock(); } catch (e) {}
+    var S = cur = new Session(kind, opts, cb, G);
+    try { S.game = G.create(S, opts); } catch (e) { try { console.error('[MTGames]', e); } catch (x) {} S.finish({ win: false, cancelled: true, error: String(e && e.message || e) }); return null; }
+    return { close: function () { S.exit(); }, session: S };
+  }
+  function close() { if (cur) cur.exit(); }
+
+  /* GAMES.* didefinisikan di bawah */
+
+  /* =====================================================================
+   * 1) BALAS PANTUN ADAT — Sunda Empire, Balai Adat
+   *    Ronde 1–4: sampiran → pilih isi (rima a-b-a-b + makna).
+   *    Ronde 5  : susun kata terakhir dari kepingan kata. Lulus ≥ 4/5.
+   * ===================================================================== */
+  // Bank pantun orisinal. s = sampiran, i = isi benar, bad = rima cocok tapi makna mengkhianati,
+  // r = bunyi rima [a, b], k = kepingan kata terakhir baris 4 (untuk ronde susun kata).
+  var PANTUN = [
+    { s: ['Jukung berlayar ke Tanjung Jati,', 'Layar batik ditiup bayu.'], i: ['Barisan sakit hati boleh berganti,', 'Kami tetap berdiri di belakangmu.'],
+      bad: ['Kalau emas sudah masuk peti,', 'Biar kawan tenggelam dahulu.'], r: ['ti', 'u'], k: ['be', 'la', 'kang', 'mu'] },
+    { s: ['Burung camar terbang ke hulu,', 'Hinggap sebentar di ujung dayung.'], i: ['Biar ombak datang bertalu-talu,', 'Kawan sejati saling menanggung.'],
+      bad: ['Biar ombak datang bertalu-talu,', 'Lebih baik aku pulang berlindung.'], r: ['lu', 'ung'], k: ['me', 'nang', 'gung'] },
+    { s: ['Pergi ke Bjorneo membeli rotan,', 'Rotan diikat dengan tali.'], i: ['Sekali layar terkembang di lautan,', 'Pantang kami berbalik kembali.'],
+      bad: ['Sekali layar terkembang di lautan,', 'Kalau rugi, kabur tak peduli.'], r: ['tan', 'li'], k: ['kem', 'ba', 'li'] },
+    { s: ['Ikan pari di karang biru,', 'Berenang tenang di air jernih.'], i: ['Satu jatuh, dua datang menderu,', 'Janji saudara tak kenal letih.'],
+      bad: ['Satu jatuh, tak usah diburu,', 'Asal layarku tetap putih.'], r: ['ru', 'ih'], k: ['le', 'tih'] },
+    { s: ['Anak Skitraw memasang jangkar,', 'Jangkar besi berkarat merah.'], i: ['Biar meriam musuh menggelegar,', 'Pantang bagi kami menyerah kalah.'],
+      bad: ['Biar meriam musuh menggelegar,', 'Lekas kibarkan bendera menyerah.'], r: ['ar', 'ah'], k: ['ka', 'lah'] },
+    { s: ['Kain songket benang emas,', 'Dijahit rapi malam purnama.'], i: ['Hutang budi dibayar ikhlas,', 'Badai dihadang bersama-sama.'],
+      bad: ['Hutang budi tak usah dibalas,', 'Kawan lama biar tinggal nama.'], r: ['as', 'ma'] },
+    { s: ['Lentera menyala di ujung tanjung,', 'Cahayanya redup diterpa angin.'], i: ['Walau badai datang mengepung,', 'Kepala kami tetap dingin.'],
+      bad: ['Walau badai datang mengepung,', 'Aku pura-pura tidak ingin.'], r: ['ung', 'in'], k: ['di', 'ngin'] },
+    { s: ['Pohon kelapa di pinggir pantai,', 'Buahnya jatuh ke atas pasir.'], i: ['Walau rantai belum terurai,', 'Harapan tak boleh berakhir.'],
+      bad: ['Walau rantai belum terurai,', 'Lebih baik pasrah pada takdir.'], r: ['ai', 'ir'] },
+    { s: ['Kapal pinisi dari seberang,', 'Membawa garam dan kain tenun.'], i: ['Bila saudara diserang orang,', 'Seluruh pulau ikut turun.'],
+      bad: ['Bila saudara diserang orang,', 'Biarlah aku tetap melamun.'], r: ['ang', 'un'], k: ['tu', 'run'] },
+    { s: ['Ombak memecah di batu karang,', 'Buih putih menari-nari.'], i: ['Bukan harta yang kami kejar sekarang,', 'Tapi kawan yang hilang kami cari.'],
+      bad: ['Bukan kawan yang kami kejar sekarang,', 'Emas permata yang kami cari.'], r: ['ang', 'ri'], k: ['ca', 'ri'] },
+    { s: ['Asap mengepul dari gunung api,', 'Tampak dari pantai, merah dan jingga.'], i: ['Satu obor menyala di setiap tepi,', 'Tanda kita satu keluarga.'],
+      bad: ['Satu obor menyala di setiap tepi,', 'Asal bukan aku yang berjaga.'], r: ['pi', 'ga'], k: ['ke', 'lu', 'ar', 'ga'] },
+    { s: ['Elang laut terbang tinggi sekali,', 'Pelangi senja di balik awan.'], i: ['Musuh boleh datang berkali-kali,', 'Kami hadapi bersama kawan.'],
+      bad: ['Musuh boleh datang berkali-kali,', 'Kami serahkan semua kawan.'], r: ['li', 'wan'], k: ['ka', 'wan'] },
+    { s: ['Bunga cempaka di tepi telaga,', 'Harumnya sampai ke pelabuhan.'], i: ['Tiga tanda silang tetap terjaga,', 'Sumpah lama tak terlupakan.'],
+      bad: ['Sumpah lama biar tak terjaga,', 'Untung sendiri lebih diutamakan.'], r: ['ga', 'an'], k: ['ter', 'lu', 'pa', 'kan'] },
+    { s: ['Ke Marie Regal membeli kaca,', 'Kaca jendela istana raja.'], i: ['Biar gelombang tak kenal cuaca,', 'Layar dan dayung tetap bekerja.'],
+      bad: ['Biar gelombang tak kenal cuaca,', 'Kawan disuruh, aku bersantai saja.'], r: ['ca', 'ja'], k: ['be', 'ker', 'ja'] }
+  ];
+  var PT_LOCK_KEY = 'mtg_pantun_lock';
+  var ptLockMem = 0;
+  function ptLockUntil() { var v = ptLockMem; try { v = Math.max(v, +localStorage.getItem(PT_LOCK_KEY) || 0); } catch (e) {} return v; }
+  function ptSetLock(ms) { ptLockMem = ms; try { localStorage.setItem(PT_LOCK_KEY, String(ms)); } catch (e) {} }
+  function lastWord(line) { var m = String(line).replace(/[.,!?;:]+$/, '').match(/(\S+)$/); return m ? m[1] : ''; }
+  function ptLineHtml(line, cls, delay0, animate) {
+    var words = String(line).split(' '), out = '', d = delay0 || 0;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i], isLast = i === words.length - 1, m = isLast ? w.match(/^(.*?)([.,!?;:]*)$/) : null;
+      var inner = isLast && cls ? '<span class="' + cls + '">' + esc(m[1]) + '</span>' + esc(m[2]) : esc(w);
+      out += animate ? '<span class="w" style="animation-delay:' + d.toFixed(2) + 's">' + inner + '</span>' : '<span class="w" style="animation:none;opacity:1;transform:none">' + inner + '</span>';
+      d += 0.07;
+    }
+    return { html: out, end: d };
+  }
+
+  GAMES.pantun = {
+    title: 'Balas Pantun Adat', kicker: 'Balai Adat · Sunda Empire',
+    create: function (S, opts) {
+      var ROUNDS = 5, PASS = opts.pass || 4, COOLDOWN = (opts.cooldownSec != null ? opts.cooldownSec : 60) * 1000;
+      var gov = opts.npc || cityNpc('sunda_empire', 'Gubernur Sunda Empire', 'sunda_empire|syahbandar', 'Gubernur Sunda Empire');
+      var govName = gov.name || 'Gubernur', who = esc(govName) + (gov.title && gov.title !== govName ? ', ' + esc(gov.title) : '');
+      var G = { deck: [], round: 0, res: [], busy: false, cdTimer: 0 };
+      S.stage.innerHTML = '';
+      var deco = '<div class="pt-orn t"></div><div class="pt-lamp l"></div><div class="pt-lamp r"></div>';
+
+      function prog() { S.progress(S.pips(ROUNDS, G.res, G.round < ROUNDS ? G.round : -1)); }
+      function newDeck() {
+        var withK = shuffle(PANTUN.filter(function (p) { return p.k; }));
+        var fin = withK[0];
+        var rest = shuffle(PANTUN.filter(function (p) { return p !== fin; })).slice(0, ROUNDS - 1);
+        G.deck = rest.concat([fin]); G.round = 0; G.res = [];
+      }
+      function govSay(text) { return '<div class="pt-gov"><div class="mtg-face">' + faceHtml(gov) + '</div><div class="pt-bub"><b>' + esc(govName) + '</b>' + text + '</div></div>'; }
+
+      function showIntro() {
+        S.progress(S.pips(ROUNDS, [], -1));
+        S.stage.innerHTML = deco + '<div class="pt-wrap"></div>';
+        S.intro({
+          face: gov, kicker: 'Balai Adat &middot; Sunda Empire', title: 'Balas Pantun Adat',
+          quote: 'Di Balai Adat, perang dimulai dengan pantun, bukan meriam.', who: who,
+          steps: ['Gubernur membacakan <b>sampiran</b> &mdash; dua baris pertama pantun.',
+            'Pilih <b>isi</b> yang benar dari tiga pilihan: rimanya harus <b>a-b-a-b</b> dan maknanya pantas.',
+            'Ronde terakhir: <b>susun kata terakhir</b> dari kepingan kata.',
+            '5 pantun &mdash; lulus bila benar <b>minimal ' + PASS + '</b>.'],
+          controls: { desk: ['<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> pilih isi', '<kbd>Enter</kbd> lanjut'], touch: ['Ketuk pilihan &middot; ketuk kepingan kata'] },
+          cta: 'Duduk di Balai Adat'
+        }, function () { if (ptLockUntil() > Date.now()) showFail(true); else start(); });
+      }
+      function start() { newDeck(); S.attempts = S.attempts || 0; nextRound(); }
+      function nextRound() {
+        S.keyDown = null;
+        if (G.round >= ROUNDS) return evaluate();
+        prog();
+        if (G.round === ROUNDS - 1) roundBuild(); else roundChoose();
+      }
+
+      /* ---------- ronde pilih isi ---------- */
+      function roundChoose() {
+        var P = G.deck[G.round];
+        var miss = shuffle(PANTUN.filter(function (q) { return q !== P && q.r[0] !== P.r[0] && q.r[1] !== P.r[1]; }))[0] || PANTUN[(PANTUN.indexOf(P) + 3) % PANTUN.length];
+        var opts3 = shuffle([{ t: 'ok', l: P.i }, { t: 'bad', l: P.bad }, { t: 'miss', l: miss.i }]);
+        var l1 = ptLineHtml(P.s[0], '', 0.25, true), l2 = ptLineHtml(P.s[1], '', l1.end + 0.15, true);
+        var intro = pick(['Dengarkan baik-baik, Kapten.', 'Sampiran kedua. Jawablah dengan hati.', 'Laut punya bahasanya sendiri. Balaslah.', 'Hampir sampai. Jangan tergesa.']);
+        if (G.round === 0) intro = 'Dengarkan baik-baik, Kapten. Balaslah dengan isi yang pantas.';
+        S.stage.innerHTML = deco + '<div class="pt-wrap">' + govSay(esc(intro)) +
+          '<div class="pt-scroll"><span class="pt-tag">Pantun ' + (G.round + 1) + ' / ' + ROUNDS + '</span>' +
+          '<div class="pt-line">' + l1.html + '</div><div class="pt-line">' + l2.html + '</div><div class="pt-div"></div>' +
+          '<div class="pt-line isi ph" id="ptL3">&middot; &middot; &middot; &middot; &middot;</div><div class="pt-line isi ph" id="ptL4">&middot; &middot; &middot; &middot; &middot;</div></div>' +
+          '<div class="pt-ask">Pilih isi pantun</div><div class="pt-opts"></div><div class="pt-note" hidden></div></div>';
+        talk(P.s.join(' '), 'gub-sunda');
+        var box = S.stage.querySelector('.pt-opts'), t0 = l2.end + 0.2;
+        opts3.forEach(function (o, idx) {
+          var b = h('button', 'pt-opt', '<span class="nn">' + (idx + 1) + '</span>' + esc(o.l[0]) + '<br>' + esc(o.l[1]));
+          b.type = 'button'; b.setAttribute('data-t', o.t); b.style.animationDelay = (t0 + idx * 0.12).toFixed(2) + 's';
+          b.onclick = function () { choose(o, b, P); };
+          box.appendChild(b);
+        });
+        G.busy = false;
+        S.keyDown = function (e) { var n = +e.key; if (n >= 1 && n <= 3 && !G.busy) { var bs = box.querySelectorAll('.pt-opt'); if (bs[n - 1]) bs[n - 1].click(); } };
+      }
+      function revealIsi(P, okLines) {
+        var l3 = document.getElementById('ptL3'), l4 = document.getElementById('ptL4');
+        var a = ptLineHtml(okLines[0], 'ra', 0, true), b = ptLineHtml(okLines[1], 'rb', a.end, true);
+        l3.className = 'pt-line isi'; l4.className = 'pt-line isi'; l3.innerHTML = a.html; l4.innerHTML = b.html;
+        // tandai rima di sampiran juga
+        var ls = S.stage.querySelectorAll('.pt-scroll .pt-line');
+        ls[0].innerHTML = ptLineHtml(P.s[0], 'ra', 0, false).html; ls[1].innerHTML = ptLineHtml(P.s[1], 'rb', 0, false).html;
+      }
+      function choose(o, btn, P) {
+        if (G.busy) return; G.busy = true;
+        var ok = o.t === 'ok';
+        S.stage.querySelectorAll('.pt-opt').forEach(function (b) { b.disabled = true; if (b !== btn) b.classList.add('dim'); });
+        btn.classList.remove('dim'); btn.classList.add(ok ? 'ok' : 'no');
+        if (!ok) { var cb2 = S.stage.querySelector('.pt-opt[data-t=ok]'); if (cb2) { cb2.classList.remove('dim'); cb2.classList.add('ok'); } }
+        G.res[G.round] = ok; prog();
+        if (ok) { au('success'); AX.bonang(587, 0.06); AX.bonang(784, 0.05, 0.1); } else { au('error'); vib(60); }
+        revealIsi(P, P.i);
+        var rimaTxt = '<b>-' + esc(P.r[0]) + '</b> / <b>-' + esc(P.r[1]) + '</b> / <b>-' + esc(P.r[0]) + '</b> / <b>-' + esc(P.r[1]) + '</b>';
+        var head, body;
+        if (ok) { head = pick(['Tepat!', 'Bagus, Kapten!', 'Pantun yang berbudi.']); body = 'Rima a-b-a-b ' + rimaTxt + ', dan isinya pantas diucapkan di Balai Adat.'; }
+        else if (o.t === 'bad') { head = 'Rimanya cocok, maknanya tidak'; body = 'Bunyinya memang a-b-a-b, tetapi isinya mengkhianati semangat pantun &mdash; di Balai Adat, pantun bicara keberanian dan kesetiaan.'; }
+        else { head = 'Maknanya baik, rimanya lari'; body = 'Isi itu tidak berima dengan sampiran. Yang benar: ' + rimaTxt + '.'; }
+        var note = S.stage.querySelector('.pt-note');
+        note.hidden = false; note.className = 'pt-note ' + (ok ? 'good' : 'bad');
+        note.innerHTML = '<h4>' + head + '</h4><div>' + body + '</div><button type="button" class="btn btn-gold" id="ptNext">' + (G.round === ROUNDS - 2 ? 'Ronde terakhir' : 'Pantun berikutnya') + ' <span class="kbd">Enter</span></button>';
+        var nb = document.getElementById('ptNext'); nb.onclick = function () { au('page'); G.round++; nextRound(); };
+        setTimeout(function () { try { note.scrollIntoView({ behavior: REDUCE ? 'auto' : 'smooth', block: 'nearest' }); } catch (e) {} if (!S.touch) try { nb.focus({ preventScroll: true }); } catch (e) {} }, 350);
+        S.keyDown = function (e) { if (e.key === 'Enter' && !e.repeat && document.activeElement !== nb) { e.preventDefault(); nb.click(); } };
+      }
+
+      /* ---------- ronde susun kata ---------- */
+      function roundBuild() {
+        var P = G.deck[G.round], target = P.k.join(''), lw = lastWord(P.i[1]);
+        var pool = [];
+        shuffle(PANTUN.filter(function (q) { return q !== P && q.k; })).forEach(function (q) { q.k.forEach(function (sy) { if (P.k.indexOf(sy) < 0 && pool.indexOf(sy) < 0) pool.push(sy); }); });
+        var tiles = shuffle(P.k.map(function (sy, i) { return { s: sy, id: 'k' + i }; }).concat(pool.slice(0, P.k.length > 3 ? 3 : 2).map(function (sy, i) { return { s: sy, id: 'd' + i }; })));
+        var line4 = P.i[1].replace(new RegExp(lw.replace(/[-]/g, '\\-') + '([.,!?;:]*)$'), '%%BLANK%%$1');
+        var l1 = ptLineHtml(P.s[0], 'ra', 0.2, true), l2 = ptLineHtml(P.s[1], 'rb', l1.end, true), l3 = ptLineHtml(P.i[0], 'ra', l2.end + 0.1, true);
+        var l4 = ptLineHtml(line4, '', l3.end, true);
+        S.stage.innerHTML = deco + '<div class="pt-wrap">' + govSay('Ronde terakhir. Pantunku kehilangan kata penutupnya &mdash; <i>susunlah dari kepingan ini.</i>') +
+          '<div class="pt-scroll"><span class="pt-tag">Pantun ' + ROUNDS + ' / ' + ROUNDS + '</span>' +
+          '<div class="pt-line">' + l1.html + '</div><div class="pt-line">' + l2.html + '</div><div class="pt-div"></div>' +
+          '<div class="pt-line isi">' + l3.html + '</div><div class="pt-line isi">' + l4.html.replace('%%BLANK%%', '<span class="pt-blank" id="ptBlank">&nbsp;</span>') + '</div></div>' +
+          '<div class="pt-hint">Kata ini harus berima dengan &laquo;<b>' + esc(lastWord(P.s[1])) + '</b>&raquo; dan menutup maknanya.</div>' +
+          '<div class="pt-tiles"></div><div class="pt-acts"><button type="button" class="btn" id="ptClr">Hapus</button><button type="button" class="btn btn-gold" id="ptGo" disabled>Kirim</button></div>' +
+          '<div class="pt-note" hidden></div></div>';
+        talk(P.s.join(' '), 'gub-sunda');
+        var chosen = [], tb = S.stage.querySelector('.pt-tiles'), blank = document.getElementById('ptBlank'), go = document.getElementById('ptGo'), clr = document.getElementById('ptClr');
+        tiles.forEach(function (t, i) {
+          var b = h('button', 'pt-tile', esc(t.s)); b.type = 'button'; b.style.animationDelay = (l4.end + 0.1 + i * 0.06).toFixed(2) + 's';
+          b.onclick = function () { if (G.busy || b.disabled) return; chosen.push({ t: t, b: b }); b.disabled = true; au('click'); paint(); };
+          tb.appendChild(b);
+        });
+        function paint() {
+          blank.innerHTML = chosen.length ? chosen.map(function (c, i) { return '<span class="pc" data-i="' + i + '">' + esc(c.t.s) + '</span>'; }).join('') : '&nbsp;';
+          blank.querySelectorAll('.pc').forEach(function (pc) { pc.onclick = function () { if (G.busy) return; var i = +pc.getAttribute('data-i'); var rm = chosen.splice(i, 1)[0]; rm.b.disabled = false; paint(); }; });
+          go.disabled = !chosen.length;
+        }
+        clr.onclick = function () { if (G.busy) return; chosen.forEach(function (c) { c.b.disabled = false; }); chosen = []; paint(); };
+        go.onclick = function () {
+          if (G.busy || !chosen.length) return; G.busy = true;
+          var ans = chosen.map(function (c) { return c.t.s; }).join(''), ok = ans === target;
+          G.res[G.round] = ok; prog();
+          tb.querySelectorAll('.pt-tile').forEach(function (b) { b.disabled = true; }); go.disabled = true; clr.disabled = true;
+          if (ok) { blank.className = 'pt-blank ok'; blank.textContent = target; au('success'); AX.shimmer(); }
+          else { blank.className = 'pt-blank no'; blank.textContent = ans; au('error'); vib(60); }
+          var note = S.stage.querySelector('.pt-note'); note.hidden = false; note.className = 'pt-note ' + (ok ? 'good' : 'bad');
+          note.innerHTML = '<h4>' + (ok ? 'Pantun lengkap!' : 'Belum tepat') + '</h4><div>' + (ok ? 'Kata penutup &laquo;' + esc(target) + '&raquo; mengunci rima <b>-' + esc(P.r[1]) + '</b>.' : 'Kata yang benar: <b>' + esc(target) + '</b> &mdash; berima <b>-' + esc(P.r[1]) + '</b> dengan &laquo;' + esc(lastWord(P.s[1])) + '&raquo;.') +
+            '</div><button type="button" class="btn btn-gold" id="ptNext">Dengar keputusan Gubernur <span class="kbd">Enter</span></button>';
+          var nb = document.getElementById('ptNext'); nb.onclick = function () { G.round++; nextRound(); };
+          setTimeout(function () { try { note.scrollIntoView({ behavior: REDUCE ? 'auto' : 'smooth', block: 'nearest' }); } catch (e) {} if (!S.touch) try { nb.focus({ preventScroll: true }); } catch (e) {} }, 300);
+          S.keyDown = function (e) { if (e.key === 'Enter' && !e.repeat && document.activeElement !== nb) { e.preventDefault(); nb.click(); } };
+        };
+        G.busy = false;
+        S.keyDown = function (e) {
+          if (G.busy) return;
+          if (e.key === 'Backspace' && chosen.length) { e.preventDefault(); var rm = chosen.pop(); rm.b.disabled = false; paint(); }
+          else if (e.key === 'Enter' && !e.repeat && !go.disabled && document.activeElement !== go) { e.preventDefault(); go.click(); }
+        };
+      }
+
+      /* ---------- hasil ---------- */
+      function score() { return G.res.filter(function (x) { return x === true; }).length; }
+      function evaluate() {
+        var sc = score();
+        prog();
+        if (sc >= PASS) {
+          S.win({ perfect: sc === ROUNDS, score: sc }, {
+            face: gov, kicker: 'Sunda Empire bergabung', title: 'Genderang Ikut Berlayar',
+            badge: sc === ROUNDS ? 'Sempurna &middot; 5 dari 5' : null,
+            quote: 'Sunda Empire tidak lupa siapa yang membebaskan TooGood. Genderang kami ikut berlayar.', who: who,
+            stats: [['Pantun benar', sc + ' / ' + ROUNDS]]
+          });
+        } else {
+          S.fail({ score: sc });
+          ptSetLock(Date.now() + COOLDOWN);
+          showFail(false);
+        }
+      }
+      function teaSvg() {
+        return '<svg viewBox="0 0 128 128"><circle cx="64" cy="64" r="58" fill="none" stroke="rgba(143,101,34,.22)" stroke-width="6"/>' +
+          '<circle id="ptRing" cx="64" cy="64" r="58" fill="none" stroke="#b8862b" stroke-width="6" stroke-linecap="round" stroke-dasharray="364.4" stroke-dashoffset="0" transform="rotate(-90 64 64)"/>' +
+          '<path class="pt-steam" d="M52 44c-4-6 4-9 0-15"/><path class="pt-steam b" d="M64 42c-4-6 4-9 0-15"/><path class="pt-steam c" d="M76 44c-4-6 4-9 0-15"/>' +
+          '<path d="M38 56h52v8c0 14-11 24-26 24s-26-10-26-24z" fill="#f4e7c8" stroke="#8f6522" stroke-width="2.5"/><path d="M90 60c10 0 10 14-1 15" fill="none" stroke="#8f6522" stroke-width="2.5"/>' +
+          '<ellipse cx="64" cy="57" rx="24" ry="4" fill="#a0602a" opacity=".75"/><path d="M48 92h32" stroke="#8f6522" stroke-width="3" stroke-linecap="round"/></svg>';
+      }
+      function showFail(fromLock) {
+        clearInterval(G.cdTimer);
+        var sc = score();
+        S.card({
+          cls: 'bad', face: gov, kicker: fromLock ? 'Teh belum habis' : 'Belum lulus &middot; ' + sc + ' dari ' + ROUNDS,
+          title: 'Duduk Dulu, Kapten', quote: 'Belum, Kapten. Duduklah dulu, minum teh, lalu coba lagi.', who: who,
+          html: '<div class="pt-tea">' + teaSvg() + '<div class="cd" id="ptCd">60</div></div>',
+          buttons: [{ label: 'Coba lagi', primary: true, id: 'ptRetry', disabled: true, onClick: function () { clearInterval(G.cdTimer); S.hideCard(); start(); } },
+            { label: 'Keluar', cls: 'btn-lg btn-ghost', onClick: function () { S.exit(); } }]
+        });
+        var ring = document.getElementById('ptRing'), cd = document.getElementById('ptCd'), rb = document.getElementById('ptRetry');
+        var total = Math.max(1, COOLDOWN);
+        function upd() {
+          var left = ptLockUntil() - Date.now();
+          if (left <= 0) { clearInterval(G.cdTimer); if (cd) cd.textContent = 'Siap'; if (ring) ring.setAttribute('stroke-dashoffset', '364.4'); if (rb) { rb.disabled = false; if (!S.touch) try { rb.focus({ preventScroll: true }); } catch (e) {} } return; }
+          if (cd) cd.textContent = Math.ceil(left / 1000) + ' dtk';
+          if (ring) ring.setAttribute('stroke-dashoffset', String(364.4 * (1 - left / total)));
+        }
+        upd(); G.cdTimer = setInterval(function () { if (S.done) { clearInterval(G.cdTimer); return; } upd(); }, 250);
+      }
+
+      showIntro();
+      return {
+        destroy: function () { clearInterval(G.cdTimer); },
+        debugWin: function () { S.hideCard(); if (!G.deck.length) newDeck(); G.res = [true, true, true, true, true]; G.round = ROUNDS; evaluate(); },
+        debugFail: function () { S.hideCard(); if (!G.deck.length) newDeck(); G.res = [true, false, true, false, false]; G.round = ROUNDS; evaluate(); },
+        bank: PANTUN, _G: G
+      };
+    }
+  };
+
+  /* =====================================================================
+   * 2) MATA SYAHBANDAR — Joungjava, Kantor Syahbandar
+   *    Teropong: 5–6 kapal lewat, satu penyamar BarSaTi berbeda sedikit dari
+   *    manifes. Ketuk/klik untuk menuduh. 3 ronde, maks 2 salah per ronde.
+   * ===================================================================== */
+  var FLEET = [
+    { n: 'Sri Kencana', hull: '#7a2a1c', hullN: 'merah marun', trim: '#e0b64c', trimN: 'emas', sail: '#f3e9d2', sailN: 'krem', flag: '#b0302a', flagN: 'merah', em: 'anchor', emc: '#f6e7c0', emN: 'jangkar', masts: 3 },
+    { n: 'Dewi Samudra', hull: '#1f4a5a', hullN: 'biru laut', trim: '#d9c08a', trimN: 'kuningan', sail: '#f4f6f2', sailN: 'putih', flag: '#1d5f8c', flagN: 'biru', em: 'star', emc: '#ffe08a', emN: 'bintang', masts: 3 },
+    { n: 'Bintang Joung', hull: '#2e4a2a', hullN: 'hijau tua', trim: '#c9a04a', trimN: 'emas', sail: '#efe2c2', sailN: 'krem', flag: '#2f7a3a', flagN: 'hijau', em: 'crescent', emc: '#fff3d0', emN: 'bulan sabit', masts: 2 },
+    { n: 'Mutiara Timur', hull: '#d8cfb8', hullN: 'gading', trim: '#8a5a2a', trimN: 'cokelat', sail: '#fbf6ea', sailN: 'putih', flag: '#6a2a6a', flagN: 'ungu', em: 'sun', emc: '#ffd36a', emN: 'matahari terbit', masts: 3 },
+    { n: 'Elang Laut', hull: '#3a2a20', hullN: 'cokelat tua', trim: '#c9a04a', trimN: 'emas', sail: '#dcc394', sailN: 'kuning gading', flag: '#c9622a', flagN: 'jingga', em: 'arrow', emc: '#fff1d0', emN: 'mata panah', masts: 2 },
+    { n: 'Kencana Wungu', hull: '#4a2a5a', hullN: 'ungu tua', trim: '#e0b64c', trimN: 'emas', sail: '#efe6d6', sailN: 'krem', flag: '#e0b64c', flagN: 'kuning emas', em: 'keris', emc: '#4a2a5a', emN: 'keris', masts: 3 },
+    { n: 'Putri Malam', hull: '#1e2a3a', hullN: 'biru malam', trim: '#b8c4d0', trimN: 'perak', sail: '#e8e0d0', sailN: 'krem', flag: '#a8202a', flagN: 'merah', em: 'star', emc: '#ffffff', emN: 'bintang', masts: 2 },
+    { n: 'Garuda Muda', hull: '#6b4226', hullN: 'cokelat kayu', trim: '#e0b64c', trimN: 'emas', sail: '#f2e8d0', sailN: 'krem', flag: '#d4a020', flagN: 'kuning', em: 'anchor', emc: '#3a2410', emN: 'jangkar', masts: 3 },
+    { n: 'Rara Ombak', hull: '#2a5a5a', hullN: 'hijau toska', trim: '#e8d7a8', trimN: 'gading', sail: '#f3e9d2', sailN: 'krem bergaris merah', stripe: '#c03a2a', flag: '#c03a2a', flagN: 'merah', em: 'crescent', emc: '#ffffff', emN: 'bulan sabit', masts: 2 }
+  ];
+  var MASTS = { 3: [{ x: 30, top: -112 }, { x: 2, top: -130 }, { x: -30, top: -96 }], 2: [{ x: 20, top: -110 }, { x: -14, top: -124 }] };
+  var SY_REVEAL = {
+    gagak: 'Gagak mesin hitam bertengger di tiang!',
+    lambung: 'Lambungnya dicat ulang separuh!',
+    bendera: 'Lambang benderanya terbalik!',
+    tiang: null
+  };
+  function syHullPath(c) {
+    c.beginPath(); c.moveTo(-60, -27); c.lineTo(-50, -25); c.quadraticCurveTo(-8, -11, 46, -18); c.lineTo(57, -23);
+    c.quadraticCurveTo(58, -8, 45, 4); c.quadraticCurveTo(0, 12, -46, 6); c.quadraticCurveTo(-57, 0, -60, -27); c.closePath();
+  }
+  /** Lambang bendera (asimetris atas-bawah supaya "terbalik" terlihat). Digambar di (0,0). */
+  function syEmblem(c, e, r, col, bg) {
+    c.fillStyle = col; c.strokeStyle = col; c.lineCap = 'round'; c.lineJoin = 'round';
+    if ((e === 'anchor' || e === 'star' || e === 'crescent') && window.MTShip && MTShip.drawEmblem) { MTShip.drawEmblem(c, e, 0, 0, r, col, bg); return; }
+    if (e === 'anchor') {
+      c.lineWidth = r * 0.24; c.beginPath(); c.moveTo(0, -r * 0.75); c.lineTo(0, r * 0.8); c.moveTo(-r * 0.45, -r * 0.35); c.lineTo(r * 0.45, -r * 0.35); c.stroke();
+      c.beginPath(); c.arc(0, r * 0.1, r * 0.72, 0.35, Math.PI - 0.35); c.stroke(); c.beginPath(); c.arc(0, -r * 0.92, r * 0.2, 0, 6.3); c.stroke();
+    } else if (e === 'star') {
+      c.beginPath(); for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * 0.42 : r; if (i) c.lineTo(Math.cos(a) * q, Math.sin(a) * q); else c.moveTo(Math.cos(a) * q, Math.sin(a) * q); } c.closePath(); c.fill();
+    } else if (e === 'crescent') {
+      c.beginPath(); c.arc(0, 0, r * 0.8, 0, 6.3); c.fill(); c.fillStyle = bg; c.beginPath(); c.arc(r * 0.32, -r * 0.12, r * 0.66, 0, 6.3); c.fill();
+    } else if (e === 'sun') {
+      c.beginPath(); c.arc(0, r * 0.3, r * 0.55, Math.PI, 0); c.closePath(); c.fill();
+      c.lineWidth = r * 0.16;
+      for (var k = 0; k < 5; k++) { var aa = Math.PI + (k + 0.5) * Math.PI / 5; c.beginPath(); c.moveTo(Math.cos(aa) * r * 0.72, r * 0.3 + Math.sin(aa) * r * 0.72); c.lineTo(Math.cos(aa) * r * 1.02, r * 0.3 + Math.sin(aa) * r * 1.02); c.stroke(); }
+      c.fillRect(-r * 0.95, r * 0.42, r * 1.9, r * 0.16); c.fillRect(-r * 0.6, r * 0.7, r * 1.2, r * 0.14);
+    } else if (e === 'arrow') {
+      c.beginPath(); c.moveTo(0, -r); c.lineTo(r * 0.62, -r * 0.2); c.lineTo(r * 0.2, -r * 0.2); c.lineTo(r * 0.2, r * 0.9); c.lineTo(-r * 0.2, r * 0.9); c.lineTo(-r * 0.2, -r * 0.2); c.lineTo(-r * 0.62, -r * 0.2); c.closePath(); c.fill();
+    } else if (e === 'keris') {
+      c.beginPath(); c.moveTo(0, -r * 1.05);
+      c.quadraticCurveTo(r * 0.32, -r * 0.75, r * 0.12, -r * 0.45); c.quadraticCurveTo(-r * 0.06, -r * 0.2, r * 0.18, r * 0.05); c.quadraticCurveTo(r * 0.3, r * 0.2, r * 0.16, r * 0.32);
+      c.lineTo(-r * 0.16, r * 0.32); c.quadraticCurveTo(-r * 0.32, r * 0.12, -r * 0.12, -r * 0.08); c.quadraticCurveTo(r * 0.08, -r * 0.32, -r * 0.14, -r * 0.55); c.quadraticCurveTo(-r * 0.3, -r * 0.8, 0, -r * 1.05); c.fill();
+      c.fillRect(-r * 0.5, r * 0.32, r, r * 0.16); c.fillRect(-r * 0.12, r * 0.48, r * 0.24, r * 0.48);
+    }
+  }
+  /** Bendera besar milik mini-game (menutupi bendera bawaan MTShip). Koordinat lokal kapal. */
+  function syFlag(c, masts, F, t, dir, flip) {
+    var M = MASTS[masts][1], x0 = M.x, y0 = M.top - 14, fw = 28, fh = 18;
+    c.strokeStyle = '#3b2616'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x0, M.top); c.lineTo(x0, y0 - 3); c.stroke();
+    function pt(u, v) { return [x0 - u * fw, y0 + v * fh + Math.sin(t * 3.4 + u * 3.6) * 1.5 * u]; }
+    c.fillStyle = F.flag; c.beginPath();
+    var P = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    for (var i = 0; i < 4; i++) { var a = P[i], b = P[(i + 1) % 4]; for (var k = 0; k < 6; k++) { var q = k / 6, p = pt(a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q); if (!i && !k) c.moveTo(p[0], p[1]); else c.lineTo(p[0], p[1]); } }
+    c.closePath(); c.fill(); c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 0.6; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(x0 - fw, y0 + 1, fw, 2);
+    var ec = pt(0.44, 0.5);
+    c.save(); c.translate(ec[0], ec[1]); if (dir < 0) c.scale(-1, 1); if (flip) c.scale(1, -1);
+    syEmblem(c, F.em, 5.8, F.emc, F.flag); c.restore();
+    return ec;
+  }
+  function syRaven(c, masts, lvl, t) {
+    var M = MASTS[masts][0], k = [1.3, 1.0, 0.72][lvl] || 1, x = M.x, y = M.top + 1;
+    c.save(); c.translate(x, y); c.scale(k, k);
+    var flap = Math.max(0, Math.sin(t * 2.2)) > 0.97 ? -0.6 : 0;
+    c.fillStyle = '#111014';
+    c.beginPath(); c.moveTo(-9, -5); c.lineTo(-4, -6.5); c.lineTo(-4, -3.5); c.closePath(); c.fill(); // ekor
+    c.beginPath(); c.ellipse(0, -6, 6, 3.6, -0.15, 0, 6.3); c.fill(); // badan
+    c.beginPath(); c.arc(5, -9, 2.8, 0, 6.3); c.fill(); // kepala
+    c.fillStyle = '#4a4d55'; c.beginPath(); c.moveTo(7.4, -9.6); c.lineTo(11.5, -8.6); c.lineTo(7.4, -7.8); c.closePath(); c.fill(); // paruh logam
+    c.save(); c.rotate(flap); c.fillStyle = '#26262c'; c.beginPath(); c.moveTo(-3, -7.5); c.quadraticCurveTo(1, -12, 4, -7.2); c.quadraticCurveTo(0, -5.5, -3, -7.5); c.fill();
+    c.strokeStyle = '#6a6e78'; c.lineWidth = 0.45; c.beginPath(); c.moveTo(-1.5, -8.2); c.lineTo(2.6, -8.6); c.moveTo(-0.5, -9.4); c.lineTo(2.4, -9.6); c.stroke(); c.restore();
+    c.strokeStyle = '#3a3a40'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(-0.5, -3); c.lineTo(-1, 0); c.moveTo(1.5, -3); c.lineTo(1.5, 0); c.stroke(); // kaki
+    var gl = 0.7 + 0.3 * Math.sin(t * 6);
+    c.fillStyle = 'rgba(255,60,40,' + (0.35 * gl) + ')'; c.beginPath(); c.arc(5.8, -9.6, 2.4, 0, 6.3); c.fill();
+    c.fillStyle = '#ff3a26'; c.beginPath(); c.arc(5.8, -9.6, 0.9, 0, 6.3); c.fill();
+    c.restore();
+  }
+  function syRepaint(c, F, lvl) {
+    var alt = lvl === 0 ? (F.alt0 || '#d8cfb8') : lvl === 1 ? (F.alt1 || shadeHex(F.hull, 55)) : shadeHex(F.hull, F.hull === '#d8cfb8' ? -34 : 30);
+    c.save(); syHullPath(c); c.clip();
+    c.fillStyle = alt; c.fillRect(-70, -40, 66, 60);
+    c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 0.5;
+    for (var yy = -22; yy < 8; yy += 5) { c.beginPath(); c.moveTo(-64, yy); c.lineTo(-4, yy + 2); c.stroke(); }
+    c.fillStyle = alt; for (var d = 0; d < 4; d++) { var dx = -4 + (d % 2) * 1.2, dy = -18 + d * 6; c.beginPath(); c.ellipse(dx + 0.6, dy, 0.9, 2.2 + d % 2, 0, 0, 6.3); c.fill(); }
+    c.strokeStyle = F.trim; c.lineWidth = 1.6; c.beginPath();
+    for (var u = 0; u <= 1.001; u += 0.05) { var wx = (1 - u) * (1 - u) * -62 + 2 * (1 - u) * u * -8 + u * u * 60, wy = (1 - u) * (1 - u) * -17 + 2 * (1 - u) * u * -3 + u * u * -12; if (wx > -4) break; if (u === 0) c.moveTo(wx, wy); else c.lineTo(wx, wy); }
+    c.stroke(); c.restore();
+  }
+  function syFallbackShip(c, x, y, s, o) {
+    c.save(); c.translate(x, y); c.rotate(o.roll || 0); c.scale(s * o.dir, s);
+    var M = MASTS[o.masts];
+    for (var i = 0; i < M.length; i++) { c.fillStyle = '#4a2f1a'; c.fillRect(M[i].x - 1.6, M[i].top, 3.2, -M[i].top - 14); c.fillStyle = o.sail; c.fillRect(M[i].x - 20, M[i].top + 14, 40, 24); c.fillRect(M[i].x - 24, M[i].top + 44, 48, 30); }
+    syHullPath(c); c.fillStyle = o.hull; c.fill(); c.strokeStyle = o.trim; c.lineWidth = 2; c.beginPath(); c.moveTo(-60, -20); c.quadraticCurveTo(0, -6, 56, -15); c.stroke();
+    c.restore();
+  }
+  /** Gambar satu kapal konvoi lengkap (MTShip + detail mini-game). */
+  function syShip(c, F, diff, lvl, x, y, s, dir, t, phase) {
+    var masts = diff === 'tiang' ? (F.masts === 3 ? 2 : 3) : F.masts, roll = Math.sin(t * 1.1 + phase) * 0.018, tt = t + phase;
+    var o = { dir: dir, t: tt, hull: F.hull, trim: F.trim, sail: F.sail, flag: F.flag, emblem: 'none', flagShape: 'rect', masts: masts, roll: roll, sizeK: 1,
+      pennant: F.trim, studding: masts >= 3 ? 1 : 0, bands: true, ports: masts >= 3 ? 5 : 4, sailStripe: F.stripe || null };
+    if (window.MTShip && MTShip.draw) { MTShip.draw(c, x, y, s, o); if (MTShip.foam) MTShip.foam(c, x, y, s, dir, tt, 0.6, 0.8); }
+    else syFallbackShip(c, x, y, s, o);
+    c.save(); c.translate(x, y); c.rotate(roll); c.scale(s * dir, s);
+    if (diff === 'lambung') syRepaint(c, F, lvl);
+    syFlag(c, masts, F, tt, dir, diff === 'bendera');
+    if (diff === 'gagak') syRaven(c, masts, lvl, tt);
+    c.restore();
+  }
+  function syDiffSpot(F, diff) {
+    var masts = diff === 'tiang' ? (F.masts === 3 ? 2 : 3) : F.masts, M = MASTS[masts];
+    if (diff === 'gagak') return [M[0].x + 2, M[0].top - 8];
+    if (diff === 'bendera') return [M[1].x - 12, M[1].top - 5];
+    if (diff === 'lambung') return [-32, -10];
+    return [0, -62];
+  }
+
+  GAMES.syahbandar = {
+    title: 'Mata Syahbandar', kicker: 'Kantor Syahbandar · Joungjava',
+    create: function (S, opts) {
+      var ROUNDS = 3, MAXM = opts.maxMistakes != null ? opts.maxMistakes : 2;
+      var gov = opts.npc || cityNpc('joungjava', 'Gubernur Joungjava', 'joungjava|syahbandar', 'Gubernur Joungjava');
+      var who = esc(gov.name || 'Gubernur') + (gov.title && gov.title !== gov.name ? ', ' + esc(gov.title) : '');
+      var G = { round: 0, state: 'idle', ships: [], mistakes: 0, totalMist: 0, res: [], usedDiff: [], spy: null, flash: [], lens: null, freeze: 1, reveal: null, open: false, sky: null, skyKey: '', t: 0 };
+      S.stage.innerHTML = '';
+      var K = S.canvas();
+      var side = h('div', 'sy-side', '<div class="sh"><div style="flex:1"><b>Buku Manifes</b><br><span>Kapal resmi hari ini</span></div><button type="button" aria-label="Tutup manifes">' + SVG.down + '</button></div><div class="sy-list"></div>');
+      var tab = h('div', 'sy-tab', '<button type="button" class="btn btn-gold">' + SVG.book + ' Buku Manifes <span class="kbd">M</span></button>');
+      var help = h('div', 'sy-help', '');
+      S.stage.appendChild(help); S.stage.appendChild(tab); S.stage.appendChild(side);
+      side.querySelector('.sh button').onclick = function () { toggle(false); };
+      tab.querySelector('button').onclick = function () { toggle(true); };
+      function toggle(v) { G.open = v == null ? !G.open : v; S.root.classList.toggle('sy-open', G.open); au('page'); }
+      function wide() { try { return matchMedia('(min-width: 820px) and (min-aspect-ratio: 1/1)').matches; } catch (e) { return K.W > 820 && K.W >= K.H; } }
+
+      function prog() {
+        var m = ''; for (var i = 0; i < MAXM + 1; i++) m += i < G.mistakes ? '&#10005;' : '&#9675;';
+        S.progress(S.pips(ROUNDS, G.res, G.round) + '<span class="mtg-chip' + (G.mistakes ? ' bad' : '') + '" title="Salah tunjuk (maks ' + MAXM + ')">' + m + '</span>');
+      }
+      function helpText() {
+        help.innerHTML = S.touch ? 'Ketuk kapal penyamar. <b>Tahan &amp; geser</b> untuk teropong pembesar.' : 'Klik kapal penyamar. <b>Arahkan mouse</b> untuk teropong pembesar.';
+      }
+
+      /* ---------- ronde ---------- */
+      function chooseDiff(r) {
+        var opt = r === 0 ? ['gagak', 'lambung'] : r === 1 ? ['tiang', 'lambung', 'gagak'] : (Math.random() < 0.7 ? ['bendera'] : ['bendera', 'tiang', 'gagak', 'lambung']);
+        var f = opt.filter(function (d) { return G.usedDiff.indexOf(d) < 0; }); return pick(f.length ? f : opt);
+      }
+      function startRound(r) {
+        G.round = r; G.mistakes = 0; G.flash = []; G.reveal = null; G.freeze = 1; G.state = 'play';
+        var n = r === 0 ? 5 : 6, nFar = r === 0 ? 0 : r === 1 ? 2 : 3;
+        var pickF = shuffle(FLEET).slice(0, n), diff = G.usedDiff[r] || chooseDiff(r); G.usedDiff[r] = diff;
+        var spyIdx = Math.floor(Math.random() * n), lvl = r;
+        // penyamar dengan perbedaan halus berada di lajur dekat
+        var nearIdx = []; for (var q = 0; q < n - nFar; q++) nearIdx.push(q);
+        var lanes = shuffle(pickF.map(function (_, i) { return i < n - nFar ? 0 : 1; }));
+        if ((diff === 'bendera' || diff === 'lambung') && lanes[spyIdx] === 1) { var sw = lanes.indexOf(0); lanes[sw] = 1; lanes[spyIdx] = 0; }
+        var cnt = [0, 0];
+        G.ships = pickF.map(function (F, i) {
+          var ln = lanes[i], idx = cnt[ln]++;
+          var Fx = F; if (i === spyIdx && diff === 'lambung') { Fx = Object.assign({}, F, { alt0: F.hull === '#d8cfb8' ? '#2e4a2a' : '#d8cfb8', alt1: shadeHex(F.hull, F.hull === '#d8cfb8' ? -60 : 60) }); }
+          return { F: Fx, diff: i === spyIdx ? diff : null, lvl: lvl, lane: ln, idx: idx, phase: Math.random() * 6, spy: i === spyIdx, x: 0, y: 0, s: 1, dir: ln ? 1 : -1, wrong: 0 };
+        });
+        G.laneN = cnt; G.u = [Math.random() * 0.3, Math.random() * 0.3];
+        G.spy = G.ships[spyIdx];
+        G.speed = [0.15, 0.2, 0.26][r] * (opts.speed || 1);
+        buildManifest(); prog(); helpText();
+        if (r === 0 && !G.autoOpened && !wide()) { G.autoOpened = true; G.open = true; S.root.classList.add('sy-open'); }
+        S.msg(r === 0 ? 'Ronde 1 &mdash; cari kapal yang tak sesuai manifes' : r === 1 ? 'Ronde 2 &mdash; dua lajur, kapal lebih cepat' : 'Ronde 3 &mdash; perbedaannya makin halus', 'good', 2600);
+      }
+      function buildManifest() {
+        var list = side.querySelector('.sy-list');
+        var ents = shuffle(G.ships.map(function (s) { return s.F; }));
+        list.innerHTML = '<div style="font-size:.84em;font-style:italic;color:#6a4a20;padding:0 4px">Catatan Syahbandar: kapal resmi tidak membawa burung apa pun di tiangnya.</div>' + ents.map(function (F, i) {
+          return '<div class="sy-ent"><canvas data-i="' + i + '" width="264" height="168"></canvas><div><div class="nm">' + esc(F.n) + '</div><ul>' +
+            '<li><b>' + F.masts + ' tiang</b></li><li>Lambung ' + esc(F.hullN) + ', lis ' + esc(F.trimN) + '</li>' +
+            '<li>Bendera ' + esc(F.flagN) + ' &middot; ' + esc(F.emN) + ' <canvas class="fl" data-f="' + i + '" width="68" height="44"></canvas></li><li>Layar ' + esc(F.sailN) + '</li></ul></div></div>';
+        }).join('');
+        list.querySelectorAll('canvas[data-i]').forEach(function (cv) {
+          var F = ents[+cv.getAttribute('data-i')], c = cv.getContext('2d');
+          c.setTransform(2, 0, 0, 2, 0, 0); c.clearRect(0, 0, 132, 84);
+          var g = c.createLinearGradient(0, 0, 0, 84); g.addColorStop(0, 'rgba(160,200,215,.35)'); g.addColorStop(0.7, 'rgba(120,170,190,.25)'); g.addColorStop(0.71, 'rgba(60,110,130,.35)'); g.addColorStop(1, 'rgba(40,90,110,.35)');
+          c.fillStyle = g; rr(c, 1, 1, 130, 82, 6); c.fill();
+          c.save(); rr(c, 1, 1, 130, 82, 6); c.clip(); syShip(c, F, null, 0, 62, 70, 0.47, 1, 0.6, 0); c.restore();
+        });
+        list.querySelectorAll('canvas[data-f]').forEach(function (cv) {
+          var F = ents[+cv.getAttribute('data-f')], c = cv.getContext('2d');
+          c.setTransform(2, 0, 0, 2, 0, 0); c.fillStyle = F.flag; c.fillRect(1, 2, 32, 18); c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 0.8; c.strokeRect(1, 2, 32, 18);
+          c.save(); c.translate(17, 11); syEmblem(c, F.em, 6.4, F.emc, F.flag); c.restore();
+        });
+      }
+
+      /* ---------- geometri ---------- */
+      function geo() {
+        var W = K.W, H = K.H, wd = wide(), R, cx, cy;
+        if (wd) { var avail = W - (G.open ? 400 : 0); R = Math.min(avail * 0.46, H * 0.46); cx = avail / 2; cy = H / 2; }
+        else { R = Math.min(W * 0.475, H * 0.36); cx = W / 2; cy = R + 12; S.root.style.setProperty('--sy-sheet', Math.max(200, H - (cy + R) - 4) + 'px'); }
+        var hy = cy - R * 0.26, sN = R / 205;
+        return { W: W, H: H, R: R, cx: cx, cy: cy, hy: hy, sN: sN, sF: sN * 0.64, yN: cy + R * 0.6, yF: hy + R * 0.25, wide: wd };
+      }
+      var GE = null, lastGeoKey = '';
+      function place(dt) {
+        var g = GE, laneLen = [2 * g.R + 240 * g.sN, 2 * g.R + 240 * g.sF], sp = [178 * g.sN, 190 * g.sF];
+        for (var ln = 0; ln < 2; ln++) {
+          var n = G.laneN[ln]; if (!n) continue;
+          var P = Math.max(laneLen[ln] + sp[ln] * 0.6, n * sp[ln]);
+          G.u[ln] += dt * g.R * G.speed * (ln ? 0.72 : 1) * G.freeze;
+          G.ships.forEach(function (s) {
+            if (s.lane !== ln) return;
+            var u = ((G.u[ln] * 1 + (n - 1 - s.idx) * sp[ln]) % P + P) % P;
+            s.s = ln ? g.sF : g.sN; s.y = ln ? g.yF : g.yN;
+            var edge = g.R + 120 * s.s;
+            s.x = ln ? g.cx - edge + u : g.cx + edge - u;
+            s.vis = u < laneLen[ln];
+          });
+        }
+      }
+
+      /* ---------- seni latar ---------- */
+      function skyline(g) {
+        var key = Math.round(g.R) + 'x';
+        if (G.sky && G.skyKey === key) return G.sky;
+        var w = Math.ceil(g.R * 2), hh = Math.ceil(g.R * 0.42), cv = document.createElement('canvas'), dpr = Math.min(2, window.devicePixelRatio || 1);
+        cv.width = w * dpr; cv.height = hh * dpr; var c = cv.getContext('2d'); c.scale(dpr, dpr);
+        var r = window.MTUtil ? MTUtil.rng(77) : Math.random, base = hh;
+        c.fillStyle = '#9db3bf'; c.beginPath(); c.moveTo(0, base); c.quadraticCurveTo(w * 0.2, base - hh * 0.75, w * 0.42, base - hh * 0.3); c.quadraticCurveTo(w * 0.6, base - hh * 0.9, w * 0.85, base - hh * 0.35); c.lineTo(w, base - hh * 0.45); c.lineTo(w, base); c.fill();
+        c.fillStyle = '#8aa2ae'; c.beginPath(); c.moveTo(0, base); c.quadraticCurveTo(w * 0.3, base - hh * 0.45, w * 0.55, base - hh * 0.2); c.quadraticCurveTo(w * 0.8, base - hh * 0.5, w, base - hh * 0.25); c.lineTo(w, base); c.fill();
+        var x = w * 0.04;
+        while (x < w * 0.96) {
+          var kind = r(), bw = (0.035 + r() * 0.05) * w, bh = (0.16 + r() * 0.22) * hh;
+          if (kind < 0.45) { // rumah joglo atap terakota
+            c.fillStyle = '#e8dcc0'; c.fillRect(x, base - bh, bw, bh);
+            c.fillStyle = '#b4583a'; c.beginPath(); c.moveTo(x - bw * 0.12, base - bh); c.lineTo(x + bw * 0.25, base - bh - bh * 0.5); c.lineTo(x + bw * 0.75, base - bh - bh * 0.5); c.lineTo(x + bw * 1.12, base - bh); c.fill();
+            c.fillStyle = 'rgba(60,40,20,.35)'; for (var wi = 0; wi < 3; wi++) c.fillRect(x + bw * (0.15 + wi * 0.28), base - bh * 0.62, bw * 0.12, bh * 0.25);
+          } else if (kind < 0.7) { // gudang
+            c.fillStyle = '#c9b48a'; c.fillRect(x, base - bh * 0.8, bw * 1.3, bh * 0.8);
+            c.fillStyle = '#7a5a3a'; c.beginPath(); c.moveTo(x - 2, base - bh * 0.8); c.lineTo(x + bw * 0.65, base - bh * 1.2); c.lineTo(x + bw * 1.3 + 2, base - bh * 0.8); c.fill(); bw *= 1.3;
+          } else if (kind < 0.82) { // menara kubah
+            c.fillStyle = '#efe6d2'; c.fillRect(x + bw * 0.3, base - bh * 1.7, bw * 0.4, bh * 1.7);
+            c.fillStyle = '#4f8a6a'; c.beginPath(); c.arc(x + bw * 0.5, base - bh * 1.7, bw * 0.24, Math.PI, 0); c.fill();
+          } else if (kind < 0.92) { // derek pelabuhan
+            c.strokeStyle = '#5a4630'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(x + bw * 0.3, base); c.lineTo(x + bw * 0.3, base - bh * 1.8); c.lineTo(x + bw * 1.2, base - bh * 1.5); c.moveTo(x + bw * 1.0, base - bh * 1.55); c.lineTo(x + bw * 1.0, base - bh * 0.9); c.stroke();
+          } else { // pohon kelapa
+            c.strokeStyle = '#5a4630'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x + bw * 0.4, base); c.quadraticCurveTo(x + bw * 0.6, base - bh, x + bw * 0.5, base - bh * 1.6); c.stroke();
+            c.strokeStyle = '#3e6a3a'; c.lineWidth = 2; for (var pf = 0; pf < 5; pf++) { var a = -Math.PI + pf * 0.75; c.beginPath(); c.moveTo(x + bw * 0.5, base - bh * 1.6); c.quadraticCurveTo(x + bw * 0.5 + Math.cos(a) * bw * 0.5, base - bh * 1.8 + Math.sin(a) * 4, x + bw * 0.5 + Math.cos(a) * bw * 0.8, base - bh * 1.45); c.stroke(); }
+          }
+          x += bw + r() * w * 0.02;
+        }
+        // mercusuar kecil & dermaga
+        c.fillStyle = '#f4efe2'; c.fillRect(w * 0.9, base - hh * 0.85, w * 0.018, hh * 0.85); c.fillStyle = '#b4583a'; c.fillRect(w * 0.9, base - hh * 0.6, w * 0.018, hh * 0.08); c.fillRect(w * 0.896, base - hh * 0.92, w * 0.026, hh * 0.08);
+        c.fillStyle = '#6b4a2a'; c.fillRect(0, base - 3, w, 3);
+        G.sky = cv; G.skyKey = key; return cv;
+      }
+      function drawWorld(c, g, t) {
+        c.save(); c.beginPath(); c.arc(g.cx, g.cy, g.R, 0, 6.2832); c.clip();
+        var sk = c.createLinearGradient(0, g.cy - g.R, 0, g.hy);
+        sk.addColorStop(0, '#7fb6d6'); sk.addColorStop(0.65, '#cfe2e6'); sk.addColorStop(1, '#f6e2bc');
+        c.fillStyle = sk; c.fillRect(g.cx - g.R, g.cy - g.R, g.R * 2, g.hy - (g.cy - g.R) + 1);
+        // awan
+        c.fillStyle = 'rgba(255,255,255,.75)';
+        for (var k = 0; k < 4; k++) { var ax = g.cx - g.R + ((k * 0.31 * g.R * 2 + t * 6 * (1 + k * 0.2)) % (g.R * 2.6)) - g.R * 0.3, ay = g.cy - g.R * (0.82 - k * 0.11); c.beginPath(); c.ellipse(ax, ay, g.R * 0.16, g.R * 0.035, 0, 0, 6.3); c.ellipse(ax + g.R * 0.08, ay - g.R * 0.025, g.R * 0.09, g.R * 0.035, 0, 0, 6.3); c.fill(); }
+        // camar
+        c.strokeStyle = 'rgba(40,40,50,.6)'; c.lineWidth = 1.2;
+        for (var gq = 0; gq < 2; gq++) { var gx = g.cx - g.R + ((t * 22 + gq * 140) % (g.R * 2.4)), gy = g.cy - g.R * 0.55 + Math.sin(t * 1.3 + gq) * 6, fl = 3 + Math.sin(t * 8 + gq) * 2; c.beginPath(); c.moveTo(gx - 6, gy - fl); c.quadraticCurveTo(gx - 3, gy - 1, gx, gy); c.quadraticCurveTo(gx + 3, gy - 1, gx + 6, gy - fl); c.stroke(); }
+        var sl = skyline(g); c.drawImage(sl, g.cx - g.R, g.hy - g.R * 0.42 + 1, g.R * 2, g.R * 0.42);
+        // laut
+        var sea = c.createLinearGradient(0, g.hy, 0, g.cy + g.R);
+        sea.addColorStop(0, '#6fa2ad'); sea.addColorStop(0.25, '#3f7f8f'); sea.addColorStop(1, '#14485a');
+        c.fillStyle = sea; c.fillRect(g.cx - g.R, g.hy, g.R * 2, g.cy + g.R - g.hy);
+        c.strokeStyle = 'rgba(235,248,255,.22)'; c.lineWidth = 1;
+        for (var wl = 0; wl < 22; wl++) {
+          var yy = g.hy + Math.pow((wl + 1) / 22, 1.6) * (g.cy + g.R - g.hy), sc = 0.3 + (yy - g.hy) / g.R, ww = 10 + sc * 18;
+          c.beginPath();
+          for (var xx = g.cx - g.R + ((wl * 37 + t * (8 + sc * 10)) % (ww * 3)) - ww * 3; xx < g.cx + g.R; xx += ww * 3) { c.moveTo(xx, yy); c.quadraticCurveTo(xx + ww / 2, yy - 1.5 * sc, xx + ww, yy); }
+          c.stroke();
+        }
+        c.fillStyle = 'rgba(255,240,200,.35)';
+        for (var gl = 0; gl < 30; gl++) { var gx2 = g.cx + Math.sin(gl * 12.9 + t * 0.6) * g.R * 0.5, gy2 = g.hy + 4 + (gl % 6) * 3 + (gl * 7 % 5); c.fillRect(gx2, gy2, 4 + (gl % 3), 1); }
+        // kapal: lajur jauh dulu
+        for (var ln = 1; ln >= 0; ln--) {
+          G.ships.forEach(function (s) {
+            if (s.lane !== ln || !s.vis) return;
+            syShip(c, s.F, s.diff, s.lvl, s.x, s.y, s.s, s.dir, t, s.phase);
+            // papan nama mengapung
+            var fs = Math.max(9, Math.round(13 * s.s / g.sN * Math.min(1.25, g.R / 180))), ty = s.y + 20 * s.s + fs * 0.4;
+            c.font = '700 ' + fs + 'px Cinzel, Georgia, serif'; var tw = c.measureText(s.F.n).width;
+            c.fillStyle = 'rgba(250,240,215,.92)'; rr(c, s.x - tw / 2 - 6, ty - fs * 0.8, tw + 12, fs * 1.35, 4); c.fill();
+            c.strokeStyle = 'rgba(110,75,30,.7)'; c.lineWidth = 1; c.stroke();
+            c.fillStyle = '#3a2410'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(s.F.n, s.x, ty - fs * 0.12);
+            if (s.wrong > 0) {
+              var a = Math.min(1, s.wrong);
+              c.strokeStyle = 'rgba(255,90,70,' + a + ')'; c.lineWidth = 3; c.setLineDash([7, 5]); c.beginPath(); c.ellipse(s.x, s.y - 60 * s.s, 80 * s.s, 82 * s.s, 0, 0, 6.3); c.stroke(); c.setLineDash([]);
+              c.font = '700 ' + (fs + 1) + 'px Cinzel, Georgia, serif'; c.fillStyle = 'rgba(255,225,215,' + a + ')'; c.strokeStyle = 'rgba(80,10,5,' + a + ')'; c.lineWidth = 3;
+              c.strokeText('Kapal resmi', s.x, s.y - 148 * s.s); c.fillText('Kapal resmi', s.x, s.y - 148 * s.s);
+            }
+          });
+        }
+        c.restore();
+      }
+      function drawScope(c, g, t) {
+        c.save();
+        c.beginPath(); c.rect(0, 0, g.W, g.H); c.moveTo(g.cx + g.R, g.cy); c.arc(g.cx, g.cy, g.R, 0, 6.2832, true); c.closePath();
+        var bg = c.createRadialGradient(g.cx, g.cy, g.R, g.cx, g.cy, Math.max(g.W, g.H)); bg.addColorStop(0, '#1c130b'); bg.addColorStop(1, '#070504');
+        c.fillStyle = bg; c.fill('evenodd');
+        // vinyet dalam lensa
+        var vg = c.createRadialGradient(g.cx, g.cy, g.R * 0.7, g.cx, g.cy, g.R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,6,2,.55)');
+        c.fillStyle = vg; c.beginPath(); c.arc(g.cx, g.cy, g.R, 0, 6.2832); c.fill();
+        // garis bidik
+        c.strokeStyle = 'rgba(30,20,10,.28)'; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(g.cx - g.R, g.cy); c.lineTo(g.cx + g.R, g.cy); c.moveTo(g.cx, g.cy - g.R); c.lineTo(g.cx, g.cy + g.R); c.stroke();
+        for (var i = -4; i <= 4; i++) { if (!i) continue; c.beginPath(); c.moveTo(g.cx + i * g.R * 0.2, g.cy - 4); c.lineTo(g.cx + i * g.R * 0.2, g.cy + 4); c.stroke(); }
+        // cincin kuningan
+        var rw = Math.max(10, g.R * 0.07);
+        var ring = c.createLinearGradient(g.cx - g.R, g.cy - g.R, g.cx + g.R, g.cy + g.R); ring.addColorStop(0, '#fff0b8'); ring.addColorStop(0.3, '#c9922f'); ring.addColorStop(0.55, '#6a4410'); ring.addColorStop(0.8, '#e0b65a'); ring.addColorStop(1, '#5a3a0c');
+        c.lineWidth = rw; c.strokeStyle = ring; c.beginPath(); c.arc(g.cx, g.cy, g.R + rw / 2, 0, 6.2832); c.stroke();
+        c.lineWidth = 2; c.strokeStyle = '#2a1806'; c.beginPath(); c.arc(g.cx, g.cy, g.R + 1, 0, 6.2832); c.stroke(); c.beginPath(); c.arc(g.cx, g.cy, g.R + rw, 0, 6.2832); c.stroke();
+        c.strokeStyle = 'rgba(255,240,190,.35)'; c.lineWidth = 1; c.beginPath(); c.arc(g.cx, g.cy, g.R + rw * 0.3, Math.PI * 1.1, Math.PI * 1.6); c.stroke();
+        // tulisan terukir
+        var txt = 'KANTOR SYAHBANDAR · JOUNGJAVA', fs = Math.max(7, rw * 0.52);
+        c.font = '700 ' + fs + 'px Cinzel, Georgia, serif'; c.fillStyle = 'rgba(60,35,5,.8)'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        var span = txt.length * fs * 0.78 / (g.R + rw / 2), a0 = -Math.PI / 2 - span / 2;
+        for (var k = 0; k < txt.length; k++) { var a = a0 + (k + 0.5) * span / txt.length; c.save(); c.translate(g.cx + Math.cos(a) * (g.R + rw / 2), g.cy + Math.sin(a) * (g.R + rw / 2)); c.rotate(a + Math.PI / 2); c.fillText(txt[k], 0, 0); c.restore(); }
+        c.restore();
+      }
+      function drawLens(c, g, t, L) {
+        var Rl = Math.max(62, g.R * 0.36), Z = 2.3, lx = L.lx, ly = L.ly;
+        c.save(); c.beginPath(); c.arc(lx, ly, Rl, 0, 6.2832); c.clip();
+        c.fillStyle = '#14485a'; c.fillRect(lx - Rl, ly - Rl, Rl * 2, Rl * 2);
+        c.translate(lx, ly); c.scale(Z, Z); c.translate(-L.fx, -L.fy);
+        drawWorld(c, g, t);
+        c.restore();
+        c.save();
+        var vg = c.createRadialGradient(lx, ly, Rl * 0.75, lx, ly, Rl); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.35)'); c.fillStyle = vg; c.beginPath(); c.arc(lx, ly, Rl, 0, 6.2832); c.fill();
+        c.lineWidth = 6; var ring = c.createLinearGradient(lx - Rl, ly - Rl, lx + Rl, ly + Rl); ring.addColorStop(0, '#fff0b8'); ring.addColorStop(0.5, '#a8741c'); ring.addColorStop(1, '#4a2e08');
+        c.strokeStyle = ring; c.beginPath(); c.arc(lx, ly, Rl + 3, 0, 6.2832); c.stroke();
+        c.lineWidth = 1.5; c.strokeStyle = '#2a1806'; c.beginPath(); c.arc(lx, ly, Rl + 6, 0, 6.2832); c.stroke();
+        c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1; c.beginPath(); c.moveTo(lx - 6, ly); c.lineTo(lx + 6, ly); c.moveTo(lx, ly - 6); c.lineTo(lx, ly + 6); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.ellipse(lx - Rl * 0.35, ly - Rl * 0.45, Rl * 0.35, Rl * 0.12, -0.6, 0, 6.3); c.fill();
+        c.restore();
+      }
+
+      /* ---------- loop ---------- */
+      S.loop(function (dt, t) {
+        var ch = K.fit(), g = geo(); GE = g;
+        if (ch) G.sky = null;
+        if (G.state === 'reveal' || G.state === 'done') G.freeze = Math.max(0, G.freeze - dt * 2.5);
+        if (G.ships.length) place(G.state === 'idle' ? dt * 0.5 : dt);
+        G.ships.forEach(function (s) { if (s.wrong > 0) s.wrong -= dt * 0.8; });
+        var c = K.c; c.clearRect(0, 0, g.W, g.H);
+        drawWorld(c, g, t);
+        if (G.reveal) {
+          var s = G.reveal.s, sp = syDiffSpot(s.F, s.diff), X = s.x + s.dir * s.s * sp[0], Y = s.y + s.s * sp[1], k = Math.min(1, (t - G.reveal.t0) / 0.6);
+          c.save(); c.strokeStyle = 'rgba(255,215,110,' + (0.9 * k) + ')'; c.lineWidth = 3; c.shadowColor = 'rgba(255,200,80,.9)'; c.shadowBlur = 14;
+          var rr0 = (s.diff === 'tiang' ? 80 : 26) * s.s * (1.8 - 0.8 * ease(k)); c.beginPath(); c.arc(X, Y, Math.max(16, rr0), 0, 6.2832); c.stroke(); c.restore();
+          G.lens = { lx: clamp(X, 80, g.W - 80), ly: clamp(Y - Math.max(62, g.R * 0.36) - 40, 70, g.H - 70), fx: X, fy: Y, auto: true };
+        }
+        drawScope(c, g, t);
+        if (G.lens && (G.lens.on || G.lens.auto)) drawLens(c, g, t, G.lens);
+        // posisi tombol manifes / bantuan
+        if (!g.wide) { help.style.top = Math.round(g.cy + g.R + 22) + 'px'; help.style.bottom = 'auto'; }
+        else { help.style.top = 'auto'; }
+      });
+
+      /* ---------- input ---------- */
+      var down = null;
+      function lensAt(p, touch) {
+        var g = GE; if (!g) return;
+        var Rl = Math.max(62, g.R * 0.36);
+        var inside = Math.hypot(p.x - g.cx, p.y - g.cy) < g.R;
+        if (!inside) { if (G.lens && !G.lens.auto) G.lens.on = false; return; }
+        var ly = touch ? p.y - Rl - 36 : p.y, lx = p.x;
+        if (touch && ly < Rl + 6) ly = p.y + Rl + 36;
+        G.lens = { lx: lx, ly: ly, fx: p.x, fy: p.y, on: true };
+      }
+      S.on(K.cv, 'pointerdown', function (e) {
+        e.preventDefault(); AX.ensure();
+        var p = K.pos(e); down = { x: p.x, y: p.y, t: performance.now(), id: e.pointerId, touch: e.pointerType !== 'mouse', moved: false };
+        try { K.cv.setPointerCapture(e.pointerId); } catch (x) {}
+        if (down.touch) S.later(function () { if (down && !down.done) lensAt(down.last || down, true); }, 160);
+      });
+      S.on(K.cv, 'pointermove', function (e) {
+        var p = K.pos(e);
+        if (down && down.id === e.pointerId) { down.last = p; if (Math.hypot(p.x - down.x, p.y - down.y) > 12) down.moved = true; if (down.touch && (down.moved || performance.now() - down.t > 160)) lensAt(p, true); }
+        if (e.pointerType === 'mouse' && G.state !== 'reveal') lensAt(p, false);
+      });
+      function up(e, cancel) {
+        if (!down || down.id !== e.pointerId) return;
+        var d = down; d.done = true; down = null;
+        if (d.touch && G.lens && !G.lens.auto) G.lens.on = false;
+        if (cancel) return;
+        var quick = performance.now() - d.t < (d.touch ? 300 : 600) && !d.moved;
+        if (quick) accuse(d.x, d.y);
+      }
+      S.on(K.cv, 'pointerup', function (e) { up(e, false); });
+      S.on(K.cv, 'pointercancel', function (e) { up(e, true); });
+      S.on(K.cv, 'pointerleave', function (e) { if (e.pointerType === 'mouse' && G.lens && !G.lens.auto) G.lens.on = false; });
+      S.keyDown = function (e) { if ((e.key === 'm' || e.key === 'M') && !e.repeat) toggle(); };
+
+      function hitShip(x, y) {
+        var best = null;
+        [0, 1].forEach(function (ln) {
+          if (best) return;
+          G.ships.forEach(function (s) {
+            if (best || s.lane !== ln || !s.vis) return;
+            if (x > s.x - 72 * s.s && x < s.x + 72 * s.s && y > s.y - 140 * s.s && y < s.y + 22 * s.s) best = s;
+          });
+        });
+        return best;
+      }
+      function accuse(x, y) {
+        if (G.state !== 'play') return;
+        var g = GE; if (!g || Math.hypot(x - g.cx, y - g.cy) > g.R) return;
+        var s = hitShip(x, y);
+        if (!s) { au('click'); return; }
+        if (s.spy) {
+          G.state = 'reveal'; G.reveal = { s: s, t0: S.t }; G.res[G.round] = true; prog();
+          au('success'); AX.bonang(660, 0.08); AX.bonang(880, 0.07, 0.12); vib(40);
+          var txt = SY_REVEAL[s.diff] || ('Manifes mencatat ' + s.F.masts + ' tiang &mdash; kapal ini bertiang ' + (s.F.masts === 3 ? 2 : 3) + '!');
+          S.msg('<b>Ketahuan!</b> ' + txt, 'good', 2600);
+          S.later(function () {
+            G.reveal = null; G.lens = null;
+            if (G.round + 1 >= ROUNDS) { G.state = 'done'; winNow(); }
+            else startRound(G.round + 1);
+          }, 2700);
+        } else {
+          s.wrong = 1.4; G.mistakes++; G.totalMist++; prog(); au('error'); AX.buzz(); vib([50, 40, 50]);
+          if (G.mistakes > MAXM) {
+            G.state = 'failed'; S.fail({ round: G.round + 1 });
+            S.later(function () {
+              S.card({ cls: 'bad', face: gov, kicker: 'Ronde ' + (G.round + 1) + ' diulang', title: 'Tikusnya Lolos',
+                quote: 'Tiga tuduhan salah, Kapten. Pedagang jujur mulai menggerutu. Kita amati konvoi berikutnya.', who: who,
+                buttons: [{ label: 'Ulangi ronde', primary: true, onClick: function () { S.hideCard(); startRound(G.round); } }, { label: 'Keluar', cls: 'btn-lg btn-ghost', onClick: function () { S.exit(); } }] });
+            }, 900);
+          } else S.msg('Itu kapal resmi! Sisa salah tunjuk: ' + (MAXM - G.mistakes + 1 > 0 ? MAXM - G.mistakes : 0), 'bad', 1800);
+        }
+      }
+      function winNow() {
+        var perfect = G.totalMist === 0;
+        S.win({ perfect: perfect, score: Math.max(0, ROUNDS * 100 - G.totalMist * 25), mistakes: G.totalMist }, {
+          face: gov, kicker: 'Joungjava bergabung', title: 'Mata Setajam Elang', badge: perfect ? 'Sempurna &middot; tanpa salah tunjuk' : null,
+          quote: 'Matamu setajam elang Garuda, Kapten. Armada terbaik dewan bangsawan akan menyusulmu.', who: who,
+          stats: [['Penyamar tertangkap', ROUNDS + ' / ' + ROUNDS], ['Salah tunjuk', String(G.totalMist)]]
+        });
+      }
+
+      // intro: konvoi lewat pelan di latar
+      G.usedDiff = []; startRound(0); G.state = 'idle'; G.res = []; S.progress(S.pips(ROUNDS, [], -1)); helpText();
+      S.intro({
+        face: gov, kicker: 'Kantor Syahbandar &middot; Joungjava', title: 'Mata Syahbandar',
+        quote: 'Bantu aku menemukan tikusnya, baru kita bicara armada.', who: who,
+        steps: ['Kapal-kapal lewat di depan <b>teropong</b>. Satu di antaranya <b>penyamar BarSaTi</b>.',
+          'Bandingkan dengan <b>Buku Manifes</b>: lambang bendera, jumlah tiang, cat lambung, atau <b>gagak mesin hitam</b> di tiang.',
+          (S.touch ? '<b>Ketuk</b> kapal yang dicurigai. Tahan &amp; geser untuk <b>teropong pembesar</b>.' : '<b>Klik</b> kapal yang dicurigai. Arahkan mouse untuk <b>teropong pembesar</b>.'),
+          '3 ronde, makin sulit. Salah tunjuk lebih dari ' + MAXM + ' kali &rarr; ronde diulang.'],
+        controls: { desk: ['Klik = tuduh', 'Mouse = teropong', '<kbd>M</kbd> manifes'], touch: ['Ketuk = tuduh', 'Tahan &amp; geser = teropong'] },
+        cta: 'Pegang teropong'
+      }, function () { G.usedDiff = []; G.totalMist = 0; G.res = []; startRound(0); });
+
+      return {
+        destroy: function () {},
+        debugWin: function () { S.hideCard(); G.res = [true, true, true]; G.state = 'done'; winNow(); },
+        debugSpy: function () { return G.spy ? { name: G.spy.F.n, diff: G.spy.diff, x: G.spy.x, y: G.spy.y, s: G.spy.s, vis: G.spy.vis } : null; },
+        debugAccuse: function (x, y) { accuse(x, y); },
+        _G: G
+      };
+    }
+  };
+
+  /* =====================================================================
+   * 3) SANDI MERCUSUAR — Bjorneo, puncak mercusuar Nenek Ulin
+   *    Lensa 4 warna + nada gamelan. Ulangi urutan 4→8 kilatan, 5 ronde.
+   *    Tiap ronde: satu lentera sekutu menjawab di cakrawala. Akhir: api Bjorneo.
+   * ===================================================================== */
+  var MC_SEG = [
+    { n: 'Merah', base: '#7a1e16', lit: '#ff5a44', glow: '255,90,60', cents: 0 },
+    { n: 'Hijau', base: '#16502a', lit: '#4ee07a', glow: '80,230,120', cents: 240 },
+    { n: 'Biru', base: '#173a72', lit: '#5aa0ff', glow: '90,160,255', cents: 480 },
+    { n: 'Kuning', base: '#6e5414', lit: '#ffd84a', glow: '255,215,80', cents: 720 }
+  ];
+  var MC_ALLY = [
+    { n: 'Sunda Empire', sh: 'Sunda', c: '255,180,80' },
+    { n: 'Joungjava', sh: 'Joungjava', c: '100,230,215' },
+    { n: 'Skitraw', sh: 'Skitraw', c: '255,110,80' },
+    { n: 'TooGood · Black Pearl', sh: 'Black Pearl', c: '235,242,255' },
+    { n: 'Marie Regal', sh: 'Marie Regal', c: '200,145,255' }
+  ];
+  var ULIN = { name: 'Nenek Ulin', title: 'Penjaga Mercusuar', ap: { fem: 1, skin: 3, hair: 4, hairStyle: 0, facial: 0, head: 'arch', eyes: 2, seed: 2929, role: 'pustakawan', age: 0.95 } };
+
+  GAMES.mercusuar = {
+    title: 'Sandi Mercusuar', kicker: 'Puncak Mercusuar · Bjorneo',
+    create: function (S, opts) {
+      var LENS = opts.lengths || [4, 5, 6, 7, 8], ROUNDS = LENS.length;
+      var gov = opts.npc || cityNpc('bjorneo', 'Gubernur Bjorneo', 'bjorneo|syahbandar', 'Gubernur Bjorneo');
+      var govWho = esc(gov.name || 'Gubernur') + (gov.title && gov.title !== gov.name ? ', ' + esc(gov.title) : '');
+      var allies = MC_ALLY.map(function (a, i) { var o = Object.assign({}, a); var L = opts.allies && opts.allies[i]; if (L) { o.n = typeof L === 'string' ? L : (L.name || o.n); o.sh = typeof L === 'string' ? L : (L.short || L.name || o.sh); } return o; });
+      var G = { phase: 'idle', round: 0, seq: [], si: 0, ii: 0, timer: 0, fl: [0, 0, 0, 0], lit: [0, 0, 0, 0, 0], litT: [0, 0, 0, 0, 0], mistakes: 0, res: [], beam: null, fire: 0, parts: [], shake: 0, stars: null, flash: 0 };
+      S.stage.innerHTML = '';
+      var K = S.canvas();
+      var st = h('div', 'mc-status', '<div class="a"></div><div class="b"></div>'), keys = h('div', 'mc-keys', 'Ketuk lensa atau tekan <b>1</b> merah &middot; <b>2</b> hijau &middot; <b>3</b> biru &middot; <b>4</b> kuning');
+      S.stage.appendChild(st); S.stage.appendChild(keys);
+      function status(a, b) { st.querySelector('.a').innerHTML = a || ''; st.querySelector('.b').innerHTML = b || ''; }
+      function prog() { S.progress(S.pips(ROUNDS, G.res, G.phase === 'idle' ? -1 : G.round) + (G.mistakes ? '<span class="mtg-chip bad">Keliru ' + G.mistakes + '&times;</span>' : '')); }
+      function geo() {
+        var W = K.W, H = K.H, wide = W > H * 1.05;
+        var hy = wide ? H * 0.37 : H * 0.31, R = wide ? Math.min(W * 0.15, H * 0.2) : Math.min(W * 0.39, H * 0.235);
+        var ly = wide ? H - R * 1.22 : H - R * 1.32;
+        return { W: W, H: H, wide: wide, hy: hy, R: R, lx: W / 2, ly: ly, ax: wide ? [0.1, 0.235, 0.37, 0.505, 0.64] : [0.08, 0.255, 0.43, 0.6, 0.755], vx: wide ? 0.85 : 0.9 };
+      }
+      function tone(i, vol) { AX.saron(293.66 * Math.pow(2, MC_SEG[i].cents / 1200), vol || 0.13); }
+      function flash(i, dur) { G.fl[i] = 1; G.flT = G.flT || [0, 0, 0, 0]; G.flT[i] = dur; tone(i); }
+
+      /* ---------- alur ---------- */
+      function begin() {
+        G.seq = []; for (var i = 0; i < LENS[ROUNDS - 1]; i++) { var n; do { n = Math.floor(Math.random() * 4); } while (i >= 2 && n === G.seq[i - 1] && n === G.seq[i - 2]); G.seq.push(n); }
+        G.round = 0; G.mistakes = 0; G.res = []; G.lit = [0, 0, 0, 0, 0]; G.fire = 0; show(0.9);
+      }
+      function show(delay) {
+        G.phase = 'show'; G.si = 0; G.timer = -(delay || 0.6); prog();
+        status('Perhatikan&hellip;', 'Nenek Ulin menyalakan sandi &middot; ' + LENS[G.round] + ' kilatan');
+      }
+      function onDur() { return [0.5, 0.45, 0.41, 0.37, 0.34][G.round] || 0.34; }
+      function gapDur() { return [0.22, 0.2, 0.17, 0.15, 0.14][G.round] || 0.14; }
+      function press(i) {
+        AX.ensure();
+        if (G.phase !== 'input') return;
+        flash(i, 0.22);
+        if (G.seq[G.ii] !== i) {
+          G.phase = 'wrong'; G.mistakes++; G.shake = 1; S.fail({ round: G.round + 1 });
+          AX.buzz(0.05); au('error'); vib([60, 40, 60]); prog();
+          status('Sandi keliru', 'Nenek Ulin mengulang urutan ronde ini');
+          S.msg('&ldquo;Pelan-pelan, Nak. Lihat lagi.&rdquo;', 'bad', 1800);
+          S.later(function () { show(0.3); }, 1500);
+          return;
+        }
+        G.ii++;
+        status('Giliranmu', G.ii + ' / ' + LENS[G.round]);
+        if (G.ii >= LENS[G.round]) { G.phase = 'answer'; G.res[G.round] = true; S.later(answer, 380); }
+      }
+      function answer() {
+        var r = G.round, g = geo(); prog();
+        G.beam = { i: r, t: 0, x0: g.lx, y0: g.ly - g.R * 1.05, x1: g.W * g.ax[r], y1: g.hy - 3 };
+        status(esc(allies[r].n) + ' menjawab!', 'Lentera ' + (r + 1) + ' dari ' + ROUNDS + ' menyala di cakrawala');
+        AX.whoosh(0, 0.1);
+        S.later(function () { G.lit[r] = 1; G.litT[r] = S.t; AX.bonang(587.3, 0.08); AX.bonang(880, 0.07, 0.12); AX.bonang(1174.7, 0.06, 0.24); au('bell'); }, 820);
+        S.later(function () {
+          G.beam = null;
+          if (r + 1 >= ROUNDS) finale();
+          else { G.round++; show(0.5); }
+        }, 2300);
+      }
+      function finale() {
+        G.phase = 'final'; G.fireT = S.t; prog();
+        status('Api Bjorneo menyala!', 'Jawaban keenam dari gunung api');
+        AX.gong(65, 0.32); au('horn'); S.later(function () { AX.shimmer(); au('achieve'); }, 900);
+        S.later(winNow, 3600);
+      }
+      function winNow() {
+        G.phase = 'done';
+        S.win({ perfect: G.mistakes === 0, score: Math.max(0, 500 - G.mistakes * 50), mistakes: G.mistakes }, {
+          face: gov, kicker: 'Bjorneo bergabung &middot; Armada Terakhir lengkap', title: 'Enam Cahaya Menjawab',
+          badge: G.mistakes === 0 ? 'Sempurna &middot; tanpa keliru' : null,
+          quote: 'Sekarang Bjorneo berlayar. Orang Bjorneo tidak memaafkan pengkhianat &mdash; dua kali pun tidak.', who: govWho,
+          stats: [['Lentera sekutu', ROUNDS + ' / ' + ROUNDS], ['Sandi keliru', String(G.mistakes)]]
+        });
+      }
+
+      /* ---------- input ---------- */
+      function segAt(x, y) {
+        var g = geo(), dx = x - g.lx, dy = y - g.ly, d = Math.hypot(dx, dy);
+        if (d < g.R * 0.3 || d > g.R * 1.12) return -1;
+        var a = Math.atan2(dy, dx); // -π..π, 0 = kanan
+        if (a < 0) a += Math.PI * 2;
+        // 0 merah (kiri-atas 180–270), 1 hijau (kanan-atas 270–360), 2 biru (kanan-bawah 0–90), 3 kuning (kiri-bawah 90–180)
+        if (a >= Math.PI && a < Math.PI * 1.5) return 0;
+        if (a >= Math.PI * 1.5) return 1;
+        if (a < Math.PI / 2) return 2;
+        return 3;
+      }
+      S.on(K.cv, 'pointerdown', function (e) { e.preventDefault(); var p = K.pos(e), i = segAt(p.x, p.y); if (i >= 0) press(i); });
+      S.keyDown = function (e) { if (e.repeat) return; var m = { '1': 0, '2': 1, '3': 2, '4': 3 }[e.key]; if (m != null) press(m); };
+
+      /* ---------- gambar ---------- */
+      function makeStars(g) { var a = [], r = window.MTUtil ? MTUtil.rng(9) : Math.random; for (var i = 0; i < 140; i++) a.push({ x: r(), y: Math.pow(r(), 1.4), s: 0.4 + r() * 1.3, p: r() * 6 }); return a; }
+      function drawScene(c, g, t) {
+        var W = g.W, H = g.H, hy = g.hy, fire = G.phase === 'final' || G.phase === 'done' ? Math.min(1, (t - G.fireT) / 1.6) : 0;
+        var sk = c.createLinearGradient(0, 0, 0, hy);
+        sk.addColorStop(0, '#04071a'); sk.addColorStop(0.6, '#0f1236'); sk.addColorStop(1, fire ? 'rgb(' + Math.round(40 + 90 * fire) + ',' + Math.round(22 + 30 * fire) + ',' + Math.round(54 - 20 * fire) + ')' : '#281a4a');
+        c.fillStyle = sk; c.fillRect(0, 0, W, hy + 1);
+        // badai ungu di barat (pusaran)
+        var st = c.createRadialGradient(-W * 0.05, hy, 0, -W * 0.05, hy, W * 0.55); st.addColorStop(0, 'rgba(150,70,220,.45)'); st.addColorStop(0.5, 'rgba(90,40,160,.18)'); st.addColorStop(1, 'rgba(60,20,120,0)');
+        c.fillStyle = st; c.fillRect(0, 0, W, hy);
+        if (Math.sin(t * 0.9) > 0.985 || G.flash > 0) { G.flash = G.flash > 0 ? G.flash - 0.04 : 1; c.fillStyle = 'rgba(170,190,255,' + (0.18 * G.flash) + ')'; c.fillRect(0, 0, W * 0.45, hy); }
+        if (!G.stars) G.stars = makeStars(g);
+        G.stars.forEach(function (s) { var a = 0.35 + 0.5 * (0.5 + 0.5 * Math.sin(t * 1.6 + s.p)); c.fillStyle = 'rgba(255,248,225,' + (a * (1 - 0.6 * fire)).toFixed(2) + ')'; c.fillRect(s.x * W, s.y * hy * 0.92, s.s, s.s); });
+        // bulan
+        var mx = W * 0.62, my = hy * 0.26, mr = Math.max(10, Math.min(W, H) * 0.028);
+        var mh = c.createRadialGradient(mx, my, mr * 0.8, mx, my, mr * 3.2); mh.addColorStop(0, 'rgba(255,245,215,.18)'); mh.addColorStop(1, 'rgba(255,245,215,0)'); c.fillStyle = mh; c.fillRect(mx - mr * 3.3, my - mr * 3.3, mr * 6.6, mr * 6.6);
+        c.fillStyle = '#fbf0d0'; c.beginPath(); c.arc(mx, my, mr, 0, 6.3); c.fill(); c.fillStyle = '#0f1236'; c.beginPath(); c.arc(mx + mr * 0.42, my - mr * 0.18, mr * 0.86, 0, 6.3); c.fill();
+        // gunung api Bjorneo
+        var vx = W * g.vx, vh = hy - Math.min(H * 0.16, W * 0.2), vw = Math.min(W * 0.22, H * 0.26);
+        c.fillStyle = '#0a0812'; c.beginPath(); c.moveTo(vx - vw, hy + 1); c.quadraticCurveTo(vx - vw * 0.4, hy - (hy - vh) * 0.55, vx - vw * 0.12, vh); c.lineTo(vx + vw * 0.1, vh + 2); c.quadraticCurveTo(vx + vw * 0.45, hy - (hy - vh) * 0.5, vx + vw * 1.1, hy + 1); c.fill();
+        if (fire > 0) {
+          c.globalCompositeOperation = 'lighter';
+          var fg = c.createRadialGradient(vx, vh, 0, vx, vh, vw * 1.4 * fire); fg.addColorStop(0, 'rgba(255,190,90,' + (0.75 * fire) + ')'); fg.addColorStop(0.35, 'rgba(255,90,30,' + (0.35 * fire) + ')'); fg.addColorStop(1, 'rgba(255,60,20,0)');
+          c.fillStyle = fg; c.fillRect(vx - vw * 1.5, vh - vw * 1.5, vw * 3, vw * 3);
+          c.globalCompositeOperation = 'source-over';
+          // lava menetes
+          c.strokeStyle = 'rgba(255,120,40,' + (0.8 * fire) + ')'; c.lineWidth = 2;
+          for (var lv = 0; lv < 3; lv++) { c.beginPath(); c.moveTo(vx - 4 + lv * 4, vh + 2); c.quadraticCurveTo(vx - 10 + lv * 9, vh + (hy - vh) * 0.4, vx - 18 + lv * 16, vh + (hy - vh) * 0.75 * fire); c.stroke(); }
+          for (var pf = 0; pf < 4; pf++) G.parts.push({ x: vx + rnd(-6, 6), y: vh, vx: rnd(-20, 20), vy: rnd(-90, -40), life: rnd(0.8, 1.6), age: 0, r: rnd(1.2, 3), c: Math.random() < 0.5 ? '255,200,90' : '255,110,40' });
+        } else {
+          c.fillStyle = 'rgba(255,120,60,.25)'; c.beginPath(); c.arc(vx, vh + 2, 3, 0, 6.3); c.fill();
+        }
+        // laut
+        var sea = c.createLinearGradient(0, hy, 0, H); sea.addColorStop(0, fire ? 'rgb(' + Math.round(26 + 40 * fire) + ',24,46)' : '#121a3a'); sea.addColorStop(1, '#03050c');
+        c.fillStyle = sea; c.fillRect(0, hy, W, H - hy);
+        c.fillStyle = 'rgba(255,240,200,.22)';
+        for (var gi = 0; gi < 26; gi++) { var gy = hy + 4 + gi * gi * 0.5, gw = 6 + gi * 1.5; c.fillRect(mx - gw / 2 + Math.sin(t * 1.3 + gi) * (4 + gi), gy, gw, 1.2); }
+        if (fire > 0) { c.fillStyle = 'rgba(255,120,50,' + (0.3 * fire) + ')'; for (var fi = 0; fi < 18; fi++) { var fy = hy + 3 + fi * fi * 0.6, fw = 4 + fi * 2; c.fillRect(vx - fw / 2 + Math.sin(t * 2 + fi) * 5, fy, fw, 1.3); } }
+        // lentera sekutu
+        var fs = g.wide ? 11 : 9;
+        for (var i = 0; i < ROUNDS && i < 5; i++) {
+          var A = allies[i], x = W * g.ax[i], y = hy - 3, on = G.lit[i], age = on ? t - G.litT[i] : 0;
+          if (on) {
+            var fk = 0.85 + 0.15 * Math.sin(t * 7 + i * 2), blink = age < 1.4 ? (Math.sin(age * 14) > 0 ? 1 : 0.35) : 1, burst = age < 0.6 ? 1 + (0.6 - age) * 4 : 1;
+            c.globalCompositeOperation = 'lighter';
+            var lg = c.createRadialGradient(x, y, 0, x, y, 26 * burst); lg.addColorStop(0, 'rgba(' + A.c + ',' + (0.85 * fk * blink) + ')'); lg.addColorStop(1, 'rgba(' + A.c + ',0)');
+            c.fillStyle = lg; c.fillRect(x - 30 * burst, y - 30 * burst, 60 * burst, 60 * burst);
+            c.fillStyle = 'rgba(' + A.c + ',' + (0.35 * blink) + ')'; for (var ri = 0; ri < 9; ri++) { var ry = hy + 3 + ri * ri * 1.4, rw = 3 + ri * 0.8; c.fillRect(x - rw / 2 + Math.sin(t * 2 + ri) * 2, ry, rw, 1.2); }
+            c.globalCompositeOperation = 'source-over';
+            // siluet kapal kecil
+            c.fillStyle = '#05060c'; c.beginPath(); c.moveTo(x - 11, y + 2); c.lineTo(x + 11, y + 2); c.lineTo(x + 8, y + 5); c.lineTo(x - 8, y + 5); c.fill(); c.fillRect(x - 0.6, y - 10, 1.2, 12); c.beginPath(); c.moveTo(x, y - 9); c.lineTo(x + 6, y - 1); c.lineTo(x, y - 1); c.fill();
+            c.fillStyle = 'rgb(' + A.c + ')'; c.beginPath(); c.arc(x + 4, y - 5, 1.6, 0, 6.3); c.fill();
+            c.font = '700 ' + fs + 'px Cinzel, Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'top'; c.fillStyle = 'rgba(' + A.c + ',.95)';
+            c.fillText(g.wide ? A.n : A.sh, x, hy + 10 + (i % 2) * (g.wide ? 0 : 12));
+          } else {
+            c.fillStyle = 'rgba(200,190,170,.25)'; c.beginPath(); c.arc(x, y, 1.6, 0, 6.3); c.fill();
+          }
+        }
+        // partikel api
+        for (var pi = G.parts.length - 1; pi >= 0; pi--) {
+          var p = G.parts[pi]; p.age += 1 / 60; if (p.age > p.life) { G.parts.splice(pi, 1); continue; }
+          p.x += p.vx / 60; p.y += p.vy / 60; p.vy += 50 / 60; var k = 1 - p.age / p.life;
+          c.fillStyle = 'rgba(' + p.c + ',' + k.toFixed(2) + ')'; c.beginPath(); c.arc(p.x, p.y, p.r * k + 0.3, 0, 6.3); c.fill();
+        }
+        if (G.parts.length > 400) G.parts.splice(0, G.parts.length - 400);
+        // berkas cahaya menuju lentera
+        if (G.beam) {
+          var b = G.beam, k2 = ease(Math.min(1, b.t / 0.8)), cx = (b.x0 + b.x1) / 2, cy = Math.min(b.y0, b.y1) - g.H * 0.12;
+          c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+          var A2 = allies[b.i], N = 24;
+          for (var q = 0; q < N; q++) {
+            var u = k2 * q / N, u2 = k2 * (q + 1) / N;
+            var px = (1 - u) * (1 - u) * b.x0 + 2 * (1 - u) * u * cx + u * u * b.x1, py = (1 - u) * (1 - u) * b.y0 + 2 * (1 - u) * u * cy + u * u * b.y1;
+            var px2 = (1 - u2) * (1 - u2) * b.x0 + 2 * (1 - u2) * u2 * cx + u2 * u2 * b.x1, py2 = (1 - u2) * (1 - u2) * b.y0 + 2 * (1 - u2) * u2 * cy + u2 * u2 * b.y1;
+            c.strokeStyle = 'rgba(' + A2.c + ',' + (0.12 + 0.5 * q / N).toFixed(2) + ')'; c.lineWidth = 2 + 3 * q / N; c.beginPath(); c.moveTo(px, py); c.lineTo(px2, py2); c.stroke();
+          }
+          c.globalCompositeOperation = 'source-over';
+        }
+      }
+      function drawLens(c, g, t) {
+        var R = g.R, x = g.lx, y = g.ly;
+        if (G.shake > 0) { x += Math.sin(t * 60) * 6 * G.shake; }
+        // tiang & pagar galeri
+        c.strokeStyle = '#1a1410'; c.lineWidth = 3;
+        c.beginPath(); c.moveTo(0, y + R * 0.55); c.lineTo(g.W, y + R * 0.55); c.stroke();
+        c.lineWidth = 2; for (var bx = 8; bx < g.W; bx += 22) { c.beginPath(); c.moveTo(bx, y + R * 0.55); c.lineTo(bx, g.H); c.stroke(); }
+        c.fillStyle = '#120d09'; c.fillRect(0, y + R * 0.95, g.W, g.H);
+        // tumpuan kuningan
+        var pg = c.createLinearGradient(x - R * 0.5, 0, x + R * 0.5, 0); pg.addColorStop(0, '#4a2e08'); pg.addColorStop(0.5, '#c9922f'); pg.addColorStop(1, '#3a2406');
+        c.fillStyle = pg; c.beginPath(); c.moveTo(x - R * 0.3, y + R); c.lineTo(x + R * 0.3, y + R); c.lineTo(x + R * 0.55, g.H); c.lineTo(x - R * 0.55, g.H); c.fill();
+        // berkas warna ke langit saat menyala
+        c.globalCompositeOperation = 'lighter';
+        for (var i = 0; i < 4; i++) {
+          var f = G.fl[i]; if (f <= 0.01) continue;
+          var a0 = Math.PI + i * Math.PI / 2, am = a0 + Math.PI / 4;
+          var bg = c.createRadialGradient(x, y, R * 0.3, x, y, R * 2.4); bg.addColorStop(0, 'rgba(' + MC_SEG[i].glow + ',' + (0.55 * f) + ')'); bg.addColorStop(1, 'rgba(' + MC_SEG[i].glow + ',0)');
+          c.fillStyle = bg; c.beginPath(); c.moveTo(x, y); c.arc(x, y, R * 2.4, am - 0.55, am + 0.55); c.closePath(); c.fill();
+          var up = c.createLinearGradient(x, y, x, g.hy * 0.2); up.addColorStop(0, 'rgba(' + MC_SEG[i].glow + ',' + (0.22 * f) + ')'); up.addColorStop(1, 'rgba(' + MC_SEG[i].glow + ',0)');
+          c.fillStyle = up; c.beginPath(); c.moveTo(x - R * 0.3, y - R * 0.5); c.lineTo(x - R * 1.6, 0); c.lineTo(x + R * 1.6, 0); c.lineTo(x + R * 0.3, y - R * 0.5); c.fill();
+        }
+        c.globalCompositeOperation = 'source-over';
+        // cincin luar
+        var ring = c.createLinearGradient(x - R, y - R, x + R, y + R); ring.addColorStop(0, '#fff0b8'); ring.addColorStop(0.35, '#b8862b'); ring.addColorStop(0.7, '#5a3a0c'); ring.addColorStop(1, '#d9a53c');
+        c.fillStyle = ring; c.beginPath(); c.arc(x, y, R * 1.12, 0, 6.2832); c.fill();
+        c.fillStyle = '#140c06'; c.beginPath(); c.arc(x, y, R * 1.02, 0, 6.2832); c.fill();
+        for (var bI = 0; bI < 12; bI++) { var ba = bI * Math.PI / 6; c.fillStyle = '#3a2406'; c.beginPath(); c.arc(x + Math.cos(ba) * R * 1.07, y + Math.sin(ba) * R * 1.07, R * 0.018 + 1, 0, 6.3); c.fill(); }
+        // empat segmen lensa fresnel
+        for (var s = 0; s < 4; s++) {
+          var S0 = MC_SEG[s], a1 = Math.PI + s * Math.PI / 2 + 0.05, a2 = a1 + Math.PI / 2 - 0.1, f2 = G.fl[s], ri = R * 0.36, ro = R;
+          c.beginPath(); c.arc(x, y, ro, a1, a2); c.arc(x, y, ri, a2, a1, true); c.closePath();
+          var gg = c.createRadialGradient(x, y, ri, x, y, ro);
+          if (f2 > 0.01) { gg.addColorStop(0, '#ffffff'); gg.addColorStop(0.35, S0.lit); gg.addColorStop(1, rgba(S0.lit, 0.85)); }
+          else { gg.addColorStop(0, shadeHex(S0.base, 30)); gg.addColorStop(1, S0.base); }
+          c.fillStyle = gg; c.fill();
+          if (f2 > 0.01) { c.globalAlpha = 1 - f2; c.fillStyle = S0.base; c.fill(); c.globalAlpha = 1; }
+          c.save(); c.clip();
+          c.strokeStyle = f2 > 0.3 ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.16)'; c.lineWidth = 1.4;
+          for (var k = 1; k < 6; k++) { c.beginPath(); c.arc(x, y, ri + (ro - ri) * k / 6, a1, a2); c.stroke(); }
+          c.fillStyle = 'rgba(255,255,255,.1)'; c.beginPath(); c.ellipse(x - R * 0.35, y - R * 0.5, R * 0.5, R * 0.16, -0.5, 0, 6.3); c.fill();
+          c.restore();
+          c.strokeStyle = '#2a1806'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, ro, a1, a2); c.arc(x, y, ri, a2, a1, true); c.closePath(); c.stroke();
+          // nomor kunci kecil
+          if (!S.touch) { var am2 = (a1 + a2) / 2; c.font = '700 ' + Math.max(10, R * 0.09) + 'px Cinzel, Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = 'rgba(255,240,210,' + (f2 > 0.3 ? 0.9 : 0.45) + ')'; c.fillText(String(s + 1), x + Math.cos(am2) * R * 0.86, y + Math.sin(am2) * R * 0.86); }
+        }
+        // hub tengah: api Bjorneo
+        var hg = c.createRadialGradient(x - R * 0.08, y - R * 0.1, 0, x, y, R * 0.32); hg.addColorStop(0, '#fff3c4'); hg.addColorStop(0.5, '#c9922f'); hg.addColorStop(1, '#5a3a0c');
+        c.fillStyle = hg; c.beginPath(); c.arc(x, y, R * 0.3, 0, 6.2832); c.fill(); c.strokeStyle = '#2a1806'; c.lineWidth = 2; c.stroke();
+        var flick = 1 + Math.sin(t * 9) * 0.06, any = Math.max(G.fl[0], G.fl[1], G.fl[2], G.fl[3]);
+        c.fillStyle = any > 0.05 ? '#fff6d0' : '#4a2a08'; c.beginPath(); c.moveTo(x, y - R * 0.19 * flick); c.quadraticCurveTo(x + R * 0.13, y - R * 0.02, x + R * 0.07, y + R * 0.12); c.quadraticCurveTo(x, y + R * 0.17, x - R * 0.07, y + R * 0.12); c.quadraticCurveTo(x - R * 0.13, y - R * 0.02, x, y - R * 0.19 * flick); c.fill();
+      }
+      S.loop(function (dt, t) {
+        K.fit(); var g = geo(), c = K.c;
+        // pemutaran urutan
+        if (G.phase === 'show') {
+          G.timer += dt;
+          var on = onDur(), cyc = on + gapDur();
+          if (G.timer >= 0) {
+            var idx = Math.floor(G.timer / cyc);
+            if (idx >= LENS[G.round]) { G.phase = 'input'; G.ii = 0; status('Giliranmu', '0 / ' + LENS[G.round]); }
+            else if (idx >= G.si) { G.si = idx + 1; flash(G.seq[idx], on); }
+          }
+        }
+        G.flT = G.flT || [0, 0, 0, 0];
+        for (var i = 0; i < 4; i++) { if (G.flT[i] > 0) { G.flT[i] -= dt; G.fl[i] = 1; } else G.fl[i] = Math.max(0, G.fl[i] - dt * 6); }
+        if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 2.5);
+        if (G.beam) G.beam.t += dt;
+        drawScene(c, g, t); drawLens(c, g, t);
+        var lensTop = g.ly - g.R * 1.12;
+        st.style.top = Math.round(g.hy + (lensTop - g.hy) * 0.5 - 26 + (g.wide ? 0 : 8)) + 'px';
+      });
+
+      status('', '');
+      S.progress(S.pips(ROUNDS, [], -1));
+      S.intro({
+        face: gov, kicker: 'Puncak Mercusuar &middot; Bjorneo', title: 'Sandi Mercusuar',
+        quote: 'Kalau mereka sungguh bersamamu, mereka akan menjawab cahaya kita.', who: govWho,
+        steps: ['<b>Nenek Ulin</b> menyalakan urutan kilatan di lensa mercusuar &mdash; <b>merah, hijau, biru, kuning</b> &mdash; tiap warna bernada gamelan.',
+          'Ulangi urutannya dengan <b>mengetuk lensa</b> yang sesuai.',
+          '5 ronde, urutan bertambah panjang: <b>4 &rarr; 8 kilatan</b>. Tiap ronde berhasil, satu armada sekutu menjawab dari cakrawala.',
+          'Keliru? Nenek Ulin mengulang urutan ronde itu &mdash; tanpa batas.'],
+        controls: { desk: ['Klik lensa', '<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> warna'], touch: ['Ketuk lensa berwarna'] },
+        cta: 'Nyalakan lensa'
+      }, function () { S.msg('&ldquo;Lihat cahayanya, Nak. Laut hanya menjawab sandi yang diulang dengan benar.&rdquo;', 'good', 2600); begin(); });
+
+      return {
+        destroy: function () {},
+        debugWin: function () { S.hideCard(); G.res = [true, true, true, true, true]; G.lit = [1, 1, 1, 1, 1]; G.litT = [0, 0, 0, 0, 0]; G.round = ROUNDS - 1; finale(); },
+        debugSeq: function () { return { phase: G.phase, seq: G.seq.slice(0, LENS[G.round]), round: G.round }; },
+        press: press, _G: G
+      };
+    }
+  };
+
+  /* =====================================================================
+   * 4) ARUS PUSARAN — Pusaran Bjorneo (The Maelstrom)
+   *    Tampak atas; kamera mengikuti kapal (haluan selalu ke atas, pusat di
+   *    kanan). Spiral 3 lingkaran menuju pusat (±65 dtk). Tetap di jalur
+   *    cahaya mahkota; hindari puing & petir biru; tarikan pusat makin kuat.
+   * ===================================================================== */
+  GAMES.pusaran = {
+    title: 'Arus Pusaran', kicker: 'Pusaran Bjorneo · The Maelstrom',
+    create: function (S, opts) {
+      var R_OUT = 230, R_IN = 46, LOOPS = 3, PHI_MAX = LOOPS * Math.PI * 2, TH0 = Math.PI, GAP = (R_OUT - R_IN) / LOOPS / 2;
+      var LIVES = opts.lives || 3, SPD = opts.speed || 1, CLAMP_D = 28;
+      var N = 6000, dPhi = PHI_MAX / N, sTab = new Float32Array(N + 1), drdphi = (R_OUT - R_IN) / PHI_MAX;
+      function rAt(ph) { return R_OUT - drdphi * ph; }
+      for (var i = 1; i <= N; i++) { var rm = rAt((i - 0.5) * dPhi); sTab[i] = sTab[i - 1] + Math.sqrt(rm * rm + drdphi * drdphi) * dPhi; }
+      var S_TOT = sTab[N];
+      function phiAt(s) {
+        if (s <= 0) return s / R_OUT; if (s >= S_TOT) return PHI_MAX + (s - S_TOT) / R_IN;
+        var lo = 0, hi = N; while (hi - lo > 1) { var m = (lo + hi) >> 1; if (sTab[m] < s) lo = m; else hi = m; }
+        return (lo + (s - sTab[lo]) / (sTab[hi] - sTab[lo])) * dPhi;
+      }
+      function sAt(ph) { if (ph <= 0) return ph * R_OUT; if (ph >= PHI_MAX) return S_TOT + (ph - PHI_MAX) * R_IN; var f = ph / dPhi, i0 = Math.floor(f); return sTab[i0] + (sTab[Math.min(N, i0 + 1)] - sTab[i0]) * (f - i0); }
+      function laneC(s) { var p = clamp(s / S_TOT, 0, 1), A = 8 + 9 * p; return A * (0.65 * Math.sin(s / 55 + 1.3) + 0.35 * Math.sin(s / 23 + 0.4)) * smooth(s / 220); }
+      function laneW(s) { return 22 - 7 * clamp(s / S_TOT, 0, 1); }
+      function wpos(s, d) { var ph = phiAt(s), r = rAt(Math.min(ph, PHI_MAX)) - (ph > PHI_MAX ? (ph - PHI_MAX) * 2 : 0), th = TH0 + ph; return { x: (r + d) * Math.cos(th), y: (r + d) * Math.sin(th), th: th, ph: ph }; }
+
+      var G = { state: 'idle', s: 0, d: 0, vd: 0, lives: LIVES, hits: 0, inv: 0, out: 0, deb: [], bolts: [], parts: [], sparks: [], wake: [], wakeT: 0, steerL: false, steerR: false,
+        flash: 0, flashCol: '170,190,255', shake: 0, nextBolt: 0, nextAmb: 3, t0: 0, time: 0, flung: 0, arrive: 0, nextBeat: 0, beat: 0, storm: null, rain: null, red: 0 };
+      // air berpusar (garis buih) & tetes hujan
+      var STREAK = []; for (var q = 0; q < 120; q++) STREAK.push({ rho: rnd(6, 320), a: rnd(0, 6.283), len: rnd(0.12, 0.55), w: rnd(0.4, 1.3), b: q % 3, dr: rnd(1.5, 4.5) });
+      var RAIN = []; for (var rq = 0; rq < 130; rq++) RAIN.push({ x: Math.random(), y: Math.random(), l: rnd(0.6, 1.4), v: rnd(0.9, 1.4) });
+      var CLOUD = []; for (var cq = 0; cq < 6; cq++) CLOUD.push({ x: Math.random(), y: Math.random(), r: rnd(0.25, 0.5), v: rnd(0.008, 0.02) });
+      var ROCKS = [0.4, 1.9, 3.3, 4.8].map(function (a, i) {
+        var pts = [], n = 9, rad = 6 + (i % 2) * 2.5; for (var k = 0; k < n; k++) { var aa = k / n * 6.283; pts.push([Math.cos(aa) * rad * rnd(0.7, 1.15), Math.sin(aa) * rad * rnd(0.7, 1.15)]); }
+        return { a: a, r: 33 + (i % 2) * 4, pts: pts, bob: Math.random() * 6 };
+      });
+
+      S.stage.innerHTML = '';
+      var K = S.canvas(null, 1.5), VIG = null, VIGK = '', CSPR = null, WSPR = null;
+      var hud = h('div', 'ps-hud', '<div class="ps-lives"></div><div class="ps-mid"><div class="ps-loop">Lingkaran 1 / 3</div><div class="ps-bar"><i></i><em style="left:33.3%"></em><em style="left:66.6%"></em></div></div><div class="ps-perf">Tanpa benturan</div>');
+      var warn = h('div', 'ps-warn', '<b>Keluar jalur cahaya!</b><span><i></i></span>');
+      var tl = h('div', 'ps-touch l', '<div class="ar">' + SVG.left + '</div>'), tr = h('div', 'ps-touch r', '<div class="ar">' + SVG.right + '</div>');
+      tl.style.pointerEvents = tr.style.pointerEvents = 'none';
+      var keys = h('div', 'ps-keys', '<b>A</b> / <b>&larr;</b> keluar &nbsp;&middot;&nbsp; <b>D</b> / <b>&rarr;</b> ke pusat &nbsp;&middot;&nbsp; atau tahan klik sisi kiri/kanan');
+      [hud, warn, tl, tr, keys].forEach(function (e) { S.stage.appendChild(e); });
+      var elLoop = hud.querySelector('.ps-loop'), elBar = hud.querySelector('.ps-bar i'), elLives = hud.querySelector('.ps-lives'), elPerf = hud.querySelector('.ps-perf'), elWarnI = warn.querySelector('i');
+      var shipIco = '<svg viewBox="0 0 24 24"><path d="M12 2c3 3 4.5 7 4.5 11.5 0 3.5-1.2 6.5-4.5 8.5-3.3-2-4.5-5-4.5-8.5C7.5 9 9 5 12 2z" fill="#c9922f" stroke="#3a2405" stroke-width="1.3"/><path d="M8 10h8M8.4 14.5h7.2" stroke="#fbeabb" stroke-width="1.6" stroke-linecap="round"/></svg>';
+      function paintLives() { var s = ''; for (var i = 0; i < LIVES; i++) s += shipIco.replace('<svg', '<svg class="' + (i < G.lives ? '' : 'lost') + '"'); elLives.innerHTML = s; }
+      paintLives();
+      function prog() { var p = clamp(G.s / S_TOT, 0, 1), loop = Math.min(LOOPS, Math.floor(phiAt(G.s) / 6.2832) + 1), dn = []; for (var i = 0; i < LOOPS; i++) dn.push(i < loop - 1 ? true : null); if (G.lastLoop !== loop) { G.lastLoop = loop; S.progress(S.pips(LOOPS, dn, loop - 1)); if (loop > 1 && G.state === 'play') S.msg(loop === LOOPS ? 'Lingkaran terakhir &mdash; tarikan pusat makin kuat!' : 'Lingkaran ' + loop + ' &mdash; arus makin deras', 'good', 1800); } elLoop.textContent = 'Lingkaran ' + loop + ' / ' + LOOPS; elBar.style.width = (p * 100).toFixed(1) + '%'; }
+
+      /* ---------- persiapan putaran ---------- */
+      function genDebris() {
+        var a = [], s = 230, types = ['plank', 'barrel', 'crate', 'mast', 'hull'];
+        while (s < S_TOT - 80) {
+          var p = s / S_TOT, w = laneW(s), lc = laneC(s);
+          var off = lc + pick([-0.3, 0, 0.3, -0.18, 0.18]) * w;
+          a.push({ s: s, off: off, r: rnd(2.6, 4.2) + p * 0.6, type: pick(types), rot: rnd(0, 6.28), spin: rnd(-0.6, 0.6), wob: rnd(0, 6), hit: 0 });
+          if (Math.random() < 0.3) { var side = Math.random() < 0.5 ? -1 : 1; a.push({ s: s + rnd(-20, 20), off: clamp(lc + side * (w / 2 + rnd(5, 10)), -CLAMP_D + 2, CLAMP_D - 2), r: rnd(2.4, 3.6), type: pick(types), rot: rnd(0, 6.28), spin: rnd(-0.6, 0.6), wob: rnd(0, 6), hit: 0 }); }
+          s += lerp(p < 0.2 ? 130 : 112, 84, p) + rnd(-12, 12);
+        }
+        a.forEach(function (o) { var P = wpos(o.s, 0); o.ph = P.ph; });
+        return a;
+      }
+      function begin() {
+        G.state = 'play'; G.s = 0; G.d = 0; G.vd = 0; G.lives = LIVES; G.hits = 0; G.inv = 1.2; G.out = 0; G.deb = genDebris(); G.bolts = []; G.parts = []; G.wake = []; G.sparks = [];
+        G.time = 0; G.nextBolt = 6; G.lastLoop = 0; G.flung = 0; G.arrive = 0; G.red = 0;
+        paintLives(); elPerf.classList.remove('lost'); prog();
+        AX.ensure(); AX.stopAll(); G.storm = AX.loop(true, 'lowpass', 380, 0.7, 0.13); G.rain = AX.loop(false, 'highpass', 2600, 0.7, 0.03); G.nextBeat = AX.now() + 0.3; G.beat = 0;
+        S.msg('Ikuti jalur cahaya mahkota!', 'good', 2200);
+      }
+      function speed() { return (34 + 10 * clamp(G.s / S_TOT, 0, 1)) * SPD; }
+
+      /* ---------- benturan ---------- */
+      function hit(kind, at) {
+        if (G.inv > 0 || G.state !== 'play') return;
+        (G.log = G.log || []).push(kind + '@' + Math.round(G.time) + ' d' + G.d.toFixed(1) +  ' lc' + laneC(G.s).toFixed(1) + (at && at.d != null ? ' bd' + at.d.toFixed(1) + ' r' + at.r.toFixed(1) + (at.ds != null ? ' ds' + at.ds.toFixed(1) : ' dist' + Math.hypot(wpos(G.s, G.d).x - at.x, wpos(G.s, G.d).y - at.y).toFixed(1)) : ''));
+        G.lives--; G.hits++; G.inv = 2; G.shake = REDUCE ? 0.35 : 1; G.red = 1; paintLives(); elPerf.classList.add('lost');
+        var P = wpos(G.s, G.d);
+        for (var i = 0; i < 22; i++) G.parts.push({ x: P.x, y: P.y, vx: rnd(-14, 14), vy: rnd(-14, 14), life: rnd(0.5, 1.1), age: 0, r: rnd(0.4, 1.1), c: kind === 'petir' ? '180,210,255' : i % 2 ? '235,240,255' : '150,105,60' });
+        vib([70, 40, 90]);
+        if (kind === 'petir') { AX.zap(); } else AX.crash();
+        au('hit');
+        S.msg(kind === 'puing' ? 'Dihantam puing!' : kind === 'petir' ? 'Disambar petir biru!' : 'Arus liar menghantam lambung!', 'bad', 1500);
+        if (kind === 'arus') { G.d = laneC(G.s); G.vd = 0; }
+        if (G.lives <= 0) { G.state = 'flung'; G.flung = 0; AX.whoosh(0, 0.2); S.fail({ progress: G.s / S_TOT }); }
+      }
+
+      /* ---------- update ---------- */
+      function update(dt) {
+        var p = clamp(G.s / S_TOT, 0, 1);
+        if (G.state === 'play') {
+          G.time += dt;
+          var v = speed(); G.s += v * dt;
+          var inp = (G.steerL ? 1 : 0) - (G.steerR ? 1 : 0);
+          G.vd += (inp * 50 - G.vd) * Math.min(1, dt * 8);
+          var pull = 14 * smooth((p - 0.3) / 0.7);
+          G.d += (G.vd - pull + Math.sin(S.t * 0.9) * 3) * dt;
+          if (G.d > CLAMP_D) { G.d = CLAMP_D; G.vd = Math.min(0, G.vd); } if (G.d < -CLAMP_D) { G.d = -CLAMP_D; G.vd = Math.max(0, G.vd); }
+          // jalur cahaya
+          var lc = laneC(G.s), w = laneW(G.s), outside = Math.abs(G.d - lc) > w / 2 + 1.5, grace = p < 0.33 ? 1.6 : 1.25;
+          if (outside) G.out += dt; else G.out = Math.max(0, G.out - dt * 1.5);
+          if (G.out > grace) { G.out = 0; hit('arus'); }
+          warn.classList.toggle('show', G.out > 0.08 && G.state === 'play'); elWarnI.style.width = Math.min(100, G.out / grace * 100) + '%';
+          // puing
+          for (var i = 0; i < G.deb.length; i++) {
+            var o = G.deb[i]; if (o.hit || o.s < G.s - 10 || o.s > G.s + 10) continue;
+            var dd = o.off + Math.sin(S.t * 0.6 + o.wob) * 1.5;
+            if (Math.abs(o.s - G.s) < 3.6 + o.r * 0.6 && Math.abs(dd - G.d) < 1.6 + o.r * 0.6) { o.hit = 1; hit('puing', { d: dd, r: o.r, x: 0, y: 0, ds: o.s - G.s }); }
+          }
+          // petir
+          if (p > 0.12) {
+            G.nextBolt -= dt;
+            if (G.nextBolt <= 0) {
+              G.nextBolt = rnd(3.8, 6) * (1 - 0.4 * p);
+              var st = G.s + v * 1.15, crowd = false;
+              for (var q2 = 0; q2 < G.deb.length; q2++) { if (!G.deb[q2].hit && Math.abs(G.deb[q2].s - st) < 26) { crowd = true; break; } }
+              if (crowd) { G.nextBolt = 0.35; } else {
+              var dt2 = clamp(laneC(st) + rnd(-5, 5), -CLAMP_D + 3, CLAMP_D - 3), P = wpos(st, dt2);
+              G.bolts.push({ s: st, d: dt2, x: P.x, y: P.y, r: 6 + 1.5 * p, warn: 1.15, age: 0, struck: false, seed: Math.random() * 1000 });
+              }
+            }
+          }
+          // selesai?
+          if (G.s >= S_TOT) { G.state = 'arrive'; G.arrive = 0; au('success'); AX.shimmer(); AX.gong(73, 0.28, 0.2); warn.classList.remove('show'); }
+          prog();
+        } else if (G.state === 'flung') {
+          G.flung += dt; G.d += 60 * dt; G.s += speed() * dt * 0.4;
+          warn.classList.remove('show');
+          if (G.flung > 1.5 && !G.failShown) { G.failShown = true; showFail(); }
+        } else if (G.state === 'arrive') {
+          G.arrive += dt; G.s += speed() * dt * Math.max(0, 1 - G.arrive / 1.6); G.d += (laneC(G.s) - G.d) * dt * 2;
+          if (G.arrive > 2 && !G.winShown) { G.winShown = true; winNow(); }
+        } else if (G.state === 'idle') {
+          G.s = 40 + Math.sin(S.t * 0.1) * 10; G.d = laneC(G.s);
+        }
+        if (G.inv > 0) G.inv -= dt; if (G.red > 0) G.red -= dt * 1.6; if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 2.2); if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * 2.4);
+        // petir: peringatan → sambar
+        var sp = wpos(G.s, G.d);
+        for (var b = G.bolts.length - 1; b >= 0; b--) {
+          var B = G.bolts[b]; B.age += dt;
+          if (!B.struck && B.age >= B.warn) {
+            B.struck = true; B.sAge = 0; G.flash = REDUCE ? 0.35 : 0.9; G.flashCol = '170,195,255'; AX.zap(0.02);
+            try { if (window.MTAudio && MTAudio.thunder) MTAudio.thunder(0.15); } catch (e) {}
+            for (var k = 0; k < 14; k++) G.parts.push({ x: B.x, y: B.y, vx: rnd(-18, 18), vy: rnd(-18, 18), life: rnd(0.3, 0.7), age: 0, r: rnd(0.3, 0.8), c: '200,225,255' });
+            if (G.state === 'play' && Math.hypot(sp.x - B.x, sp.y - B.y) < B.r - 0.3) hit('petir', B);
+          }
+          if (B.struck) { B.sAge += dt; if (B.sAge > 1.4) G.bolts.splice(b, 1); }
+        }
+        // kilat suasana
+        G.nextAmb -= dt;
+        if (G.nextAmb <= 0) { G.nextAmb = rnd(2.2, 5.5); G.flash = Math.max(G.flash, REDUCE ? 0.2 : 0.45); G.flashCol = '190,170,255'; try { if (window.MTAudio && MTAudio.thunder) MTAudio.thunder(); } catch (e) {} }
+        // jejak buih
+        G.wakeT -= dt; if (G.wakeT <= 0 && G.state !== 'idle') { G.wakeT = 0.04; G.wake.unshift({ x: sp.x, y: sp.y, a: 1 }); if (G.wake.length > 46) G.wake.pop(); }
+        // kilau di jalur
+        if (G.state !== 'flung') for (var z = 0; z < 2; z++) { var ss = G.s + rnd(-30, 160), ww = laneW(ss), P2 = wpos(ss, laneC(ss) + rnd(-ww / 2, ww / 2)); G.sparks.push({ x: P2.x, y: P2.y, age: 0, life: rnd(0.6, 1.3) }); }
+        for (var si = G.sparks.length - 1; si >= 0; si--) { G.sparks[si].age += dt; if (G.sparks[si].age > G.sparks[si].life) G.sparks.splice(si, 1); }
+        for (var pi = G.parts.length - 1; pi >= 0; pi--) { var pp = G.parts[pi]; pp.age += dt; pp.x += pp.vx * dt; pp.y += pp.vy * dt; pp.vx *= 0.96; pp.vy *= 0.96; if (pp.age > pp.life) G.parts.splice(pi, 1); }
+        // buih berputar
+        var v2 = speed();
+        STREAK.forEach(function (st2) { st2.a += 0.5 * v2 / Math.max(14, st2.rho) * dt; st2.rho -= st2.dr * dt * (1 + 40 / Math.max(10, st2.rho)); if (st2.rho < 7) { st2.rho = rnd(260, 330); st2.a = rnd(0, 6.283); } });
+        // musik kendhang makin cepat
+        if (G.state === 'play' || G.state === 'arrive') {
+          var bpm = 84 + 96 * p, stepD = 60 / bpm / 2, now = AX.now();
+          if (now && G.nextBeat < now) G.nextBeat = now + 0.05;
+          while (now && G.nextBeat < now + 0.12) {
+            var pat = ['dung', '', 'tak', 'ket', 'dung', 'tak', 'ket', 'tak'][G.beat % 8];
+            if (pat) AX.kendhang(pat, pat === 'dung' ? 0.2 : 0.12, G.nextBeat - now);
+            if (G.beat % 32 === 0) AX.gong(55, 0.12, G.nextBeat - now);
+            G.beat++; G.nextBeat += stepD;
+          }
+        }
+      }
+
+      /* ---------- gambar ---------- */
+      function drawDebris(c, o, t) {
+        var P = { ph: o.ph }, r0 = rAt(Math.min(o.ph, PHI_MAX)), th = TH0 + o.ph, dd = o.off + Math.sin(t * 0.6 + o.wob) * 1.5, x = (r0 + dd) * Math.cos(th), y = (r0 + dd) * Math.sin(th), r = o.r;
+        c.save(); c.translate(x, y);
+        c.fillStyle = 'rgba(230,220,255,.16)'; c.beginPath(); c.ellipse(0, 0, r * 1.5, r * 1.15, o.rot, 0, 6.3); c.fill();
+        c.rotate(o.rot + o.spin * t);
+        if (o.hit) c.globalAlpha = 0.35;
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(0.6, 0.8, r, r * 0.7, 0, 0, 6.3); c.fill();
+        if (o.type === 'barrel') {
+          c.fillStyle = '#7a4f2a'; c.beginPath(); c.arc(0, 0, r * 0.75, 0, 6.3); c.fill();
+          c.strokeStyle = '#3a2412'; c.lineWidth = r * 0.14; c.beginPath(); c.arc(0, 0, r * 0.75, 0, 6.3); c.stroke(); c.beginPath(); c.arc(0, 0, r * 0.4, 0, 6.3); c.stroke();
+        } else if (o.type === 'crate') {
+          c.fillStyle = '#8a6238'; c.fillRect(-r * 0.7, -r * 0.7, r * 1.4, r * 1.4); c.strokeStyle = '#4a3220'; c.lineWidth = r * 0.12; c.strokeRect(-r * 0.7, -r * 0.7, r * 1.4, r * 1.4);
+          c.beginPath(); c.moveTo(-r * 0.7, -r * 0.7); c.lineTo(r * 0.7, r * 0.7); c.stroke();
+        } else if (o.type === 'mast') {
+          c.fillStyle = '#5a3a20'; c.fillRect(-r * 1.6, -r * 0.18, r * 3.2, r * 0.36);
+          c.fillStyle = 'rgba(230,220,200,.85)'; c.beginPath(); c.moveTo(-r * 0.6, 0); c.lineTo(r * 0.5, -r * 0.1); c.lineTo(r * 0.2, r * 1.0); c.lineTo(-r * 0.8, r * 0.7); c.fill();
+        } else if (o.type === 'hull') {
+          c.fillStyle = '#4a2f1a'; c.beginPath(); c.moveTo(-r, -r * 0.5); c.lineTo(r * 0.9, -r * 0.7); c.lineTo(r * 1.1, r * 0.2); c.lineTo(r * 0.2, r * 0.8); c.lineTo(-r * 0.9, r * 0.5); c.closePath(); c.fill();
+          c.strokeStyle = '#2a1a0c'; c.lineWidth = r * 0.12; for (var k = -2; k <= 2; k++) { c.beginPath(); c.moveTo(k * r * 0.35, -r * 0.6); c.lineTo(k * r * 0.35 + r * 0.1, r * 0.6); c.stroke(); }
+        } else {
+          c.fillStyle = '#8a6238'; c.fillRect(-r * 1.3, -r * 0.32, r * 2.6, r * 0.64); c.strokeStyle = '#4a3220'; c.lineWidth = r * 0.08;
+          c.beginPath(); c.moveTo(-r * 1.3, 0); c.lineTo(r * 1.3, 0); c.stroke(); c.fillStyle = '#3a2412'; c.fillRect(r * 0.9, -r * 0.32, r * 0.12, r * 0.64);
+        }
+        c.restore();
+      }
+      function drawPlayer(c, x, y, ang, t, k) {
+        c.save(); c.translate(x, y); c.rotate(ang);
+        var blink = G.inv > 0 && G.state === 'play' && Math.sin(t * 30) > 0;
+        if (blink) c.globalAlpha = 0.45;
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(0.8, 1, 2.3, 5, 0, 0, 6.3); c.fill();
+        c.fillStyle = 'rgba(235,240,255,.35)'; c.beginPath(); c.moveTo(0, -5.6); c.quadraticCurveTo(3.4, -3, 2.6, 4.6); c.lineTo(-2.6, 4.6); c.quadraticCurveTo(-3.4, -3, 0, -5.6); c.fill();
+        c.fillStyle = '#6b4226'; c.beginPath(); c.moveTo(0, -4.9); c.quadraticCurveTo(2.5, -2.6, 2, 4.2); c.quadraticCurveTo(0, 4.9, -2, 4.2); c.quadraticCurveTo(-2.5, -2.6, 0, -4.9); c.fill();
+        c.strokeStyle = '#e0b64c'; c.lineWidth = 0.35; c.stroke();
+        c.fillStyle = '#a07444'; c.beginPath(); c.moveTo(0, -3.9); c.quadraticCurveTo(1.7, -2, 1.4, 3.6); c.lineTo(-1.4, 3.6); c.quadraticCurveTo(-1.7, -2, 0, -3.9); c.fill();
+        c.strokeStyle = 'rgba(60,35,15,.6)'; c.lineWidth = 0.15; for (var pl = -1; pl <= 1; pl++) { c.beginPath(); c.moveTo(pl * 0.55, -3); c.lineTo(pl * 0.55, 3.5); c.stroke(); }
+        c.strokeStyle = '#3b2616'; c.lineWidth = 0.35; c.beginPath(); c.moveTo(0, -4.9); c.lineTo(0, -7); c.stroke();
+        var billow = 0.5 + Math.sin(t * 3) * 0.15, yaw = clamp(-G.vd * 0.01, -0.35, 0.35);
+        [[-1.6, 2.9], [1.0, 3.4]].forEach(function (m) {
+          c.save(); c.translate(0, m[0]); c.rotate(yaw);
+          c.fillStyle = '#f3e9d2'; c.beginPath(); c.moveTo(-m[1], 0); c.quadraticCurveTo(0, -billow * 1.8, m[1], 0); c.lineTo(m[1] * 0.92, 0.5); c.quadraticCurveTo(0, -billow, -m[1] * 0.92, 0.5); c.closePath(); c.fill();
+          c.strokeStyle = '#4a2f1a'; c.lineWidth = 0.3; c.beginPath(); c.moveTo(-m[1], 0.2); c.lineTo(m[1], 0.2); c.stroke(); c.restore();
+          c.fillStyle = '#3b2616'; c.beginPath(); c.arc(0, m[0] + 0.2, 0.32, 0, 6.3); c.fill();
+        });
+        c.fillStyle = '#9b2d20'; c.beginPath(); c.moveTo(0, 4); c.lineTo(-0.2 + Math.sin(t * 8) * 0.3, 6); c.lineTo(0.8, 5.4); c.closePath(); c.fill();
+        if (G.red > 0) { c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(255,60,40,' + (0.5 * G.red) + ')'; c.beginPath(); c.ellipse(0, 0, 3.5, 6, 0, 0, 6.3); c.fill(); }
+        c.restore();
+      }
+      function drawKing(c, t, vis) {
+        if (vis <= 0.01) return;
+        c.save(); c.globalAlpha = vis;
+        // tebing karang melayang + rantai
+        ROCKS.forEach(function (R) {
+          var bob = Math.sin(t * 0.8 + R.bob) * 0.6, rx = Math.cos(R.a) * R.r, ry = Math.sin(R.a) * R.r + bob;
+          c.strokeStyle = 'rgba(30,26,36,.95)'; c.lineWidth = 0.9; c.setLineDash([1.4, 0.8]);
+          var hx = Math.cos(R.a) * 14, hy = Math.sin(R.a) * 5; c.beginPath(); c.moveTo(hx, hy); c.quadraticCurveTo((hx + rx) / 2, (hy + ry) / 2 + 3, rx, ry); c.stroke(); c.setLineDash([]);
+          c.fillStyle = 'rgba(0,0,0,.45)'; c.beginPath(); R.pts.forEach(function (pt, i) { if (i) c.lineTo(rx + pt[0] + 2, ry + pt[1] + 3); else c.moveTo(rx + pt[0] + 2, ry + pt[1] + 3); }); c.fill();
+          var rg = c.createRadialGradient(rx - 2, ry - 2, 0, rx, ry, 9); rg.addColorStop(0, '#6a5a7a'); rg.addColorStop(1, '#2a2234');
+          c.fillStyle = rg; c.beginPath(); R.pts.forEach(function (pt, i) { if (i) c.lineTo(rx + pt[0], ry + pt[1]); else c.moveTo(rx + pt[0], ry + pt[1]); }); c.closePath(); c.fill();
+          c.fillStyle = 'rgba(140,255,200,' + (0.25 + 0.2 * Math.sin(t * 2 + R.bob)) + ')'; c.beginPath(); c.arc(rx, ry, 1.2, 0, 6.3); c.fill();
+        });
+        // kapal raja berlapis baja (tampak atas)
+        c.save(); c.rotate(-0.35);
+        c.fillStyle = 'rgba(0,0,0,.5)'; c.beginPath(); c.ellipse(2, 3, 9, 30, 0, 0, 6.3); c.fill();
+        c.fillStyle = '#2a2a33'; c.beginPath(); c.moveTo(0, -31); c.quadraticCurveTo(9.5, -14, 8.5, 22); c.quadraticCurveTo(0, 28, -8.5, 22); c.quadraticCurveTo(-9.5, -14, 0, -31); c.fill();
+        c.strokeStyle = '#8a8070'; c.lineWidth = 0.6; c.stroke();
+        c.fillStyle = '#3e3c46'; c.beginPath(); c.moveTo(0, -26); c.quadraticCurveTo(7, -12, 6.4, 19); c.lineTo(-6.4, 19); c.quadraticCurveTo(-7, -12, 0, -26); c.fill();
+        c.strokeStyle = 'rgba(160,150,130,.5)'; c.lineWidth = 0.3;
+        for (var pl = -20; pl < 20; pl += 4) { c.beginPath(); c.moveTo(-6.4, pl); c.lineTo(6.4, pl); c.stroke(); }
+        c.fillStyle = 'rgba(200,190,160,.7)'; for (var rv = -20; rv < 20; rv += 4) { c.beginPath(); c.arc(-5.6, rv, 0.3, 0, 6.3); c.arc(5.6, rv, 0.3, 0, 6.3); c.fill(); }
+        [-14, 0, 13].forEach(function (my, i) { c.fillStyle = '#1a1820'; c.beginPath(); c.arc(0, my, 1.2, 0, 6.3); c.fill(); c.fillStyle = 'rgba(120,100,120,.6)'; c.beginPath(); c.moveTo(-5 + i, my - 1); c.lineTo(5 - i, my - 1.6); c.lineTo(4 - i, my + 1); c.lineTo(-4 + i, my + 0.6); c.closePath(); c.fill(); });
+        c.fillStyle = '#e0b64c'; c.beginPath(); c.moveTo(-1.5, -24); c.lineTo(0, -27); c.lineTo(1.5, -24); c.closePath(); c.fill();
+        c.globalCompositeOperation = 'lighter'; var gl = c.createRadialGradient(0, 0, 0, 0, 0, 26); gl.addColorStop(0, 'rgba(140,90,255,' + (0.18 + 0.08 * Math.sin(t * 1.5)) + ')'); gl.addColorStop(1, 'rgba(140,90,255,0)'); c.fillStyle = gl; c.fillRect(-26, -26, 52, 52);
+        c.restore();
+        c.restore();
+      }
+      function drawGate(c, t) {
+        var ph = PHI_MAX, th = TH0 + ph, w = laneW(S_TOT), lc = laneC(S_TOT);
+        [lc + w / 2 + 2, lc - w / 2 - 2].forEach(function (d) {
+          var x = (R_IN + d) * Math.cos(th), y = (R_IN + d) * Math.sin(th);
+          c.fillStyle = 'rgba(0,0,0,.4)'; c.beginPath(); c.arc(x + 0.8, y + 1, 2.6, 0, 6.3); c.fill();
+          c.fillStyle = '#3a3044'; c.beginPath(); c.arc(x, y, 2.4, 0, 6.3); c.fill();
+          c.globalCompositeOperation = 'lighter'; var g2 = c.createRadialGradient(x, y, 0, x, y, 8); g2.addColorStop(0, 'rgba(255,210,110,' + (0.7 + 0.2 * Math.sin(t * 5)) + ')'); g2.addColorStop(1, 'rgba(255,170,60,0)'); c.fillStyle = g2; c.fillRect(x - 8, y - 8, 16, 16); c.globalCompositeOperation = 'source-over';
+        });
+      }
+      function render(dt, t) {
+        K.fit(); var c = K.c, W = K.W, H = K.H, p = clamp(G.s / S_TOT, 0, 1);
+        var sp = wpos(G.s, G.d), th = sp.th, rot = -Math.PI - th;
+        var wideScr = W > H * 1.1, base = clamp(Math.min(W, H) / 100, 3.2, 6.2), zoom = base * (1 - 0.24 * smooth((p - 0.6) / 0.35)) * (G.state === 'arrive' ? 1 - 0.1 * smooth(G.arrive / 2) : 1);
+        var ax = W * (0.5 - (wideScr ? 0.1 : 0.15) * smooth((p - 0.62) / 0.3)), ay = H * (wideScr ? 0.7 : 0.67);
+        var shx = 0, shy = 0; if (G.shake > 0) { shx = (Math.random() - 0.5) * 12 * G.shake; shy = (Math.random() - 0.5) * 12 * G.shake; }
+        if (G.state === 'flung') rot += G.flung * G.flung * 0.6;
+        // dasar
+        // air pusaran: gradien radial di ruang layar (simetris, tak perlu rotasi)
+        var vx0 = -sp.x * zoom, vy0 = -sp.y * zoom, cro = Math.cos(rot), sro = Math.sin(rot), csx = ax + shx + vx0 * cro - vy0 * sro, csy = ay + shy + vx0 * sro + vy0 * cro, wr = 340 * zoom;
+        var wg = c.createRadialGradient(csx, csy, 0, csx, csy, wr); wg.addColorStop(0, '#030108'); wg.addColorStop(0.08, '#0c0620'); wg.addColorStop(0.25, '#1a1040'); wg.addColorStop(0.6, '#281a56'); wg.addColorStop(1, '#1c1238');
+        c.fillStyle = wg; c.fillRect(0, 0, W, H);
+        c.save(); c.translate(ax + shx, ay + shy); c.rotate(rot); c.scale(zoom, zoom); c.translate(-sp.x, -sp.y);
+        // pusat kamera di dunia (untuk membuang titik di luar layar)
+        var icx = (W / 2 - ax) / zoom, icy = (H / 2 - ay) / zoom, cr0 = Math.cos(-rot), sr0 = Math.sin(-rot), camX = sp.x + icx * cr0 - icy * sr0, camY = sp.y + icx * sr0 + icy * cr0, RV = Math.hypot(W, H) / 2 / zoom + 14, RV2 = RV * RV;
+        function inV(x, y) { var dx = x - camX, dy = y - camY; return dx * dx + dy * dy < RV2; }
+        // air pusaran
+
+        // buih berputar
+        var cols = ['rgba(190,170,255,.13)', 'rgba(215,200,255,.22)', 'rgba(240,235,255,.34)'];
+        for (var b = 0; b < 3; b++) {
+          c.strokeStyle = cols[b]; c.beginPath();
+          for (var i = 0; i < STREAK.length; i++) { var st = STREAK[i]; if (st.b !== b) continue; c.moveTo(st.rho * Math.cos(st.a), st.rho * Math.sin(st.a)); c.arc(0, 0, st.rho, st.a, st.a + st.len * (st.rho < 40 ? 1.8 : 1)); }
+          c.lineWidth = 0.7 + b * 0.45; c.stroke();
+        }
+        // sambungan spiral (arus liar antar lingkaran)
+        var ph0 = Math.max(-6.2832, sp.ph - 1.6);
+        c.lineCap = 'round';
+        function seam(off, from, to) {
+          c.beginPath(); var first = true;
+          for (var ph = from; ph <= to; ph += 2.8 / Math.max(30, rAt(ph))) { var r = rAt(ph) + off, a = TH0 + ph, x = r * Math.cos(a), y = r * Math.sin(a); if (!inV(x, y)) { first = true; continue; } if (first) { c.moveTo(x, y); first = false; } else c.lineTo(x, y); }
+        }
+        seam(GAP, ph0, PHI_MAX); c.strokeStyle = 'rgba(210,190,255,.09)'; c.lineWidth = 7; c.stroke();
+        c.strokeStyle = 'rgba(235,228,255,.16)'; c.lineWidth = 2.2; c.stroke(); c.strokeStyle = 'rgba(245,240,255,.22)'; c.lineWidth = 0.5; c.stroke();
+        seam(-GAP, PHI_MAX - 6.2832, PHI_MAX); c.strokeStyle = 'rgba(210,190,255,.08)'; c.lineWidth = 6; c.stroke();
+        // jalur cahaya mahkota
+        var runs = [], L = [], Rr = [], C = [], phS = Math.max(0, phiAt(G.s - 70));
+        for (var ph2 = phS; ph2 <= PHI_MAX + 0.0001; ph2 += 3.4 / rAt(ph2)) {
+          var r2 = rAt(ph2), a2 = TH0 + ph2, ca = Math.cos(a2), sa = Math.sin(a2);
+          if (!inV(r2 * ca, r2 * sa)) { if (L.length) { runs.push([L, Rr, C]); L = []; Rr = []; C = []; } continue; }
+          var s2 = sAt(ph2), lc = laneC(s2), w2 = laneW(s2);
+          L.push((r2 + lc + w2 / 2) * ca, (r2 + lc + w2 / 2) * sa); Rr.push((r2 + lc - w2 / 2) * ca, (r2 + lc - w2 / 2) * sa); C.push((r2 + lc) * ca, (r2 + lc) * sa);
+        }
+        if (L.length) runs.push([L, Rr, C]);
+        function edge(arr) { c.beginPath(); c.moveTo(arr[0], arr[1]); for (var j3 = 2; j3 < arr.length; j3 += 2) c.lineTo(arr[j3], arr[j3 + 1]); }
+        runs.forEach(function (run) { L = run[0]; Rr = run[1]; C = run[2]; if (L.length < 4) return;
+          c.beginPath(); c.moveTo(L[0], L[1]); for (var j = 2; j < L.length; j += 2) c.lineTo(L[j], L[j + 1]); for (var j2 = Rr.length - 2; j2 >= 0; j2 -= 2) c.lineTo(Rr[j2], Rr[j2 + 1]); c.closePath();
+          c.fillStyle = 'rgba(232,150,36,' + (0.5 + 0.06 * Math.sin(t * 2.2)) + ')'; c.fill();
+          c.globalCompositeOperation = 'lighter';
+          c.fillStyle = 'rgba(255,200,60,' + (0.06 + 0.04 * Math.sin(t * 2.2 + 1)) + ')'; c.fill();
+          edge(C); c.lineJoin = 'round'; c.strokeStyle = 'rgba(255,165,40,.3)'; c.lineWidth = 9; c.stroke(); c.strokeStyle = 'rgba(255,215,110,.34)'; c.lineWidth = 4; c.stroke();
+          [L, Rr].forEach(function (arr) { edge(arr); c.strokeStyle = 'rgba(255,175,45,.55)'; c.lineWidth = 3; c.stroke(); c.strokeStyle = 'rgba(255,240,185,.95)'; c.lineWidth = 0.55; c.stroke(); });
+          edge(C); c.setLineDash([0.1, 6]); c.lineDashOffset = -t * 26; c.strokeStyle = 'rgba(255,248,215,.85)'; c.lineWidth = 0.9; c.stroke(); c.setLineDash([]);
+          c.globalCompositeOperation = 'source-over';
+        });
+        // kilau
+        c.globalCompositeOperation = 'lighter';
+        G.sparks.forEach(function (z) { var k2 = z.age / z.life, a3 = Math.sin(k2 * Math.PI); c.fillStyle = 'rgba(255,225,140,' + (0.8 * a3).toFixed(2) + ')'; c.beginPath(); c.arc(z.x, z.y, 0.35 + 0.3 * a3, 0, 6.3); c.fill(); });
+        c.globalCompositeOperation = 'source-over';
+        drawGate(c, t);
+        // kapal raja di pusat
+        var vis = 0.2 + 0.8 * smooth((p - 0.45) / 0.45);
+        drawKing(c, t, vis);
+        var mist = c.createRadialGradient(0, 0, 0, 0, 0, 60); mist.addColorStop(0, 'rgba(20,10,40,' + (0.85 * (1 - vis)) + ')'); mist.addColorStop(1, 'rgba(20,10,40,0)'); c.fillStyle = mist; c.beginPath(); c.arc(0, 0, 60, 0, 6.3); c.fill();
+        // puing
+        for (var di = 0; di < G.deb.length; di++) { var o = G.deb[di]; if (o.s < G.s - 60 || o.s > G.s + 1300) continue; var rr0 = rAt(Math.min(o.ph, PHI_MAX)) + o.off; if (!inV(rr0 * Math.cos(TH0 + o.ph), rr0 * Math.sin(TH0 + o.ph))) continue; drawDebris(c, o, t); }
+        // jejak buih
+        c.lineCap = 'round';
+        for (var wk = 1; wk < G.wake.length; wk++) { var a0 = G.wake[wk - 1], a1 = G.wake[wk], kk = 1 - wk / G.wake.length; c.strokeStyle = 'rgba(235,240,255,' + (0.35 * kk).toFixed(2) + ')'; c.lineWidth = 1 + (1 - kk) * 3.4; c.beginPath(); c.moveTo(a0.x, a0.y); c.lineTo(a1.x, a1.y); c.stroke(); }
+        // petir: lingkaran peringatan & sambaran
+        G.bolts.forEach(function (B) {
+          if (!B.struck) {
+            var k3 = B.age / B.warn, bl = Math.sin(B.age * (10 + 22 * k3)) > 0 ? 1 : 0.45;
+            c.fillStyle = 'rgba(110,160,255,' + ((0.14 + 0.3 * k3) * bl).toFixed(3) + ')'; c.beginPath(); c.arc(B.x, B.y, B.r, 0, 6.3); c.fill();
+            c.strokeStyle = 'rgba(200,225,255,' + (0.35 * bl) + ')'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(B.x - B.r * 0.5, B.y); c.lineTo(B.x + B.r * 0.5, B.y); c.moveTo(B.x, B.y - B.r * 0.5); c.lineTo(B.x, B.y + B.r * 0.5); c.stroke();
+            c.strokeStyle = 'rgba(170,210,255,' + (0.6 + 0.4 * bl) + ')'; c.lineWidth = 1.1; c.setLineDash([2, 1.6]); c.lineDashOffset = -t * 8; c.beginPath(); c.arc(B.x, B.y, B.r, 0, 6.3); c.stroke(); c.setLineDash([]);
+            c.strokeStyle = 'rgba(200,225,255,.8)'; c.lineWidth = 0.5; c.beginPath(); c.arc(B.x, B.y, B.r * (1 - k3), 0, 6.3); c.stroke();
+          } else {
+            var sa2 = B.sAge;
+            c.strokeStyle = 'rgba(30,20,50,' + Math.max(0, 0.5 - sa2 * 0.35) + ')'; c.lineWidth = 1.2; c.beginPath(); c.arc(B.x, B.y, B.r * 0.6, 0, 6.3); c.stroke();
+            if (sa2 < 0.5) { c.strokeStyle = 'rgba(190,215,255,' + (1 - sa2 * 2) + ')'; c.lineWidth = 0.8; c.beginPath(); c.arc(B.x, B.y, B.r * (0.6 + sa2 * 3), 0, 6.3); c.stroke(); }
+            if (sa2 < 0.3) {
+              c.globalCompositeOperation = 'lighter';
+              var rg2 = c.createRadialGradient(B.x, B.y, 0, B.x, B.y, B.r * 2); rg2.addColorStop(0, 'rgba(230,240,255,' + (1 - sa2 / 0.3) + ')'); rg2.addColorStop(1, 'rgba(120,160,255,0)'); c.fillStyle = rg2; c.fillRect(B.x - B.r * 2, B.y - B.r * 2, B.r * 4, B.r * 4);
+              var rr2 = window.MTUtil ? MTUtil.rng(Math.floor(B.seed + sa2 * 40)) : Math.random;
+              c.strokeStyle = 'rgba(220,235,255,.95)'; c.lineWidth = 0.55;
+              for (var br = 0; br < 6; br++) { var an = br / 6 * 6.283 + rr2(), x0 = B.x, y0 = B.y; c.beginPath(); c.moveTo(x0, y0); for (var sg = 1; sg <= 5; sg++) { an += (rr2() - 0.5) * 0.9; x0 += Math.cos(an) * B.r * 0.32; y0 += Math.sin(an) * B.r * 0.32; c.lineTo(x0, y0); } c.stroke(); }
+              c.globalCompositeOperation = 'source-over';
+            }
+          }
+        });
+        // kapal pemain
+        var ang = th + Math.PI - clamp(G.vd * 0.006, -0.3, 0.3) + (G.state === 'flung' ? G.flung * 7 : 0);
+        drawPlayer(c, sp.x, sp.y, ang, t, zoom);
+        // partikel
+        G.parts.forEach(function (q2) { var kq = 1 - q2.age / q2.life; c.fillStyle = 'rgba(' + q2.c + ',' + kq.toFixed(2) + ')'; c.beginPath(); c.arc(q2.x, q2.y, q2.r * (0.5 + kq), 0, 6.3); c.fill(); });
+        c.restore();
+
+        // ---- lapisan layar: bayangan awan, hujan, kilat, vinyet ----
+        if (!CSPR) { CSPR = document.createElement('canvas'); CSPR.width = CSPR.height = 128; var cc = CSPR.getContext('2d'), g3 = cc.createRadialGradient(64, 64, 0, 64, 64, 64); g3.addColorStop(0, 'rgba(8,2,20,.34)'); g3.addColorStop(1, 'rgba(8,2,20,0)'); cc.fillStyle = g3; cc.fillRect(0, 0, 128, 128); }
+        for (var ci = 0; ci < 4; ci++) { var cl = CLOUD[ci]; cl.x += cl.v * dt; if (cl.x > 1.4) cl.x = -0.4; var cr = cl.r * Math.max(W, H); c.drawImage(CSPR, cl.x * W - cr, cl.y * H - cr, cr * 2, cr * 2); }
+        c.strokeStyle = 'rgba(200,190,255,.22)'; c.lineWidth = 1; c.beginPath();
+        RAIN.forEach(function (d) { d.y += d.v * dt * 1.4; d.x += d.v * dt * 0.25; if (d.y > 1.05) { d.y = -0.05; d.x = Math.random(); } if (d.x > 1.05) d.x -= 1.1; var x = d.x * W, y = d.y * H, l = d.l * 16; c.moveTo(x, y); c.lineTo(x + l * 0.22, y + l); });
+        c.stroke();
+        if (G.flash > 0) { c.fillStyle = 'rgba(' + G.flashCol + ',' + (0.32 * G.flash).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+        var vk = Math.round(W) + 'x' + Math.round(H);
+        if (VIGK !== vk) { VIGK = vk; VIG = document.createElement('canvas'); VIG.width = Math.ceil(W / 2); VIG.height = Math.ceil(H / 2); var vc = VIG.getContext('2d'), vg = vc.createRadialGradient(W / 4, H / 4, Math.min(W, H) * 0.175, W / 4, H / 4, Math.max(W, H) * 0.375); vg.addColorStop(0, 'rgba(40,10,70,0)'); vg.addColorStop(1, 'rgba(26,6,48,.78)'); vc.fillStyle = vg; vc.fillRect(0, 0, VIG.width, VIG.height); }
+        c.drawImage(VIG, 0, 0, W, H);
+        if (G.red > 0) { c.fillStyle = 'rgba(255,40,30,' + (0.18 * G.red).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+        if (G.state === 'arrive') { c.fillStyle = 'rgba(255,220,140,' + (0.25 * smooth(G.arrive / 2)).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+        tl.classList.toggle('on', G.steerL); tr.classList.toggle('on', G.steerR);
+      }
+      S.loop(function (dt, t) { update(dt); render(dt, t); });
+
+      /* ---------- kontrol ---------- */
+      var ptrs = {};
+      function recalc() { var l = false, r = false; for (var k in ptrs) { if (ptrs[k] === 'l') l = true; else r = true; } G.steerL = l || G.kL; G.steerR = r || G.kR; }
+      S.on(K.cv, 'pointerdown', function (e) { e.preventDefault(); AX.ensure(); try { K.cv.setPointerCapture(e.pointerId); } catch (x) {} var p = K.pos(e); ptrs[e.pointerId] = p.x < K.W / 2 ? 'l' : 'r'; recalc(); });
+      S.on(K.cv, 'pointermove', function (e) { if (ptrs[e.pointerId] == null) return; var p = K.pos(e); ptrs[e.pointerId] = p.x < K.W / 2 ? 'l' : 'r'; recalc(); });
+      function upP(e) { delete ptrs[e.pointerId]; recalc(); }
+      S.on(K.cv, 'pointerup', upP); S.on(K.cv, 'pointercancel', upP); S.on(K.cv, 'lostpointercapture', upP);
+      S.on(K.cv, 'contextmenu', function (e) { e.preventDefault(); });
+      S.keyDown = function (e) {
+        var k = e.key; if (k === 'a' || k === 'A' || k === 'ArrowLeft') { G.kL = true; e.preventDefault(); } else if (k === 'd' || k === 'D' || k === 'ArrowRight') { G.kR = true; e.preventDefault(); } recalc();
+      };
+      S.keyUp = function (e) { var k = e.key; if (k === 'a' || k === 'A' || k === 'ArrowLeft') G.kL = false; else if (k === 'd' || k === 'D' || k === 'ArrowRight') G.kR = false; recalc(); };
+      S.onBlur = function () { ptrs = {}; G.kL = G.kR = false; recalc(); };
+
+      /* ---------- layar ---------- */
+      var SEAL = '<svg viewBox="0 0 100 100"><defs><radialGradient id="psg" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#05020c"/><stop offset=".6" stop-color="#3a2470"/><stop offset="1" stop-color="#6a4ab0"/></radialGradient></defs>' +
+        '<circle cx="50" cy="50" r="46" fill="url(#psg)" stroke="#b8862b" stroke-width="4"/><path d="M50 50m0-4a4 4 0 1 1-4 4 9 9 0 0 1 9-9 14 14 0 0 1 14 14 20 20 0 0 1-20 20 26 26 0 0 1-26-26 32 32 0 0 1 32-32" fill="none" stroke="#ffd36a" stroke-width="3.2" stroke-linecap="round"/>' +
+        '<path d="M44 20l6-8 6 8" fill="none" stroke="#ffe7a3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      function fmt(sec) { sec = Math.round(sec); return Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2); }
+      function showFail() {
+        if (G.storm) G.storm.set(0.06);
+        au('defeat');
+        S.card({ cls: 'bad', seal: SEAL, kicker: 'Gagal &middot; ' + Math.round(clamp(G.s / S_TOT, 0, 1) * 100) + '% perjalanan', title: 'Terlempar Keluar Pusaran!',
+          quote: 'Arus melemparkan kapalmu ke tepi badai. Kondisi kapal sedikit berkurang &mdash; jalur cahaya mahkota masih menunggu.', who: 'Pusaran Bjorneo',
+          stats: [['Lingkaran', Math.min(LOOPS, Math.floor(phiAt(G.s) / 6.2832) + 1) + ' / ' + LOOPS], ['Benturan', String(G.hits)]],
+          buttons: [{ label: 'Coba lagi', primary: true, onClick: function () { S.hideCard(); G.failShown = false; begin(); } }, { label: 'Keluar', cls: 'btn-lg btn-ghost', onClick: function () { S.exit(); } }] });
+      }
+      function winNow() {
+        var perfect = G.hits === 0;
+        S.win({ perfect: perfect, score: Math.max(0, 1000 - G.hits * 250), hits: G.hits, time: Math.round(G.time) }, {
+          seal: SEAL, kicker: 'Lolos Arus Pusaran', title: 'Gerbang Benteng Terbuka',
+          badge: perfect ? 'Sempurna &middot; tanpa benturan' : null,
+          quote: 'Raja yang tenggelam telah bangkit di tengah lautan yang mengamuk.', who: 'Catatan jurnal kapten',
+          stats: [['Benturan', String(G.hits)], ['Waktu', fmt(G.time)]],
+          html: perfect ? '<div class="qt" style="font-style:normal;font-size:.95em">Hasiolan menyambutmu dengan <b>+2 amunisi</b> di palkamu &mdash; dan kekebalan tembakan pertamanya hilang.</div>' : '<div class="qt" style="font-style:normal;font-size:.92em">Lolos tanpa benturan memberi +2 amunisi melawan Hasiolan. Kali ini lambungmu sempat tergores.</div>',
+          cta: 'Menuju gerbang'
+        });
+      }
+      S.progress(S.pips(LOOPS, [], 0));
+      S.intro({
+        seal: SEAL, kicker: 'Pusaran Bjorneo &middot; The Maelstrom', title: 'Arus Pusaran',
+        quote: 'Mahkota sudah kembali ke laut. Ikuti cahayanya &mdash; laut hanya membuka jalan sekali.', who: 'Nenek Ulin',
+        steps: ['Kapalmu terseret <b>spiral pusaran</b>: 3 lingkaran menuju pusat (&plusmn;1 menit).',
+          'Tetap di <b>jalur cahaya mahkota</b> (lajur emas). Terlalu lama di luar = dihantam arus liar.',
+          'Hindari <b>puing hanyut</b> dan <b>lingkaran petir biru</b> &mdash; menyambar &plusmn;1 detik setelah berkedip.',
+          '<b>Tarikan pusat</b> makin kuat di lingkaran dalam. 3 nyawa. Lolos tanpa benturan = <b>sempurna</b>.'],
+        controls: { desk: ['<kbd>A</kbd>/<kbd>&larr;</kbd> menjauhi pusat', '<kbd>D</kbd>/<kbd>&rarr;</kbd> ke arah pusat'], touch: ['Tahan sisi <b>kiri</b> / <b>kanan</b> layar'] },
+        cta: 'Masuki pusaran'
+      }, begin);
+
+      return {
+        destroy: function () { AX.stopAll(); },
+        debugWin: function () { S.hideCard(); if (G.state !== 'play') begin(); G.hits = 0; G.lives = LIVES; G.s = S_TOT - 5; G.d = laneC(G.s); },
+        debugJump: function (p) { S.hideCard(); if (G.state !== 'play') begin(); G.s = clamp(p, 0, 0.99) * S_TOT; G.d = laneC(G.s); G.inv = 2; },
+        debugFail: function () { S.hideCard(); if (G.state !== 'play') begin(); G.inv = 0; G.lives = 1; hit('arus'); },
+        _G: G, S_TOT: S_TOT, laneC: laneC, laneW: laneW
+      };
+    }
+  };
+
+  return {
+    open: open,
+    close: close,
+    kinds: KINDS.slice(),
+    isOpen: function () { return !!cur; },
+    /** Untuk uji/QA: menangkan game yang sedang terbuka (langsung ke layar menang). */
+    _debug: function (cmd, a, b) { if (!cur || !cur.game) return null; var g = cur.game; if (cmd === 'win' && g.debugWin) return g.debugWin(); if (typeof g[cmd] === 'function') return g[cmd](a, b); return g[cmd]; }
+  };
+})();
+window.MTGames = MTGames;
+</script>

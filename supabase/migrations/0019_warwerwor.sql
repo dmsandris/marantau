@@ -120,7 +120,7 @@ language sql stable as $$
 $$;
 
 -- Surat datang pertama kali saat berangkat dari TooGood yang sudah merdeka
-create or replace function game.quest_on_sail(p_pid uuid, p_origin text, p_dest text) returns void
+create or replace function game.ww_on_sail(p_pid uuid, p_origin text, p_dest text) returns void
 language plpgsql as $$
 begin
   if p_origin <> 'toogood' or not coalesce(game.toogood_freed(p_pid), false) then return; end if;
@@ -128,6 +128,10 @@ begin
   on conflict (player_id, quest_id) do update set data = game.player_quests.data || '{"armed": true}', updated_at = now()
     where game.player_quests.step = 0 and not coalesce((game.player_quests.data ->> 'armed')::boolean, false);
 end $$;
+
+-- Kontrak umum (0022 menambah quest BarSaTi di sini)
+create or replace function game.quest_on_sail(p_pid uuid, p_origin text, p_dest text) returns void
+language plpgsql as $$ begin perform game.ww_on_sail(p_pid, p_origin, p_dest); end $$;
 
 -- Tenggat lewat (sebelum Babak 4 selesai): surat hangus, pasar terbuka, pelikan datang lagi 24 jam lagi
 create or replace function game.ww_expire(p_pid uuid) returns boolean
@@ -262,13 +266,17 @@ language sql as $$
 $$;
 
 -- Simpan HP Kapal Induk di akhir setiap pertempuran (mundur / karam)
-create or replace function game.quest_combat_end(p_pid uuid, p_enc jsonb, p_result text) returns void
+create or replace function game.ww_combat_end(p_pid uuid, p_enc jsonb, p_result text) returns void
 language plpgsql as $$
 begin
   if coalesce(p_enc ->> 'boss', '') <> 'induk' or p_result = 'won' then return; end if;
   update game.player_quests set data = data || jsonb_build_object('indukHp', greatest(1, round(game.voy_num(p_enc -> 'enemyHp')))), updated_at = now()
    where player_id = p_pid and quest_id = 'warwerwor' and step in (9, 11);
 end $$;
+
+-- Kontrak umum (0022 menambah quest BarSaTi di sini)
+create or replace function game.quest_combat_end(p_pid uuid, p_enc jsonb, p_result text) returns void
+language plpgsql as $$ begin perform game.ww_combat_end(p_pid, p_enc, p_result); end $$;
 
 create or replace function game.ww_boss_defeated(p_pid uuid) returns jsonb
 language plpgsql as $$

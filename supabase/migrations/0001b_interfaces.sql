@@ -256,3 +256,26 @@ language plpgsql as $$ begin null; end $$;
 -- Dipanggil di akhir setiap pertempuran (hasil apa pun) dengan encounter terakhir
 create or replace function game.quest_combat_end(p_pid uuid, p_enc jsonb, p_result text) returns void
 language plpgsql as $$ begin null; end $$;
+
+-- [Quest BarSaTi / 0022] ------------------------------------------------
+-- Titik laut khusus quest (bukan kota): tanpa pasar/misi/gudang/bank, tidak ikut
+-- perhitungan jarak waktu tempuh, tanpa event kota & bajak laut acak. Definisi final di sini.
+create or replace function game.spot_city(p_city text) returns boolean
+language sql immutable as $$ select coalesce(p_city in ('titik_buta', 'pusaran'), false) $$;
+-- Tolak layanan kota (gudang, bank) bila pemain sedang merapat di titik laut khusus
+create or replace function game.spot_service_guard(p_pid uuid) returns void
+language plpgsql as $$
+begin
+  if game.spot_city(game.current_city(p_pid)) then
+    raise exception 'Tak ada gudang, bank, apalagi pedagang di tengah badai ini, Kapten. Hanya ombak, petir, dan baja.';
+  end if;
+end $$;
+-- Status quest BarSaTi untuk getGameState (null = belum tersedia)
+create or replace function game.bx_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+-- Pengali bobot ikan saat melempar umpan (quest bisa menaikkan peluang ikan tertentu)
+create or replace function game.fish_quest_weight(p_pid uuid, p_fish text, p_city text) returns numeric
+language plpgsql stable as $$ begin return 1; end $$;
+-- Hadiah quest saat ikan tertangkap (mis. isi Peti Karam). null = tidak ada.
+create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
+language plpgsql as $$ begin return null; end $$;

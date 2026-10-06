@@ -581,6 +581,7 @@ begin
     raise exception 'Kamu harus berada di kota ini untuk titip barang.';
   end if;
   if game.in_transit(pid) then raise exception 'Kamu sedang berlayar.'; end if;
+  perform game.spot_service_guard(pid);
 
   fee := trim_scale(game.cfg_num('WarehouseFeePerUnit', 2) * v_qty);
   if v_me.gold < fee then
@@ -618,6 +619,7 @@ begin
   if game.current_city(pid) is distinct from v_city then
     raise exception 'Kamu harus berada di kota ini untuk ambil barang dari gudang.';
   end if;
+  perform game.spot_service_guard(pid);
   if game.cargo_used(pid) + v_qty * game.commodity_size(v_comm) > coalesce(game.effective_cargo(pid), 0) then
     raise exception 'Kapasitas cargo tidak cukup untuk mengambil semua ini.';
   end if;
@@ -699,6 +701,7 @@ declare v_amt bigint := game.arg_int(a, 0); v_me game.players; st jsonb;
 begin
   if v_amt is null or v_amt <= 0 then raise exception 'Jumlah setor tidak valid.'; end if;
   v_me := game.me(true);
+  perform game.spot_service_guard(v_me.player_id);
   st := game.bank_state(v_me.player_id);
   if v_me.gold < v_amt then raise exception 'Gold tidak cukup.'; end if;
   update game.players set bank_balance = (st ->> 'bankBalance')::bigint + v_amt, gold = gold - v_amt
@@ -714,6 +717,7 @@ declare v_amt bigint := game.arg_int(a, 0); v_me game.players; st jsonb;
 begin
   if v_amt is null or v_amt <= 0 then raise exception 'Jumlah tarik tidak valid.'; end if;
   v_me := game.me(true);
+  perform game.spot_service_guard(v_me.player_id);
   st := game.bank_state(v_me.player_id);
   if (st ->> 'bankBalance')::bigint < v_amt then raise exception 'Saldo Bank tidak cukup.'; end if;
   update game.players set bank_balance = (st ->> 'bankBalance')::bigint - v_amt, gold = gold + v_amt
@@ -729,6 +733,7 @@ declare v_amt bigint := game.arg_int(a, 0); v_me game.players; st jsonb;
 begin
   if v_amt is null or v_amt <= 0 then raise exception 'Jumlah pinjam tidak valid.'; end if;
   v_me := game.me(true);
+  perform game.spot_service_guard(v_me.player_id);
   st := game.bank_state(v_me.player_id);
   if (st ->> 'debtBalance')::numeric + v_amt > (st ->> 'maxDebt')::numeric then
     raise exception 'Melebihi batas pinjaman Moneylender (maksimum utang % gold).', st ->> 'maxDebt';
@@ -746,6 +751,7 @@ declare v_amt bigint := game.arg_int(a, 0); v_me game.players; st jsonb; pay big
 begin
   if v_amt is null or v_amt <= 0 then raise exception 'Jumlah bayar tidak valid.'; end if;
   v_me := game.me(true);
+  perform game.spot_service_guard(v_me.player_id);
   st := game.bank_state(v_me.player_id);
   pay := least(v_amt, (st ->> 'debtBalance')::bigint, v_me.gold);
   if pay <= 0 then raise exception 'Tidak ada yang bisa dibayar (cek gold atau utangmu).'; end if;

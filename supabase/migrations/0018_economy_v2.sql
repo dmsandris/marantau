@@ -127,6 +127,10 @@ language sql stable as $$
        + coalesce((select sum(m.loaded_qty * coalesce(c.size, 1)) from game.player_missions m
                     left join game.commodities c on c.id = m.commodity_id
                     where m.player_id = p_pid and m.status = 'active' and coalesce(m.type, '') in ('courier', 'procure')), 0)
+       -- barang quest berukuran tetap (mis. Peti Selundupan a'dik = 10 ruang)
+       + coalesce((select sum(i.qty * (ic.effects ->> 'cargoSize')::numeric) from game.inventory i
+                    join game.item_catalog ic on ic.item_id = i.item_id
+                    where i.player_id = p_pid and i.qty > 0 and ic.type = 'quest' and ic.effects ? 'cargoSize'), 0)
 $$;
 
 create or replace function game.cargo_free(p_pid uuid) returns numeric

@@ -715,6 +715,11 @@ begin
   return jsonb_build_object(
     'artifacts', game.artifacts_view(v_pid),
     'treasureMaps', game.treasure_maps_view(v_pid),
+    -- Barang quest (mis. Peti Selundupan a'dik): size = ruang palka yang dipakai
+    'questItems', coalesce((select jsonb_agg(jsonb_build_object('itemId', c.item_id, 'name', c.name, 'qty', i.qty,
+         'size', coalesce((c.effects ->> 'cargoSize')::numeric, 0), 'desc', coalesce(c.effects ->> 'desc', '')) order by c.sort, c.item_id)
+       from game.inventory i join game.item_catalog c on c.item_id = i.item_id
+       where i.player_id = v_pid and i.qty > 0 and c.type = 'quest'), '[]'::jsonb),
     'shop', game.treasure_map_shop(game.current_city(v_pid)));
 end $$;
 select game.expose('api_getitems');
@@ -797,7 +802,7 @@ begin
   end if;
 
   if v_grant then
-    select * into v_art from game.item_catalog where type = 'artifact' order by random() limit 1;
+    select * into v_art from game.item_catalog where type = 'artifact' and coalesce(source, '') <> 'quest' order by random() limit 1;
     if found then
       perform game.item_adjust(v_pid, v_art.item_id, 1);
       v_granted := jsonb_build_object('itemId', v_art.item_id, 'name', v_art.name);
@@ -899,6 +904,10 @@ declare
 begin
   it := game.item(v_item);
   if it.item_id is null then raise exception 'Item tidak dikenali: %', v_item; end if;
+  -- Barang quest & pusaka quest (sumber 'quest') tidak bisa dijual
+  if it.type = 'quest' or coalesce(it.source, '') = 'quest' then
+    raise exception '"%" bukan barang dagangan, Kapten. Tak ada pedagang yang berani menyentuhnya.', it.name;
+  end if;
   if exists (select 1 from game.ship_equipment where player_id = v_pid and slot_type = any (game.artifact_slots()) and item_id = v_item) then
     raise exception 'Copot dulu artifact ini sebelum dijual.';
   end if;

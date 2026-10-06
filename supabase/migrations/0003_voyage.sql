@@ -263,8 +263,13 @@ begin
     'CargoBonus', cargo_bonus,
     'EffectiveCargo', s.cargo + cargo_bonus,
     'SpeedMultiplier', e -> 'speedMultiplier',
-    'CannonBonusPercent', e -> 'cannonBonusPercent',
-    'MaxCannonAmmo', game.cfg_num('CombatBaseAmmo', 3) + (e ->> 'cannonAmmoBonus')::numeric,
+    -- Artefak Meriam Satnislaus (Quest BarSaTi, terpasang): +15% peluang menang, +2 amunisi
+    'CannonBonusPercent', (e ->> 'cannonBonusPercent')::numeric
+      + case when coalesce(game.has_effect(p_pid, 'satnislaus_cannon'), false) then 15 else 0 end,
+    'MaxCannonAmmo', game.cfg_num('CombatBaseAmmo', 3) + (e ->> 'cannonAmmoBonus')::numeric
+      + case when coalesce(game.has_effect(p_pid, 'satnislaus_cannon'), false) then 2 else 0 end,
+    -- Buku Navigasi Pusaran Ivankov: waktu tempuh -10% (batas tercepat tetap, lihat voy_travel_seconds)
+    'TravelMul', case when coalesce(game.has_effect(p_pid, 'ivankov_nav'), false) then 0.9 else 1 end,
     'ShipUpgrades', e -> 'upgrades',
     'EffectiveMaxCondition', eff_max,
     'ConditionPct', case when eff_max > 0 then game.voy_round(cond / eff_max * 100) else 100 end,
@@ -424,6 +429,7 @@ language plpgsql as $$
 declare chance numeric; roll numeric; t text; lbl text; msg text; price int := 0; reward int := 0;
   min_d int; max_d int; dur int;
 begin
+  if game.spot_city(p_city) then return; end if;  -- titik laut quest (bukan kota)
   if game.city_event(p_city) is not null then return; end if;
   chance := game.cfg_num('WorldEventRollChancePercent', 10);
   if random() * 100 >= chance then return; end if;
@@ -499,6 +505,7 @@ create or replace function game.voy_dist_range(out dmin double precision, out dm
 language sql stable as $$
   select min(game.voy_map_distance(a.city_id, b.city_id)), max(game.voy_map_distance(a.city_id, b.city_id))
   from game.cities a join game.cities b on a.city_id < b.city_id
+  where not game.spot_city(a.city_id) and not game.spot_city(b.city_id)  -- titik laut quest tidak mengubah waktu tempuh
 $$;
 
 create or replace function game.voy_travel_seconds(p_distance double precision, p_ship jsonb) returns int
@@ -510,7 +517,7 @@ language plpgsql stable as $$
 -- Atur lewat game.config: TravelMinSeconds, TravelMaxSeconds, TravelFastestSeconds, TravelLegendSeconds.
 declare lo double precision; hi double precision; r record; frac double precision; base_t double precision;
   base_speed double precision; spd double precision; mult double precision; eff double precision;
-  fast double precision; floor_mult constant double precision := 0.24; f double precision;
+  fast double precision; floor_mult constant double precision := 0.24; f double precision; tm double precision;
 begin
   if coalesce(p_ship ->> 'Legend', '') = 'pearl' then
     return greatest(5, game.cfg_num('TravelLegendSeconds', 15))::int;
@@ -530,6 +537,10 @@ begin
   eff := least(1, greatest(floor_mult, floor_mult + (mult - floor_mult) * base_speed / spd));
   -- eff 1 -> waktu penuh; eff 0.24 -> fast/lo (25/120)
   f := fast / lo + (1 - fast / lo) * (eff - floor_mult) / (1 - floor_mult);
+  -- Quest BarSaTi: buku Navigasi Pusaran Ivankov memangkas 10% lagi, tapi tidak pernah lebih
+  -- cepat dari batas tercepat (25 dtk untuk pulau terdekat = upgrade Speed tertinggi).
+  tm := coalesce(nullif(game.voy_num(p_ship -> 'TravelMul'), 0), 1);
+  if tm < 1 then f := greatest(fast / lo, f * tm); end if;
   return greatest(1, round(base_t * f))::int;
 end $$;
 
@@ -623,6 +634,7 @@ begin
   -- Misi rahasia: bos menunggu di rute tertentu (lihat 0014)
   boss := game.quest_boss_encounter(p_pid, p_dest);
   if boss is not null then return boss; end if;
+  if game.spot_city(p_dest) then return null; end if;  -- titik laut quest: tanpa bajak laut acak
   ship := coalesce(game.ship_json(p_pid), '{}'::jsonb);
   stats := coalesce(game.stats_json(p_pid), '{}'::jsonb);
   select archetype into v_arch from game.players where player_id = p_pid;
@@ -721,6 +733,15 @@ declare
   ename text := coalesce(enc ->> 'enemyName', '');
   lbl text := 'Ronde ' || coalesce(enc ->> 'round', '1') || ': ';
   chance numeric; dmg numeric := 0; cd numeric := 0; msg text; cost numeric; toll numeric; big numeric; spd_bonus numeric;
+  -- Quest BarSaTi (0022): sifat musuh tambahan
+  --   enemyDmgMul  pengali damage musuh ke kapal pemain (bawaan 1)
+  --   punishReload pengali tambahan damage musuh pada ronde pemain reload (Armada Merah)
+  --   smoke        peluang kena pemain -15 sampai pemain reload sekali (Armada Hitam)
+  --   shield       perisai aktif: damage meriam pemain x shieldMul (bawaan 0.25)
+  --   immuneFirst  tembakan pertama yang kena tidak melukai (Hasiolan)
+  emul numeric := coalesce(nullif(game.voy_num(enc -> 'enemyDmgMul'), 0), 1);
+  smoky boolean := coalesce((enc ->> 'smoke')::boolean, false);
+  extra jsonb := '{}'::jsonb;
 begin
   hp_pct := case when max_hp > 0 then hp / max_hp else 0 end;
 
@@ -728,30 +749,46 @@ begin
     if game.voy_num(enc -> 'ammoRemaining') <= 0 then
       return jsonb_build_object('invalidAction', true, 'message', 'Meriam kosong - reload dulu sebelum menembak lagi.');
     end if;
-    chance := 50 + game.voy_stat_bonus(stats -> 'Combat') * 2 + game.voy_num(ship -> 'CannonBonusPercent') - lvl * 5;
+    chance := 50 + game.voy_stat_bonus(stats -> 'Combat') * 2 + game.voy_num(ship -> 'CannonBonusPercent') - lvl * 5
+      - case when smoky then 15 else 0 end;
     chance := game.voy_clamp(chance, 10, 92);
     if random() * 100 < chance then
-      dmg := game.voy_round(max_hp * (0.18 + random() * 0.14) * coalesce(nullif(game.voy_num(enc -> 'dmgTaken'), 0), 1));
-      msg := lbl || 'tembakan meriam menghantam ' || ename || ' telak (-' || dmg || ' HP musuh).';
+      dmg := game.voy_round(max_hp * (0.18 + random() * 0.14) * coalesce(nullif(game.voy_num(enc -> 'dmgTaken'), 0), 1)
+        * case when coalesce((enc ->> 'shield')::boolean, false) then coalesce(nullif(game.voy_num(enc -> 'shieldMul'), 0), 0.25) else 1 end);
+      if coalesce((enc ->> 'immuneFirst')::boolean, false) then
+        dmg := 0;
+        extra := jsonb_build_object('immuneUsed', true);
+        msg := lbl || coalesce(enc ->> 'immuneMsg', 'tembakan pertamamu memantul dari lambung baja ' || ename || ' tanpa bekas.');
+      else
+        msg := lbl || 'tembakan meriam menghantam ' || ename || ' telak (-' || dmg || ' HP musuh).';
+        if coalesce((enc ->> 'shield')::boolean, false) then msg := msg || ' Perisai Aegis meredam sebagian besar ledakan.'; end if;
+      end if;
     else
       msg := lbl || 'tembakan meriam meleset dari ' || ename || '.';
+      if smoky then msg := msg || ' Asap tebal menutupi sasaran.'; end if;
     end if;
     if dmg < hp and random() < 0.55 then
-      cd := -(4 + floor(random() * 6) + lvl);
+      cd := -game.voy_round((4 + floor(random() * 6) + lvl) * emul);
       msg := msg || ' Balasan tembakan mereka merobek lambung kapal (' || cd || ' Condition).';
     end if;
-    return jsonb_build_object('message', msg, 'enemyDamage', dmg, 'conditionDelta', cd, 'ammoDelta', -1);
+    return jsonb_build_object('message', msg, 'enemyDamage', dmg, 'conditionDelta', cd, 'ammoDelta', -1) || extra;
   end if;
 
   if p_tactic = 'reload' then
     msg := lbl || 'kru buru-buru mengisi ulang meriam.';
     if random() < 0.75 then
-      cd := -(6 + floor(random() * 8) + lvl);
+      cd := -game.voy_round((6 + floor(random() * 8) + lvl) * emul
+        * coalesce(nullif(game.voy_num(enc -> 'punishReload'), 0), 1));
       msg := msg || ' Sementara sibuk mengisi ulang, tembakan musuh menghantam kapal (' || cd || ' Condition).';
+      if game.voy_num(enc -> 'punishReload') > 1 then msg := msg || ' Mereka menyerbu tepat saat meriammu diam!'; end if;
     else
       msg := msg || ' Untungnya musuh meleset kali ini.';
     end if;
-    return jsonb_build_object('message', msg, 'reloadToMax', true, 'conditionDelta', cd);
+    if smoky then
+      extra := jsonb_build_object('smokeCleared', true);
+      msg := msg || ' Angin menyibak asap - sasaran kembali terlihat jelas.';
+    end if;
+    return jsonb_build_object('message', msg, 'reloadToMax', true, 'conditionDelta', cd) || extra;
   end if;
 
   if p_tactic = 'flee' then
@@ -762,7 +799,7 @@ begin
       return jsonb_build_object('ends', true, 'endResult', 'fled',
         'message', lbl || 'manuver tajam & angin bersahabat membawa kapal lolos dari ' || ename || '.');
     end if;
-    cd := -(5 + floor(random() * 7));
+    cd := -game.voy_round((5 + floor(random() * 7)) * emul);
     return jsonb_build_object('conditionDelta', cd,
       'message', lbl || 'upaya kabur gagal - ' || ename || ' mengejar dan sempat menembak (' || cd || ' Condition).');
   end if;
@@ -1074,6 +1111,9 @@ begin
     hp := greatest(0, hp - game.voy_num(r -> 'enemyDamage'));
     enc := jsonb_set(enc, '{enemyHp}', to_jsonb(hp));
   end if;
+  -- Quest BarSaTi: kekebalan tembakan pertama habis / asap tersibak
+  if coalesce((r ->> 'immuneUsed')::boolean, false) then enc := enc || '{"immuneFirst": false}'; end if;
+  if coalesce((r ->> 'smokeCleared')::boolean, false) then enc := enc || '{"smoke": false}'; end if;
   max_ammo := game.voy_num(enc -> 'maxAmmo');
   if coalesce((r ->> 'reloadToMax')::boolean, false) then
     enc := jsonb_set(enc, '{ammoRemaining}', to_jsonb(max_ammo));
@@ -1139,6 +1179,21 @@ begin
     loot := coalesce(game.voy_num(boss_res -> 'gold'), 0) - greatest(0, game.voy_num(r -> 'goldDelta'));
     if loot <> 0 then update game.players set gold = gold + loot::bigint where player_id = pid; end if;
     final_msg := (r ->> 'message') || ' ' || coalesce(boss_res ->> 'message', '');
+    -- Pertempuran berantai (Quest BarSaTi): musuh berikutnya langsung menghadang, pelayaran belum selesai,
+    -- kondisi kapal terbawa. Respons: { ongoing, chained, result:'won', message, encounter, ... }
+    if jsonb_typeof(boss_res -> 'chain') = 'object' then
+      update game.player_location set pending_encounter = boss_res -> 'chain' where player_id = pid;
+      perform game.voy_log_combat(pid, lvl, v_tactic, 'won', 'chain');
+      return jsonb_build_object(
+        'ongoing', true, 'chained', true, 'success', true, 'result', 'won',
+        'message', final_msg,
+        'encounter', boss_res -> 'chain',
+        'boss', enc ->> 'boss',
+        'newCondition', game.ship_json(pid) -> 'Condition',
+        'newGold', (select gold from game.players where player_id = pid),
+        'questItem', boss_res -> 'item',
+        'questEvent', boss_res -> 'event');
+    end if;
   -- Menang: peluang peta harta (peluang + pemberian item ditangani kontrak game.treasure_drop)
   elsif final_result = 'won' then
     perform game.quest_combat_won(pid);

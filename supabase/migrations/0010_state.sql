@@ -48,7 +48,8 @@ begin
     'unlocks', game.player_unlocks(v_pid),
     'gala', game.gala_state(v_pid),
     'toogood', game.toogood_state(v_pid),
-    'warwerwor', game.ww_state(v_pid)
+    'warwerwor', game.ww_state(v_pid),
+    'barsati', game.bx_state(v_pid)
   );
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru

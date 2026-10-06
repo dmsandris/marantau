@@ -152,7 +152,8 @@ begin
       * (array[1, 0.3, 0.06])[abs(ft.depth - v_depth) + 1]
       * ((b -> 'f') ->> least(7, greatest(0, ft.rarity)))::numeric
       * case when ft.rarity >= 4 then 1 + v_luck / 60 else 1 end
-      * case when v_perfect and ft.rarity >= 4 then 1.2 else 1 end;
+      * case when v_perfect and ft.rarity >= 4 then 1.2 else 1 end
+      * coalesce(game.fish_quest_weight(v_id, ft.id, v_city), 1);  -- quest (mis. Peti Karam di Bjorneo, BarSaTi)
     if v_w > 0 then v_ids := v_ids || ft.id; v_ws := v_ws || v_w; v_total := v_total + v_w; end if;
   end loop;
   v_r := random()::numeric * v_total;
@@ -195,7 +196,7 @@ declare
   v_q numeric := least(1, greatest(0, coalesce(nullif(game.arg(a, 2), '')::numeric, 0)));
   fr game.mp_fish; f game.mp_fish_types; v_now bigint := game.now_ms(); v_luck numeric; v_gold bigint; v_avg numeric;
   bk game.mp_fish_book; v_first boolean; v_record boolean; v_global boolean; v_prev_global numeric; v_caught boolean;
-  v_info game.mp_presence; v_mid int; v_msg jsonb;
+  v_info game.mp_presence; v_mid int; v_msg jsonb; v_qitem jsonb;
 begin
   select * into fr from game.mp_fish where player_id = v_id for update;
   if fr.cast_id is null or fr.cast_id is distinct from v_cast or v_now > fr.t0 + 180000 then
@@ -247,7 +248,11 @@ begin
     end;
   end if;
 
+  -- Hadiah quest dari tangkapan (mis. Mahkota Karam di dalam Peti Karam)
+  v_qitem := game.fish_quest_catch(v_id, f.id);
+
   return jsonb_build_object('caught', true, 'gold', v_gold, 'newGold', v_me.gold + v_gold, 'kg', fr.kg,
+    'questItem', v_qitem,
     'fish', jsonb_build_object('id', f.id, 'name', f.name, 'rarity', f.rarity, 'kind', f.kind),
     'firstCatch', v_first, 'record', v_record and not v_first, 'globalRecord', v_global,
     'found', (select count(*) from game.mp_fish_book where player_id = v_id),

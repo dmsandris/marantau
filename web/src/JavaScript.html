@@ -1860,7 +1860,7 @@
     return parts.join(', ') || '&mdash;';
   }
   function specialEffectLabel(keyword) {
-    var labels = { black_market_discount: 'Harga beli di Market lebih murah (selisih beli -20%)', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)' };
+    var labels = { black_market_discount: 'Harga beli di Market lebih murah (selisih beli -20%)', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)', satnislaus_cannon: '+15% peluang menang & +2 amunisi meriam (Meriam Satnislaus)', ivankov_nav: 'Waktu tempuh -10% (Navigasi Pusaran Ivankov)' };
     return labels[keyword] || keyword;
   }
 
@@ -2804,6 +2804,8 @@
 
   function closeCombatScene_() {
     combatSceneOpen = false;
+    combatChaining_ = false;
+    var ccb = document.getElementById('combatChainBanner'); if (ccb) ccb.classList.remove('show');
     document.getElementById('combatOverlay').classList.remove('open', 'intro', 'shake-screen');
     if (cvRafId) { cancelAnimationFrame(cvRafId); cvRafId = null; }
     cvParticles = []; cvProjectiles = []; cvFloatingTexts = []; cvFlashes = [];
@@ -2815,7 +2817,8 @@
     document.getElementById('combatTitle').textContent = enemy.enemyName;
     document.getElementById('combatEnemyName').textContent = enemy.enemyName;
     document.getElementById('combatRoundLabel').textContent = 'Ronde ' + (enemy.round || 1);
-    document.getElementById('combatEnemySub').textContent = 'Kapal bajak laut · Level ' + enemy.enemyLevel;
+    // displayLevel = level tampilan (drama); enemyLevel = level efektif untuk peluang kena
+    document.getElementById('combatEnemySub').textContent = 'Kapal bajak laut · Level ' + (enemy.displayLevel != null ? enemy.displayLevel : enemy.enemyLevel);
 
     var enemyPct = enemy.enemyMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((enemy.enemyHp / enemy.enemyMaxHp) * 100))) : 0;
     document.getElementById('combatEnemyHpText').textContent = enemy.enemyHp + ' / ' + enemy.enemyMaxHp + ' HP';
@@ -2889,7 +2892,7 @@
   }
 
   function doCombatAction_(tactic) {
-    if (txPending || cvOutcome) return;
+    if (txPending || cvOutcome || combatChaining_) return;
     var fireBtn = document.querySelector('.combat-action-btn[data-tactic="fire"]');
     if (tactic === 'fire' && fireBtn && fireBtn.classList.contains('disabled')) return;
 
@@ -2910,6 +2913,7 @@
         setCombatBarBusy_(false);
         if (tactic === 'ram') cvPlayerShip.dx = 0;
 
+        if (result.ongoing && result.chained && result.encounter) { chainCombat_(result, prevEnemyHp, prevCondition, tactic); return; }
         if (result.ongoing) {
           combatRoundLog.unshift(result.message);
           state.voyage.encounter = result.encounter;
@@ -2946,6 +2950,64 @@
         showToast(err.message, 'error');
       })
       .api_resolveCombat(tactic);
+  }
+
+  /* ---- Pertempuran berantai (Quest 4): musuh tenggelam, musuh berikutnya langsung datang tanpa menutup layar ---- */
+  var combatChaining_ = false;
+  function chainCombat_(result, prevEnemyHp, prevCondition, tactic) {
+    combatChaining_ = true;
+    if (combatBattleStats) combatBattleStats.roundsFought++;
+    if (result.newGold != null) { patchGold_(result.newGold); renderSidebar(); }
+    var enc = state.voyage.encounter || {};
+    applyCombatRoundFx_(prevEnemyHp, prevCondition, { encounter: { enemyHp: 0, ammoRemaining: enc.ammoRemaining || 0, round: enc.round || 1, maxAmmo: enc.maxAmmo || 3 }, message: result.message }, tactic, true);
+    setTimeout(function () {
+      cvOutcome = { kind: 'won', t: 0 }; cvHpPct.enemy = 0;
+      for (var i = 0; i < 3; i++) setTimeout(function () { cvSpawnImpactBurst_(cvEnemyShip.x + (Math.random() - 0.5) * 60 * cvEnemyShip.s, cvEnemyShip.y - 20 * cvEnemyShip.s); }, i * 220);
+      showChainBanner_(result);
+    }, tactic === 'fire' ? 650 : 250);
+    var shipDone = false, timeUp = false;
+    function next() {
+      if (!shipDone || !timeUp || !combatSceneOpen) return;
+      var b = document.getElementById('combatChainBanner'); if (b) b.classList.remove('show');
+      state.voyage.encounter = result.encounter;
+      combatEncounterKey = result.encounter.rolledAt; // statistik ringkasan dihitung untuk seluruh rantai
+      combatRoundLog = [];
+      cvOutcome = null; cvHpPct.enemy = 100; cvEnemyShip.dx = cvW * 0.35;
+      openCombatScene_();
+      var lb = document.getElementById('combatLogBox');
+      if (lb) { var p = document.createElement('p'); p.className = 'chain-msg'; p.textContent = String(result.message || ''); lb.insertBefore(p, lb.firstChild); }
+      var t0 = performance.now();
+      (function slide() { var k = Math.min(1, (performance.now() - t0) / 900); cvEnemyShip.dx = cvW * 0.35 * (1 - k) * (1 - k); if (k < 1 && combatSceneOpen) requestAnimationFrame(slide); else cvEnemyShip.dx = 0; })();
+      combatChaining_ = false;
+    }
+    google.script.run.withSuccessHandler(function (d) { if (d && d.ship) patchShip_(d.ship, d.visual); shipDone = true; next(); })
+      .withFailureHandler(function () { shipDone = true; next(); }).api_getShipState();
+    setTimeout(function () { timeUp = true; next(); }, 3200);
+  }
+  function showChainBanner_(result) {
+    var host = document.getElementById('combatOverlay'); if (!host) return;
+    var b = document.getElementById('combatChainBanner');
+    if (!b) { b = document.createElement('div'); b.id = 'combatChainBanner'; host.appendChild(b); }
+    var nx = result.encounter || {};
+    b.innerHTML = '<div class="ccb-k">' + ic('trophy') + ' Musuh tenggelam</div><div class="ccb-t">Kemenangan!</div>' +
+      '<div class="ccb-s">' + esc_(result.message || '') + '</div>' +
+      '<div class="ccb-n">' + ic('swords') + ' Berikutnya: <b>' + esc_(nx.enemyName || 'musuh baru') + '</b>' + (nx.displayLevel != null || nx.enemyLevel != null ? ' &middot; Level ' + esc_(nx.displayLevel != null ? nx.displayLevel : nx.enemyLevel) : '') + '</div>';
+    b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+    au_('victory');
+  }
+  /** Buka layar pertempuran untuk encounter yang dibuat server tanpa pelayaran (mis. api_barsati('engage')). */
+  function openPendingCombat_(voyage) {
+    voySeq++;
+    function go(v) {
+      if (!v || !v.inTransit || !v.encounterPending) { loadState(); return; }
+      state.voyage = v; state.voyage._at = Date.now();
+      if (currentPanel) closeModal();
+      renderSidebar(); renderScene();
+      openCombatScene_();
+    }
+    if (voyage && voyage.encounterPending) { go(voyage); return; }
+    google.script.run.withSuccessHandler(function (res) { go(res && res.voyage); })
+      .withFailureHandler(function (err) { showToast(err.message, 'error'); loadState(); }).api_pollVoyage();
   }
 
   /** Update HUD + FX dampak SETELAH server konfirmasi ronde ini. */
