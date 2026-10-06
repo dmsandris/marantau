@@ -2078,117 +2078,889 @@ var MTWar = (function () {
     return { draw: draw, intro: 9 };
   }
 
+  /* ============== FX sinematik bersama (dipakai adegan 6 & 7) ==============
+   * Sprite cahaya/asap di-cache sekali (drawImage jauh lebih murah dari gradient
+   * per partikel), partikel ber-lapis (paralaks), kamera ber-keyframe, sinar
+   * volumetrik, pita awan ter-cache, burung, lens flare, letterbox. */
+  var WX = (function () {
+    var cache = {};
+    function mk(w, h) { var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+    function hs(n) { var x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+    function glow(col) {
+      var k = 'g' + col; if (cache[k]) return cache[k];
+      var c = mk(64, 64), g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(' + col + ',1)'); gr.addColorStop(0.16, 'rgba(' + col + ',.62)'); gr.addColorStop(0.42, 'rgba(' + col + ',.2)'); gr.addColorStop(1, 'rgba(' + col + ',0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return (cache[k] = c);
+    }
+    function puff(col) {
+      var k = 'p' + col; if (cache[k]) return cache[k];
+      var c = mk(96, 96), g = c.getContext('2d'), r = U.rng(col.length * 97 + 13);
+      for (var i = 0; i < 16; i++) {
+        var a = r() * 6.28, d = r() * 20, x = 48 + Math.cos(a) * d, y = 50 + Math.sin(a) * d * 0.75, rr = 12 + r() * 18;
+        var gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, 'rgba(' + col + ',.34)'); gr.addColorStop(0.55, 'rgba(' + col + ',.15)'); gr.addColorStop(1, 'rgba(' + col + ',0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 96, 96);
+      }
+      return (cache[k] = c);
+    }
+    function dot(ctx, spr, x, y, r, a) { if (a <= 0.004 || r <= 0.3) return; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(spr, x - r, y - r, r * 2, r * 2); }
+    function light(ctx, x, y, r, col, a) { ctx.globalCompositeOperation = 'lighter'; dot(ctx, glow(col), x, y, r, a); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+
+    /* ---- partikel berlapis: k = g(low) | s(asap) | k(percik) | d(serpih) | r(cincin) ---- */
+    function Fx() { this.a = []; }
+    Fx.prototype.add = function (o) { o.age = 0; o.vx = o.vx || 0; o.vy = o.vy || 0; o.L = o.L || 0; this.a.push(o); if (this.a.length > 650) this.a.shift(); return o; };
+    Fx.prototype.step = function (dt) {
+      var a = this.a, f = dt * 60;
+      for (var i = a.length - 1; i >= 0; i--) {
+        var p = a[i]; p.age += dt;
+        if (p.age >= p.life) { a.splice(i, 1); continue; }
+        p.vy += (p.g || 0) * f;
+        if (p.drag) { var dk = Math.pow(p.drag, f); p.vx *= dk; p.vy *= dk; }
+        p.x += p.vx * f; p.y += p.vy * f; p.r += (p.grow || 0) * f;
+        if (p.wy != null && (p.k === 'k' || p.k === 'd') && p.vy > 0 && p.y > p.wy) a.splice(i, 1);
+      }
+    };
+    Fx.prototype.draw = function (ctx, layer) {
+      var a = this.a;
+      for (var i = 0; i < a.length; i++) {
+        var p = a[i]; if (p.L !== layer) continue;
+        var k = p.age / p.life, al = (p.a == null ? 1 : p.a) * (1 - k) * (p.fi ? Math.min(1, k * p.fi) : 1);
+        if (p.fl) al *= 0.7 + 0.3 * Math.sin(p.age * 38 + i);
+        if (al <= 0.004) continue;
+        if (p.k === 'g') {
+          ctx.globalCompositeOperation = 'lighter'; dot(ctx, glow(p.col), p.x, p.y, p.r, al);
+          if (p.wy != null && p.y < p.wy) { ctx.globalAlpha = Math.min(1, al * 0.42); ctx.drawImage(glow(p.col), p.x - p.r * 0.55, 2 * p.wy - p.y - p.r * 1.5, p.r * 1.1, p.r * 3); }
+        } else if (p.k === 's') {
+          ctx.globalCompositeOperation = 'source-over'; dot(ctx, puff(p.col), p.x, p.y, p.r, al);
+        } else if (p.k === 'k') {
+          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, al); ctx.strokeStyle = 'rgb(' + p.col + ')'; ctx.lineWidth = p.w || 1; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(p.x - p.vx * (p.ln || 2), p.y - p.vy * (p.ln || 2)); ctx.lineTo(p.x, p.y); ctx.stroke();
+        } else if (p.k === 'd') {
+          ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = Math.min(1, al); ctx.fillStyle = p.col;
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.age * (p.spin || 0)); ctx.fillRect(-p.r, -p.r * 0.32, p.r * 2, p.r * 0.64); ctx.restore();
+        } else if (p.k === 'r') {
+          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, al); ctx.strokeStyle = 'rgb(' + p.col + ')'; ctx.lineWidth = (p.w || 2) * (1 - k) + 0.5;
+          ctx.beginPath(); ctx.ellipse(p.x, p.y, Math.max(0.5, p.r), Math.max(0.5, p.r * (p.sq || 0.3)), 0, 0, 6.3); ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    };
+
+    // pantulan di laut (cermin terhadap wy) untuk partikel ber-flag rf / glow ber-wy
+    Fx.prototype.refl = function (ctx, layer, wy, k) {
+      var a = this.a; ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      for (var i = 0; i < a.length; i++) {
+        var p = a[i]; if (p.L !== layer || p.y >= wy || !(p.rf || (p.k === 'g' && p.wy != null))) continue;
+        var q = p.age / p.life, al = (p.a == null ? 1 : p.a) * (1 - q) * k, ry = wy + (wy - p.y) * 0.7;
+        if (al <= 0.01) continue;
+        if (p.k === 'g') { ctx.globalAlpha = Math.min(1, al); ctx.drawImage(glow(p.col), p.x - p.r * 0.6, ry - p.r * 1.2, p.r * 1.2, p.r * 2.4); }
+        else if (p.k === 'k') { ctx.globalAlpha = Math.min(1, al); ctx.strokeStyle = 'rgb(' + p.col + ')'; ctx.lineWidth = p.w || 1; ctx.beginPath(); ctx.moveTo(p.x - p.vx * (p.ln || 2), ry + p.vy * (p.ln || 2) * 0.7); ctx.lineTo(p.x, ry); ctx.stroke(); }
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    };
+
+    /* ---- efek siap pakai (u = px per unit dunia) ---- */
+    function boom(F, Ly, x, y, u, wy, m, hot) {
+      m = m || 1;
+      F.add({ k: 'g', L: Ly, x: x, y: y, r: u * 24 * m, life: 0.3, col: '255,244,214', wy: wy });
+      F.add({ k: 'g', L: Ly, x: x, y: y, r: u * 52 * m, life: 0.75, col: hot || '255,118,40', a: 0.8, wy: wy });
+      for (var i = 0; i < 14 * m; i++) { var an = Math.random() * 6.28, sp = u * (0.9 + Math.random() * 3) * Math.sqrt(m); F.add({ k: 'k', L: Ly, x: x, y: y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - u * 1.4, g: u * 0.07, drag: 0.968, life: 0.5 + Math.random() * 0.9, col: Math.random() < 0.5 ? '255,214,140' : '255,140,60', w: Math.max(1, u * 0.65), ln: 1.7, wy: wy }); }
+      for (var j = 0; j < 5 * m; j++) F.add({ k: 'd', L: Ly, x: x, y: y, vx: (Math.random() - 0.5) * u * 4, vy: -u * (1.4 + Math.random() * 3), g: u * 0.09, drag: 0.99, r: u * (0.7 + Math.random() * 1.5), life: 1.8, a: 1.8, spin: (Math.random() - 0.5) * 18, col: '#160e0c', wy: wy });
+      for (var q = 0; q < 4 * m; q++) F.add({ k: 's', L: Ly, x: x + (Math.random() - 0.5) * u * 14, y: y - Math.random() * u * 8, vx: (Math.random() - 0.35) * u * 0.3, vy: -u * (0.2 + Math.random() * 0.4), drag: 0.988, r: u * (9 + Math.random() * 9) * m, grow: u * 0.2, life: 2.6 + Math.random() * 1.8, col: '34,26,28', a: 0.85, fi: 6 });
+    }
+    function splash(F, Ly, x, wy, u) {
+      for (var i = 0; i < 16; i++) F.add({ k: 'k', L: Ly, x: x + (Math.random() - 0.5) * u * 5, y: wy, vx: (Math.random() - 0.5) * u * 0.9, vy: -u * (2.2 + Math.random() * 2.6), g: u * 0.075, drag: 0.985, life: 1.1, col: '235,240,245', w: Math.max(1, u * 0.9), ln: 1.2, wy: wy + 1 });
+      F.add({ k: 's', L: Ly, x: x, y: wy - u * 8, vy: -u * 0.12, r: u * 10, grow: u * 0.22, life: 1.8, col: '225,228,236', a: 0.55, fi: 8 });
+      F.add({ k: 'r', L: Ly, x: x, y: wy, r: u * 4, grow: u * 0.5, life: 1.2, col: '230,236,242', a: 0.55, w: 2, sq: 0.22 });
+    }
+    function muzzle(F, Ly, x, y, dir, u, wy, smoke) {
+      F.add({ k: 'g', L: Ly, x: x, y: y, r: u * 15, life: 0.16, col: '255,236,190', wy: wy });
+      F.add({ k: 'g', L: Ly, x: x + dir * u * 6, y: y, r: u * 26, life: 0.3, col: '255,140,60', a: 0.7, wy: wy });
+      for (var i = 0; i < 6; i++) F.add({ k: 'k', L: Ly, x: x, y: y, vx: dir * u * (2 + Math.random() * 3), vy: (Math.random() - 0.6) * u * 1.2, drag: 0.9, life: 0.25, col: '255,210,130', w: Math.max(1, u * 0.7), ln: 1.4 });
+      for (var q = 0; q < 3; q++) F.add({ k: 's', L: Ly, x: x + dir * u * (3 + q * 4), y: y - q * u, vx: dir * u * (0.5 + Math.random() * 0.4), vy: -u * (0.08 + Math.random() * 0.12), drag: 0.975, r: u * (6 + q * 2.5), grow: u * 0.16, life: 2.4 + Math.random(), col: smoke || '196,184,180', a: 0.6, fi: 10 });
+    }
+    // tembakan meriam: {L, x0,y0,x1,y1, d (dtk), arc (px), c ('r,g,b'), w, hit(b)}
+    function stepShots(S, dt) { for (var i = S.length - 1; i >= 0; i--) { var b = S[i]; b.u = (b.u || 0) + dt / b.d; if (b.u >= 1) { S.splice(i, 1); if (b.hit) b.hit(b); } } }
+    function shotPt(b, u) { return [U.lerp(b.x0, b.x1, u), U.lerp(b.y0, b.y1, u) - Math.sin(u * Math.PI) * b.arc]; }
+    function drawShots(ctx, S, layer) {
+      ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      for (var i = 0; i < S.length; i++) {
+        var b = S[i]; if (b.L !== layer) continue;
+        var u = b.u || 0, p0 = shotPt(b, Math.max(0, u - 0.16)), p1 = shotPt(b, Math.max(0, u - 0.06)), p2 = shotPt(b, u);
+        ctx.strokeStyle = 'rgba(' + b.c + ',.22)'; ctx.lineWidth = b.w * 1.6; ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + b.c + ',.75)'; ctx.lineWidth = b.w * 0.6; ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke();
+        dot(ctx, glow(b.c), p2[0], p2[1], b.w * 4.5, 1);
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /* ---- kamera: keyframe [t, x, y, zoom, mode] ; d = kedalaman lapis (paralaks) ---- */
+    function camAt(keys, t) {
+      var a = keys[0];
+      if (t <= a[0]) return { x: a[1], y: a[2], z: a[3] };
+      for (var i = 0; i < keys.length - 1; i++) {
+        a = keys[i]; var b = keys[i + 1];
+        if (t <= b[0]) { var q = (t - a[0]) / (b[0] - a[0]), u = b[4] === 'out' ? 1 - Math.pow(1 - q, 4) : b[4] === 'in' ? q * q * q : U.smooth(q); return { x: U.lerp(a[1], b[1], u), y: U.lerp(a[2], b[2], u), z: U.lerp(a[3], b[3], u) }; }
+      }
+      a = keys[keys.length - 1]; return { x: a[1], y: a[2], z: a[3] };
+    }
+    function cam(ctx, W, H, c, d) {
+      var zb = 1.05, z = zb + (Math.max(zb, c.z) - zb) * d;
+      var fx = W / 2 + (c.x - W / 2) * d, fy = H / 2 + (c.y - H / 2) * d, hw = W / 2 / z, hh = H / 2 / z;
+      fx = U.clamp(fx, hw + 3, W - hw - 3); fy = U.clamp(fy, hh + 3, H - hh - 3);
+      ctx.translate(W / 2 + (c.sx || 0) * Math.min(1, d), H / 2 + (c.sy || 0) * Math.min(1, d)); ctx.scale(z, z); ctx.translate(-fx, -fy);
+    }
+
+    /* ---- sinar volumetrik (god rays) dari (x,y) ---- */
+    function rays(ctx, x, y, R, n, col, a, t, seed, a0, a1) {
+      if (a <= 0.01) return;
+      var g = ctx.createRadialGradient(x, y, R * 0.02, x, y, R);
+      g.addColorStop(0, 'rgba(' + col + ',' + (a * 0.55).toFixed(3) + ')'); g.addColorStop(0.35, 'rgba(' + col + ',' + (a * 0.22).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g;
+      for (var pass = 0; pass < 2; pass++) {
+        ctx.globalAlpha = pass ? 0.55 : 1; ctx.beginPath();
+        for (var i = pass; i < n; i += 2) {
+          var u = (i + hs(seed + i) * 0.8) / n, an = U.lerp(a0 == null ? 0 : a0, a1 == null ? 6.283 : a1, u) + Math.sin(t * 0.15 + i) * 0.015, w = 0.012 + hs(seed + i * 3) * 0.035;
+          ctx.moveTo(x, y); ctx.arc(x, y, R * (0.6 + hs(seed + i * 7) * 0.4), an - w, an + w); ctx.closePath();
+        }
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    /* ---- pita awan lembut ter-cache: lapisan gelap + tepi bawah tersinari ---- */
+    function cloudBand(w, h, seed, dark, lit, n, litA) {
+      var c = mk(w, h), g = c.getContext('2d'), r = U.rng(seed), pd = puff(dark), pl = puff(lit);
+      for (var i = 0; i < n; i++) {
+        var x = r() * w, y = h * (0.2 + r() * 0.6), rx = w * (0.04 + r() * 0.12), ry = h * (0.05 + r() * 0.14), al = 0.5 + r() * 0.5;
+        for (var wx = -1; wx <= 1; wx++) {
+          var xx = x + wx * w; if (xx + rx * 1.4 < 0 || xx - rx * 1.4 > w) continue;
+          g.globalAlpha = al; g.drawImage(pd, xx - rx * 1.4, y - ry * 1.4, rx * 2.8, ry * 2.8);
+          g.globalAlpha = al * (litA || 0.9); g.drawImage(pl, xx - rx * 1.1, y - ry * 0.5, rx * 2.2, ry * 1.6);
+        }
+      }
+      return c;
+    }
+    function band(ctx, img, x0, y, W, h, a) { if (a <= 0.01) return; var w = img.width, ox = ((x0 % w) + w) % w - w; ctx.globalAlpha = a; for (var x = ox; x < W + 60; x += w) ctx.drawImage(img, x - 30, y, w, h); ctx.globalAlpha = 1; }
+    /* ---- kolom asap deterministik (tak perlu state; aman untuk startAt) ---- */
+    function column(ctx, x, y, h, drift, tw, seed, col, a, n, fireA) {
+      var spr = puff(col), rate = 0.06 + hs(seed) * 0.03;
+      if (fireA > 0) { light(ctx, x, y - h * 0.02, h * 0.2, '255,120,40', fireA * (0.7 + 0.3 * Math.sin(tw * 13 + seed))); light(ctx, x, y - h * 0.01, h * 0.08, '255,220,150', fireA * 0.8); }
+      for (var i = n - 1; i >= 0; i--) {
+        var k = (tw * rate + i / n + hs(seed + i) * 0.03) % 1, r = h * (0.05 + k * 0.2);
+        var xx = x + Math.pow(k, 1.5) * drift + Math.sin(k * 6 + seed + tw * 0.4) * h * 0.025, yy = y - k * h;
+        dot(ctx, spr, xx, yy, r, a * Math.min(1, k * 7) * (1 - k));
+      }
+      ctx.globalAlpha = 1;
+    }
+    function letterbox(ctx, W, H, a) { if (a <= 0) return; var bh = H * (W < H ? 0.035 : 0.06) * a; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, bh); ctx.fillRect(0, H - bh, W, bh); }
+    function gull(ctx, x, y, s, ph) {
+      var f = Math.sin(ph), lift = s * (0.15 + 0.4 * f);
+      ctx.beginPath(); ctx.moveTo(x - s, y - lift); ctx.quadraticCurveTo(x - s * 0.5, y - s * 0.45 - f * s * 0.25, x - s * 0.08, y);
+      ctx.lineTo(x + s * 0.08, y); ctx.quadraticCurveTo(x + s * 0.5, y - s * 0.45 - f * s * 0.25, x + s, y - lift);
+      ctx.quadraticCurveTo(x + s * 0.45, y - s * 0.18 - f * s * 0.15, x, y + s * 0.12); ctx.quadraticCurveTo(x - s * 0.45, y - s * 0.18 - f * s * 0.15, x - s, y - lift); ctx.fill();
+    }
+    function lensFlare(ctx, sx, sy, W, H, a, col) {
+      if (a <= 0.01) return;
+      var cx = W / 2, cy = H / 2, dx = cx - sx, dy = cy - sy, m = Math.min(W, H);
+      [[0.35, 0.05, 0.25], [0.62, 0.025, 0.4], [0.9, 0.09, 0.14], [1.25, 0.04, 0.28], [1.55, 0.12, 0.1]].forEach(function (g) { light(ctx, sx + dx * g[0] * 2, sy + dy * g[0] * 2, m * g[1], col, a * g[2]); });
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      var hg = ctx.createLinearGradient(sx - W * 0.5, 0, sx + W * 0.5, 0); hg.addColorStop(0, 'rgba(' + col + ',0)'); hg.addColorStop(0.5, 'rgba(' + col + ',' + (0.35 * a).toFixed(3) + ')'); hg.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.fillStyle = hg; ctx.fillRect(sx - W * 0.5, sy - 1.2, W, 2.4); ctx.restore();
+    }
+    // salinan opsi dgn pewarna rata -> siluet untuk rim light (digambar sedikit bergeser ke arah cahaya)
+    function rimOpts(o, col) { var r = {}, k; for (k in o) r[k] = o[k]; r.lit = function () { return col; }; r.lanterns = 0; r.lights = 0; r.shield = 0; r.core = 0; r.reflect = false; return r; }
+    return { hs: hs, glow: glow, puff: puff, dot: dot, light: light, Fx: Fx, boom: boom, splash: splash, muzzle: muzzle, stepShots: stepShots, drawShots: drawShots, shotPt: shotPt,
+      camAt: camAt, cam: cam, rays: rays, cloudBand: cloudBand, band: band, column: column, letterbox: letterbox, gull: gull, flare: lensFlare, rimOpts: rimOpts, mk: mk };
+  })();
+
   /* ======================= 6. PENGKHIANATAN ======================= */
+  // 0-2.3 aliansi menggempur HENING | 2.5-3.8 Rangkiang Merah berputar, kamera mendekat ke Hasiolan
+  // 3.05 suar merah | 4.0 salvo pengkhianatan (gerak lambat) | 4.7-5.6 kapal Skitraw ikut berbalik | 5.2-6.8 kubah perisai mekar
   function sceneBetrayal() {
-    var r = U.rng(6060), P = new C.Particles(), L = C.makeLit(), glit = MTSky.makeGlitter(r), clouds = MTSky.makeClouds(r, 6), lay = null, shots = [], shake = 0;
-    function layout(W, H) { lay = { W: W, H: H, hy: H * 0.52, port: W < H, s: W < H ? W * 0.0021 : Math.min(W * 0.0014, H * 0.0026) }; }
+    var F = new WX.Fx(), S = [], L = C.makeLit(), LF = C.makeLit(), LN = C.makeLit(), LH = C.makeLit(), glit = MTSky.makeGlitter(U.rng(6060));
+    var lay = null, shake = 0, tw = null, fired = {}, acc = { al: 0, fo: 0, tr: 0, ha: 0, fire: 0, dome: 0 }, allyHit = 0, lastT = 0;
+    var SKI = { sail: '#eadcc2', stripe: '#1d1815', flag: '#1d1815', emb: 'crest', hull: '#40281a' };
+    var RED = { sail: '#8e1e16', stripe: '#e8c060', flag: '#1d1815', emb: 'crest', hull: '#38190f' };
+    function spd(t) { return 1 - 0.74 * sm(3.95, 4.06, t) * (1 - sm(4.75, 5.15, t)); }
+    function layout(W, H) {
+      var port = W < H, hy = H * (port ? 0.4 : 0.5), s = port ? W * 0.003 : Math.min(W * 0.0014, H * 0.0026), r = U.rng(6061);
+      var line = port
+        ? [{ x: -0.04, y: 0.085, k: 0.58, n: SKI }, { x: 0.19, y: 0.125, k: 0.66, n: SKI, tr: 4.7 }, { x: 0.43, y: 0.088, k: 0.55, n: FLEET[1] }, { x: 0.66, y: 0.13, k: 0.64, n: SKI, tr: 5.1 }]
+        : [{ x: 0.03, y: 0.07, k: 0.48, n: FLEET[2] }, { x: 0.14, y: 0.104, k: 0.56, n: SKI }, { x: 0.255, y: 0.074, k: 0.5, n: SKI, tr: 4.7 }, { x: 0.36, y: 0.11, k: 0.57, n: FLEET[1] }, { x: 0.49, y: 0.072, k: 0.48, n: SKI, tr: 5.1 }, { x: 0.585, y: 0.104, k: 0.54, n: FLEET[4] }];
+      line.forEach(function (it) { it.x *= W; it.y = hy + it.y * H; it.ph = r() * 6; });
+      line.sort(function (a, b) { return a.y - b.y; });
+      var far = []; for (var i = 0; i < (port ? 5 : 8); i++) far.push({ x: W * (0.02 + r() * 0.62), y: hy + H * (0.004 + r() * 0.012), k: 0.16 + r() * 0.1, dir: r() < 0.7 ? 1 : -1, n: FLEET[i % 5], ph: r() * 6 });
+      var cols = []; for (var j = 0; j < (port ? 3 : 5); j++) cols.push({ x: W * (0.04 + j * (port ? 0.3 : 0.14) + r() * 0.06), y: hy + H * 0.006, h: H * (port ? 0.11 + r() * 0.06 : 0.2 + r() * 0.16), drift: W * (0.04 + r() * 0.06), seed: j * 11 + 3 });
+      var fort = { x: W * (port ? 0.64 : 0.775), y: hy + H * (port ? 0.055 : 0.062), s: s * (port ? 1.5 : 1.16) };
+      var has = { x: W * (port ? 0.5 : 0.47), y: hy + H * (port ? 0.285 : 0.225), k: port ? 1.12 : 1.0 };
+      var ally = { x: W * (port ? 0.06 : 0.135), y: hy + H * (port ? 0.205 : 0.19), k: port ? 0.95 : 0.9 };
+      var hs = s * has.k * 1.1, sun = { x: W * (port ? 0.26 : 0.29), y: hy - H * (port ? 0.04 : 0.055) };
+      var bx = has.x - 18 * hs, by = has.y - 48 * hs;
+      var keys = port
+        ? [[0, W * 0.5, H * 0.46, 1.06], [2.3, W * 0.47, H * 0.5, 1.12], [3.5, bx, by, 1.5], [3.98, bx - 6, by - 4, 1.56], [4.6, W * 0.45, H * 0.48, 1.12, 'out'], [5.3, W * 0.5, H * 0.46, 1.1], [6.9, W * 0.66, H * 0.38, 1.16], [9.2, W * 0.5, H * 0.45, 1.08], [40, W * 0.5, H * 0.45, 1.12]]
+        : [[0, W * 0.5, H * 0.5, 1.06], [2.3, W * 0.47, H * 0.52, 1.12], [3.5, bx, by, 1.62], [3.98, bx - 8, by - 4, 1.7], [4.6, W * 0.43, H * 0.5, 1.13, 'out'], [5.3, W * 0.46, H * 0.5, 1.11], [6.9, W * 0.62, H * 0.45, 1.15], [9.2, W * 0.5, H * 0.48, 1.08], [40, W * 0.5, H * 0.48, 1.12]];
+      var cw = Math.round(W * 1.3);
+      lay = { W: W, H: H, port: port, hy: hy, s: s, line: line, far: far, cols: cols, fort: fort, has: has, ally: ally, sun: sun, keys: keys,
+        cHi: WX.cloudBand(cw, hy * 0.42, 61, '58,30,46', '255,138,80', 26, 0.55), cLo: WX.cloudBand(cw, hy * 0.3, 62, '70,34,40', '255,170,96', 22, 0.9),
+        cHiR: WX.cloudBand(cw, hy * 0.42, 61, '46,12,20', '255,70,40', 26, 0.6), cLoR: WX.cloudBand(cw, hy * 0.3, 62, '60,16,20', '255,96,50', 22, 0.95) };
+    }
+    /* ---- posisi dunia ---- */
+    function hasP(t) {
+      var h = lay.has, ss = lay.s * h.k, turn = U.smooth((t - 2.5) / 1.3), sx = Math.cos(turn * Math.PI);
+      var x = h.x - turn * lay.W * 0.015 + Math.sin(tw * 0.4) * ss * 2, y = h.y + Math.sin(tw * 1.1) * ss * 0.9;
+      return { x: x, y: y, ss: ss, K: 1.1, turn: turn, sx: sx < 0 ? Math.min(-0.3, sx) : Math.max(0.3, sx), dir: sx >= 0 ? 1 : -1 };
+    }
+    function hPt(h, ux, uy) { return [h.x + ux * h.ss * h.K * h.sx, h.y + uy * h.ss * h.K]; }
+    function lineP(it, t) {
+      var ss = lay.s * it.k, u = it.tr ? U.smooth((t - it.tr) / 1.0) : 0, sx = Math.cos(u * Math.PI);
+      return { x: it.x + Math.sin(tw * 0.3 + it.ph) * ss * 3, y: it.y + Math.sin(tw + it.ph) * ss, ss: ss, K: 1.05, sx: sx < 0 ? Math.min(-0.2, sx) : Math.max(0.2, sx), dir: sx >= 0 ? 1 : -1, turned: u > 0.5 };
+    }
+    function fortP() { var f = lay.fort; return { x: f.x, y: f.y + Math.sin(tw * 0.6) * f.s * 0.6, s: f.s }; }
+    function domeG(fp) { return { cx: fp.x + 10 * fp.s, cy: fp.y - 40 * fp.s, rx: 200 * fp.s, ry: 120 * fp.s }; }
+    function allyP() { var a = lay.ally, ss = lay.s * a.k; return { x: a.x, y: a.y + Math.sin(tw * 0.9 + 2) * ss, ss: ss, K: 1.05 }; }
+
+    /* ---- simulasi (emisi + update) ---- */
+    function fireAt(Ly, x0, y0, x1, y1, d, arc, c, w, hit) { S.push({ L: Ly, x0: x0, y0: y0, x1: x1, y1: y1, d: d, arc: arc, c: c, w: w, hit: hit }); }
+    function sim(t, sdt) {
+      var W = lay.W, H = lay.H, s = lay.s, fp = fortP(), dg = domeG(fp), dome = sm(5.2, 6.8, t), h = hasP(t), al = allyP();
+      // aliansi menggempur HENING (sebelum pengkhianatan: rapat; sesudahnya: yang setia saja)
+      acc.al += sdt * (t < 2.4 ? 2.6 : 1.1);
+      while (acc.al > 1) {
+        acc.al -= 1;
+        var cand = lay.line.filter(function (it) { return !(it.tr && t > it.tr); }), it = cand[Math.floor(Math.random() * cand.length)];
+        if (!it) break;
+        var lp = lineP(it, t), m0 = [lp.x + 44 * lp.ss * lp.K, lp.y - 12 * lp.ss * lp.K];
+        WX.muzzle(F, 2, m0[0], m0[1], 1, lp.ss, lp.y);
+        if (dome > 0.6) {
+          var an = Math.PI * (1.08 + Math.random() * 0.3), hx = dg.cx + Math.cos(an) * dg.rx, hy2 = dg.cy + Math.sin(an) * dg.ry;
+          fireAt(2, m0[0], m0[1], hx, hy2, 0.75, H * 0.05, '255,214,150', Math.max(1.4, s * 1.4), function (b) { F.add({ k: 'g', L: 1, x: b.x1, y: b.y1, r: s * 26, life: 0.45, col: '140,235,255' }); F.add({ k: 'r', L: 1, x: b.x1, y: b.y1, r: s * 3, grow: s * 0.7, life: 0.45, col: '170,240,255', a: 0.7, w: 2, sq: 0.8 }); for (var q = 0; q < 6; q++) F.add({ k: 'k', L: 1, x: b.x1, y: b.y1, vx: (Math.random() - 0.8) * s * 3, vy: (Math.random() - 0.5) * s * 3, drag: 0.92, life: 0.4, col: '170,240,255', w: 1.2 }); });
+        } else {
+          var hx2 = fp.x + (-130 + Math.random() * 230) * fp.s, hy3 = fp.y + (-30 + Math.random() * 24) * fp.s;
+          fireAt(2, m0[0], m0[1], hx2, hy3, 0.8, H * 0.05, '255,214,150', Math.max(1.4, s * 1.4), function (b) { WX.boom(F, 1, b.x1, b.y1, s * 0.75, fp.y + 4 * fp.s, 0.8); });
+        }
+      }
+      // Rangkiang Merah ikut menembak HENING sebelum berbalik
+      if (t < 2.4) { acc.ha += sdt * 0.9; while (acc.ha > 1) { acc.ha -= 1; var mp = hPt(h, 46, -13); WX.muzzle(F, 3, mp[0], mp[1], 1, h.ss, h.y); fireAt(3, mp[0], mp[1], fp.x + (-120 + Math.random() * 120) * fp.s, fp.y - (8 + Math.random() * 20) * fp.s, 0.9, H * 0.06, '255,214,150', Math.max(1.6, s * 1.7), function (b) { WX.boom(F, 1, b.x1, b.y1, s * 0.9, fp.y + 4 * fp.s, 1); }); } }
+      // HENING membalas: baut biru ke barisan
+      acc.fo += sdt * (t < 5.2 ? 0.75 : 0.35);
+      while (acc.fo > 1) {
+        acc.fo -= 1; var tg = lay.line[Math.floor(Math.random() * lay.line.length)], tp = lineP(tg, t), bo = [fp.x - 145 * fp.s, fp.y - 41 * fp.s];
+        F.add({ k: 'g', L: 1, x: bo[0], y: bo[1], r: s * 18, life: 0.25, col: '150,235,255', wy: fp.y });
+        var miss = Math.random() < 0.6, tx = tp.x + (miss ? (Math.random() - 0.5) * 60 * tp.ss : 0), ty = miss ? tp.y + 6 * tp.ss : tp.y - 18 * tp.ss;
+        fireAt(1, bo[0], bo[1], tx, ty, 0.55, H * 0.02, '150,235,255', Math.max(1.2, s * 1.2), (function (mi, wy, u) { return function (b) { if (mi) WX.splash(F, 2, b.x1, wy, u); else WX.boom(F, 2, b.x1, b.y1, u * 0.8, wy, 0.8, '120,200,255'); }; })(miss, tp.y + 6 * tp.ss, tp.ss));
+      }
+      // suar merah pengkhianatan
+      if (t > 3.05 && !fired.flare) {
+        fired.flare = 1; var fs = hPt(h, -10, -40);
+        fireAt(3, fs[0], fs[1], fs[0] - lay.W * 0.03, H * (lay.port ? 0.16 : 0.12), 0.6, 0, '255,90,70', Math.max(2, s * 2.2), function (b) { shake = Math.max(shake, 4); F.add({ k: 'g', L: 3, x: b.x1, y: b.y1, r: H * 0.35, life: 1.6, col: '255,70,50', a: 0.9 }); for (var q = 0; q < 40; q++) { var a2 = q / 40 * 6.28; var v2 = s * (1.2 + Math.random() * 2.6); F.add({ k: 'k', L: 3, x: b.x1, y: b.y1, vx: Math.cos(a2) * v2, vy: Math.sin(a2) * v2, g: s * 0.03, drag: 0.965, life: 1.6 + Math.random() * 0.6, col: q % 3 ? '255,90,70' : '255,220,190', w: 1.6, ln: 2.2 }); } });
+      }
+      if (t > 3.05 && t < 3.7) { var fpp = S.filter(function (b) { return b.c === '255,90,70'; })[0]; if (fpp) { var q2 = WX.shotPt(fpp, fpp.u || 0); F.add({ k: 's', L: 3, x: q2[0], y: q2[1], vy: -s * 0.05, r: s * 4, grow: s * 0.1, life: 1.6, col: '170,90,90', a: 0.45 }); } }
+      // salvo pengkhianatan (riak dari buritan ke haluan) -> kapal sekutu di depan
+      for (var bi = 0; bi < 6; bi++) {
+        var key = 'bs' + bi;
+        if (t > 4.0 + bi * 0.075 && !fired[key]) {
+          fired[key] = 1; var ux = -34 + bi * 14, mq = hPt(h, ux, -11);
+          WX.muzzle(F, 3, mq[0], mq[1], -1, h.ss * 1.3, h.y, '210,150,140');
+          F.add({ k: 'g', L: 3, x: mq[0], y: mq[1] - h.ss * 6, r: h.ss * 34, life: 0.45, col: '255,90,50', a: 0.35 });
+          shake = Math.min(10, shake + 3);
+          var ta = bi % 3 === 1 ? null : [al.x + (-30 + Math.random() * 70) * al.ss * al.K, al.y - (6 + Math.random() * 30) * al.ss * al.K];
+          if (ta) fireAt(3, mq[0], mq[1], ta[0], ta[1], 0.4, H * 0.015, '255,120,90', Math.max(1.8, s * 2), function (b) { allyHit = Math.min(1, allyHit + 0.25); WX.boom(F, 3, b.x1, b.y1, al.ss * 1.1, al.y + 6 * al.ss, 1.2); });
+          else { var tl = lay.line[1], lp2 = lineP(tl, t); fireAt(3, mq[0], mq[1], lp2.x + (Math.random() - 0.5) * 40 * lp2.ss, lp2.y + 5 * lp2.ss, 0.55, H * 0.03, '255,120,90', Math.max(1.6, s * 1.8), function (b) { WX.splash(F, 2, b.x1, b.y1, lp2.ss * 1.2); }); }
+        }
+      }
+      if (t > 4.0 && t < 4.06 && !fired.ring) { fired.ring = 1; var rc = hPt(h, 0, -10); F.add({ k: 'r', L: 3, x: rc[0], y: rc[1], r: h.ss * 10, grow: h.ss * 3.5, life: 0.7, col: '255,150,110', a: 0.45, w: 3, sq: 0.3 }); }
+      // pengkhianat menembak terus (Rangkiang Merah + kapal Skitraw yang berbalik)
+      if (t > 5.3) {
+        acc.tr += sdt * 1.6;
+        while (acc.tr > 1) {
+          acc.tr -= 1;
+          var shooters = lay.line.filter(function (it2) { return it2.tr && t > it2.tr + 0.6; });
+          if (Math.random() < 0.35 || !shooters.length) {
+            var mh = hPt(h, -40 + Math.random() * 60, -11); WX.muzzle(F, 3, mh[0], mh[1], -1, h.ss, h.y, '210,150,140'); shake = Math.min(8, shake + 1.2);
+            var ta2 = [al.x + (-30 + Math.random() * 70) * al.ss * al.K, al.y - (4 + Math.random() * 26) * al.ss * al.K];
+            fireAt(3, mh[0], mh[1], ta2[0], ta2[1], 0.45, H * 0.015, '255,120,90', Math.max(1.8, s * 2), function (b) { allyHit = Math.min(1, allyHit + 0.1); if (Math.random() < 0.5) WX.boom(F, 3, b.x1, b.y1, al.ss * 0.9, al.y + 6 * al.ss, 0.9); else WX.splash(F, 3, b.x1, al.y + 6 * al.ss, al.ss); });
+          } else {
+            var sh = shooters[Math.floor(Math.random() * shooters.length)], sp2 = lineP(sh, t), msp = [sp2.x - 44 * sp2.ss * sp2.K, sp2.y - 12 * sp2.ss * sp2.K];
+            WX.muzzle(F, 2, msp[0], msp[1], -1, sp2.ss, sp2.y, '210,150,140');
+            var vic = lay.line.filter(function (v) { return !v.tr && v.x < sh.x; }), vv = vic.length ? vic[vic.length - 1] : lay.line[0], vp = lineP(vv, t);
+            fireAt(2, msp[0], msp[1], vp.x + (Math.random() - 0.3) * 30 * vp.ss, vp.y - Math.random() * 20 * vp.ss, 0.5, H * 0.02, '255,120,90', Math.max(1.4, s * 1.4), function (b) { if (Math.random() < 0.55) WX.boom(F, 2, b.x1, b.y1, vp.ss * 0.8, vp.y + 5 * vp.ss, 0.8); else WX.splash(F, 2, b.x1, vp.y + 5 * vp.ss, vp.ss); });
+          }
+        }
+      }
+      // sekutu di depan terbakar
+      if (allyHit > 0) {
+        acc.fire += sdt * 16 * allyHit;
+        while (acc.fire > 1) {
+          acc.fire -= 1; var fx = al.x + (-40 + Math.random() * 80) * al.ss * al.K, fy = al.y - (14 + Math.random() * 10) * al.ss * al.K;
+          F.add({ k: 'g', L: 3, x: fx, y: fy, vy: -al.ss * 0.4, r: al.ss * (7 + Math.random() * 8), life: 0.5, col: Math.random() < 0.5 ? '255,140,50' : '255,200,110', a: 0.8, fl: 1, wy: al.y + 6 * al.ss });
+          if (Math.random() < 0.35) F.add({ k: 's', L: 3, x: fx, y: fy - al.ss * 10, vx: al.ss * 0.15, vy: -al.ss * (0.5 + Math.random() * 0.4), drag: 0.995, r: al.ss * 9, grow: al.ss * 0.28, life: 3.5, col: '30,22,24', a: 0.75, fi: 5 });
+          if (Math.random() < 0.3) F.add({ k: 'k', L: 3, x: fx, y: fy, vx: (Math.random() - 0.3) * al.ss * 0.6, vy: -al.ss * (0.8 + Math.random()), drag: 0.99, life: 1.4, col: '255,190,110', w: 1.2, ln: 3 });
+        }
+      }
+      // kubah: percik di garis depan yang naik
+      if (dome > 0.01 && dome < 0.98) {
+        acc.dome += sdt * 40;
+        while (acc.dome > 1) { acc.dome -= 1; var yy = dg.cy + dg.ry * 0.35 - dome * dg.ry * 1.35, dy = (yy - dg.cy) / dg.ry, hw = dy < 0 ? dg.rx * Math.sqrt(Math.max(0, 1 - dy * dy)) : dg.rx, xx = dg.cx + (Math.random() * 2 - 1) * hw; F.add({ k: 'k', L: 1, x: xx, y: yy, vx: (Math.random() - 0.5) * s, vy: -s * (0.5 + Math.random()), drag: 0.95, life: 0.6, col: '170,245,255', w: 1.3, ln: 2 }); }
+      }
+      if (t > 5.2 && !fired.domeFlash) { fired.domeFlash = 1; F.add({ k: 'g', L: 1, x: dg.cx, y: dg.cy + dg.ry * 0.3, r: dg.rx * 1.2, life: 1.4, col: '130,225,255', a: 0.6 }); shake = Math.max(shake, 5); }
+      F.step(sdt); WX.stepShots(S, sdt);
+      shake = Math.max(0, shake - sdt / Math.max(0.3, spd(t)) * 14);
+    }
+    function init(t) {
+      tw = 0; for (var x = 0; x < t; x += 0.02) tw += 0.02 * spd(x);
+      ['flare', 'ring', 'domeFlash', 'bs0', 'bs1', 'bs2', 'bs3', 'bs4', 'bs5'].forEach(function (k) { var at = { flare: 3.05, ring: 4.0, domeFlash: 5.2 }[k] || 4.0; if (at < t - 1.5) fired[k] = 1; });
+      if (t > 4.6) allyHit = Math.min(1, 0.6 + (t - 4.6) * 0.1);
+      for (var tt = Math.max(0, t - 1.5); tt < t; tt += 1 / 30) sim(tt, spd(tt) / 30);
+    }
+
+    /* ---- gambar ---- */
+    function drawShip(ctx, P, o, Lr, rim, rdx) {
+      // P: {x,y,ss,sx}; menggambar kapal dgn skala-x (berputar)
+      if (rim) { var u = P.ss * (o.sizeK || 1); ctx.save(); ctx.beginPath(); ctx.rect(P.x - 80 * u, P.y - 30 * u, 160 * u, 44 * u); ctx.clip(); ctx.translate(P.x + rdx, P.y - Math.abs(rdx) * 0.6); ctx.scale(P.sx, 1); MTShip.draw(ctx, 0, 0, P.ss, WX.rimOpts(o, rim)); ctx.restore(); }
+      ctx.save(); ctx.translate(P.x, P.y); ctx.scale(P.sx, 1); MTShip.draw(ctx, 0, 0, P.ss, o); ctx.restore();
+    }
+    function figure(ctx, x, y, u, f, raise, t, glowA) {
+      // Hasiolan berdiri di haluan, jubah berkibar, pedang terangkat
+      if (glowA > 0.01) WX.light(ctx, x, y - 9 * u, 22 * u, '255,70,50', glowA * 0.55);
+      ctx.save(); ctx.translate(x, y); ctx.scale(u * f, u);
+      var wv = Math.sin(t * 7) * 0.7;
+      ctx.fillStyle = '#0d0707';
+      ctx.beginPath(); ctx.moveTo(-1.4, -11.4); ctx.quadraticCurveTo(-5.5 + wv, -7, -8.2 + wv * 1.6, -2.2 + wv * 0.4); ctx.lineTo(-6 + wv, -1.2); ctx.lineTo(-1.2, -3); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-1.9, 0); ctx.lineTo(-1.2, -5.4); ctx.lineTo(0.2, -5.4); ctx.lineTo(-0.6, 0); ctx.closePath(); ctx.moveTo(0.4, 0); ctx.lineTo(0.6, -5.4); ctx.lineTo(1.8, -5.4); ctx.lineTo(2.1, 0); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-2.1, -5); ctx.lineTo(-2.4, -11.6); ctx.quadraticCurveTo(0, -12.6, 2.4, -11.6); ctx.lineTo(2.2, -5); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(0.2, -13.4, 1.55, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-1.9, -13.7); ctx.lineTo(-0.6, -15.9); ctx.lineTo(2.4, -14.6); ctx.lineTo(1.9, -13.5); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-1.8, -14.6); ctx.lineTo(-4.2 + wv, -13.6 + wv * 0.3); ctx.lineTo(-1.6, -13.9); ctx.fill();
+      var ang = U.lerp(0.95, -1.15, raise);
+      ctx.save(); ctx.translate(1.6, -10.9); ctx.rotate(ang);
+      ctx.fillRect(0, -0.6, 4.4, 1.2);
+      ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,' + Math.round(150 + 90 * (1 - glowA)) + ',' + Math.round(130 + 100 * (1 - glowA)) + ',.95)'; ctx.lineWidth = 0.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(4.4, 0); ctx.quadraticCurveTo(8, -0.2, 11.6, -1.1); ctx.stroke();
+      ctx.restore();
+      ctx.save(); ctx.translate(-1.5, -10.9); ctx.rotate(1.25); ctx.fillRect(0, -0.55, 4, 1.1); ctx.restore();
+      // rim merah di sisi belakang
+      ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,110,80,' + (0.5 * glowA).toFixed(3) + ')'; ctx.lineWidth = 0.45;
+      ctx.beginPath(); ctx.moveTo(-2.4, -11.4); ctx.lineTo(-2.1, -5); ctx.moveTo(-1.2, -14.6); ctx.arc(0.2, -13.4, 1.55, -2.4, -0.6); ctx.stroke();
+      ctx.restore();
+    }
+    function render(ctx, W, H, t) {
+      var hy = lay.hy, s = lay.s, port = lay.port, R = sm(3.4, 4.3, t), sun = lay.sun;
+      var c = WX.camAt(lay.keys, t); c.sx = (Math.random() - 0.5) * shake; c.sy = (Math.random() - 0.5) * shake;
+      var top = U.mix([30, 20, 44], [20, 6, 12], R), mid = U.mix([118, 46, 58], [120, 22, 26], R), hor = U.mix([238, 128, 66], [255, 120, 52], R);
+      // ---------- langit ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 0.15);
+      var g = ctx.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, U.css(top)); g.addColorStop(0.5, U.css(U.mix(top, mid, 0.7))); g.addColorStop(0.8, U.css(mid)); g.addColorStop(1, U.css(hor));
+      ctx.fillStyle = g; ctx.fillRect(-40, -40, W + 80, hy + 60);
+      var sr = Math.max(14, H * 0.04), sc = U.mix([255, 196, 120], [255, 110, 70], R);
+      WX.light(ctx, sun.x, sun.y, sr * 16, sc.join(','), 0.5);
+      WX.light(ctx, sun.x, sun.y, sr * 5, '255,220,170', 0.6 - R * 0.25);
+      WX.rays(ctx, sun.x, sun.y, Math.max(W, H) * 0.9, 18, sc.join(','), 0.2 - R * 0.06, t, 7, Math.PI * 1.02, Math.PI * 1.98);
+      ctx.fillStyle = U.css(U.mix([255, 236, 200], [255, 150, 110], R)); ctx.beginPath(); ctx.arc(sun.x, sun.y, sr, 0, 6.3); ctx.fill();
+      var drift = tw * W * 0.006;
+      WX.band(ctx, lay.cHi, drift * 0.6, hy * 0.04, W, lay.cHi.height, 1 - R); WX.band(ctx, lay.cHiR, drift * 0.6, hy * 0.04, W, lay.cHiR.height, R);
+      WX.band(ctx, lay.cLo, drift, hy * 0.6, W, lay.cLo.height, 1 - R); WX.band(ctx, lay.cLoR, drift, hy * 0.6, W, lay.cLoR.height, R);
+      // gumpalan asap perang raksasa melintasi langit, tepi bawahnya tersinari
+      var sb = WX.puff('22,14,18'), sl = WX.puff('255,120,64');
+      for (var bk = 0; bk < (port ? 9 : 14); bk++) {
+        var bu = (tw * 0.006 * (1 + WX.hs(bk) * 0.6) + WX.hs(bk + 21)) % 1, bx = -W * 0.25 + bu * W * 1.5, byy = hy * (0.18 + WX.hs(bk + 4) * 0.55), br = H * (0.1 + WX.hs(bk + 8) * 0.14) * (port ? 1.3 : 1), ba = Math.sin(bu * Math.PI);
+        WX.dot(ctx, sb, bx, byy, br, 0.85 * ba);
+        ctx.globalCompositeOperation = 'lighter'; WX.dot(ctx, sl, bx + br * 0.1, byy + br * 0.42, br * 0.75, (0.22 + 0.2 * R) * ba * (1 - Math.min(1, Math.abs(bx - sun.x) / W)));
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.globalAlpha = 1;
+      if (t > 3.6) { var fy = H * (lay.port ? 0.16 : 0.12) + (t - 3.6) * H * 0.008, fa = sm(3.6, 3.8, t) * (0.85 + 0.15 * Math.sin(t * 17)); WX.light(ctx, lay.has.x - lay.W * 0.03, fy, H * 0.55, '255,50,40', 0.38 * fa); }
+      ctx.restore();
+      // ---------- jauh: laut, kapal di cakrawala, kolom asap ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 0.45);
+      var p = MTSky.palette(0.66, 'encounter');
+      p.seaH = U.mix([110, 48, 52], [120, 34, 32], R); p.seaD = U.mix([16, 12, 26], [18, 6, 12], R); p.hor = hor; p.waveHi = U.mix(hor, [255, 220, 190], 0.25); p.waveLo = [8, 4, 10];
+      p.glitter = U.mix([255, 190, 120], [255, 120, 80], R); p._sunX = sun.x; p._moonX = null;
+      MTSky.paintSea(ctx, W, H, hy, p, tw, { glitter: glit, rough: 1.25, drift: 10 });
+      // kolom cahaya matahari di air
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.4; ctx.drawImage(WX.glow(sc.join(',')), sun.x - W * 0.07, hy - (H - hy) * 0.15, W * 0.14, (H - hy) * 1.3); ctx.globalAlpha = 0.5; ctx.drawImage(WX.glow('255,230,190'), sun.x - W * 0.015, hy - 4, W * 0.03, (H - hy) * 0.5); ctx.restore();
+      LH.set(U.mix(U.mix(hor, [60, 30, 40], 0.55), [90, 30, 30], R));
+      lay.cols.forEach(function (cl, i) { WX.column(ctx, cl.x, cl.y, cl.h, cl.drift, tw, cl.seed, i % 2 ? '40,26,30' : '52,34,38', 0.8, 16, 0.7); });
+      lay.far.forEach(function (fs, i) {
+        MTShip.draw(ctx, fs.x, fs.y + Math.sin(tw + fs.ph) * 0.4, s * fs.k, navyOpts(fs.n, tw, LH, { dir: fs.dir, lanterns: 0, furl: 0.2 }));
+        var fl = Math.sin(tw * 2.3 + fs.ph * 3); if (fl > 0.93) WX.light(ctx, fs.x + fs.dir * 50 * s * fs.k, fs.y - 6 * s * fs.k, s * 22 * fs.k * 3, '255,200,120', (fl - 0.93) * 12);
+      });
+      var hz = ctx.createLinearGradient(0, hy - H * 0.06, 0, hy + H * 0.08); hz.addColorStop(0, U.css(hor, 0)); hz.addColorStop(0.5, U.css(hor, 0.45)); hz.addColorStop(1, U.css(hor, 0));
+      ctx.fillStyle = hz; ctx.fillRect(-20, hy - H * 0.06, W + 40, H * 0.14);
+      ctx.restore();
+      // ---------- HENING + kubah ----------
+      var fp = fortP(), dg = domeG(fp), dome = sm(5.2, 6.8, t);
+      ctx.save(); WX.cam(ctx, W, H, c, 0.65);
+      LF.set(U.mix([150, 112, 118], [150, 88, 92], R));
+      var fo = { dir: -1, t: tw, lit: LF, hp: 0.42, lights: 0.85, shield: 0 };
+      ctx.save(); ctx.translate(-2.2, -1.4); induk(ctx, fp.x, fp.y, fp.s, WX.rimOpts(fo, U.css(U.mix([255, 160, 100], [255, 100, 70], R), 0.85))); ctx.restore();
+      induk(ctx, fp.x, fp.y, fp.s, fo);
+      // asap dari luka-luka HENING
+      [[-80, -34, 1], [30, -80, 7], [-20, -56, 13], [100, -36, 19]].forEach(function (w) { WX.column(ctx, fp.x + w[0] * fp.s, fp.y + w[1] * fp.s, H * 0.3, W * 0.05, tw, w[2], '30,24,28', 0.7, 11, 0.6); });
+      // pantulan cahaya biru di air
+      WX.light(ctx, fp.x - 20 * fp.s, fp.y + 8 * fp.s, 160 * fp.s, '90,200,255', 0.08 + 0.2 * dome);
+      var front = dg.cy + dg.ry * 0.35 - dome * dg.ry * 1.4;
+      if (dome > 0.01) {
+        front = dg.cy + dg.ry * 0.35 - dome * dg.ry * 1.4;
+        ctx.save(); ctx.beginPath(); ctx.rect(dg.cx - dg.rx - 10, front, dg.rx * 2 + 20, dg.ry * 2); ctx.clip();
+        MTWar.shieldDome(ctx, dg.cx, dg.cy, dg.rx, dg.ry, tw, Math.min(1, dome * 1.2) * (0.9 + 0.1 * Math.sin(tw * 5)));
+        ctx.restore();
+        if (dome < 0.995) {
+          var dy = (front - dg.cy) / dg.ry, hw = dy < 0 ? dg.rx * Math.sqrt(Math.max(0, 1 - dy * dy)) : dg.rx;
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          var eg = ctx.createLinearGradient(dg.cx - hw, 0, dg.cx + hw, 0); eg.addColorStop(0, 'rgba(170,245,255,0)'); eg.addColorStop(0.5, 'rgba(220,252,255,.95)'); eg.addColorStop(1, 'rgba(170,245,255,0)');
+          ctx.strokeStyle = eg; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(dg.cx, front, Math.max(1, hw), Math.max(1, hw * 0.08), 0, 0, 6.3); ctx.stroke();
+          ctx.restore(); WX.light(ctx, dg.cx, front, hw * 0.8, '150,235,255', 0.35);
+        }
+        // pantulan kubah di laut
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 * dome;
+        var rg = ctx.createLinearGradient(0, fp.y, 0, fp.y + dg.ry * 0.9); rg.addColorStop(0, 'rgba(140,230,255,.6)'); rg.addColorStop(1, 'rgba(140,230,255,0)');
+        ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(dg.cx, fp.y + 4 * fp.s, dg.rx, dg.ry * 0.5, 0, 0, Math.PI); ctx.fill(); ctx.restore();
+      }
+      // lampu sorot HENING menyapu langit
+      var tp0 = [fp.x + 35 * fp.s, fp.y - 140 * fp.s];
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (var sl2 = 0; sl2 < 2; sl2++) {
+        var ang = Math.PI * (1.18 + 0.12 * Math.sin(tw * (0.35 + sl2 * 0.17) + sl2 * 2)) + sl2 * 0.22, len = Math.max(W, H) * 1.1, wd = 0.05;
+        var bg = ctx.createLinearGradient(tp0[0], tp0[1], tp0[0] + Math.cos(ang) * len, tp0[1] + Math.sin(ang) * len); bg.addColorStop(0, 'rgba(170,240,255,.32)'); bg.addColorStop(0.5, 'rgba(150,230,255,.08)'); bg.addColorStop(1, 'rgba(150,230,255,0)');
+        ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(tp0[0], tp0[1]); ctx.lineTo(tp0[0] + Math.cos(ang - wd) * len, tp0[1] + Math.sin(ang - wd) * len); ctx.lineTo(tp0[0] + Math.cos(ang + wd) * len, tp0[1] + Math.sin(ang + wd) * len); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore(); WX.light(ctx, tp0[0], tp0[1], 14 * fp.s, '200,248,255', 0.9);
+      if (dome > 0.05) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.rect(dg.cx - dg.rx - 10, front, dg.rx * 2 + 20, dg.ry * 2); ctx.clip();
+        ctx.strokeStyle = 'rgba(180,245,255,' + (0.5 * dome * (0.8 + 0.2 * Math.sin(tw * 4))).toFixed(3) + ')'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.ellipse(dg.cx, dg.cy, dg.rx, dg.ry, 0, Math.PI, 0); ctx.stroke();
+        ctx.strokeStyle = 'rgba(140,230,255,' + (0.18 * dome).toFixed(3) + ')'; ctx.lineWidth = 9; ctx.stroke();
+        ctx.restore();
+      }
+      F.draw(ctx, 1); WX.drawShots(ctx, S, 1);
+      ctx.restore();
+      // ---------- barisan tengah ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 0.8);
+      L.set(U.mix([168, 120, 118], [160, 84, 84], R));
+      lay.line.forEach(function (it, k) {
+        var lp = lineP(it, t), n = it.n, o = navyOpts(it.tr && lp.turned ? { sail: n.sail, stripe: '#8e1e16', flag: '#b3261e', emb: n.emb, hull: n.hull } : n, tw, L, { dir: 1, lanterns: 0.5, furl: 0.2, muzzles: true, roll: it.tr ? Math.sin(U.smooth((t - it.tr) / 1.0) * Math.PI) * 0.06 : Math.sin(tw * 0.8 + k) * 0.012 });
+        drawShip(ctx, lp, o, L, null, 0);
+        MTShip.foam(ctx, lp.x, lp.y, lp.ss, lp.dir, tw, 0.35, 0.55);
+      });
+      F.draw(ctx, 2); WX.drawShots(ctx, S, 2);
+      ctx.restore();
+      // kabut tipis memisahkan lapis tengah & depan
+      var mz = ctx.createLinearGradient(0, hy, 0, H); mz.addColorStop(0, U.css(hor, 0.16)); mz.addColorStop(0.4, U.css(hor, 0.06)); mz.addColorStop(1, U.css(hor, 0));
+      ctx.fillStyle = mz; ctx.fillRect(0, hy, W, H - hy);
+      // ---------- depan: sekutu yang dikhianati + Rangkiang Merah ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 1);
+      LN.set(U.mix([150, 104, 100], [148, 74, 72], R));
+      var al = allyP(), ao = navyOpts(FLEET[0], tw, LN, { dir: 1, lanterns: 0.4, furl: 0.15, muzzles: true, damage: allyHit * 0.8, roll: Math.sin(tw * 0.9) * 0.015 + allyHit * 0.04 });
+      drawShip(ctx, { x: al.x, y: al.y, ss: al.ss, sx: 1 }, ao, LN, 'rgba(255,186,120,.95)', 2.4);
+      MTShip.foam(ctx, al.x, al.y, al.ss, 1, tw, 0.3, 0.6);
+      var h = hasP(t), ho = navyOpts(h.dir < 0 ? { sail: RED.sail, stripe: RED.stripe, flag: '#b3261e', emb: RED.emb, hull: RED.hull } : RED, tw, LN, { dir: 1, lanterns: 0.6, furl: 0.12, muzzles: true, ports: 7, gilded: true, railGuns: true, studding: 2, sizeK: 1.1, pennant: h.dir < 0 ? '#b3261e' : '#1d1815', roll: Math.sin(h.turn * Math.PI) * 0.07 + Math.sin(tw * 0.9) * 0.012 });
+      // pantulan samar
+      ctx.save(); ctx.globalAlpha = 0.16; var hr = {}; for (var kk in ho) hr[kk] = ho[kk]; hr.reflect = true; ctx.translate(h.x, h.y + 4); ctx.scale(h.sx, 1); MTShip.draw(ctx, 0, 0, h.ss, hr); ctx.restore();
+      drawShip(ctx, h, ho, LN, U.css(U.mix([255, 196, 130], [255, 120, 86], R), 0.95), h.x < sun.x ? 2.4 : -2.4);
+      MTShip.foam(ctx, h.x, h.y, h.ss, h.dir, tw, 0.35, 0.7);
+      var fb = hPt(h, 40, -26.5);
+      figure(ctx, fb[0], fb[1], h.ss * h.K * 0.95, h.dir, sm(3.3, 3.75, t), tw, sm(3.6, 3.9, t));
+      F.draw(ctx, 3); WX.drawShots(ctx, S, 3);
+      ctx.restore();
+      // ---------- latar paling depan: asap & bara ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 1.25);
+      var smk = WX.puff('26,18,22');
+      for (var i = 0; i < 7; i++) { var u = (tw * 0.012 + i / 7) % 1, xx = -W * 0.2 + u * W * 1.4, yy = H * (0.86 + WX.hs(i) * 0.1), rr = H * (0.16 + WX.hs(i + 9) * 0.1); WX.dot(ctx, smk, xx, yy, rr, 0.5 * Math.sin(u * Math.PI)); }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
+      for (var e = 0; e < (port ? 26 : 40); e++) {
+        var k2 = (tw * (0.05 + WX.hs(e) * 0.06) + WX.hs(e + 3)) % 1, ex = W * WX.hs(e + 7) + Math.sin(tw * 1.3 + e) * W * 0.02 + k2 * W * 0.06, ey = H * (1.02 - k2 * 1.1), er = 0.8 + WX.hs(e + 5) * 1.6;
+        ctx.globalAlpha = Math.sin(k2 * Math.PI) * (0.5 + 0.5 * Math.sin(tw * 9 + e)); ctx.fillStyle = e % 3 ? '#ffb46a' : '#ffe2b0'; ctx.fillRect(ex, ey, er, er);
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
+      // ---------- grading layar ----------
+      ctx.fillStyle = 'rgba(110,0,10,' + (0.16 * R).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H);
+      if (t > 3.95 && t < 4.6) { var fk = 1 - (t - 3.95) / 0.65; ctx.fillStyle = 'rgba(255,' + Math.round(120 + 100 * fk) + ',' + Math.round(90 + 120 * fk) + ',' + (0.42 * fk * fk).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      if (t > 5.2 && t < 5.8) { ctx.fillStyle = 'rgba(160,235,255,' + (0.18 * (1 - (t - 5.2) / 0.6)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      var vg = ctx.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.32, W / 2, H * 0.5, Math.hypot(W, H) * 0.6);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(' + Math.round(30 * R) + ',0,0,' + (0.62 + 0.12 * R).toFixed(3) + ')'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      WX.letterbox(ctx, W, H, sm(0, 1.2, t));
+      ttl(ctx, W, H, sm(7.2, 8.8, t), 'PENGKHIANATAN', 'Meriam Skitraw berbalik arah', H * (port ? 0.12 : 0.14));
+      fadeIn(ctx, W, H, t, 1);
+    }
     function draw(ctx, W, H, t, dt) {
       if (!lay || lay.W !== W || lay.H !== H) layout(W, H);
-      var hy = lay.hy, p = MTSky.palette(0.66, 'encounter'), s = lay.s;
-      shake = Math.max(0, shake - dt / 1000 * 16);
-      ctx.save(); if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-      MTSky.paintSky(ctx, W, hy, p, t, null);
-      MTSky.paintClouds(ctx, W, hy * 0.9, p, clouds, dt, 0.8);
-      MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 1.3, drift: 10 });
-      L.set(p.tint);
-      // Kapal Induk di kanan
-      var ix = W * (lay.port ? 0.7 : 0.74), iy = hy + H * 0.12, is = s * (lay.port ? 1.05 : 1.25);
-      var sh = sm(5.2, 7, t);
-      induk(ctx, ix, iy, is, { dir: -1, t: t, lit: L, hp: 0.5, lights: 0.8, shield: sh });
-      // barisan aliansi di kiri; kapal merah (Rangkiang Merah) berbalik
-      var line = [];
-      for (var i = 0; i < 5; i++) line.push({ n: FLEET[i], x: W * (0.08 + i * 0.1), y: hy + H * (0.16 + (i % 2) * 0.12), k: 0.7 + (i % 2) * 0.2 });
-      var turn = ease((t - 2.2) / 1.8), red = { sail: '#7a1a12', stripe: '#e8c060', flag: '#b3261e', emb: 'crest', hull: '#5a2a1a' };
-      line.splice(2, 0, { n: red, x: W * 0.32, y: hy + H * 0.36, k: 1, red: true });
-      line.sort(function (a, b) { return a.y - b.y; });
-      line.forEach(function (it, k) {
-        var dir = it.red ? (turn > 0.5 ? -1 : 1) : 1, ss = s * it.k, yy = it.y + Math.sin(t + k) * ss;
-        var o = navyOpts(it.n, t, L, { dir: dir, lanterns: 0.6, furl: 0.2, muzzles: true, roll: it.red ? Math.sin(turn * Math.PI) * 0.06 : 0 });
-        MTShip.draw(ctx, it.x, yy, ss, o);
-        MTShip.foam(ctx, it.x, yy, ss, dir, t, 0.3, 0.6);
-        // aliansi menembak Kapal Induk; Rangkiang Merah menembak ke aliansi
-        if (!it.red && t > 0.6 && Math.random() < 0.03) { var w0 = C.shipPt(it.x, yy, ss, 1.05, 1, 30, -10); P.add({ x: w0[0], y: w0[1], r: ss * 10, life: 0.2, col: 'rgba(255,225,150,A)', add: true, glow: true }); shots.push({ x: w0[0], y: w0[1], tx: ix - 80 * is, ty: iy - 30 * is, t: 0, red: false }); }
-        if (it.red && t > 4 && Math.random() < 0.09) { var w1 = C.shipPt(it.x, yy, ss, 1.05, -1, 30, -10); P.add({ x: w1[0], y: w1[1], r: ss * 14, life: 0.22, col: 'rgba(255,120,90,A)', add: true, glow: true }); shots.push({ x: w1[0], y: w1[1], tx: W * (0.08 + Math.random() * 0.25), ty: hy + H * (0.18 + Math.random() * 0.14), t: 0, red: true }); shake = Math.min(6, shake + 1.5); }
-      });
-      // peluru meriam
-      for (var q = shots.length - 1; q >= 0; q--) {
-        var b = shots[q]; b.t += dt / 1000 / 0.7; if (b.t >= 1) { P.add({ x: b.tx, y: b.ty, r: s * 18, life: 0.35, col: b.red ? 'rgba(255,90,60,A)' : 'rgba(150,230,255,A)', add: true, glow: true }); shots.splice(q, 1); continue; }
-        var bx = U.lerp(b.x, b.tx, b.t), by = U.lerp(b.y, b.ty, b.t) - Math.sin(b.t * Math.PI) * H * 0.06;
-        ctx.fillStyle = b.red ? '#ff6a4a' : '#20262c'; ctx.beginPath(); ctx.arc(bx, by, Math.max(1.4, s * 2.2), 0, 6.3); ctx.fill();
-      }
-      P.run(ctx, dt);
-      ctx.restore();
-      if (t > 4 && t < 4.5) { ctx.fillStyle = 'rgba(255,60,40,' + (0.25 * (1 - (t - 4) / 0.5)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
-      C.vignette(ctx, W, H, 0.6);
-      ttl(ctx, W, H, sm(7.2, 8.8, t), 'PENGKHIANATAN', 'Meriam Skitraw berbalik arah', H * (lay.port ? 0.12 : 0.14));
-      fadeIn(ctx, W, H, t, 1);
+      if (tw == null) init(t);
+      var sdt = Math.min(0.05, dt / 1000) * spd(t); tw += sdt;
+      sim(t, sdt); render(ctx, W, H, t);
     }
     return { draw: draw, intro: 9.2 };
   }
 
   /* ======================= 7. MARIE REGAL MERDEKA ======================= */
+  // 0.6 inti HENING meledak (gerak lambat, gelombang kejut) | 1-10 HENING patah dua & tenggelam, drone berjatuhan
+  // 2.6-4.6 mahkota kaca Istana Hening pecah, dua menara runtuh | 3-6.5 lampu kota padam, hologram mati
+  // 6.5-15 fajar menembus asap, kembang api (pantul di laut) sejak 6.6, burung, bendera berkibar | 10 judul
   function sceneFall() {
-    var r = U.rng(1212), P = new C.Particles(), L = C.makeLit(), glit = MTSky.makeGlitter(r), st = stars(r, 140), lay = null, fwT = 6.6, boomed = false, shake = 0;
-    function layout(W, H) {
-      var hy = H * 0.56, rr = U.rng(55), T = [], x = -W * 0.02;
-      while (x < W * 1.02) { var w = W * (0.035 + rr() * 0.03), h = H * (0.12 + rr() * 0.26); T.push({ x: x, w: w, h: h, off: rr() }); x += w + W * (0.006 + rr() * 0.012); }
-      lay = { W: W, H: H, hy: hy, T: T, port: W < H, s: W < H ? W * 0.0021 : Math.min(W * 0.0014, H * 0.0026) };
+    var F = new WX.Fx(), S = [], L = C.makeLit(), LF = C.makeLit(), st = stars(U.rng(1212), 160), glit = MTSky.makeGlitter(U.rng(1213));
+    var lay = null, shake = 0, tw = null, fired = {}, acc = { fw: 0, fire: 0, steam: 0, glass: 0 }, droneDown = {};
+    var SKY = [[0, [7, 9, 24], [14, 20, 48], [26, 40, 78]], [0.22, [18, 20, 56], [66, 46, 98], [178, 92, 104]], [0.5, [48, 50, 104], [196, 112, 126], [255, 164, 108]], [0.75, [82, 108, 162], [244, 164, 134], [255, 204, 138]], [1, [104, 146, 198], [250, 204, 164], [255, 228, 176]]];
+    function skyAt(d) { for (var i = 0; i < SKY.length - 1; i++) { var a = SKY[i], b = SKY[i + 1]; if (d <= b[0]) { var u = U.smooth((d - a[0]) / (b[0] - a[0])); return [U.mix(a[1], b[1], u), U.mix(a[2], b[2], u), U.mix(a[3], b[3], u)]; } } var l = SKY[SKY.length - 1]; return [l[1], l[2], l[3]]; }
+    function spd(t) { return 1 - 0.75 * sm(0.58, 0.66, t) * (1 - sm(1.35, 1.9, t)); }
+    function layout(ctx, W, H) {
+      var port = W < H, hy = H * (port ? 0.5 : 0.56), s = port ? W * 0.003 : Math.min(W * 0.0014, H * 0.0026), rr = U.rng(55);
+      var dpr = 1; try { dpr = ctx.getTransform().a || 1; } catch (e) { }
+      var k = Math.min(2.2, dpr * 1.2);
+      // menara: baris belakang (berkabut) + baris depan
+      var back = [], T = [], x = -W * 0.03;
+      while (x < W * 1.03) { var bw = W * (port ? 0.06 + rr() * 0.05 : 0.03 + rr() * 0.025); back.push({ x: x, w: bw, h: H * (port ? 0.1 + rr() * 0.14 : 0.1 + rr() * 0.16) }); x += bw + W * 0.004; }
+      x = -W * 0.02;
+      while (x < W * 1.02) { var w = W * (port ? 0.07 + rr() * 0.06 : 0.035 + rr() * 0.03), h = H * (port ? 0.1 + rr() * 0.2 : 0.12 + rr() * 0.26); T.push({ x: x, w: w, h: h, off: rr(), spire: rr() < 0.3 ? h * 0.1 : 0 }); x += w + W * (0.006 + rr() * 0.012); }
+      var pal = { x: W * (port ? 0.3 : 0.34), h: H * (port ? 0.42 : 0.47) }, sunX = W * (port ? 0.62 : 0.6);
+      // celah di cakrawala tempat matahari terbit (menara di sekitarnya lebih rendah)
+      T.forEach(function (tw2) { var d = Math.abs(tw2.x + tw2.w / 2 - sunX) / W; if (d < 0.07) tw2.h = Math.min(tw2.h, H * (0.05 + d * 1.6)); });
+      // dua menara yang runtuh: yang tertinggi di dua rentang (jauh dari istana)
+      function pick(a, b) { var best = -1; T.forEach(function (tw2, i) { var cx = (tw2.x + tw2.w / 2) / W; if (cx > a && cx < b && !tw2.fall && (best < 0 || tw2.h > T[best].h)) best = i; }); if (best >= 0) { T[best].fall = 1; T[best].h = Math.max(T[best].h, H * 0.3); } return best; }
+      var f1 = pick(port ? 0.47 : 0.48, port ? 0.56 : 0.54), f2 = pick(port ? 0.78 : 0.72, port ? 0.98 : 0.86);
+      if (f1 >= 0) T[f1].tf = 3.2; if (f2 >= 0) T[f2].tf = 4.1;
+      var top = hy - H * 0.52, ch = hy + 3 - top, sun = { x: sunX };
+      function cityCv(mode) {
+        var c = WX.mk(W * k, ch * k), g = c.getContext('2d'); g.scale(k, k); g.translate(0, -top);
+        var bc = mode === 'dawn' ? ['#b89aa0', '#8a7488', '#5e5470'] : ['#22344a', '#16243a', '#0c1626'];
+        back.forEach(function (b) { MTCities.regalTower(g, b.x, hy + 2, b.w, b.h, { c0: bc[0], c1: bc[1], c2: bc[2], spire: 0, floor: Math.max(3, b.w * 0.1) }); });
+        var hz = g.createLinearGradient(0, hy - H * 0.3, 0, hy); hz.addColorStop(0, mode === 'dawn' ? 'rgba(255,200,170,.0)' : 'rgba(30,50,90,0)'); hz.addColorStop(1, mode === 'dawn' ? 'rgba(255,196,160,.55)' : 'rgba(30,50,90,.5)');
+        g.fillStyle = hz; g.fillRect(0, hy - H * 0.3, W, H * 0.3);
+        T.forEach(function (tw2) {
+          if (tw2.fall) return;
+          var c3 = mode === 'dawn' ? ['#f0c4a6', '#8a6878', '#3a3046'] : ['#4a6782', '#22364a', '#0e1a26'];
+          if (mode === 'dawn' && tw2.x + tw2.w / 2 > sun.x) c3 = ['#3a3046', '#8a6878', '#f0c4a6'];
+          MTCities.regalTower(g, tw2.x, hy + 2, tw2.w, tw2.h, { c0: c3[0], c1: c3[1], c2: c3[2], spire: tw2.spire, floor: Math.max(3, tw2.w * 0.11) });
+          if (mode === 'dawn') { g.fillStyle = 'rgba(255,214,150,.75)'; var ex = tw2.x + tw2.w / 2 > sun.x ? tw2.x : tw2.x + tw2.w - 1.5; g.fillRect(ex, hy - tw2.h * 0.88, 1.5, tw2.h * 0.88); }
+        });
+        return c;
+      }
+      function lightsCv(mode) {
+        var c = WX.mk(W * k, ch * k), g = c.getContext('2d'), r2 = U.rng(mode === 'warm' ? 91 : 92); g.scale(k, k); g.translate(0, -top);
+        T.forEach(function (tw2) {
+          if (tw2.fall) return; var fh = Math.max(3, tw2.w * 0.11);
+          if (mode === 'neon') { g.strokeStyle = 'rgba(110,235,255,.75)'; g.lineWidth = 1; g.strokeRect(tw2.x + 0.5, hy - tw2.h * 0.88, tw2.w - 1, tw2.h * 0.88); }
+          for (var yy = hy - 4; yy > hy - tw2.h * 0.86; yy -= fh) for (var cc = 0; cc < 4; cc++) if (r2() < (mode === 'warm' ? 0.5 : 0.35)) { g.fillStyle = mode === 'warm' ? (r2() < 0.2 ? 'rgba(255,236,190,.95)' : 'rgba(255,190,110,.8)') : 'rgba(130,235,255,.7)'; g.fillRect(tw2.x + tw2.w * cc / 4 + 1, yy - 2.2, tw2.w / 4 - 2, 1.6); }
+        });
+        return c;
+      }
+      var fort = { x: W * (port ? 0.64 : 0.66), y: hy + H * (port ? 0.12 : 0.16), s: s * (port ? 1.35 : 1.25) };
+      var fleet = port
+        ? [{ x: 0.0, y: 0.13, k: 0.62, n: FLEET[1] }, { x: 0.86, y: 0.15, k: 0.6, n: FLEET[3], dir: -1 }, { x: 0.12, y: 0.19, k: 0.78, n: FLEET[2] }, { x: 0.36, y: 0.255, k: 1.05, hero: 1 }]
+        : [{ x: 0.03, y: 0.12, k: 0.58, n: FLEET[1] }, { x: 0.15, y: 0.105, k: 0.5, n: FLEET[4] }, { x: 0.95, y: 0.13, k: 0.6, n: FLEET[3], dir: -1 }, { x: 0.08, y: 0.185, k: 0.78, n: FLEET[2] }, { x: 0.27, y: 0.215, k: 0.95, hero: 1 }, { x: 0.43, y: 0.17, k: 0.66, n: FLEET[0] }];
+      fleet.forEach(function (f) { f.x *= W; f.y = hy + f.y * H; f.ph = rr() * 6; });
+      fleet.sort(function (a, b) { return a.y - b.y; });
+      var drones = []; for (var d = 0; d < (port ? 6 : 9); d++) drones.push({ x: W * (0.1 + rr() * 0.85), y: hy - H * (0.12 + rr() * 0.26), wl: hy + H * (0.03 + rr() * 0.08), off: 1.0 + d * 0.13 + rr() * 0.2, ph: rr() * 6, sc: s * (0.22 + rr() * 0.14), sp: (rr() - 0.5) * 6 });
+      var holo = []; T.forEach(function (tw2, i) { if (!tw2.fall && tw2.h > H * 0.24 && holo.length < 3 && i % 2) holo.push({ x: tw2.x + tw2.w * 0.5, y: hy - tw2.h * 0.6, w: tw2.w * 1.5, h: tw2.w * 0.9, off: 3.3 + holo.length * 0.5 }); });
+      var cx = fort.x + 20 * fort.s, cy = fort.y - 40 * fort.s;
+      var keys = port
+        ? [[0, cx, cy, 1.34], [0.6, cx, cy, 1.4], [2.8, W * 0.52, H * 0.5, 1.1, 'out'], [6.5, W * 0.5, H * 0.5, 1.07], [12, W * 0.5, H * 0.46, 1.13], [16, W * 0.5, H * 0.45, 1.16], [60, W * 0.5, H * 0.45, 1.16]]
+        : [[0, cx, cy, 1.32], [0.6, cx, cy, 1.38], [2.8, W * 0.52, H * 0.5, 1.1, 'out'], [6.5, W * 0.5, H * 0.5, 1.07], [12, W * 0.52, H * 0.47, 1.14], [16, W * 0.53, H * 0.46, 1.17], [60, W * 0.53, H * 0.46, 1.17]];
+      var cw = Math.round(W * 1.3);
+      lay = { W: W, H: H, port: port, hy: hy, s: s, T: T, back: back, pal: pal, top: top, ch: ch, sun: sun, fort: fort, fleet: fleet, drones: drones, holo: holo, keys: keys, core: [cx, cy],
+        night: cityCv('night'), dawn: cityCv('dawn'), warm: lightsCv('warm'), neon: lightsCv('neon'), k: k,
+        cN: WX.cloudBand(cw, hy * 0.5, 71, '26,30,58', '60,70,120', 22, 0.4), cD: WX.cloudBand(cw, hy * 0.5, 71, '150,96,128', '255,206,150', 22, 1),
+        cN2: WX.cloudBand(cw, hy * 0.28, 72, '20,24,48', '50,60,100', 18, 0.4), cD2: WX.cloudBand(cw, hy * 0.28, 72, '178,110,120', '255,222,170', 18, 1) };
+    }
+    /* ---- posisi ---- */
+    function fortState(t) {
+      var f = lay.fort, sink = Math.pow(sm(1.1, 10.5, t), 1.4), brk = sm(1.0, 7.5, t);
+      return { x: f.x, y: f.y + sink * 95 * f.s + Math.sin(tw * 0.6) * f.s * 0.5, s: f.s, ang: brk * 0.32, wl: f.y, sink: sink, gone: t > 11 };
+    }
+    function droneP(d, t) {
+      var u = t - d.off;
+      if (u <= 0) return { x: d.x + Math.sin(tw * 0.8 + d.ph) * 12, y: d.y + Math.sin(tw * 1.7 + d.ph) * 5, tilt: Math.sin(tw + d.ph) * 0.06, eye: 1, fall: 0 };
+      var y = d.y + 0.5 * lay.H * 0.9 * u * u;
+      return { x: d.x + u * d.sp * 8 + Math.sin(tw * 0.8 + d.ph) * 12, y: Math.min(y, d.wl + 30), tilt: u * d.sp * 0.6, eye: Math.max(0, 1 - u * 6) * (Math.random() < 0.3 ? 0.2 : 1), fall: 1, under: y > d.wl };
+    }
+    function fleetP(f, t) {
+      var ss = lay.s * f.k, sh = t > 0.9 ? Math.exp(-(t - 0.9) * 1.3) * Math.sin((t - 0.9) * 7) : 0;
+      return { x: f.x + (t - 8) * ss * 0.8, y: f.y + Math.sin(tw * 0.9 + f.ph) * ss * 0.8, ss: ss, roll: Math.sin(tw * 0.8 + f.ph) * 0.012 + sh * 0.05 };
+    }
+    /* ---- simulasi ---- */
+    function rocket(t) {
+      var W = lay.W, H = lay.H, hy = lay.hy, fromFleet = Math.random() < 0.6, x0 = fromFleet ? W * (0.05 + Math.random() * 0.4) : W * (0.45 + Math.random() * 0.5), y0 = fromFleet ? hy + H * 0.15 : hy - H * 0.05;
+      var x1 = x0 + (Math.random() - 0.5) * W * 0.12, y1 = hy * (0.1 + Math.random() * 0.48), u = Math.max(1.2, Math.min(W, H) * 0.0036) * (0.8 + Math.random() * 0.6);
+      var cols = C.FW, c1 = cols[Math.floor(Math.random() * cols.length)], c2 = cols[Math.floor(Math.random() * cols.length)], type = Math.random();
+      S.push({ L: 0, x0: x0, y0: y0, x1: x1, y1: y1, d: 0.9 + Math.random() * 0.4, arc: 0, c: '255,226,170', w: 1.2, fw: 1, hit: function (b) {
+        F.add({ k: 'g', L: 0, x: b.x1, y: b.y1, r: u * 75, life: 1.1, col: c1, a: 0.7, wy: hy });
+        F.add({ k: 'g', L: 0, x: b.x1, y: b.y1, r: u * 14, life: 0.25, col: '255,255,240', wy: hy });
+        var n = type < 0.3 ? 46 : 70;
+        for (var i = 0; i < n; i++) {
+          var an = i / n * 6.283 + Math.random() * 0.08, sp = u * (type < 0.3 ? 2.6 : (i % 2 ? 2.3 : 1.5)) * (0.85 + Math.random() * 0.3);
+          F.add({ k: 'k', L: 0, x: b.x1, y: b.y1, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, g: u * (type < 0.3 ? 0.035 : 0.022), drag: type < 0.3 ? 0.975 : 0.968, life: type < 0.3 ? 2.6 + Math.random() : 1.5 + Math.random() * 0.6, col: type < 0.3 ? '255,206,120' : (i % 2 ? c1 : c2), w: type < 0.3 ? 1.4 : 2, ln: type < 0.3 ? 4 : 2.4, wy: hy, rf: 1 });
+        }
+        if (type > 0.6) for (var j = 0; j < 18; j++) F.add({ k: 'g', L: 0, x: b.x1 + (Math.random() - 0.5) * u * 60, y: b.y1 + (Math.random() - 0.3) * u * 50, r: u * 2.2, life: 0.5 + Math.random() * 0.8, col: '255,255,235', fl: 1, fi: 3, a: 1 });
+      } });
+    }
+    function sim(t, sdt) {
+      var W = lay.W, H = lay.H, hy = lay.hy, s = lay.s, fs = fortState(t), core = lay.core;
+      // tembakan terakhir ke inti merah
+      if (t > 0.05 && t < 0.6 && !fired.last) { fired.last = 1; S.push({ L: 2, x0: -W * 0.05, y0: hy + H * 0.25, x1: core[0], y1: core[1], d: Math.max(0.1, 0.6 - t), arc: H * 0.06, c: '255,230,170', w: Math.max(2, s * 2.2) }); }
+      if (t > 0.6 && !fired.boom) {
+        fired.boom = 1; shake = 16;
+        F.add({ k: 'g', L: 2, x: core[0], y: core[1], r: Math.max(W, H) * 0.7, life: 2.2, col: '255,246,226', a: 1 });
+        F.add({ k: 'g', L: 2, x: core[0], y: core[1], r: Math.max(W, H) * 0.35, life: 3, col: '255,120,60', a: 0.9 });
+        F.add({ k: 'r', L: 2, x: core[0], y: fs.wl, r: s * 20, grow: s * 9, life: 2.4, col: '255,236,200', a: 0.9, w: 5, sq: 0.18 });
+        F.add({ k: 'r', L: 2, x: core[0], y: core[1], r: s * 10, grow: s * 7, life: 1.4, col: '255,250,235', a: 0.9, w: 6, sq: 0.85 });
+        for (var b = 0; b < 4; b++) WX.boom(F, 2, core[0] + (b - 1.5) * 60 * fs.s, core[1] + (Math.random() - 0.5) * 30 * fs.s, fs.s * 1.4, fs.wl, 2, '255,150,70');
+        for (var q = 0; q < 26; q++) { var an = Math.PI * (1.05 + Math.random() * 0.9), sp = s * (3 + Math.random() * 7); F.add({ k: 'd', L: 2, x: core[0], y: core[1], vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, g: s * 0.12, drag: 0.992, r: s * (1.5 + Math.random() * 3.5), life: 3, a: 2, spin: (Math.random() - 0.5) * 10, col: '#1b1d22', wy: fs.wl + 10 * s }); F.add({ k: 'k', L: 2, x: core[0], y: core[1], vx: Math.cos(an) * sp * 1.1, vy: Math.sin(an) * sp * 1.1, g: s * 0.1, drag: 0.99, life: 1.8, col: '255,190,110', w: 2.2, ln: 3.5, wy: fs.wl + 10 * s }); }
+      }
+      // api & uap dari bangkai HENING
+      if (t > 0.7 && !fs.gone) {
+        acc.fire += sdt * 22 * (1 - fs.sink * 0.7);
+        while (acc.fire > 1) {
+          acc.fire -= 1; var side = Math.random() < 0.5 ? -1 : 1, lx = side * (10 + Math.random() * 120), ly = -20 - Math.random() * 40;
+          var ca = Math.cos(fs.ang * -side), sa = Math.sin(fs.ang * -side), px = fs.x + (lx * ca - ly * sa) * fs.s, py = fs.y + (lx * sa + ly * ca) * fs.s;
+          if (py > fs.wl) continue;
+          F.add({ k: 'g', L: 2, x: px, y: py, vy: -s * 0.5, r: s * (8 + Math.random() * 12), life: 0.6, col: Math.random() < 0.5 ? '255,140,50' : '255,206,120', a: 0.85, fl: 1, wy: fs.wl });
+          if (Math.random() < 0.3) F.add({ k: 'k', L: 2, x: px, y: py, vx: (Math.random() - 0.4) * s, vy: -s * (1 + Math.random() * 1.5), drag: 0.985, life: 1.6, col: '255,196,120', w: 1.3, ln: 3 });
+        }
+        acc.steam += sdt * 6 * fs.sink;
+        while (acc.steam > 1) { acc.steam -= 1; F.add({ k: 's', L: 2, x: fs.x + (Math.random() - 0.5) * 220 * fs.s, y: fs.wl - s * 4, vx: s * 0.1, vy: -s * (0.3 + Math.random() * 0.4), drag: 0.996, r: s * (14 + Math.random() * 12), grow: s * 0.3, life: 4, col: '200,206,214', a: 0.42, fi: 4 }); }
+      }
+      // drone kehilangan daya -> jatuh & menyiprat
+      lay.drones.forEach(function (d, i) {
+        var dp = droneP(d, t);
+        if (dp.fall && !dp.under && Math.random() < sdt * 30) F.add({ k: 's', L: 2, x: dp.x, y: dp.y, vy: -s * 0.2, r: d.sc * 14, grow: d.sc * 0.4, life: 1.6, col: '40,40,46', a: 0.55 });
+        if (dp.under && !droneDown[i]) { droneDown[i] = 1; WX.splash(F, 2, dp.x, d.wl, s * 0.9); }
+        if (t > d.off && t < d.off + 0.05 && !fired['dz' + i]) { fired['dz' + i] = 1; for (var q = 0; q < 10; q++) F.add({ k: 'k', L: 2, x: dp.x, y: dp.y, vx: (Math.random() - 0.5) * s * 4, vy: (Math.random() - 0.7) * s * 4, drag: 0.93, life: 0.5, col: '150,235,255', w: 1.2 }); }
+      });
+      // kaca berhamburan (mahkota istana & menara runtuh)
+      var gl = sm(2.9, 3.3, t) * (1 - sm(5.5, 7, t)) + lay.T.reduce(function (a, tw2) { return a + (tw2.tf ? sm(tw2.tf, tw2.tf + 0.3, t) * (1 - sm(tw2.tf + 2, tw2.tf + 3, t)) : 0); }, 0);
+      acc.glass += sdt * 40 * gl;
+      while (acc.glass > 1) {
+        acc.glass -= 1; var src = Math.random() < 0.45 ? { x: lay.pal.x, y: hy - lay.pal.h * (0.6 + Math.random() * 0.35) } : null;
+        if (!src) { var ft = lay.T.filter(function (tw2) { return tw2.tf && t > tw2.tf && t < tw2.tf + 3; }); if (!ft.length) continue; var f0 = ft[Math.floor(Math.random() * ft.length)]; src = { x: f0.x + Math.random() * f0.w, y: hy - f0.h * (0.2 + Math.random() * 0.6) * (1 - sm(f0.tf, f0.tf + 2.2, t)) }; }
+        F.add({ k: 'k', L: 1, x: src.x, y: src.y, vx: (Math.random() - 0.5) * s * 2, vy: -s * Math.random() * 1.2, g: s * 0.05, drag: 0.99, life: 1.6, col: Math.random() < 0.5 ? '200,240,255' : '255,255,255', w: 1, ln: 1.2, wy: hy, fl: 1 });
+      }
+      // kembang api
+      if (t > 6.6) { if (!fired.fw0) { fired.fw0 = 1; rocket(t); rocket(t); } acc.fw += sdt * U.lerp(1.8, 3, sm(7, 12, t)); while (acc.fw > 1) { acc.fw -= 1; rocket(t); } }
+      F.step(sdt); WX.stepShots(S, sdt);
+      shake = Math.max(0, shake - sdt / Math.max(0.3, spd(t)) * 10);
+    }
+    function init(t) {
+      tw = 0; for (var x = 0; x < t; x += 0.02) tw += 0.02 * spd(x);
+      if (t > 0.6) fired.last = 1;
+      if (t > 2.2) { fired.boom = 1; }
+      lay.drones.forEach(function (d, i) { if (droneP(d, t).under) droneDown[i] = 1; });
+      for (var tt = Math.max(0, t - 1.5); tt < t; tt += 1 / 30) sim(tt, spd(tt) / 30);
+    }
+    /* ---- Istana Hening: istana kaca bermahkota mata ---- */
+    function palace(ctx, x, base, h, t, dawn) {
+      var sunR = x < lay.sun.x, w = h * 0.13, br = sm(2.95, 3.1, t), eyeOff = 1 - sm(2.5, 3.0, t) * (Math.sin(t * 40) > -0.3 || t > 3 ? 1 : 0.3), warm = sm(8, 9.5, t);
+      function gls(x0, x1, c0, c1, c2) { var g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, c0); g.addColorStop(0.45, c1); g.addColorStop(1, c2); return g; }
+      var night = ['#dfe8ee', '#7f93a6', '#3a4b5e'], dwn = ['#ffe6c8', '#c98f88', '#4a3a52'];
+      var C0 = U.css(U.mix(U.hex(night[0]), U.hex(dwn[0]), dawn)), C1 = U.css(U.mix(U.hex(night[1]), U.hex(dwn[1]), dawn)), C2 = U.css(U.mix(U.hex(night[2]), U.hex(dwn[2]), dawn));
+      if (!sunR) { var tmp = C0; C0 = C2; C2 = tmp; }
+      // sayap & podium
+      [[-1, 0.42], [1, 0.38]].forEach(function (wg) {
+        var wx = x + wg[0] * w * 1.9, wh = h * wg[1], ww = w * 0.9;
+        ctx.fillStyle = gls(wx - ww / 2, wx + ww / 2, C0, C1, C2); ctx.beginPath(); ctx.moveTo(wx - ww / 2, base); ctx.lineTo(wx - ww * 0.4, base - wh * 0.8); ctx.lineTo(wx, base - wh); ctx.lineTo(wx + ww * 0.4, base - wh * 0.8); ctx.lineTo(wx + ww / 2, base); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(10,20,30,.3)'; for (var yy = base - 4; yy > base - wh * 0.75; yy -= Math.max(3, ww * 0.12)) ctx.fillRect(wx - ww * 0.42, yy, ww * 0.84, 0.8);
+      });
+      ctx.fillStyle = gls(x - w * 3, x + w * 3, C0, C1, C2); ctx.beginPath(); ctx.moveTo(x - w * 3, base + 2); ctx.lineTo(x - w * 2.6, base - h * 0.08); ctx.lineTo(x + w * 2.6, base - h * 0.08); ctx.lineTo(x + w * 3, base + 2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(8,16,26,.35)'; for (var c = -10; c <= 10; c++) ctx.fillRect(x + c * w * 0.25 - 0.6, base - h * 0.07, 1.2, h * 0.065);
+      // menara utama (batang)
+      var bodyTop = base - h * 0.64;
+      ctx.fillStyle = gls(x - w / 2, x + w / 2, C0, C1, C2); ctx.beginPath(); ctx.moveTo(x - w / 2, base - h * 0.07); ctx.lineTo(x - w * 0.36, bodyTop); ctx.lineTo(x + w * 0.36, bodyTop); ctx.lineTo(x + w / 2, base - h * 0.07); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.16)'; for (var yy2 = base - h * 0.1; yy2 > bodyTop; yy2 -= Math.max(3, w * 0.09)) ctx.fillRect(x - w * 0.45, yy2, w * 0.9, 0.7);
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x + (sunR ? w * 0.3 : -w * 0.34), bodyTop, 1.2, base - h * 0.07 - bodyTop);
+      // mahkota kaca: utuh -> pecahan berjatuhan
+      var shards = [[[-0.36, 0], [0.36, 0], [0.3, -0.08], [-0.3, -0.08]], [[-0.3, -0.08], [0.02, -0.08], [-0.04, -0.2], [-0.24, -0.18]], [[0.02, -0.08], [0.3, -0.08], [0.22, -0.2], [-0.04, -0.2]], [[-0.24, -0.18], [-0.04, -0.2], [-0.02, -0.3], [-0.14, -0.28]], [[-0.04, -0.2], [0.22, -0.2], [0.12, -0.3], [-0.02, -0.3]], [[-0.14, -0.28], [0.12, -0.3], [0, -0.36]]];
+      var ct = Math.max(0, t - 2.95);
+      shards.forEach(function (sh, i) {
+        var fall = br > 0 && i > 0, u = ct * (0.85 + WX.hs(i) * 0.4), dy = fall ? 0.5 * lay.H * 0.7 * u * u : 0, dx = fall ? (WX.hs(i + 3) - 0.5) * u * h * 0.25 : 0, rot = fall ? (WX.hs(i + 7) - 0.5) * u * 3 : 0;
+        if (bodyTop + dy - h * 0.3 > base) return;
+        var cxs = x + dx, cys = bodyTop + dy;
+        ctx.save(); ctx.translate(cxs, cys - h * 0.15); ctx.rotate(rot); ctx.translate(-cxs, -(cys - h * 0.15));
+        ctx.fillStyle = gls(x - w * 0.4, x + w * 0.4, C0, C1, C2); ctx.beginPath();
+        sh.forEach(function (pt, j) { var px = cxs + pt[0] * w * (j === 2 && sh.length === 3 ? 1 : 1), py = cys + pt[1] * h; if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py); }); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(220,245,255,' + (0.35 + 0.3 * (fall ? Math.abs(Math.sin(u * 9 + i)) : 0)).toFixed(3) + ')'; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.restore();
+      });
+      // mata M.A.R.I.E. & cincin halo
+      var ey = bodyTop - h * 0.14;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      if (eyeOff > 0.02 && br < 1) { WX.light(ctx, x, ey, w * 2.2, '120,230,255', 0.7 * eyeOff); MTCities.regalEye(ctx, x, ey, w * 0.32, 'rgba(170,245,255,' + (0.95 * eyeOff).toFixed(3) + ')', 2); }
+      var ringY = bodyTop - h * 0.04 + (br > 0 ? 0.5 * lay.H * 0.9 * ct * ct : 0), ringA = br > 0 ? Math.max(0, 1 - ct * 0.7) : 1;
+      if (ringY < base && ringA > 0.02) { ctx.strokeStyle = warm > 0.02 ? 'rgba(255,200,120,.8)' : 'rgba(150,240,255,' + (0.75 * Math.max(eyeOff, 0.25) * ringA).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x + (br > 0 ? ct * w * 0.6 : 0), ringY, w * 1.3, w * 0.3, br > 0 ? ct * 0.5 : 0, 0, 6.3); ctx.stroke(); }
+      ctx.restore();
+      // puncak patah: tepi bergerigi + bendera merdeka
+      if (br > 0) {
+        ctx.fillStyle = C1; ctx.beginPath(); ctx.moveTo(x - w * 0.36, bodyTop); ctx.lineTo(x - w * 0.2, bodyTop - h * 0.03); ctx.lineTo(x - w * 0.05, bodyTop - h * 0.012); ctx.lineTo(x + w * 0.12, bodyTop - h * 0.045); ctx.lineTo(x + w * 0.36, bodyTop); ctx.closePath(); ctx.fill();
+        if (dawn < 0.4) WX.light(ctx, x, bodyTop, w * 1.2, '255,150,70', 0.5 * (1 - dawn * 2.5) * (0.7 + 0.3 * Math.sin(t * 13)));
+      }
+      if (warm > 0.05) {
+        var poleH = h * 0.17 * ease(sm(8, 9.2, t)), py0 = bodyTop - h * 0.04;
+        ctx.strokeStyle = '#e8e2d6'; ctx.lineWidth = Math.max(1.2, w * 0.05); ctx.beginPath(); ctx.moveTo(x + w * 0.12, py0); ctx.lineTo(x + w * 0.12, py0 - poleH); ctx.stroke();
+        C.waveFlag(ctx, x + w * 0.12, py0 - poleH, h * 0.1, h * 0.058, t, '#c9342a');
+        ctx.fillStyle = 'rgba(255,230,190,.5)'; ctx.fillRect(x + w * 0.12, py0 - poleH + h * 0.029, h * 0.1, 1);
+      }
+    }
+    function render(ctx, W, H, t) {
+      var hy = lay.hy, s = lay.s, port = lay.port, dawn = sm(6.5, 15, t), dark = sm(3, 5.5, t) * (1 - sm(6.5, 9, t)), sun = lay.sun;
+      var neonA = 1 - sm(3, 5.6, t), boomA = t > 0.6 ? Math.exp(-(t - 0.6) * 1.2) : 0;
+      var c = WX.camAt(lay.keys, t); c.sx = (Math.random() - 0.5) * shake; c.sy = (Math.random() - 0.5) * shake;
+      var sk = skyAt(dawn), top = sk[0], mid = sk[1], hor = U.mix(sk[2], [60, 120, 150], 0.35 * neonA * (1 - dawn));
+      hor = U.mix(hor, [255, 170, 110], boomA * 0.7); mid = U.mix(mid, [200, 110, 80], boomA * 0.4);
+      var sr = Math.max(14, H * (port ? 0.032 : 0.045)), sy = hy + sr * 1.2 - Math.pow(dawn, 0.75) * H * (port ? 0.26 : 0.3), sunA = sm(6.8, 8.5, t);
+      // ---------- langit ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 0.12);
+      var g = ctx.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, U.css(top)); g.addColorStop(0.6, U.css(mid)); g.addColorStop(1, U.css(hor));
+      ctx.fillStyle = g; ctx.fillRect(-40, -40, W + 80, hy + 60);
+      if (dawn < 0.6) { var na = (1 - dawn / 0.6) * (1 - boomA * 0.8); for (var i = 0; i < st.length; i++) { var q = st[i], a = na * (0.35 + 0.65 * Math.abs(Math.sin(t * q.tw + q.ph))) * (1 - q.y * 0.8); if (a < 0.05) continue; ctx.fillStyle = 'rgba(255,250,235,' + a.toFixed(3) + ')'; ctx.fillRect(q.x * W, q.y * hy, q.r, q.r); } }
+      if (sunA > 0) {
+        var scol = U.mix([255, 150, 90], [255, 214, 150], dawn);
+        WX.light(ctx, sun.x, sy, sr * 22, scol.join(','), 0.55 * sunA);
+        WX.light(ctx, sun.x, sy, sr * 6, '255,236,200', 0.7 * sunA);
+        WX.rays(ctx, sun.x, sy, Math.max(W, H) * 1.1, 22, scol.join(','), 0.18 * sunA, t, 17, Math.PI * 0.98, Math.PI * 2.02);
+        ctx.save(); ctx.beginPath(); ctx.rect(-40, -40, W + 80, hy + 40); ctx.clip(); ctx.fillStyle = U.css(U.mix([255, 200, 140], [255, 246, 222], dawn), sunA); ctx.beginPath(); ctx.arc(sun.x, sy, sr, 0, 6.3); ctx.fill(); ctx.restore();
+      }
+      var cd = tw * W * 0.004;
+      WX.band(ctx, lay.cN, cd * 0.6, hy * 0.06, W, lay.cN.height, 1 - sm(7, 11, t)); WX.band(ctx, lay.cD, cd * 0.6, hy * 0.06, W, lay.cD.height, sm(7, 11, t));
+      WX.band(ctx, lay.cN2, cd, hy * 0.58, W, lay.cN2.height, 1 - sm(7, 11, t)); WX.band(ctx, lay.cD2, cd, hy * 0.58, W, lay.cD2.height, sm(7, 11, t));
+      // burung camar melintasi matahari
+      if (t > 7.5) {
+        ctx.fillStyle = U.css(U.mix([40, 30, 40], [70, 50, 60], dawn), 0.85);
+        for (var bdi = 0; bdi < 15; bdi++) {
+          var bu = t - 7.5 - WX.hs(bdi) * 1.5, bx = W * (1.08 - bu * 0.055) + (bdi % 5) * W * 0.018 + Math.floor(bdi / 5) * W * 0.03, by = hy * (0.42 + WX.hs(bdi + 5) * 0.22) - bu * H * 0.006 + Math.abs(bdi % 5 - 2) * H * 0.012;
+          if (bx < -20 || bx > W + 20) continue; WX.gull(ctx, bx, by, H * (0.006 + WX.hs(bdi + 2) * 0.006), tw * 9 + bdi * 1.7);
+        }
+      }
+      F.draw(ctx, 0); WX.drawShots(ctx, S, 0);
+      ctx.restore();
+      // ---------- kota & laut ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 0.35);
+      var p = MTSky.palette(0.9);
+      p.seaH = U.mix(U.mix([26, 40, 70], [222, 164, 138], dawn), [255, 170, 110], boomA * 0.5); p.seaD = U.mix([6, 10, 24], [40, 56, 92], dawn); p.hor = hor;
+      p.waveHi = U.mix(hor, [255, 255, 255], 0.3); p.waveLo = U.mix([0, 0, 10], [30, 30, 60], dawn); p.glitter = U.mix([200, 220, 255], [255, 224, 160], dawn); p._sunX = sunA > 0.05 ? sun.x : null; p._moonX = null;
+      MTSky.paintSea(ctx, W, H, hy, p, tw, { glitter: glit, rough: 0.9, drift: 6 });
+      if (sunA > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * sunA; ctx.drawImage(WX.glow('255,206,140'), sun.x - W * 0.09, hy - (H - hy) * 0.1, W * 0.18, (H - hy) * 1.3); ctx.globalAlpha = 0.6 * sunA; ctx.drawImage(WX.glow('255,240,210'), sun.x - W * 0.02, hy - 4, W * 0.04, (H - hy) * 0.6); ctx.restore(); }
+      // pantulan kota bergelombang
+      var cityA = 1 - dawn, rh = lay.ch * 0.55, sl = 14;
+      for (var si = 0; si < sl; si++) {
+        var v0 = si / sl, sh2 = rh / sl, off = Math.sin(tw * 1.6 + si * 0.9) * (1 + si * 0.4);
+        ctx.globalAlpha = 0.22 * (1 - v0);
+        var syy = lay.ch * (1 - (si + 1) / sl * 0.55);
+        ctx.drawImage(lay.night, 0, syy * lay.k, lay.night.width, (lay.ch * 0.55 / sl) * lay.k, off, hy + 2 + v0 * rh, W, sh2);
+        if (dawn > 0.02) { ctx.globalAlpha = 0.22 * (1 - v0) * dawn; ctx.drawImage(lay.dawn, 0, syy * lay.k, lay.dawn.width, (lay.ch * 0.55 / sl) * lay.k, off, hy + 2 + v0 * rh, W, sh2); }
+      }
+      ctx.globalAlpha = 1;
+      // pantulan kembang api di laut
+      ctx.save(); ctx.translate(0, 0); F.refl(ctx, 0, hy, 0.32); ctx.restore();
+      // gelombang genderang
+      if (t > 6) for (var dr = 0; dr < 2; dr++) { var bk = (t * 1.6 + dr * 0.5) % 1; ctx.strokeStyle = 'rgba(255,206,150,' + (0.22 * (1 - bk) * sm(6, 7, t)).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(W * 0.35, hy + H * 0.12, W * (0.08 + bk * 0.6), H * (0.015 + bk * 0.09), 0, 0, 6.3); ctx.stroke(); }
+      // kota: kabut baris belakang & menara (malam -> fajar)
+      var cy0 = lay.top;
+      ctx.drawImage(lay.night, 0, cy0, W, lay.ch);
+      if (dawn > 0.01) { ctx.globalAlpha = dawn; ctx.drawImage(lay.dawn, 0, cy0, W, lay.ch); ctx.globalAlpha = 1; }
+      // neon padam per menara, lalu lampu hangat menyala
+      ctx.globalCompositeOperation = 'lighter';
+      lay.T.forEach(function (tw2, i) {
+        if (tw2.fall) return;
+        var neon = 1 - sm(3 + tw2.off * 2.5, 3.2 + tw2.off * 2.5, t), warm = sm(7.5 + tw2.off * 3, 8 + tw2.off * 3, t) * (1 - dawn * 0.45);
+        if (neon > 0.01 && Math.sin(t * 30 + i * 3) > -0.8 + (1 - neon) * 1.5) { ctx.globalAlpha = neon; ctx.drawImage(lay.neon, (tw2.x - 1) * lay.k, 0, (tw2.w + 2) * lay.k, lay.ch * lay.k, tw2.x - 1, cy0, tw2.w + 2, lay.ch); }
+        if (warm > 0.01) { ctx.globalAlpha = warm; ctx.drawImage(lay.warm, (tw2.x - 1) * lay.k, 0, (tw2.w + 2) * lay.k, lay.ch * lay.k, tw2.x - 1, cy0, tw2.w + 2, lay.ch); }
+      });
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      // hologram M.A.R.I.E. berkedip lalu mati
+      lay.holo.forEach(function (ho, i) {
+        var life = 1 - sm(ho.off, ho.off + 0.6, t), fk = Math.sin(t * 50 + i * 7) > (0.6 - life) ? 1 : 0.15;
+        if (life <= 0.01) return; var a = life * fk * (0.75 + 0.25 * Math.sin(t * 3 + i));
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a;
+        ctx.fillStyle = 'rgba(90,200,255,.16)'; ctx.fillRect(ho.x - ho.w / 2 + (life < 0.6 ? (Math.random() - 0.5) * 6 : 0), ho.y - ho.h / 2, ho.w, ho.h);
+        ctx.strokeStyle = 'rgba(150,240,255,.8)'; ctx.lineWidth = 1; ctx.strokeRect(ho.x - ho.w / 2, ho.y - ho.h / 2, ho.w, ho.h);
+        ctx.fillStyle = 'rgba(150,240,255,.18)'; for (var yy = ho.y - ho.h / 2 + 2; yy < ho.y + ho.h / 2; yy += 3) ctx.fillRect(ho.x - ho.w / 2, yy, ho.w, 1);
+        MTCities.regalEye(ctx, ho.x, ho.y, ho.h * 0.28, 'rgba(170,245,255,.9)', 1.4);
+        ctx.restore();
+      });
+      // dua menara kaca runtuh (debu mengepul dari kaki)
+      lay.T.forEach(function (tw2) {
+        if (!tw2.fall) return; var u = sm(tw2.tf, tw2.tf + 2.3, t), drop = u * u * tw2.h * 1.02, tilt = u * 0.07 * (tw2.x > lay.pal.x ? 1 : -1);
+        if (u < 1) {
+          ctx.save(); ctx.beginPath(); ctx.rect(tw2.x - tw2.w * 2, lay.top - 20, tw2.w * 5, hy + 2 - lay.top + 20); ctx.clip();
+          ctx.translate(tw2.x + tw2.w / 2, hy + drop); ctx.rotate(tilt); ctx.translate(-(tw2.x + tw2.w / 2), -hy);
+          var cc = dawn > 0.01 ? ['#f0c4a6', '#8a6878', '#3a3046'] : ['#4a6782', '#22364a', '#0e1a26'];
+          MTCities.regalTower(ctx, tw2.x, hy + 2, tw2.w, tw2.h, { c0: cc[0], c1: cc[1], c2: cc[2], spire: tw2.spire, floor: Math.max(3, tw2.w * 0.11) });
+          var nn = 1 - sm(tw2.tf - 0.2, tw2.tf + 0.2, t);
+          if (nn > 0.01) { ctx.strokeStyle = 'rgba(110,235,255,' + (0.75 * nn).toFixed(3) + ')'; ctx.lineWidth = 1; ctx.strokeRect(tw2.x + 0.5, hy - tw2.h * 0.88, tw2.w - 1, tw2.h * 0.88); }
+          ctx.restore();
+        }
+        var du = sm(tw2.tf + 0.3, tw2.tf + 6, t);
+        if (du > 0 && du < 1) {
+          var dp2 = WX.puff(dawn > 0.3 ? '230,190,170' : '120,130,150');
+          for (var d = 0; d < 7; d++) { var dx = (d - 3) / 3, rad = tw2.w * (0.5 + du * 2.2) * (1 - Math.abs(dx) * 0.3); WX.dot(ctx, dp2, tw2.x + tw2.w / 2 + dx * tw2.w * (0.6 + du * 2.2), hy - rad * 0.4 - du * tw2.w * (0.5 + WX.hs(d) * 1.2), rad, 0.85 * Math.min(1, du * 8) * (1 - du)); }
+          ctx.globalAlpha = 1;
+        }
+      });
+      // Istana Hening
+      palace(ctx, lay.pal.x, hy + 2, lay.pal.h, t, dawn);
+      F.draw(ctx, 1);
+      var hz = ctx.createLinearGradient(0, hy - H * 0.05, 0, hy + H * 0.04); hz.addColorStop(0, U.css(hor, 0)); hz.addColorStop(0.6, U.css(hor, 0.45)); hz.addColorStop(1, U.css(hor, 0));
+      ctx.fillStyle = hz; ctx.fillRect(-20, hy - H * 0.05, W + 40, H * 0.09);
+      ctx.restore();
+      // ---------- HENING patah & tenggelam, drone jatuh ----------
+      var fs = fortState(t);
+      ctx.save(); WX.cam(ctx, W, H, c, 0.6);
+      LF.set(U.mix(U.mix([110, 120, 150], [190, 140, 130], dawn), [255, 210, 170], boomA * 0.6));
+      if (!fs.gone) {
+        ctx.save(); ctx.beginPath(); ctx.rect(-W, -H, W * 3, fs.wl + 3 * fs.s + H); ctx.clip();
+        var fo = { dir: -1, t: tw, lit: LF, hp: 0.05, lights: 1 - sm(0.7, 2.2, t), core: t < 0.6 ? 0.85 + 0.15 * Math.sin(t * 20) : 1 - sm(0.6, 1.4, t) };
+        [-1, 1].forEach(function (sd) {
+          ctx.save(); ctx.beginPath(); if (sd < 0) ctx.rect(-W, -H, fs.x + W + (fs.ang > 0.01 ? 0 : W * 2), H * 3); else ctx.rect(fs.x, -H, W * 2, H * 3); ctx.clip();
+          ctx.translate(fs.x, fs.y); ctx.rotate(fs.ang * -sd); ctx.translate(-fs.x, -fs.y);
+          induk(ctx, fs.x, fs.y, fs.s, fo);
+          ctx.restore();
+          if (fs.ang < 0.01) return;
+        });
+        // retakan menyala di titik patah
+        if (fs.ang > 0.005) { WX.light(ctx, fs.x, fs.y - 20 * fs.s, 60 * fs.s, '255,130,50', 0.7 * (1 - fs.sink * 0.6)); WX.light(ctx, fs.x, fs.y - 14 * fs.s, 22 * fs.s, '255,220,160', 0.8 * (1 - fs.sink)); }
+        ctx.restore();
+        // buih & riak di garis air
+        ctx.fillStyle = 'rgba(230,236,245,' + (0.25 + 0.2 * Math.sin(tw * 3)).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(fs.x, fs.wl + 2 * fs.s, 150 * fs.s * (1 - fs.sink * 0.5), 3.5 * fs.s, 0, 0, 6.3); ctx.fill();
+      }
+      // kolom asap raksasa bangkai (condong ditiup angin), tersinari fajar dari belakang
+      var smc = dawn > 0.25 ? '70,56,62' : '28,26,32';
+      [[-70, 1], [10, 9], [80, 17]].forEach(function (cl, i) { WX.column(ctx, fs.x + cl[0] * fs.s, fs.wl - 6 * fs.s, H * (0.55 + i * 0.08), W * 0.18, tw, cl[1], smc, (0.85 - dawn * 0.35) * sm(0.8, 2, t), 16, fs.gone ? 0 : 0.6 * (1 - fs.sink * 0.8)); });
+      if (sunA > 0) WX.rays(ctx, sun.x, sy, Math.max(W, H) * 0.95, 14, '255,210,150', 0.14 * sunA, t, 41, Math.PI * 0.55, Math.PI * 1.45);
+      lay.drones.forEach(function (d, i) { var dp = droneP(d, t); if (dp.under) return; MTWar.drone(ctx, dp.x, dp.y, d.sc, { t: tw, lit: LF, eyeA: dp.eye, tilt: dp.tilt, code: 'MR-' + (10 + i) }); });
+      F.draw(ctx, 2); WX.drawShots(ctx, S, 2);
+      ctx.restore();
+      // ---------- armada sekutu (siluet, tepi keemasan) ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 1);
+      L.set(U.mix([70, 82, 112], [160, 120, 112], dawn));
+      var rimC = 'rgba(255,' + Math.round(196 + 30 * dawn) + ',' + Math.round(120 + 40 * dawn) + ',' + (0.35 + 0.6 * dawn).toFixed(3) + ')';
+      lay.fleet.forEach(function (f) {
+        var fp = fleetP(f, t), dir = f.dir || 1, o = f.hero ? myShip({ dir: dir, t: tw, lit: L, lanterns: 1 - dawn * 0.5, furl: 0.1, roll: fp.roll }) : navyOpts(f.n, tw, L, { dir: dir, lanterns: 1 - dawn * 0.5, furl: 0.15, roll: fp.roll });
+        ctx.save(); ctx.globalAlpha = 0.18 + 0.1 * dawn; var ro = {}; for (var kk in o) ro[kk] = o[kk]; ro.reflect = true; MTShip.draw(ctx, fp.x, fp.y + 3, fp.ss, ro); ctx.restore();
+        if (dawn > 0.05) { var u = fp.ss * (o.sizeK || 1); ctx.save(); ctx.beginPath(); ctx.rect(fp.x - 80 * u, fp.y - 30 * u, 160 * u, 44 * u); ctx.clip(); MTShip.draw(ctx, fp.x + (fp.x < sun.x ? 1.8 : -1.8), fp.y - 1.2, fp.ss, WX.rimOpts(o, rimC)); ctx.restore(); }
+        MTShip.draw(ctx, fp.x, fp.y, fp.ss, o);
+        MTShip.foam(ctx, fp.x, fp.y, fp.ss, dir, tw, 0.25, 0.5);
+      });
+      F.draw(ctx, 3);
+      ctx.restore();
+      // ---------- latar depan: bara / debu emas di sinar ----------
+      ctx.save(); WX.cam(ctx, W, H, c, 1.2); ctx.globalCompositeOperation = 'lighter';
+      for (var e = 0; e < (port ? 30 : 46); e++) {
+        var k2 = (tw * (0.03 + WX.hs(e) * 0.04) + WX.hs(e + 3)) % 1, ex = W * WX.hs(e + 7) + Math.sin(tw * 0.9 + e) * W * 0.03, ey = H * (1.0 - k2 * 1.05), er = 0.8 + WX.hs(e + 5) * 1.8;
+        ctx.globalAlpha = Math.sin(k2 * Math.PI) * (0.4 + 0.4 * Math.sin(tw * 5 + e)) * (0.5 + 0.5 * (1 - dark));
+        ctx.fillStyle = dawn > 0.5 ? (e % 2 ? '#ffe6b0' : '#fff6dc') : (e % 3 ? '#ffb070' : '#ffd8a0'); ctx.fillRect(ex, ey, er, er);
+      }
+      ctx.restore();
+      // ---------- grading layar ----------
+      if (dark > 0.01) { ctx.fillStyle = 'rgba(0,2,10,' + (0.4 * dark).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      if (dawn > 0.05) { var wg = ctx.createRadialGradient(sun.x, sy, 0, sun.x, sy, Math.max(W, H)); wg.addColorStop(0, 'rgba(255,190,120,' + (0.13 * dawn).toFixed(3) + ')'); wg.addColorStop(1, 'rgba(255,150,100,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      if (sunA > 0.1) { var sp0 = [W / 2 + (sun.x - c.x) * 1.08, H / 2 + (sy - c.y) * 1.08]; WX.flare(ctx, sp0[0], sp0[1], W, H, 0.6 * sunA * (1 - sm(14, 18, t) * 0.4), '255,206,150'); }
+      if (t > 0.6 && t < 2.6) { var fk = Math.exp(-(t - 0.6) * 2.6); ctx.fillStyle = 'rgba(255,250,240,' + Math.min(1, fk * 1.1).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      var vg = ctx.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.32, W / 2, H * 0.5, Math.hypot(W, H) * 0.62);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.62 - 0.3 * dawn).toFixed(3) + ')'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      WX.letterbox(ctx, W, H, 1 - sm(9, 12.5, t));
+      ttl(ctx, W, H, sm(10, 11.6, t), 'MARIE REGAL MERDEKA', 'Genderang tak akan pernah diam lagi', H * (port ? 0.12 : 0.14));
+      fadeIn(ctx, W, H, t, 0.6);
     }
     function draw(ctx, W, H, t, dt) {
-      if (!lay || lay.W !== W || lay.H !== H) layout(W, H);
-      var hy = lay.hy, s = lay.s;
-      // 0-3 dtk ledakan inti | 3-6 lampu kota padam | 6-12 fajar & lampu hangat
-      var dawn = sm(6.5, 15, t), p = MTSky.palette(U.lerp(0.86, 1.06, dawn) % 1, null, 'regal');
-      shake = Math.max(0, shake - dt / 1000 * 10);
-      ctx.save(); if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-      MTSky.paintSky(ctx, W, hy, p, t, st);
-      // matahari terbit
-      if (dawn > 0) { var sr = Math.max(12, H * 0.05), sx = W * 0.78, sy = hy + sr - dawn * H * 0.22; var sg = ctx.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 10); sg.addColorStop(0, 'rgba(255,200,120,' + (0.5 * dawn).toFixed(3) + ')'); sg.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = sg; ctx.fillRect(sx - sr * 10, sy - sr * 10, sr * 20, sr * 20); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, hy); ctx.clip(); ctx.fillStyle = 'rgba(255,236,200,' + dawn + ')'; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, 6.3); ctx.fill(); ctx.restore(); }
-      // kota: neon padam satu per satu, lalu lampu hangat menyala
-      lay.T.forEach(function (tw, i) {
-        MTCities.regalTower(ctx, tw.x, hy + 2, tw.w, tw.h, { c0: '#4a6782', c1: '#22364a', c2: '#0e1a26', spire: 0, floor: Math.max(3, tw.w * 0.11) });
-        var neon = 1 - sm(3 + tw.off * 2.5, 3.2 + tw.off * 2.5, t), warm = sm(7.5 + tw.off * 3, 8 + tw.off * 3, t);
-        ctx.globalCompositeOperation = 'lighter';
-        if (neon > 0.01) { ctx.strokeStyle = 'rgba(110,235,255,' + (0.7 * neon).toFixed(3) + ')'; ctx.lineWidth = 1; ctx.strokeRect(tw.x, hy - tw.h * 0.88, tw.w, tw.h * 0.88); }
-        if (warm > 0.01) { var rr2 = U.rng(i * 7 + 3); for (var yy = hy - 4; yy > hy - tw.h * 0.86; yy -= Math.max(3, tw.w * 0.11)) for (var c = 0; c < 4; c++) if (rr2() < 0.5) { ctx.fillStyle = 'rgba(255,200,120,' + (0.6 * warm * (1 - dawn * 0.5)).toFixed(3) + ')'; ctx.fillRect(tw.x + tw.w * c / 4 + 1, yy - 2.2, tw.w / 4 - 2, 1.6); } }
-        ctx.globalCompositeOperation = 'source-over';
-      });
-      // Istana Hening: mata padam, cincin berganti cahaya hangat
-      var ix2 = W * 0.36, ih2 = H * (lay.port ? 0.4 : 0.46), iw2 = ih2 * 0.13;
-      var ig2 = ctx.createLinearGradient(ix2 - iw2 / 2, 0, ix2 + iw2 / 2, 0); ig2.addColorStop(0, '#dfe8ee'); ig2.addColorStop(1, '#5d6e80');
-      ctx.fillStyle = ig2; ctx.beginPath(); ctx.moveTo(ix2 - iw2 / 2, hy + 2); ctx.lineTo(ix2 - iw2 * 0.3, hy - ih2 * 0.86); ctx.lineTo(ix2, hy - ih2); ctx.lineTo(ix2 + iw2 * 0.3, hy - ih2 * 0.86); ctx.lineTo(ix2 + iw2 / 2, hy + 2); ctx.closePath(); ctx.fill();
-      var eyeOff = 1 - sm(2.6, 3.4, t), warmRing = sm(8, 9.5, t);
-      ctx.globalCompositeOperation = 'lighter';
-      if (eyeOff > 0.02) MTCities.regalEye(ctx, ix2, hy - ih2 * 0.48, iw2 * 0.3, 'rgba(150,240,255,' + (0.9 * eyeOff).toFixed(3) + ')', 2);
-      ctx.strokeStyle = warmRing > 0.02 ? 'rgba(255,200,120,' + (0.8 * warmRing).toFixed(3) + ')' : 'rgba(150,240,255,' + (0.7 * eyeOff).toFixed(3) + ')'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(ix2, hy - ih2 * 0.7, iw2 * 1.3, iw2 * 0.3, 0, 0, 6.3); ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
-      if (warmRing > 0.1) C.waveFlag(ctx, ix2, hy - ih2 - H * 0.04, H * 0.05, H * 0.028, t, '#c9342a');
-      if (warmRing > 0.1) { ctx.strokeStyle = '#d9dee2'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(ix2, hy - ih2); ctx.lineTo(ix2, hy - ih2 - H * 0.045); ctx.stroke(); }
-      p.glitter = [255, 214, 160];
-      MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 0.9, drift: 6 });
-      L.set(p.tint);
-      // Kapal Induk tumbang
-      var ix = W * (lay.port ? 0.6 : 0.62), is = s * (lay.port ? 1.1 : 1.3), sink = sm(1.5, 9, t);
-      if (sink < 0.995) {
-        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, hy + H * 0.2 + 4 * is); ctx.clip();
-        ctx.translate(ix, hy + H * 0.2 + sink * sink * 70 * is); ctx.rotate(sink * 0.12);
-        induk(ctx, 0, 0, is, { dir: -1, t: t, lit: L, hp: 0.05, lights: 1 - sm(0.8, 2.5, t), core: 1 - sm(0, 1.4, t) });
-        ctx.restore();
-        if (Math.random() < 0.6 * (1 - sink)) P.add({ x: ix + (Math.random() - 0.5) * 220 * is, y: hy + H * 0.2 - Math.random() * 40 * is, vx: (Math.random() - 0.5) * 0.4, vy: -0.8 - Math.random(), drag: 0.99, r: is * (6 + Math.random() * 8), grow: is * 0.2, life: 2.5, col: 'rgba(60,56,60,A)', a: 0.55, fadeIn: true, glow: true });
-      }
-      if (!boomed && t > 0.6) { boomed = true; shake = 9; P.add({ x: ix, y: hy + H * 0.15, r: Math.max(W, H) * 0.5, life: 1.2, col: 'rgba(255,250,235,A)', add: true, glow: true }); for (var b = 0; b < 3; b++) C.burst(P, ix + (b - 1) * 60 * is, hy + H * 0.12, Math.max(1.6, H * 0.005), ['255,220,150', '255,140,80', '255,255,240']); }
-      // genderang: gelombang hangat setelah gelap
-      if (t > 6) { var bk = (t * 1.6) % 1; ctx.strokeStyle = 'rgba(255,200,140,' + (0.25 * (1 - bk) * sm(6, 7, t)).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(W * 0.5, hy, W * (0.1 + bk * 0.6), H * (0.02 + bk * 0.1), 0, 0, 6.3); ctx.stroke(); }
-      // kembang api perayaan
-      fwT -= dt / 1000;
-      if (t > 6.6 && fwT <= 0) { fwT = 0.4 + Math.random() * 0.8; C.burst(P, W * (0.1 + Math.random() * 0.8), hy * (0.15 + Math.random() * 0.45), Math.max(1.1, Math.min(W, H) * 0.0035), C.FW); }
-      P.run(ctx, dt);
-      ctx.restore();
-      if (t > 3 && t < 6.5) { ctx.fillStyle = 'rgba(0,0,0,' + (0.35 * Math.sin((t - 3) / 3.5 * Math.PI)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
-      C.vignette(ctx, W, H, 0.45);
-      ttl(ctx, W, H, sm(10, 11.6, t), 'MARIE REGAL MERDEKA', 'Genderang tak akan pernah diam lagi', H * (lay.port ? 0.12 : 0.14));
-      fadeIn(ctx, W, H, t, 0.6);
+      if (!lay || lay.W !== W || lay.H !== H) layout(ctx, W, H);
+      if (tw == null) init(t);
+      var sdt = Math.min(0.05, dt / 1000) * spd(t); tw += sdt;
+      sim(t, sdt); render(ctx, W, H, t);
     }
     return { draw: draw, intro: 12 };
   }
