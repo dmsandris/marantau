@@ -1586,17 +1586,23 @@
     var el = document.getElementById('qty_' + id), sum = document.getElementById('sum_' + id);
     if (!el || !sum) return;
     var q = Math.max(1, Math.floor(Number(el.value)) || 0);
-    var it = marketItem_(id), st = it ? sellTotal_(it, q) : q * Number(sum.dataset.sell);
+    var it = marketItem_(id);
+    // Jual dibatasi isi palka; beli dibatasi stok pasar.
+    var sq = it ? Math.min(q, it.ownedQty || 0) : q;
+    var st = sq ? (it ? sellTotal_(it, sq) : sq * Number(sum.dataset.sell)) : 0;
     var over = !!(it && it.stock != null && q > it.stock);
     var bt = over ? 0 : (it ? buyTotal_(it, q) : q * Number(sum.dataset.buy));
-    var drop = it && q > 1 && st < q * it.sellPrice, rise = !over && it && q > 1 && bt > q * it.buyPrice;
-    var plq = it && it.avgCost != null && it.ownedQty ? Math.min(q, it.ownedQty) : 0, plHtml = '';
-    if (plq) { var stq = sellTotal_(it, plq), base = it.avgCost * plq; plHtml = '<span class="glut-note pl" title="Dibanding modal rata-rata barang di palkamu">' + ic('coins') + ' jual ' + plq + ' &rarr; ' + formatGold(stq) + ' vs modal ' + formatGold(Math.round(base)) + ' = ' + plSpan_(stq - base, base) + '</span>'; }
-    sum.innerHTML = q + ' &times; &rarr; ' + (over ? '' : 'beli <b>' + formatGold(bt) + '</b> &middot; ') + 'jual <b>' + formatGold(st) + '</b>' +
-      (over ? '<span class="glut-note" title="Pembelian dibatasi stok pasar; penjualan tidak">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit (beli maks ' + it.stock + ')</span>' : '') + plHtml +
+    var drop = it && sq > 1 && st < sq * it.sellPrice, rise = !over && it && q > 1 && bt > q * it.buyPrice;
+    var sellTxt = sq ? 'jual ' + (sq < q || over ? sq + (sq < q ? ' <small>(isi palka)</small> ' : ' ') : '') + '<b>' + formatGold(st) + '</b>' : '';
+    var main = over ? sellTxt
+      : q + ' &times; &rarr; beli <b>' + formatGold(bt) + '</b>' + (sellTxt ? ' &middot; ' + sellTxt : '');
+    var plHtml = '';
+    if (it && sq && it.avgCost != null) { var base = it.avgCost * sq; plHtml = '<span class="glut-note pl" title="Dibanding modal rata-rata barang di palkamu">' + ic('coins') + ' modal ' + formatGold(Math.round(base)) + ' &rarr; ' + plSpan_(st - base, base) + '</span>'; }
+    sum.innerHTML = main +
+      (over ? '<span class="glut-note" title="Pembelian dibatasi stok pasar">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit (beli maks ' + it.stock + ')</span>' : '') + plHtml +
       (rise ? '<span class="glut-note" title="Setiap unit yang dibeli mengurangi stok pasar - harga naik">' + ic('alert') + ' harga beli naik per unit (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
-      (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun per unit (rata-rata ' + formatGold(Math.round(st / q)) + ')</span>' : '') +
-      (it && it.size ? '<span class="glut-note sz">' + ic('crate') + ' ' + fmtSpace_(q * it.size) + ' ruang palka</span>' : '');
+      (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun per unit (rata-rata ' + formatGold(Math.round(st / sq)) + ')</span>' : '') +
+      (!over && it && it.size ? '<span class="glut-note sz">' + ic('crate') + ' ' + fmtSpace_(q * it.size) + ' ruang palka</span>' : '');
   }
 
   function commodityIcon_(commodityId) { return goodIcon_(commodityId, true); }
