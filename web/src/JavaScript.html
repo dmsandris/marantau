@@ -1587,12 +1587,13 @@
     if (!el || !sum) return;
     var q = Math.max(1, Math.floor(Number(el.value)) || 0);
     var it = marketItem_(id), st = it ? sellTotal_(it, q) : q * Number(sum.dataset.sell);
-    var bt = it ? buyTotal_(it, q) : q * Number(sum.dataset.buy);
-    var drop = it && q > 1 && st < q * it.sellPrice, rise = it && q > 1 && bt > q * it.buyPrice;
-    if (it && it.stock != null && q > it.stock) { sum.innerHTML = '<span class="glut-note">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit</span>'; return; }
+    var over = !!(it && it.stock != null && q > it.stock);
+    var bt = over ? 0 : (it ? buyTotal_(it, q) : q * Number(sum.dataset.buy));
+    var drop = it && q > 1 && st < q * it.sellPrice, rise = !over && it && q > 1 && bt > q * it.buyPrice;
     var plq = it && it.avgCost != null && it.ownedQty ? Math.min(q, it.ownedQty) : 0, plHtml = '';
     if (plq) { var stq = sellTotal_(it, plq), base = it.avgCost * plq; plHtml = '<span class="glut-note pl" title="Dibanding modal rata-rata barang di palkamu">' + ic('coins') + ' jual ' + plq + ' &rarr; ' + formatGold(stq) + ' vs modal ' + formatGold(Math.round(base)) + ' = ' + plSpan_(stq - base, base) + '</span>'; }
-    sum.innerHTML = q + ' &times; &rarr; beli <b>' + formatGold(bt) + '</b> &middot; jual <b>' + formatGold(st) + '</b>' + plHtml +
+    sum.innerHTML = q + ' &times; &rarr; ' + (over ? '' : 'beli <b>' + formatGold(bt) + '</b> &middot; ') + 'jual <b>' + formatGold(st) + '</b>' +
+      (over ? '<span class="glut-note" title="Pembelian dibatasi stok pasar; penjualan tidak">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit (beli maks ' + it.stock + ')</span>' : '') + plHtml +
       (rise ? '<span class="glut-note" title="Setiap unit yang dibeli mengurangi stok pasar - harga naik">' + ic('alert') + ' harga beli naik per unit (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
       (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun per unit (rata-rata ' + formatGold(Math.round(st / q)) + ')</span>' : '') +
       (it && it.size ? '<span class="glut-note sz">' + ic('crate') + ' ' + fmtSpace_(q * it.size) + ' ruang palka</span>' : '');
