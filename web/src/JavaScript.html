@@ -1681,8 +1681,10 @@
   /* ---- Tide v16: Ekonomi v2 - harga lahir dari stok pasar (rumus sama persis dengan server) ----
    *  mid(s) = base x clamp(((1.4R) / (s + ph + 0.4R)) ^ e, 0.35, 3);  beli unit ke-i di stok s-i, jual di s+i */
   function mid_(it, s) { var c = it.curve; if (!c) return it.buyPrice; return c.base * Math.min(3, Math.max(0.35, Math.pow((c.ref * 1.4) / (Math.max(0, s) + (c.ph || 0) + c.ref * 0.4), c.e))); }
-  function buyUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, it.stock - i) * it.curve.buyMul)) : it.buyPrice; }
-  function sellUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, it.stock + i) * it.curve.sellMul)) : it.sellPrice; }
+  // Tide v23: unit ke-i dibeli di titik stok s-i-0.5 dan dijual di s+i+0.5 (sama dengan server)
+  function stockExact_(it) { return it.curve && it.curve.s != null ? Number(it.curve.s) : it.stock; }
+  function buyUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, stockExact_(it) - i - 0.5) * it.curve.buyMul)) : it.buyPrice; }
+  function sellUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, stockExact_(it) + i + 0.5) * it.curve.sellMul)) : it.sellPrice; }
   function buyTotal_(it, q) { if (!it) return 0; var s = 0; for (var i = 0; i < q; i++) s += buyUnit_(it, i); return s; }
   function sellTotal_(it, q) { if (!it) return 0; var s = 0; for (var i = 0; i < q; i++) s += sellUnit_(it, i); return s; }
   function maxAffordable_(it, gold, space) {
@@ -1693,6 +1695,7 @@
   function applyStock_(it, delta) {
     if (!it) return;
     it.stock = Math.max(0, (it.stock || 0) + delta);
+    if (it.curve && it.curve.s != null) it.curve.s = Math.max(0, Number(it.curve.s) + delta);
     it.buyPrice = buyUnit_(it, 0); it.sellPrice = sellUnit_(it, 0);
     if (it.basePrice) it.priceRatio = Math.round(mid_(it, it.stock) / it.basePrice * 100);
   }
@@ -1840,7 +1843,7 @@
     return parts.join(', ') || '&mdash;';
   }
   function specialEffectLabel(keyword) {
-    var labels = { black_market_discount: 'Diskon tambahan 5% di Market', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)' };
+    var labels = { black_market_discount: 'Harga beli di Market lebih murah (selisih beli -20%)', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)' };
     return labels[keyword] || keyword;
   }
 

@@ -93,5 +93,42 @@ const fs = require('fs'), path = require('path');
   const after = await H.sql(`select item_id, qty from game.inventory where player_id = $1 and item_id in ('spices', 'lada')`, [u.id]);
   assert(after.length === 1 && after[0].item_id === 'lada' && Number(after[0].qty) === lada0 + 7, 'spices -> lada ' + JSON.stringify(after));
   assert(!(await u.call('api_getMarket', ['bjorneo'])).items.some(i => i.commodityId === 'spices'), 'spices tidak dijual lagi');
+  // Tide v23: skill selalu menambah untung & pulang-pergi di kota yang sama selalu rugi
+  const prof = async (t, n, rep) => {
+    await H.sql('update game.character_stats set trading = $2, negotiation = $3 where player_id = $1', [u.id, t, n]);
+    await H.sql(`update game.players set reputation = (select jsonb_object_agg(city_id, $2::int) from game.cities) where player_id = $1`, [u.id, rep]);
+  };
+  const route = async () => (await H.sql(`
+    select (select game.eco2_sell_value((c.base * mu.ev_mul)::numeric, c.ref, c.elast, m.stock, 20, mu.sell_mul, m.role, c.tier)
+              from game.market m, game.commodities c, game.eco2_muls($1, 'skitraw', 'lada') mu where m.city_id = 'skitraw' and m.commodity_id = 'lada' and c.id = 'lada')
+         - (select game.eco2_buy_cost((c.base * mu.ev_mul)::numeric, c.ref, c.elast, m.stock, 20, mu.buy_mul, m.role, c.tier)
+              from game.market m, game.commodities c, game.eco2_muls($1, 'bjorneo', 'lada') mu where m.city_id = 'bjorneo' and m.commodity_id = 'lada' and c.id = 'lada') p`, [u.id]))[0].p;
+  const roundTrip = async () => (await H.sql(`
+    select count(*) filter (where sv >= bc) bad, count(*) filter (where sv > bc) gain, count(*) n, string_agg(case when sv >= bc then cid || '@' || city || ' q' || q || ' ' || bc || '/' || sv end, ', ') bads from (
+      select m.commodity_id cid, m.city_id city, q, game.eco2_buy_cost((c.base * mu.ev_mul)::numeric, c.ref, c.elast, m.stock, q, mu.buy_mul, m.role, c.tier) bc,
+             game.eco2_sell_value((c.base * mu.ev_mul)::numeric, c.ref, c.elast, m.stock - q, q, mu.sell_mul, m.role, c.tier) sv
+      from game.market m join game.commodities c on c.id = m.commodity_id and c.active
+        cross join lateral game.eco2_muls($1, m.city_id, m.commodity_id) mu
+        cross join lateral (select unnest(array[1, least(10, floor(m.stock)::int), floor(m.stock)::int]) q) qq
+      where m.stock >= 1 and q >= 1) x`, [u.id]))[0];
+  const profiles = [[35, 35, 0], [50, 40, 0], [75, 55, 40], [100, 100, 200]];
+  let prev = -Infinity;
+  for (const [t, n, rep] of profiles) {
+    await prof(t, n, rep);
+    const pr = Number(await route());
+    assert(pr > prev, 'skill harus menambah untung: ' + JSON.stringify([t, n, rep]) + ' ' + pr + ' <= ' + prev);
+    prev = pr;
+    const rt = await roundTrip();
+    assert(Number(rt.gain) === 0 && Number(rt.bad) <= 2 && Number(rt.n) > 100, 'pulang-pergi kota sama tidak boleh untung ' + JSON.stringify([t, n, rep, rt]));
+  }
+  const mx = (await H.sql(`select buy_mul, sell_mul from game.eco2_muls($1, 'bjorneo', 'lada')`, [u.id]))[0];
+  assert(Math.abs(mx.buy_mul - 1.015) < 1e-9 && Math.abs(mx.sell_mul - 0.985) < 1e-9, 'kapten maksimal: Lada beli 1.015 jual 0.985 ' + JSON.stringify(mx));
+  await prof(35, 35, 0);
+  const nw = (await H.sql(`select buy_mul, sell_mul from game.eco2_muls($1, 'bjorneo', 'lada')`, [u.id]))[0];
+  assert(Math.abs(nw.buy_mul - 1.0645) < 1e-9 && Math.abs(nw.sell_mul - 0.9355) < 1e-9, 'pemula: Lada beli 1.0645 jual 0.9355 ' + JSON.stringify(nw));
+  // Senjata TooGood: harga lokal lebih murah untuk semua (bukan diskon pribadi)
+  const arms = (await H.sql(`select (select ev_mul from game.eco2_muls($1, 'toogood', 'arms')) tg, (select ev_mul from game.eco2_muls($1, 'skitraw', 'arms')) sk`, [u.id]))[0];
+  assert(Math.abs(arms.tg / arms.sk - 0.8) < 1e-9, 'senjata TooGood 20% lebih murah ' + JSON.stringify(arms));
+  console.log('skill monoton & anti-arbitrase OK: untung rute ' + prev);
   console.log('ECONOMY V2 TESTS PASSED');
 })().catch(e => { console.error(e); process.exit(1); });
