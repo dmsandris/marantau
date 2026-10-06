@@ -184,7 +184,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const lib = await u.call('api_getLibrary', []);
   assert(lib.available.some(b => b.BookId === 'bk_mr_engine'), 'toko teknologi');
   const sp0 = (await u.call('api_getShipState', [])).ship.Speed, cm0 = (await u.call('api_getShipState', [])).ship.EffectiveMaxCondition;
-  await H.sql('update game.players set gold = 200000 where player_id = $1', [u.id]);
+  await H.sql('update game.players set gold = 400000 where player_id = $1', [u.id]);
   await u.call('api_buyBook', ['bk_mr_engine']); await u.call('api_buyBook', ['bk_mr_hull']);
   const sh = (await u.call('api_getShipState', [])).ship;
   assert(sh.Speed === sp0 + 10 && sh.EffectiveMaxCondition === cm0 + 50, 'Mesin Uap Marlya & Lambung Baja');

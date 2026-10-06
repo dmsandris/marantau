@@ -17,33 +17,40 @@
 -- ---------------------------------------------------------------------
 -- Katalog barang
 -- ---------------------------------------------------------------------
+-- Tide v24: stok acuan common 100 -> 150 dan mid 45 -> 68 (kurva harga 1.5x lebih landai; selisih antar kota tetap).
+-- Stok pasar yang sudah ada ikut diskalakan sekali (hanya saat ref masih nilai lama -> aman diulang).
+update game.market m set stock = m.stock * case c.tier when 'common' then 1.5 else 68 / 45.0 end
+  from game.commodities c
+ where c.id = m.commodity_id and c.id = any(array['beras', 'ikan_asin', 'garam', 'sugar', 'sarang_walet', 'tuak', 'rum', 'kopi', 'jackdaniels', 'jhonnywalker', 'kayu_manis', 'lada', 'cengkeh', 'pala', 'gaharu', 'rotan', 'kayu_jati', 'besi', 'kayu_cendana', 'tools', 'batik', 'porselen', 'keris', 'mesiu', 'silk', 'arms', 'mutiara', 'emas'])
+   and ((c.tier = 'common' and c.ref = 100) or (c.tier = 'mid' and c.ref = 45));
+
 insert into game.commodities(id, name, flavor, sort, grp, tier, base, size, spread, elast, ref, active) values
-  ('beras',        'Beras',        'Makanan pokok setiap pelabuhan. Murah, berat, selalu dicari.',              1, 'pangan',    'common',  20,   1,    0.12, 0.55, 100, true),
-  ('ikan_asin',    'Ikan Asin',    'Bekal pelaut sejati - tahan berbulan-bulan di palka.',                     2, 'pangan',    'common',  35,   1,    0.12, 0.55, 100, true),
-  ('garam',        'Garam',        'Emas putih dari tambak pantai.',                                          3, 'pangan',    'common',  60,   1,    0.12, 0.55, 100, true),
-  ('sugar',        'Gula',         'Manis, berat, dan selalu dicari dapur istana.',                           4, 'pangan',    'common',  100,  1,    0.12, 0.55, 100, true),
+  ('beras',        'Beras',        'Makanan pokok setiap pelabuhan. Murah, berat, selalu dicari.',              1, 'pangan',    'common',  20,   1,    0.12, 0.55, 150, true),
+  ('ikan_asin',    'Ikan Asin',    'Bekal pelaut sejati - tahan berbulan-bulan di palka.',                     2, 'pangan',    'common',  35,   1,    0.12, 0.55, 150, true),
+  ('garam',        'Garam',        'Emas putih dari tambak pantai.',                                          3, 'pangan',    'common',  60,   1,    0.12, 0.55, 150, true),
+  ('sugar',        'Gula',         'Manis, berat, dan selalu dicari dapur istana.',                           4, 'pangan',    'common',  100,  1,    0.12, 0.55, 150, true),
   ('sarang_walet', 'Sarang Walet', 'Dipanen dari gua-gua tebing. Para bangsawan rela membayar mahal.',         5, 'pangan',    'premium', 4500, 0.25, 0.225, 0.6,  10,  true),
-  ('tuak',         'Tuak',         'Nira manis yang difermentasi - minuman rakyat pesisir.',                  6, 'minuman',   'common',  40,   1,    0.12, 0.55, 100, true),
-  ('rum',          'Arak',         'Bahan bakar kru sekaligus mata uang tidak resmi pelabuhan.',              7, 'minuman',   'common',  90,   1,    0.12, 0.55, 100, true),
-  ('kopi',         'Kopi',         'Biji kopi dari dataran tinggi, harum sampai ke ujung dermaga.',           8, 'minuman',   'mid',     180,  0.5,  0.15, 0.65, 45,  true),
+  ('tuak',         'Tuak',         'Nira manis yang difermentasi - minuman rakyat pesisir.',                  6, 'minuman',   'common',  40,   1,    0.12, 0.55, 150, true),
+  ('rum',          'Arak',         'Bahan bakar kru sekaligus mata uang tidak resmi pelabuhan.',              7, 'minuman',   'common',  90,   1,    0.12, 0.55, 150, true),
+  ('kopi',         'Kopi',         'Biji kopi dari dataran tinggi, harum sampai ke ujung dermaga.',           8, 'minuman',   'mid',     180,  0.5,  0.15, 0.65, 68,  true),
   ('jackdaniels',  'JackDaniels',  'Wiski impor dalam botol persegi - kebanggaan meja para kapten.',          9, 'minuman',   'premium', 1400, 0.25, 0.225, 0.6,  10,  true),
   ('jhonnywalker', 'JhonnyWalker', 'Wiski impor paling bergengsi di Mare Nusantara.',                         10, 'minuman',   'premium', 3250, 0.25, 0.225, 0.6,  10,  true),
-  ('kayu_manis',   'Kayu Manis',   'Kulit kayu harum dari bukit-bukit Minang.',                               11, 'rempah',    'mid',     220,  0.5,  0.15, 0.65, 45,  true),
-  ('lada',         'Lada',         'Raja rempah - butiran pedas yang membuat pedagang jauh rela berlayar.',   12, 'rempah',    'mid',     240,  0.5,  0.15, 0.65, 45,  true),
-  ('cengkeh',      'Cengkeh',      'Bunga kering yang dulu diperebutkan bangsa-bangsa.',                       13, 'rempah',    'mid',     300,  0.5,  0.15, 0.65, 45,  true),
-  ('pala',         'Pala',         'Biji pala dan fulinya - harum, langka, berharga.',                         14, 'rempah',    'mid',     340,  0.5,  0.15, 0.65, 45,  true),
+  ('kayu_manis',   'Kayu Manis',   'Kulit kayu harum dari bukit-bukit Minang.',                               11, 'rempah',    'mid',     220,  0.5,  0.15, 0.65, 68,  true),
+  ('lada',         'Lada',         'Raja rempah - butiran pedas yang membuat pedagang jauh rela berlayar.',   12, 'rempah',    'mid',     240,  0.5,  0.15, 0.65, 68,  true),
+  ('cengkeh',      'Cengkeh',      'Bunga kering yang dulu diperebutkan bangsa-bangsa.',                       13, 'rempah',    'mid',     300,  0.5,  0.15, 0.65, 68,  true),
+  ('pala',         'Pala',         'Biji pala dan fulinya - harum, langka, berharga.',                         14, 'rempah',    'mid',     340,  0.5,  0.15, 0.65, 68,  true),
   ('gaharu',       'Gaharu',       'Kayu resin yang wanginya dibakar di istana dan kuil.',                     15, 'rempah',    'premium', 5500, 0.25, 0.225, 0.6,  10,  true),
-  ('rotan',        'Rotan',        'Batang lentur dari hutan rimba, bahan anyaman dan tali kapal.',            16, 'bahan',     'common',  45,   1.5,  0.12, 0.55, 100, true),
-  ('kayu_jati',    'Kayu Jati',    'Kayu terbaik untuk lambung kapal dan rumah bangsawan.',                    17, 'bahan',     'common',  80,   2,    0.12, 0.55, 100, true),
-  ('besi',         'Besi',         'Batangan besi untuk paku, jangkar, dan meriam.',                           18, 'bahan',     'mid',     150,  2,    0.15, 0.65, 45,  true),
+  ('rotan',        'Rotan',        'Batang lentur dari hutan rimba, bahan anyaman dan tali kapal.',            16, 'bahan',     'common',  45,   1.5,  0.12, 0.55, 150, true),
+  ('kayu_jati',    'Kayu Jati',    'Kayu terbaik untuk lambung kapal dan rumah bangsawan.',                    17, 'bahan',     'common',  80,   2,    0.12, 0.55, 150, true),
+  ('besi',         'Besi',         'Batangan besi untuk paku, jangkar, dan meriam.',                           18, 'bahan',     'mid',     150,  2,    0.15, 0.65, 68,  true),
   ('kayu_cendana', 'Kayu Cendana', 'Kayu wangi dari timur yang harumnya bertahan puluhan tahun.',              19, 'bahan',     'premium', 3800, 1,    0.225, 0.6,  10,  true),
-  ('tools',        'Perkakas',     'Tidak glamor, tapi setiap pemukiman baru membutuhkannya.',                20, 'kerajinan', 'mid',     160,  1,    0.15, 0.65, 45,  true),
-  ('batik',        'Kain Batik',   'Kain bercorak tulis tangan - setiap motif punya cerita.',                  21, 'kerajinan', 'mid',     160,  0.5,  0.15, 0.65, 45,  true),
-  ('porselen',     'Porselen',     'Piring dan guci halus yang dibawa jung dari utara.',                       22, 'kerajinan', 'mid',     260,  1,    0.15, 0.65, 45,  true),
+  ('tools',        'Perkakas',     'Tidak glamor, tapi setiap pemukiman baru membutuhkannya.',                20, 'kerajinan', 'mid',     160,  1,    0.15, 0.65, 68,  true),
+  ('batik',        'Kain Batik',   'Kain bercorak tulis tangan - setiap motif punya cerita.',                  21, 'kerajinan', 'mid',     160,  0.5,  0.15, 0.65, 68,  true),
+  ('porselen',     'Porselen',     'Piring dan guci halus yang dibawa jung dari utara.',                       22, 'kerajinan', 'mid',     260,  1,    0.15, 0.65, 68,  true),
   ('keris',        'Keris Pusaka', 'Ditempa empu dengan pamor berlapis - setiap bilah konon bertuah.',         23, 'kerajinan', 'premium', 7000, 0.25, 0.225, 0.6,  10,  true),
-  ('mesiu',        'Mesiu',        'Bubuk hitam pengisi meriam. Jauhkan dari api!',                            24, 'mewah',     'mid',     220,  1,    0.15, 0.65, 45,  true),
-  ('silk',         'Sutra',        'Halus seperti bisikan, mahal seperti janji bangsawan.',                    25, 'mewah',     'mid',     290,  0.5,  0.15, 0.65, 45,  true),
-  ('arms',         'Senjata',      'Diperlukan untuk melindungi diri - atau merampas milik orang lain.',      26, 'mewah',     'mid',     320,  1,    0.15, 0.65, 45,  true),
+  ('mesiu',        'Mesiu',        'Bubuk hitam pengisi meriam. Jauhkan dari api!',                            24, 'mewah',     'mid',     220,  1,    0.15, 0.65, 68,  true),
+  ('silk',         'Sutra',        'Halus seperti bisikan, mahal seperti janji bangsawan.',                    25, 'mewah',     'mid',     290,  0.5,  0.15, 0.65, 68,  true),
+  ('arms',         'Senjata',      'Diperlukan untuk melindungi diri - atau merampas milik orang lain.',      26, 'mewah',     'mid',     320,  1,    0.15, 0.65, 68,  true),
   ('mutiara',      'Mutiara',      'Butir bulat berkilau dari laguna terdalam.',                                27, 'mewah',     'premium', 4500, 0.1,  0.225, 0.6,  10,  true),
   ('emas',         'Emas',         'Batangan emas murni. Kecil, berat, dan bernilai sebuah kapal.',            28, 'mewah',     'premium', 9000, 0.1,  0.225, 0.6,  10,  true)
 on conflict (id) do update set name = excluded.name, flavor = excluded.flavor, sort = excluded.sort, grp = excluded.grp,
@@ -263,17 +270,28 @@ begin
   ev_mul := (1 + ev::double precision / 100) * (1 - game.eco_arms_discount(p_city, p_comm) / 100);
 end $$;
 
+-- Tide v24: harga per LOT. Titik stok dibulatkan ke tengah lot (common 10, mid 5, premium 1 = per unit),
+-- jadi harga tetap selama stok pasar masih di lot yang sama. Beli & jual memakai lot yang sama -> tetap anti-arbitrase.
+create or replace function game.mkt_lot(p_tier text) returns numeric
+language sql stable as $$
+  select case p_tier when 'common' then game.cfg_num('MarketLotCommon', 10) when 'mid' then game.cfg_num('MarketLotMid', 5) else 1 end
+$$;
+create or replace function game.mkt_lotx(p_x numeric, p_tier text) returns numeric
+language sql stable as $$
+  select case when game.mkt_lot(p_tier) > 1 then (floor(p_x / game.mkt_lot(p_tier)) + 0.5) * game.mkt_lot(p_tier) else p_x end
+$$;
+
 create or replace function game.eco2_buy_cost(p_base numeric, p_ref numeric, p_elast numeric, p_stock numeric, p_qty bigint, p_mul double precision,
   p_role text, p_tier text)
 returns bigint language sql stable as $$
-  select coalesce(sum(greatest(1, round(game.mkt_mid2(p_base, p_ref, p_elast, p_stock - i - 0.5, p_role, p_tier) * p_mul))), 0)::bigint
+  select coalesce(sum(greatest(1, round(game.mkt_mid2(p_base, p_ref, p_elast, game.mkt_lotx(p_stock - i - 0.5, p_tier), p_role, p_tier) * p_mul))), 0)::bigint
   from generate_series(0, p_qty - 1) i
 $$;
 
 create or replace function game.eco2_sell_value(p_base numeric, p_ref numeric, p_elast numeric, p_stock numeric, p_qty bigint, p_mul double precision,
   p_role text, p_tier text)
 returns bigint language sql stable as $$
-  select coalesce(sum(greatest(1, round(game.mkt_mid2(p_base, p_ref, p_elast, p_stock + i + 0.5, p_role, p_tier) * p_mul))), 0)::bigint
+  select coalesce(sum(greatest(1, round(game.mkt_mid2(p_base, p_ref, p_elast, game.mkt_lotx(p_stock + i + 0.5, p_tier), p_role, p_tier) * p_mul))), 0)::bigint
   from generate_series(0, p_qty - 1) i
 $$;
 
@@ -288,7 +306,7 @@ begin
   if not found then return 0; end if;
   s := game.mkt_project(m.stock, m.at, m.cyc, m.role, c.tier, c.ref, c.id, game.mkt_cycle_tags(p_city, cyc), cyc);
   select * into mu from game.eco2_muls(p_pid, p_city, p_commodity);
-  return greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s - 0.5, m.role, c.tier) * mu.buy_mul))::int;
+  return greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, game.mkt_lotx(s - 0.5, c.tier), m.role, c.tier) * mu.buy_mul))::int;
 end $$;
 
 -- Misi Pesanan mengambil stok sungguhan
@@ -319,8 +337,8 @@ begin
     select * into mu from game.eco2_muls(pid, v_city, r.commodity_id);
     base_ev := r.base * mu.ev_mul;
     -- harga unit berikutnya: beli di titik stok s-0.5, jual di s+0.5 (pulang-pergi selalu kena selisih)
-    bp := greatest(1, round(game.mkt_mid2(base_ev::numeric, r.ref, r.elast, r.stock - 0.5, r.role, r.tier) * mu.buy_mul));
-    sp := greatest(1, round(game.mkt_mid2(base_ev::numeric, r.ref, r.elast, r.stock + 0.5, r.role, r.tier) * mu.sell_mul));
+    bp := greatest(1, round(game.mkt_mid2(base_ev::numeric, r.ref, r.elast, game.mkt_lotx(r.stock - 0.5, r.tier), r.role, r.tier) * mu.buy_mul));
+    sp := greatest(1, round(game.mkt_mid2(base_ev::numeric, r.ref, r.elast, game.mkt_lotx(r.stock + 0.5, r.tier), r.role, r.tier) * mu.sell_mul));
     items := items || jsonb_build_array(jsonb_build_object(
       'commodityId', r.commodity_id, 'name', r.name, 'flavor', r.flavor,
       'group', r.grp, 'tier', r.tier, 'size', r.size, 'role', r.role,
@@ -331,7 +349,7 @@ begin
       'priceRatio', game.eco_round(game.mkt_mid2(base_ev::numeric, r.ref, r.elast, r.stock, r.role, r.tier) / r.base * 100),
       'curve', jsonb_build_object('base', round((base_ev * game.mkt_role_mul(r.role, r.tier))::numeric, 3), 'ref', r.ref, 'e', r.elast,
                                   'ph', game.mkt_phantom(r.role, r.tier, r.ref),
-                                  'buyMul', round(mu.buy_mul::numeric, 5), 'sellMul', round(mu.sell_mul::numeric, 5), 's', round(r.stock::numeric, 3)),
+                                  'buyMul', round(mu.buy_mul::numeric, 5), 'sellMul', round(mu.sell_mul::numeric, 5), 's', round(r.stock::numeric, 3), 'lot', game.mkt_lot(r.tier)),
       'ownedQty', coalesce((select i.qty from game.inventory i where i.player_id = pid and i.item_id = r.commodity_id and i.qty > 0), 0),
       'avgCost', game.inv_avg_cost(pid, r.commodity_id)));
   end loop;
@@ -378,7 +396,7 @@ begin
     c.name || ' for ' || total || ' gold.');
   return jsonb_build_object('totalCost', total, 'unitPrice', game.eco_round(total::double precision / v_qty),
     'newGold', v_me.gold - total, 'stockLeft', floor(s - v_qty), 'avgCost', game.inv_avg_cost(pid, v_comm),
-    'nextBuyPrice', greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s - v_qty - 0.5, v_role, c.tier) * mu.buy_mul)));
+    'nextBuyPrice', greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, game.mkt_lotx(s - v_qty - 0.5, c.tier), v_role, c.tier) * mu.buy_mul)));
 end $$;
 select game.expose('api_buy');
 
@@ -412,6 +430,6 @@ begin
     'profit', case when v_avg is not null then revenue - round(v_avg * v_qty) end,
     'unitPrice', game.eco_round(revenue::double precision / v_qty),
     'newGold', v_me.gold + revenue,
-    'nextSellPrice', greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s + v_qty + 0.5, v_role, c.tier) * mu.sell_mul)));
+    'nextSellPrice', greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, game.mkt_lotx(s + v_qty + 0.5, c.tier), v_role, c.tier) * mu.sell_mul)));
 end $$;
 select game.expose('api_sell');

@@ -1560,6 +1560,7 @@
           '<div class="price-line buy"><span class="pl">BELI</span><span class="pv">' + (item.stock > 0 ? formatGold(item.buyPrice) : '<span class="muted small">habis</span>') + '</span></div>' +
           '<div class="price-line sell"><span class="pl">JUAL</span><span class="pv">' + formatGold(item.sellPrice) + '</span></div>' +
           (typeof item.priceRatio === 'number' ? '<div class="ratio-meter" title="Harga dibanding harga dasar: ' + item.priceRatio + '%"><span class="pin" style="left:' + ratioPinPct_(item.priceRatio) + '%"></span></div>' : '') +
+          lotNote_(item) +
         '</div>' +
         '<div class="trade-col">' +
           '<div class="qty"><button type="button" onclick="stepQty_(\'' + id + '\',-1)" aria-label="Kurangi">' + ic('minus') + '</button>' +
@@ -1624,8 +1625,8 @@
     if (it && sq && it.avgCost != null) { var base = it.avgCost * sq; plHtml = '<span class="glut-note pl" title="Dibanding modal rata-rata barang di palkamu">' + ic('coins') + ' modal ' + formatGold(Math.round(base)) + ' &rarr; ' + plSpan_(st - base, base) + '</span>'; }
     sum.innerHTML = main +
       (over ? '<span class="glut-note" title="Pembelian dibatasi stok pasar">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit (beli maks ' + it.stock + ')</span>' : '') + plHtml +
-      (rise ? '<span class="glut-note" title="Setiap unit yang dibeli mengurangi stok pasar - harga naik">' + ic('alert') + ' harga beli naik per unit (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
-      (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun per unit (rata-rata ' + formatGold(Math.round(st / sq)) + ')</span>' : '') +
+      (rise ? '<span class="glut-note" title="Setiap unit yang dibeli mengurangi stok pasar - harga naik">' + ic('alert') + ' harga beli naik ' + (lotLeft_(it, 'buy') != null ? 'setelah ' + lotLeft_(it, 'buy') + ' unit' : 'per unit') + ' (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
+      (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun ' + (lotLeft_(it, 'sell') != null ? 'setelah ' + lotLeft_(it, 'sell') + ' unit' : 'per unit') + ' (rata-rata ' + formatGold(Math.round(st / sq)) + ')</span>' : '') +
       (!over && it && it.size ? '<span class="glut-note sz">' + ic('crate') + ' ' + fmtSpace_(q * it.size) + ' ruang palka</span>' : '');
   }
 
@@ -1683,8 +1684,24 @@
   function mid_(it, s) { var c = it.curve; if (!c) return it.buyPrice; return c.base * Math.min(3, Math.max(0.35, Math.pow((c.ref * 1.4) / (Math.max(0, s) + (c.ph || 0) + c.ref * 0.4), c.e))); }
   // Tide v23: unit ke-i dibeli di titik stok s-i-0.5 dan dijual di s+i+0.5 (sama dengan server)
   function stockExact_(it) { return it.curve && it.curve.s != null ? Number(it.curve.s) : it.stock; }
-  function buyUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, stockExact_(it) - i - 0.5) * it.curve.buyMul)) : it.buyPrice; }
-  function sellUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, stockExact_(it) + i + 0.5) * it.curve.sellMul)) : it.sellPrice; }
+  // Tide v24: harga per lot (common 10, mid 5, premium 1) - titik stok dibulatkan ke tengah lot, sama dengan server
+  function lotOf_(it) { return (it.curve && Number(it.curve.lot)) || 1; }
+  function lotX_(it, x) { var k = lotOf_(it); return k > 1 ? (Math.floor(x / k) + 0.5) * k : x; }
+  function buyUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, lotX_(it, stockExact_(it) - i - 0.5)) * it.curve.buyMul)) : it.buyPrice; }
+  function sellUnit_(it, i) { return it.curve ? Math.max(1, Math.round(mid_(it, lotX_(it, stockExact_(it) + i + 0.5)) * it.curve.sellMul)) : it.sellPrice; }
+  function lotNote_(it) {
+    var lb = it.stock > 0 ? lotLeft_(it, 'buy') : null, ls = lotLeft_(it, 'sell');
+    if (lb == null && ls == null) return '';
+    return '<div class="lot-note" title="Harga barang ini berubah per lot ' + lotOf_(it) + ' unit stok pasar">Harga tetap: ' +
+      (lb != null ? 'beli <b>' + lb + '</b>' : '') + (lb != null && ls != null ? ' &middot; ' : '') + (ls != null ? 'jual <b>' + ls + '</b>' : '') + ' unit lagi</div>';
+  }
+  /** Berapa unit lagi harga beli/jual tetap sama (masih di lot yang sama). null bila harga per unit. */
+  function lotLeft_(it, side) {
+    var k = lotOf_(it); if (!it.curve || k <= 1) return null;
+    var s = stockExact_(it), x0 = side === 'buy' ? s - 0.5 : s + 0.5, b0 = Math.floor(x0 / k), n = 0;
+    while (n < 200) { var x = side === 'buy' ? s - n - 0.5 : s + n + 0.5; if (Math.floor(x / k) !== b0 || x < 0) break; n++; }
+    return n;
+  }
   function buyTotal_(it, q) { if (!it) return 0; var s = 0; for (var i = 0; i < q; i++) s += buyUnit_(it, i); return s; }
   function sellTotal_(it, q) { if (!it) return 0; var s = 0; for (var i = 0; i < q; i++) s += sellUnit_(it, i); return s; }
   function maxAffordable_(it, gold, space) {

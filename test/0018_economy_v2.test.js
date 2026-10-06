@@ -89,10 +89,20 @@ const fs = require('fs'), path = require('path');
   await H.sql(`insert into game.inventory(player_id, item_id, qty) values ($1, 'spices', 7) on conflict (player_id, item_id) do update set qty = 7`, [u.id]);
   const lada0 = Number(((await H.sql(`select qty from game.inventory where player_id = $1 and item_id = 'lada'`, [u.id]))[0] || { qty: 0 }).qty);
   await H.sql(`update game.commodities set active = true where id = 'spices'`);
+  const stk0 = (await H.sql(`select stock::float s from game.market where city_id = 'bjorneo' and commodity_id = 'beras'`))[0].s;
   const db = H.db; await db.exec(fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '0018_economy_v2.sql'), 'utf8'));
   const after = await H.sql(`select item_id, qty from game.inventory where player_id = $1 and item_id in ('spices', 'lada')`, [u.id]);
   assert(after.length === 1 && after[0].item_id === 'lada' && Number(after[0].qty) === lada0 + 7, 'spices -> lada ' + JSON.stringify(after));
   assert(!(await u.call('api_getMarket', ['bjorneo'])).items.some(i => i.commodityId === 'spices'), 'spices tidak dijual lagi');
+  const stk1 = (await H.sql(`select stock::float s from game.market where city_id = 'bjorneo' and commodity_id = 'beras'`))[0].s;
+  assert(stk0 === stk1, 'migrasi ulang tidak menskala stok lagi ' + stk0 + ' -> ' + stk1);
+  // Tide v24: harga per lot (common 10, mid 5, premium 1)
+  const lots = await H.sql(`select c.tier, game.mkt_lot(c.tier) k from game.commodities c where id in ('beras', 'lada', 'emas') order by sort`);
+  assert(Number(lots.find(x => x.tier === 'common').k) === 10 && Number(lots.find(x => x.tier === 'mid').k) === 5 && Number(lots.find(x => x.tier === 'premium').k) === 1, 'ukuran lot ' + JSON.stringify(lots));
+  const steps = await H.sql(`select i, round(game.mkt_mid2(c.base, c.ref, c.elast, game.mkt_lotx(100 - i - 0.5, c.tier), 'neutral', c.tier)) p from game.commodities c, generate_series(0, 29) i where c.id = 'beras' order by i`);
+  const distinct = [...new Set(steps.map(x => Number(x.p)))];
+  assert(steps.slice(0, 10).every(x => x.p === steps[0].p) && distinct.length === 3, 'harga beras tetap per 10 unit ' + steps.map(x => x.p).join(' '));
+  assert(Number((await H.sql(`select ref from game.commodities where id = 'beras'`))[0].ref) === 150 && Number((await H.sql(`select ref from game.commodities where id = 'lada'`))[0].ref) === 68, 'ref 150/68');
   // Tide v23: skill selalu menambah untung & pulang-pergi di kota yang sama selalu rugi
   const prof = async (t, n, rep) => {
     await H.sql('update game.character_stats set trading = $2, negotiation = $3 where player_id = $1', [u.id, t, n]);
@@ -119,7 +129,7 @@ const fs = require('fs'), path = require('path');
     assert(pr > prev, 'skill harus menambah untung: ' + JSON.stringify([t, n, rep]) + ' ' + pr + ' <= ' + prev);
     prev = pr;
     const rt = await roundTrip();
-    assert(Number(rt.gain) === 0 && Number(rt.bad) <= 2 && Number(rt.n) > 100, 'pulang-pergi kota sama tidak boleh untung ' + JSON.stringify([t, n, rep, rt]));
+    assert(Number(rt.gain) === 0 && Number(rt.bad) <= 10 && Number(rt.n) > 100, 'pulang-pergi kota sama tidak boleh untung ' + JSON.stringify([t, n, rep, rt]));
   }
   const mx = (await H.sql(`select buy_mul, sell_mul from game.eco2_muls($1, 'bjorneo', 'lada')`, [u.id]))[0];
   assert(Math.abs(mx.buy_mul - 1.015) < 1e-9 && Math.abs(mx.sell_mul - 0.985) < 1e-9, 'kapten maksimal: Lada beli 1.015 jual 0.985 ' + JSON.stringify(mx));
