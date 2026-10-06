@@ -1004,6 +1004,14 @@
     }).withFailureHandler(function (err) {
       if (!cached) showModalError(err);
     }).api_getCargoState(cityId);
+    // harga jual di kota ini untuk kolom untung/rugi (diam-diam, tanpa menunggu)
+    if (cityId && !(state.voyage && state.voyage.inTransit) && !panelCache['market:' + cityId]) {
+      google.script.run.withSuccessHandler(function (mk) {
+        if (!mk || mk.closed) return;
+        recordPrices_(cityId, mk.items); mk._at = Date.now(); panelCache['market:' + cityId] = mk;
+        if (currentPanel === 'cargo' && panelCache[cacheKey]) renderCargoWith_(panelCache[cacheKey]);
+      }).withFailureHandler(function () {}).api_getMarket(cityId);
+    }
   }
 
   function holdGridHtml_(cargo, cap, missionLoad) {
@@ -1044,10 +1052,7 @@
     if (!cargo.length && !mload) {
       html += '<div class="empty-state">' + ic('crate') + 'Palka kosong. Isi di Market!</div>';
     } else if (cargo.length) {
-      html += '<div class="legend">' + cargo.map(function (c) {
-        var m = COMMODITY_META[c.commodityId] || { c1: '#a08560', c2: '#5a4526' };
-        return '<span><i style="background:linear-gradient(145deg,' + m.c1 + ',' + m.c2 + ')"></i>' + esc_(c.name) + ' <b>&times;' + c.qty + '</b></span>';
-      }).join('') + '</div>';
+      html += cargoDetailHtml_(cargo, inTransit);
     }
 
     html += '<h3>' + ic('warehouse') + 'Gudang Port Authority &mdash; ' + esc_(state.city ? state.city.Name : '') + '</h3>';
@@ -1060,6 +1065,29 @@
       '<div id="warehouseSection"></div>';
     setModal_(html);
     renderWarehouseSection_(warehouseItems, cargo);
+  }
+
+  /** Rincian palka: jumlah, modal rata-rata, total modal, dan (di pelabuhan) nilai jual di sini + untung/rugi. */
+  function cargoDetailHtml_(cargo, inTransit) {
+    var cid = state.city ? state.city.CityId : null;
+    var mk = !inTransit && cid ? ((marketCache && marketCache.cityId === cid) ? marketCache : panelCache['market:' + cid]) : null;
+    var tCost = 0, tVal = 0, known = true, anyVal = false;
+    var rows = cargo.map(function (c) {
+      var it = mk ? (mk.items || []).filter(function (x) { return x.commodityId === c.commodityId; })[0] : null;
+      var val = it ? sellTotal_(it, c.qty) : null, cost = c.costTotal != null ? c.costTotal : (c.avgCost != null ? c.avgCost * c.qty : null);
+      if (cost == null) known = false; else tCost += cost;
+      if (val != null) { tVal += val; anyVal = true; }
+      return '<tr><td><span class="cd-good">' + goodIcon_(c.commodityId, true) + esc_(c.name) + '</span></td><td class="r">' + c.qty + '</td>' +
+        '<td class="r">' + (c.avgCost != null ? formatGold(Math.round(c.avgCost)) : '<span class="muted">&mdash;</span>') + '</td>' +
+        '<td class="r cd-tot">' + (cost != null ? formatGold(Math.round(cost)) : '<span class="muted">&mdash;</span>') + '</td>' +
+        (mk ? '<td class="r">' + (val != null ? formatGold(val) : '&mdash;') + '</td><td class="r">' + (val != null && cost != null ? plSpan_(val - cost, cost) : '<span class="muted">&mdash;</span>') + '</td>' : '') + '</tr>';
+    }).join('');
+    var head = '<tr><th>Barang</th><th class="r">Qty</th><th class="r">Modal/unit</th><th class="r cd-tot">Total modal</th>' + (mk ? '<th class="r">Jual di sini</th><th class="r">Untung/rugi</th>' : '') + '</tr>';
+    var foot = '<tr class="cd-total"><td>Total</td><td></td><td class="r cd-totm">' + formatGold(Math.round(tCost)) + (known ? '' : '*') + '</td><td class="r cd-tot">' + formatGold(Math.round(tCost)) + (known ? '' : '*') + '</td>' +
+      (mk ? '<td class="r">' + (anyVal ? formatGold(tVal) : '&mdash;') + '</td><td class="r">' + (anyVal && known ? plSpan_(tVal - tCost, tCost) : '') + '</td>' : '') + '</tr>';
+    return '<div class="card cargo-detail"><div class="bar-label-row" style="margin-bottom:6px;"><span>' + ic('coins') + ' Rincian muatan &amp; modal</span></div>' +
+      '<div class="cd-scroll"><table class="cd-table">' + head + rows + foot + '</table></div>' +
+      '<p class="muted small" style="margin:6px 0 0;">Modal = rata-rata harga beli barang yang masih di palka.' + (mk ? ' "Jual di sini" sudah memperhitungkan harga yang turun per unit.' : ' Buka di pelabuhan untuk melihat nilai jual.') + (known ? '' : ' * Barang lama (sebelum fitur ini) belum tercatat modalnya.') + '</p></div>';
   }
 
   function renderWarehouseSection_(warehouseItems, cargo) {
@@ -1502,7 +1530,7 @@
           '<div class="mkt-tags">' + priceBadge_(item.priceRatio) + tags + '</div>' +
           '<div class="mkt-stock"><span class="ms-l">Stok <b>' + item.stock + '</b></span><span class="ms-bar"><i style="width:' + stockPct + '%"></i></span><span class="ms-size" title="Ruang palka per unit">' + ic('crate') + ' ' + fmtSpace_(item.size) + '/unit</span></div>' +
           (item.flavor ? '<span class="commodity-flavor">' + esc_(item.flavor) + '</span>' : '') +
-          personalBestLine_(state.city.CityId, id) + knownBestLine_(id, item.buyPrice) +
+          costLine_(item) + personalBestLine_(state.city.CityId, id) + knownBestLine_(id, item.buyPrice) +
         '</div></div>' +
         '<div class="price-col">' +
           '<div class="price-line buy"><span class="pl">BELI</span><span class="pv">' + (item.stock > 0 ? formatGold(item.buyPrice) : '<span class="muted small">habis</span>') + '</span></div>' +
@@ -1538,6 +1566,16 @@
     return '<span class="known-best' + (up ? ' up' : '') + '">' + ic('route') + ' Catatanmu: laku ' + formatGold(bk.sell.price) + ' di ' + esc_(cityName_(bk.sell.city)) + ' (H' + esc_(bk.sell.day) + ')' + (up ? ' &middot; +' + formatGold(bk.sell.price - buyHere) + '/unit' : '') + '</span>';
   }
 
+  /* ---- Tide v21: modal rata-rata & untung/rugi ---- */
+  function plSpan_(pl, base) {
+    var pct = base > 0 ? Math.round(pl / base * 100) : 0;
+    return '<b class="' + (pl >= 0 ? 'pl-up' : 'pl-down') + '">' + (pl >= 0 ? '+' : '−') + formatGold(Math.abs(Math.round(pl))) + (base > 0 ? ' (' + (pl >= 0 ? '+' : '−') + Math.abs(pct) + '%)' : '') + '</b>';
+  }
+  function costLine_(item) {
+    if (!item.ownedQty || item.avgCost == null) return '';
+    var per = item.sellPrice - item.avgCost;
+    return '<span class="cost-line">' + ic('coins') + ' Modalmu <b>' + formatGold(Math.round(item.avgCost)) + '</b>/unit &middot; jual sekarang ' + formatGold(item.sellPrice) + ' &rarr; ' + plSpan_(per, item.avgCost) + '/unit</span>';
+  }
   function stepQty_(id, d) {
     var el = document.getElementById('qty_' + id);
     if (!el) return;
@@ -1552,7 +1590,9 @@
     var bt = it ? buyTotal_(it, q) : q * Number(sum.dataset.buy);
     var drop = it && q > 1 && st < q * it.sellPrice, rise = it && q > 1 && bt > q * it.buyPrice;
     if (it && it.stock != null && q > it.stock) { sum.innerHTML = '<span class="glut-note">' + ic('alert') + ' Stok pasar tinggal ' + it.stock + ' unit</span>'; return; }
-    sum.innerHTML = q + ' &times; &rarr; beli <b>' + formatGold(bt) + '</b> &middot; jual <b>' + formatGold(st) + '</b>' +
+    var plq = it && it.avgCost != null && it.ownedQty ? Math.min(q, it.ownedQty) : 0, plHtml = '';
+    if (plq) { var stq = sellTotal_(it, plq), base = it.avgCost * plq; plHtml = '<span class="glut-note pl" title="Dibanding modal rata-rata barang di palkamu">' + ic('coins') + ' jual ' + plq + ' &rarr; ' + formatGold(stq) + ' vs modal ' + formatGold(Math.round(base)) + ' = ' + plSpan_(stq - base, base) + '</span>'; }
+    sum.innerHTML = q + ' &times; &rarr; beli <b>' + formatGold(bt) + '</b> &middot; jual <b>' + formatGold(st) + '</b>' + plHtml +
       (rise ? '<span class="glut-note" title="Setiap unit yang dibeli mengurangi stok pasar - harga naik">' + ic('alert') + ' harga beli naik per unit (rata-rata ' + formatGold(Math.round(bt / q)) + ')</span>' : '') +
       (drop ? '<span class="glut-note" title="Setiap unit yang dijual menambah stok pasar - harga turun">' + ic('alert') + ' harga jual turun per unit (rata-rata ' + formatGold(Math.round(st / q)) + ')</span>' : '') +
       (it && it.size ? '<span class="glut-note sz">' + ic('crate') + ' ' + fmtSpace_(q * it.size) + ' ruang palka</span>' : '');
@@ -1648,13 +1688,14 @@
     if (qty * size0 > marketCache.cargoSpaceRemaining + 1e-9) { showToast('Ruang palka tidak cukup (butuh ' + fmtSpace_(qty * size0) + ', sisa ' + fmtSpace_(marketCache.cargoSpaceRemaining) + ').', 'error'); return; }
     var cityId = state.city.CityId;
     recordPersonalBest_(cityId, commodityId, 'buy', Math.round(cost / qty));
+    if (it0) { var o0 = it0.ownedQty || 0, a0 = it0.avgCost != null ? it0.avgCost : cost / qty; it0.avgCost = (a0 * o0 + cost) / (o0 + qty); }
     patchGold_(state.player.gold - cost);
     lastTrade = { id: commodityId, dir: 'buy', qty: qty };
     patchMarketCacheAfterTrade_(commodityId, qty, 'buy');
     delete panelCache['cargo:' + cityId];
     enqueueTx_(function (done) {
       google.script.run
-        .withSuccessHandler(function (result) { if (!txQ.length && result && typeof result.newGold === 'number') patchGold_(result.newGold); done(); refreshCargoQuiet_(); saveSnap_(); })
+        .withSuccessHandler(function (result) { if (!txQ.length && result && typeof result.newGold === 'number') patchGold_(result.newGold); var itb = marketItem_(commodityId); if (itb && result && result.avgCost != null) itb.avgCost = result.avgCost; done(); refreshCargoQuiet_(); saveSnap_(); })
         .withFailureHandler(function (err) {
           patchGold_(state.player.gold + cost);
           patchMarketCacheAfterTrade_(commodityId, qty, 'sell');
@@ -1678,7 +1719,10 @@
     delete panelCache['cargo:' + cityId];
     enqueueTx_(function (done) {
       google.script.run
-        .withSuccessHandler(function (result) { if (!txQ.length && result && typeof result.newGold === 'number') patchGold_(result.newGold); done(); refreshCargoQuiet_(); saveSnap_(); })
+        .withSuccessHandler(function (result) {
+          if (!txQ.length && result && typeof result.newGold === 'number') patchGold_(result.newGold);
+          if (result && result.profit != null) showToast('Terjual ' + qty + ' ' + (it ? it.name : '') + ': ' + formatGold(result.totalRevenue) + ' gold · ' + (result.profit >= 0 ? 'untung +' : 'rugi −') + formatGold(Math.abs(result.profit)) + ' dari modal', result.profit >= 0 ? 'success' : 'error');
+          done(); refreshCargoQuiet_(); saveSnap_(); })
         .withFailureHandler(function (err) {
           patchGold_(state.player.gold - gain);
           patchMarketCacheAfterTrade_(commodityId, qty, 'buy');
@@ -2133,7 +2177,9 @@
         '<div class="ma-title">' + m.qty + '&times; ' + esc_(m.commodityName) + '</div>' +
         '<div class="reward small">' + ic('coin') + ' Imbalan ' + formatGold(m.reward) + ' gold &middot; +1 Standing di ' + esc_(m.deliverToCityName) + '</div></div></div>' +
       '<ol class="ma-steps">' + steps.map(function (s) { return '<li class="' + (s.done ? 'done' : (s.now ? 'now' : '')) + '"><span class="ms-dot">' + (s.done ? ic('check') : '') + '</span><span>' + s.t + '</span></li>'; }).join('') + '</ol>';
-    if (m.type !== 'legacy' && loaded > 0) html += '<div class="ma-lock">' + ic('lock') + ' ' + loaded + ' unit muatan misi terkunci di palka &mdash; tidak bisa dijual, dititip, dipasang di Bursa, atau dirampas bajak laut.</div>';
+    var locked = m.lockedQty != null ? m.lockedQty : loaded;
+    if (m.type === 'procure' && loaded > locked) html += '<div class="ma-lock">' + ic('crate') + ' ' + (loaded - locked) + ' unit ' + esc_(m.commodityName) + ' di palka biasa ikut dihitung sebagai barang pesanan.</div>';
+    if (m.type !== 'legacy' && locked > 0) html += '<div class="ma-lock">' + ic('lock') + ' ' + locked + ' unit muatan misi terkunci di palka &mdash; tidak bisa dijual, dititip, dipasang di Bursa, atau dirampas bajak laut.</div>';
     html += '<div class="ma-actions">';
     if (m.type === 'procure' && !full && here === m.sourceCityId) {
       var mi = marketCache && marketCache.cityId === here ? marketItem_(m.commodityId) : null, pre = panelCache['market:' + here];
@@ -3078,7 +3124,7 @@
   }
   function lineTasks_() {
     var m = state.mission;
-    if (m && m.hasActive && m.type === 'procure' && (m.loadedQty || 0) < m.qty) return 'Pesanan <b>' + m.qty + '&times; ' + esc_(m.commodityName) + '</b> cuma bisa didapat di <b>' + esc_(m.sourceCityName) + '</b>. Jangan beli di tempat lain, pemesannya teliti!';
+    if (m && m.hasActive && m.type === 'procure' && (m.loadedQty || 0) < m.qty) return 'Pesanan <b>' + m.qty + '&times; ' + esc_(m.commodityName) + '</b> paling murah didapat di <b>' + esc_(m.sourceCityName) + '</b>. Beli di sana (lewat tombol Beli Pesanan atau Market biasa), lalu bawa pulang.';
     if (m && m.hasActive && m.type === 'courier') return 'Titipan <b>' + m.qty + '&times; ' + esc_(m.commodityName) + '</b> sudah di kapalmu. Antar dengan selamat ke ' + esc_(m.deliverToCityName) + '.';
     if (m && m.hasActive) return 'Muatan <b>' + m.qty + '&times; ' + esc_(m.commodityName) + '</b> untuk ' + esc_(m.deliverToCityName) + ' masih ditunggu.';
     return pickLine_(['Ada surat perintah baru dari Gubernur. Bayarannya lumayan.', 'Pedagang yang bisa dipercaya selalu dapat pekerjaan di sini.', 'Makin tinggi standing-mu, makin besar misi yang kuberikan.'], 'task');

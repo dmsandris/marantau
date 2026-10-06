@@ -10,18 +10,48 @@
 -- =====================================================================
 
 -- [modul economy / 0002] ----------------------------------------------
+-- Tide v21: modal rata-rata (lihat 0020)
+alter table game.inventory add column if not exists cost numeric;
+alter table game.warehouse add column if not exists cost numeric;
+
+-- Ubah jumlah barang; pengurangan memotong modal secara proporsional.
 create or replace function game.adjust_inventory(p_pid uuid, p_item text, p_delta int) returns int
 language plpgsql as $$
-declare q int;
+declare q0 int; q int; c numeric;
 begin
   insert into game.inventory(player_id, item_id, qty) values (p_pid, p_item, 0)
   on conflict (player_id, item_id) do nothing;
-  update game.inventory set qty = qty + p_delta where player_id = p_pid and item_id = p_item returning qty into q;
+  select qty, cost into q0, c from game.inventory where player_id = p_pid and item_id = p_item for update;
+  q := q0 + p_delta;
   if q < 0 then
     raise exception 'Jumlah cargo tidak boleh negatif.';
   end if;
+  update game.inventory set qty = q,
+         cost = case when q = 0 then null
+                     when p_delta < 0 and c is not null and q0 > 0 then round(c * q / q0, 4)
+                     else c end
+   where player_id = p_pid and item_id = p_item;
   return q;
 end $$;
+
+-- Tambah modal untuk unit yang BARU SAJA masuk (dipanggil sesudah adjust_inventory +qty).
+-- Unit lama yang modalnya tidak diketahui dinilai dengan harga unit pembelian ini.
+create or replace function game.inv_add_cost(p_pid uuid, p_item text, p_new_qty int, p_amount numeric) returns void
+language plpgsql as $$
+declare q int; c numeric;
+begin
+  select qty, cost into q, c from game.inventory where player_id = p_pid and item_id = p_item for update;
+  if q is null or p_new_qty <= 0 then return; end if;
+  if c is null then c := (q - p_new_qty) * (p_amount / p_new_qty); end if;
+  update game.inventory set cost = round(c + p_amount, 4) where player_id = p_pid and item_id = p_item;
+end $$;
+
+-- Modal rata-rata per unit (NULL bila tidak diketahui)
+create or replace function game.inv_avg_cost(p_pid uuid, p_item text) returns numeric
+language sql stable as $$
+  select case when i.qty > 0 and i.cost is not null then round(i.cost / i.qty, 2) end
+  from game.inventory i where i.player_id = p_pid and i.item_id = p_item
+$$;
 
 create or replace function game.cargo_total(p_pid uuid) returns int
 language plpgsql stable as $$

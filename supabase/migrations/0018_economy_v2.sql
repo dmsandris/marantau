@@ -324,7 +324,8 @@ begin
       'curve', jsonb_build_object('base', round((base_ev * game.mkt_role_mul(r.role, r.tier))::numeric, 3), 'ref', r.ref, 'e', r.elast,
                                   'ph', game.mkt_phantom(r.role, r.tier, r.ref),
                                   'buyMul', round(mu.buy_mul::numeric, 5), 'sellMul', round(mu.sell_mul::numeric, 5)),
-      'ownedQty', coalesce((select i.qty from game.inventory i where i.player_id = pid and i.item_id = r.commodity_id and i.qty > 0), 0)));
+      'ownedQty', coalesce((select i.qty from game.inventory i where i.player_id = pid and i.item_id = r.commodity_id and i.qty > 0), 0),
+      'avgCost', game.inv_avg_cost(pid, r.commodity_id)));
   end loop;
   return jsonb_build_object('items', items, 'closed', game.ww_market_closed(pid),
     'cargoSpaceRemaining', trim_scale(greatest(0, game.cargo_free(pid))),
@@ -362,12 +363,13 @@ begin
 
   update game.players set gold = gold - total where player_id = pid;
   perform game.adjust_inventory(pid, v_comm, v_qty::int);
+  perform game.inv_add_cost(pid, v_comm, v_qty::int, total);
   update game.market set stock = stock - v_qty where city_id = v_city and commodity_id = v_comm;
 
   perform game.log(pid, 'Bought ' || v_qty || ' unit' || case when v_qty > 1 then 's' else '' end || ' of ' ||
     c.name || ' for ' || total || ' gold.');
   return jsonb_build_object('totalCost', total, 'unitPrice', game.eco_round(total::double precision / v_qty),
-    'newGold', v_me.gold - total, 'stockLeft', floor(s - v_qty),
+    'newGold', v_me.gold - total, 'stockLeft', floor(s - v_qty), 'avgCost', game.inv_avg_cost(pid, v_comm),
     'nextBuyPrice', greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s - v_qty, v_role, c.tier) * mu.buy_mul)));
 end $$;
 select game.expose('api_buy');
@@ -375,7 +377,7 @@ select game.expose('api_buy');
 create or replace function public.api_sell(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_city text := game.arg(a, 0); v_comm text := game.arg(a, 1); v_qty bigint := game.arg_int(a, 2);
-  v_me game.players; pid uuid; c game.commodities; mu record; s numeric; revenue bigint; have int; v_role text;
+  v_me game.players; pid uuid; c game.commodities; mu record; s numeric; revenue bigint; have int; v_role text; v_avg numeric;
 begin
   if v_qty is null or v_qty <= 0 then raise exception 'Jumlah jual tidak valid.'; end if;
   v_me := game.me(true); pid := v_me.player_id;
@@ -390,6 +392,7 @@ begin
   select * into mu from game.eco2_muls(pid, v_city, v_comm);
   select role into v_role from game.market where city_id = v_city and commodity_id = v_comm;
   revenue := game.eco2_sell_value((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s, v_qty, mu.sell_mul, v_role, c.tier);
+  v_avg := game.inv_avg_cost(pid, v_comm);
 
   perform game.adjust_inventory(pid, v_comm, (-v_qty)::int);
   update game.market set stock = stock + v_qty where city_id = v_city and commodity_id = v_comm;
@@ -397,6 +400,8 @@ begin
   perform game.log(pid, 'Sold ' || v_qty || ' unit' || case when v_qty > 1 then 's' else '' end || ' of ' ||
     c.name || ' for ' || revenue || ' gold.');
   return jsonb_build_object('totalRevenue', revenue,
+    'costBasis', case when v_avg is not null then round(v_avg * v_qty) end,
+    'profit', case when v_avg is not null then revenue - round(v_avg * v_qty) end,
     'unitPrice', game.eco_round(revenue::double precision / v_qty),
     'newGold', v_me.gold + revenue,
     'nextSellPrice', greatest(1, round(game.mkt_mid2((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s + v_qty, v_role, c.tier) * mu.sell_mul)));

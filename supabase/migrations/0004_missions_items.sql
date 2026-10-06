@@ -30,6 +30,7 @@ create table if not exists game.player_missions (
   loaded_qty         int not null default 0,              -- muatan misi TERKUNCI (bukan di game.inventory)
   created_at         timestamptz not null default now()
 );
+alter table game.player_missions add column if not exists paid bigint not null default 0;
 create index if not exists player_missions_player_idx on game.player_missions (player_id, status);
 -- Satu misi aktif per pemain (pengganti LockService + cek getActiveMissionRow_)
 create unique index if not exists player_missions_one_active_uq
@@ -154,7 +155,12 @@ begin
     'commodityId', m.commodity_id,
     'commodityName', game.commodity_name(m.commodity_id),
     'qty', m.qty,
-    'loadedQty', case when v_type = 'legacy' then 0 else m.loaded_qty end,
+    -- pesanan: barang yang sama di palka biasa ikut dihitung (dibeli lewat Market biasa pun sah)
+    'loadedQty', case when v_type = 'legacy' then 0
+                      when v_type = 'procure' then least(m.qty, m.loaded_qty + coalesce((select i.qty from game.inventory i
+                        where i.player_id = m.player_id and i.item_id = m.commodity_id and i.qty > 0), 0))
+                      else m.loaded_qty end,
+    'lockedQty', case when v_type = 'legacy' then 0 else m.loaded_qty end,
     'originCityId', m.city_id,
     'originCityName', game.mission_city_name(m.city_id),
     'sourceCityId', coalesce(m.source_city_id, ''),
@@ -442,7 +448,7 @@ begin
   perform game.market_take(m.source_city_id, m.commodity_id, v_need);
 
   update game.players set gold = gold - v_total where player_id = v_pid;
-  update game.player_missions set loaded_qty = m.qty where id = m.id;
+  update game.player_missions set loaded_qty = m.qty, paid = coalesce(paid, 0) + v_total where id = m.id;
   perform game.log(v_pid, 'Membeli ' || v_need || ' ' || game.commodity_name(m.commodity_id) || ' pesanan di ' ||
     game.mission_city_name(m.source_city_id) || ' seharga ' || v_total || ' gold (muatan misi, terkunci).');
   return jsonb_build_object('bought', v_need, 'unitPrice', v_unit, 'totalCost', v_total,
@@ -466,6 +472,7 @@ begin
   if v_type = 'procure' and m.loaded_qty > 0 then
     -- Barang pesanan sudah dibayar sendiri - kembali jadi barang dagang biasa
     perform game.adjust_inventory(v_pid, m.commodity_id, m.loaded_qty);
+    if coalesce(m.paid, 0) > 0 then perform game.inv_add_cost(v_pid, m.commodity_id, m.loaded_qty, m.paid); end if;
     v_note := ' Barang yang sudah dibeli (' || m.loaded_qty || ') kembali ke palka biasa.';
   elsif v_type = 'courier' then
     v_note := ' Barang titipan dikembalikan ke pemiliknya.';
@@ -512,7 +519,13 @@ begin
     perform game.adjust_inventory(v_pid, m.commodity_id, -m.qty);
   elsif m.loaded_qty < m.qty then
     if v_type = 'procure' then
-      raise exception 'Barang pesanan belum dibeli. Beli dulu di %.', game.mission_city_name(m.source_city_id);
+      -- Tide v21: barang pesanan yang dibeli lewat Market biasa (ada di palka) juga sah diserahkan
+      select coalesce(sum(qty), 0) into v_owned from game.inventory where player_id = v_pid and item_id = m.commodity_id;
+      if m.loaded_qty + v_owned < m.qty then
+        raise exception 'Barang pesanan belum lengkap: butuh % %, di palka ada %. Beli dulu di %.',
+          m.qty, v_cname, m.loaded_qty + v_owned, game.mission_city_name(m.source_city_id);
+      end if;
+      perform game.adjust_inventory(v_pid, m.commodity_id, -(m.qty - m.loaded_qty));
     else
       raise exception 'Muatan titipan tidak lengkap.';
     end if;

@@ -945,6 +945,7 @@ begin
   update game.players set gold = gold - v_total where player_id = v_id;
   update game.players set gold = gold + v_total where player_id = o.seller_id;   -- dikreditkan walau penjual berlayar
   perform game.adjust_inventory(v_id, o.commodity_id, v_qty::int);
+  perform game.inv_add_cost(v_id, o.commodity_id, v_qty::int, v_total);
   v_left := o.qty - v_qty;
   update game.mp_orders set qty = v_left, status = case when v_left <= 0 then 'filled' else status end where order_id = o.order_id;
   v_name := game.commodity_name(o.commodity_id);

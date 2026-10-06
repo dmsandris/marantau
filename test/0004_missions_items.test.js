@@ -114,7 +114,7 @@ const assert = require('assert');
   assert.strictEqual(ms.sourceCityName, procure.sourceCityName);
   assert.strictEqual(await mload(A), 0);
   await H.expectError(() => A.call('api_buyForMission', []), new RegExp('hanya boleh dibeli di ' + procure.sourceCityName));
-  await H.expectError(() => A.call('api_completeMission', []), /belum dibeli/);
+  await H.expectError(() => A.call('api_completeMission', []), /belum lengkap/);
   await moveTo(A, procure.sourceCityId);
   const unit = (await one('select game.quote_buy($1, $2, $3) p', [A.id, procure.sourceCityId, procure.commodityId])).p;
   const gb = await gold(A);
@@ -133,6 +133,22 @@ const assert = require('assert');
   const done2 = await A.call('api_completeMission', []);
   assert.strictEqual(done2.type, 'procure');
   assert.strictEqual(await gold(A), g1 + procure.reward);
+
+  // ---------------- procure lewat Market biasa (bug v20): barang di palka biasa ikut dihitung
+  await moveTo(A, city);
+  ms = await A.call('api_acceptMission', [city, procure.offerIndex]);
+  await H.sql('select game.adjust_inventory($1, $2, $3)', [A.id, procure.commodityId, procure.qty - 1]);
+  ms = await A.call('api_getMissionState', []);
+  assert.strictEqual(ms.loadedQty, procure.qty - 1); assert.strictEqual(ms.lockedQty, 0);
+  await H.expectError(() => A.call('api_completeMission', []), /belum lengkap: butuh/);
+  await H.sql('select game.adjust_inventory($1, $2, 1)', [A.id, procure.commodityId]);
+  ms = await A.call('api_getMissionState', []);
+  assert.strictEqual(ms.loadedQty, procure.qty);
+  const g2 = await gold(A);
+  await A.call('api_completeMission', []);
+  assert.strictEqual(await gold(A), g2 + procure.reward);
+  assert.strictEqual(await invQty(A, procure.commodityId), 0);
+  console.log('procure via market ok');
   console.log('procure ok: cost', bought.totalCost, 'reward', procure.reward, 'profit', procure.reward - bought.totalCost);
 
   // ---------------- abandon procure setelah beli -> barang jadi cargo biasa

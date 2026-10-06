@@ -573,7 +573,7 @@ select game.expose('api_getwarehouse');
 create or replace function public.api_warehouseStore(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_city text := game.arg(a, 0); v_comm text := game.arg(a, 1); v_qty bigint := game.arg_int(a, 2);
-  v_me game.players; pid uuid; fee numeric; owned int;
+  v_me game.players; pid uuid; fee numeric; owned int; v_share numeric;
 begin
   if v_qty is null or v_qty <= 0 then raise exception 'Jumlah tidak valid.'; end if;
   v_me := game.me(true); pid := v_me.player_id;
@@ -591,9 +591,15 @@ begin
    where i.player_id = pid and i.item_id = v_comm and i.qty > 0;
   if owned is null or owned < v_qty then raise exception 'Cargo tidak cukup untuk dititipkan.'; end if;
 
+  -- modal ikut pindah ke gudang (Tide v21)
+  select case when i.cost is not null and i.qty > 0 then i.cost * v_qty / i.qty end into v_share
+    from game.inventory i where i.player_id = pid and i.item_id = v_comm;
   perform game.adjust_inventory(pid, v_comm, (-v_qty)::int);
-  insert into game.warehouse(player_id, city_id, commodity_id, qty) values (pid, v_city, v_comm, v_qty)
-  on conflict (player_id, city_id, commodity_id) do update set qty = game.warehouse.qty + excluded.qty;
+  insert into game.warehouse(player_id, city_id, commodity_id, qty, cost) values (pid, v_city, v_comm, v_qty, v_share)
+  on conflict (player_id, city_id, commodity_id) do update set qty = game.warehouse.qty + excluded.qty,
+    cost = case when game.warehouse.qty = 0 then excluded.cost
+                when game.warehouse.cost is null or excluded.cost is null then null
+                else game.warehouse.cost + excluded.cost end;
 
   update game.players set gold = gold - fee where player_id = pid;
   perform game.log(pid, 'Stored ' || v_qty || ' ' || game.commodity_name(v_comm) ||
@@ -605,7 +611,7 @@ select game.expose('api_warehousestore');
 create or replace function public.api_warehouseWithdraw(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_city text := game.arg(a, 0); v_comm text := game.arg(a, 1); v_qty bigint := game.arg_int(a, 2);
-  v_me game.players; pid uuid; stored int;
+  v_me game.players; pid uuid; stored int; wcost numeric; v_share numeric;
 begin
   if v_qty is null or v_qty <= 0 then raise exception 'Jumlah tidak valid.'; end if;
   v_me := game.me(true); pid := v_me.player_id;
@@ -616,12 +622,16 @@ begin
     raise exception 'Kapasitas cargo tidak cukup untuk mengambil semua ini.';
   end if;
 
-  select qty into stored from game.warehouse
+  select qty, cost into stored, wcost from game.warehouse
    where player_id = pid and city_id = v_city and commodity_id = v_comm for update;
   if stored is null or stored < v_qty then raise exception 'Jumlah di gudang tidak cukup.'; end if;
+  v_share := case when wcost is not null and stored > 0 then wcost * v_qty / stored end;
 
-  update game.warehouse set qty = qty - v_qty where player_id = pid and city_id = v_city and commodity_id = v_comm;
+  update game.warehouse set qty = qty - v_qty,
+         cost = case when qty - v_qty <= 0 then null when cost is null then null else cost - v_share end
+   where player_id = pid and city_id = v_city and commodity_id = v_comm;
   perform game.adjust_inventory(pid, v_comm, v_qty::int);
+  if v_share is not null then perform game.inv_add_cost(pid, v_comm, v_qty::int, v_share); end if;
   perform game.log(pid, 'Retrieved ' || v_qty || ' ' || game.commodity_name(v_comm) || ' from the warehouse.');
   return jsonb_build_object('ok', true);
 end $$;
