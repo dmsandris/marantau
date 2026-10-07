@@ -69,7 +69,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   let g0 = await gold();
   r = await fight(1);
   assert(r.chained && r.ongoing && r.result === 'won' && r.questEvent === 'fleet' && r.encounter.boss === 'merah' && r.encounter.punishReload === 2, 'berantai ke Armada Merah ' + JSON.stringify(r).slice(0, 300));
-  assert((await gold()) - g0 === 1500 && r.newCondition === (await cond()), 'hadiah 1.500 & kondisi terbawa');
+  assert((await gold()) - g0 === 10000 && r.newCondition === (await cond()), 'hadiah 10.000 & kondisi terbawa');
   assert((await st()).chain === 1 && (await u.call('api_getGameState', [null])).voyage.inTransit, 'masih di tengah pelayaran');
   // merah: damage 2x saat reload
   r = await u.call('api_resolveCombat', ['fire']); // ronde biasa
@@ -87,7 +87,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert(r.ongoing && r.encounter.smoke === false && /asap/.test(r.message), 'reload menyibak asap');
   g0 = await gold();
   r = await fight(1);
-  assert(!r.ongoing && r.result === 'won' && r.questEvent === 'fleets' && r.cityId === 'joungjava' && (await gold()) - g0 === 2000, 'tiba di Joungjava ' + JSON.stringify(r).slice(0, 200));
+  assert(!r.ongoing && r.result === 'won' && r.questEvent === 'fleets' && r.cityId === 'joungjava' && (await gold()) - g0 === 15000, 'tiba di Joungjava ' + JSON.stringify(r).slice(0, 200));
   s = await st(); assert(s.step === 2 && s.chain === 3, 'langkah 2');
 
   // --- Karto & a'dik -----------------------------------------------------

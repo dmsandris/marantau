@@ -327,7 +327,7 @@ begin
   -- Babak 1: tiga armada berantai
   if v_boss in ('kuning', 'merah', 'hitam') and q.step = 1 then
     n := coalesce((q.data ->> 'chain')::int, 0) + 1;
-    v_gold := case v_boss when 'hitam' then 2000 else 1500 end;
+    v_gold := case v_boss when 'hitam' then 15000 else 10000 end;  -- total 35.000 untuk tiga armada
     if n < 3 then
       update game.player_quests set data = data || jsonb_build_object('chain', n), updated_at = now()
        where player_id = p_pid and quest_id = 'barsati';
@@ -335,14 +335,14 @@ begin
       perform game.log(p_pid, (enc ->> 'enemyName') || ' tenggelam (' || n || '/3). Belum sempat bernapas, layar ' || (v_next ->> 'enemyName') || ' muncul di cakrawala.');
       return jsonb_build_object('gold', v_gold, 'event', 'fleet', 'fleet', n, 'chain', v_next,
         'message', case v_boss
-          when 'kuning' then 'Lambung gading itu akhirnya retak di bawah hujan peluru dan Armada Kuning tenggelam (+1.500 gold). Belum sempat kru bersorak, layar merah darah membelah kabut: Armada Merah "Saga" menyerbu!'
-          else 'Armada Merah tenggelam dengan geladak terbakar (+1.500 gold). Lalu asap hitam menggulung dari utara, dan dari baliknya terdengar dentum meriam: Armada Hitam "Jelaga"!' end);
+          when 'kuning' then 'Lambung gading itu akhirnya retak di bawah hujan peluru dan Armada Kuning tenggelam (+10.000 gold). Belum sempat kru bersorak, layar merah darah membelah kabut: Armada Merah "Saga" menyerbu!'
+          else 'Armada Merah tenggelam dengan geladak terbakar (+10.000 gold). Lalu asap hitam menggulung dari utara, dan dari baliknya terdengar dentum meriam: Armada Hitam "Jelaga"!' end);
     end if;
     update game.player_quests set step = 2, data = data || jsonb_build_object('chain', 3), updated_at = now()
      where player_id = p_pid and quest_id = 'barsati';
     perform game.log(p_pid, 'Tiga armada BarSaTi tenggelam berturut-turut. Kapal compang-camping merapat di Joungjava.');
     return jsonb_build_object('gold', v_gold, 'event', 'fleets', 'fleet', 3, 'arrive', true,
-      'message', 'Asap tersibak dan Armada Hitam karam ditelan ombak (+2.000 gold). Tiga armada, satu pelayaran. Kru-mu terduduk lemas di geladak - lalu tertawa. Pelabuhan Joungjava sudah terlihat.');
+      'message', 'Asap tersibak dan Armada Hitam karam ditelan ombak (+15.000 gold). Tiga armada, satu pelayaran. Kru-mu terduduk lemas di geladak - lalu tertawa. Pelabuhan Joungjava sudah terlihat.');
   end if;
 
   -- Babak 2: ujian a'dik di Titik Buta

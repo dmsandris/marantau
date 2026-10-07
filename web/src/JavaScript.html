@@ -3194,9 +3194,20 @@
   var NPC_F = ['Mak Ijah', 'Uni Rahmi', 'Mbok Sri', 'Cik Mei', 'Nyai Laras', 'Ibu Ratna', 'Kak Dayang', 'Nona Clara', 'Teh Euis', 'Mama Yuli'];
   var ROLE_TITLE = { syahbandar: 'Syahbandar', saudagar: 'Saudagar Pasar', pustakawan: 'Pustakawan', tukang: 'Tukang Kapal', bankir: 'Bankir', lapau: 'Pemilik Lapau', gudang: 'Penjaga Gudang' };
   var ROLE_TITLE_OUTLAW = { syahbandar: 'Kepala Dermaga', saudagar: 'Tukang Tadah', pustakawan: 'Juru Arsip', tukang: 'Tukang Dok', bankir: 'Rentenir', lapau: 'Bartender', gudang: 'Penyelundup' };
+  /* Bankir Javasche Bank, Joungjava: coco epan - old money yang menjaga bank demi kesenangan pribadi */
+  var COCO_EPAN_ = null;
+  function cocoEpan_() {
+    if (COCO_EPAN_) return COCO_EPAN_;
+    var ap = Object.assign({}, MTFace.npc('joungjava|bankir', 'bankir'), {
+      fem: 0, skin: 2, hair: 7, hairStyle: 1, facial: 1, brows: 2, age: 0.86, iris: 0,
+      head: 'bowler', eye: 'monocle', neck: 'chain', item: 'pipe', ear: 'none', mark: 'none', cloth: 7, outfit: 'arch', role: 'bankir'
+    });
+    return (COCO_EPAN_ = { name: 'coco epan', title: 'Bankir Javasche Bank', ap: ap });
+  }
   function npc_(role) {
     var cid = (state && state.city && state.city.CityId) || 'x';
     if (cid === 'skitraw' && role === 'tukang' && window.QG) return QG.gala;
+    if (cid === 'joungjava' && role === 'bankir') return cocoEpan_();
     if (window.WW) { var wn = WW.npc(cid, role); if (wn) return wn; }
     if (window.QT) { var qn = QT.npc(cid, role); if (qn) return qn; }
     var outlaw = state && state.city && state.city.Type === 'Outlaw';
@@ -3233,6 +3244,12 @@
     var b = state.bank || {};
     if (b.debtBalance > 0) return 'Utangmu ' + formatGold(b.debtBalance) + ' gold dan bunganya terus berjalan. Cicil selagi bisa, Kapten.';
     if (state.player.gold > 5000) return 'Gold sebanyak itu di kapal? Bajak laut akan senang. Simpan di sini, aman dan berbunga.';
+    if (state.city && state.city.CityId === 'joungjava') return pickLine_([
+      'Bank ini? Ah, saya tidak butuh uangnya. Saya menjaganya karena suara koin di brankas lebih merdu dari gamelan mana pun.',
+      'Keluarga saya sudah kaya sejak sebelum Residen datang. Menghitung uang orang lain itu hiburan, Kapten. Silakan, titipkan saja.',
+      'Kopi? Saya seduh sendiri, tidak ada yang bisa menyamai racikan saya. Dulu saya punya kedai kopi... cerita lama.',
+      'Pejabat-pejabat berseragam putih itu? Kami pernah satu meja makan. Mereka buruk sekali soal memilih anggur.'
+    ], 'bank_coco');
     return pickLine_(['Uang yang tidur di brankas tetap bekerja untukmu.', 'Butuh modal? Kami bisa meminjamkan &mdash; dengan bunga, tentu.'], 'bank');
   }
   function lineTasks_() {
@@ -3254,7 +3271,9 @@
   /* ---------- gosip lapau & obrolan warga ---------- */
   var CITY_LORE = {
     sunda_empire: ['Balai Adat di bukit itu dibangun tujuh generasi lalu.', 'Gapura batu itu dijaga kala — katanya menolak bala.', 'Layar batik jukung di sini ditenun sendiri oleh para nelayan.'],
-    joungjava: ['Kantor Syahbandar ini lebih tua dari kota-kota lain.', 'Gula di sini manis, tapi pajaknya lebih manis lagi buat Residen.', 'Pasar pantai paling ramai saat air surut.'],
+    joungjava: ['Kantor Syahbandar ini lebih tua dari kota-kota lain.', 'Gula di sini manis, tapi pajaknya lebih manis lagi buat Residen.', 'Pasar pantai paling ramai saat air surut.',
+      'Si coco epan di Javasche Bank itu? Katanya dia kenal pejabat-pejabat Pemerintah Dunia. Makan malam bareng, katanya. Siapa yang berani tanya?',
+      'Dengar-dengar coco epan dulu punya kedai kopi di Pulau Sudyrman. Sekarang tiap pagi dia tetap menyeduh kopi sendiri di balik meja bank.'],
     bjorneo: ['Gunung itu batuk lagi semalam. Tuak kami jadi hangat.', 'Kayu ulin dari hutan kami tak tenggelam, tak lapuk.', 'Jung dari utara bawa sutra, pulang bawa rempah.'],
     skitraw: ['Rendang di RM Padang ini paling enak se-Mare Nusantara!', 'Coba Gaul-Wash, kapalmu akan mengilap seperti baru.', 'Pesepeda di sini lebih cepat dari kapal dagang, hehe.'],
     toogood: ['Jangan tanya dari mana barang-barang ini datang.', 'Di Black’s Alley, utang dibayar dengan gold... atau hal lain.', 'Asap cerobong itu tak pernah berhenti, siang atau malam.'],
