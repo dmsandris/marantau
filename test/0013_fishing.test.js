@@ -9,7 +9,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const pass = async u => H.sql('update game.mp_fish set t0 = t0 - 60000 where player_id = $1', [u.id]);
 
   const info = await A.call('api_mgFishInfo', []);
-  assert(info.left === 20 && info.rod === 0 && info.baits.length === 4 && info.rods.length === 3 && info.total === 14 && info.found === 0, JSON.stringify(info));
+  assert(info.left === 20 && info.max === 20 && info.nextMs === 0 && info.rod === 0 && info.baits.length === 4 && info.rods.length === 3 && info.total === 14 && info.found === 0, JSON.stringify(info));
 
   // umpan berbayar memotong gold; nama ikan TIDAK dikirim saat melempar
   let g0 = await gold(A);
@@ -27,7 +27,17 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert(c2.baitCost === 0 && c2.depth === 0, 'cacing gratis');
   await pass(A);
   const r = await A.call('api_mgFishReel', [c2.castId, 'caught', 0.9]);
-  assert(r.caught && r.gold >= 1 && r.kg > 0 && r.fish.name && r.firstCatch === true && r.found === 1 && r.left === 19, JSON.stringify(r));
+  assert(r.caught && r.gold >= 1 && r.kg > 0 && r.fish.name && r.firstCatch === true && r.found === 1 && r.left === 19 && r.nextMs > 0 && r.nextMs <= 60000, JSON.stringify(r));
+  // v26: jatah pulih +1 per 60 dtk dunia nyata, maks 20
+  await H.sql('update game.mp_fish set q_left = 3, q_t = $2 where player_id = $1', [A.id, Date.now() - 150000]);
+  let qi = await A.call('api_mgFishInfo', []);
+  assert(qi.left === 5 && qi.nextMs > 0 && qi.nextMs <= 30500, 'pulih 2 setelah 150 dtk ' + JSON.stringify([qi.left, qi.nextMs]));
+  await H.sql('update game.mp_fish set q_left = 0, q_t = $2 where player_id = $1', [A.id, Date.now() - 10000]);
+  await H.sql('update game.mp_fish set cooldown_until = 0');
+  await H.expectError(() => A.call('api_mgFishCast', [0.5, 'cacing', false]), /Jatah mancing habis/);
+  await H.sql('update game.mp_fish set q_left = 18, q_t = $2 where player_id = $1', [A.id, Date.now() - 3600000]);
+  qi = await A.call('api_mgFishInfo', []);
+  assert(qi.left === 20 && qi.nextMs === 0, 'maks tetap 20 ' + JSON.stringify([qi.left, qi.nextMs]));
   assert(await gold(A) === g0 + r.gold && r.newGold === g0 + r.gold, 'gold bertambah');
 
   // lepas: alasan dikembalikan + ikan diungkap (penasaran)

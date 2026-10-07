@@ -196,7 +196,7 @@ var FG = (function () {
     if (state && state.voyage && state.voyage.inTransit) { msg('Kapal sedang berlayar &mdash; mancing saat merapat.', 'bad'); return; }
     if (S.st === 'result') hideCard();
     if (S.st === 'idle' || S.st === 'result') {
-      if (S.left != null && S.left <= 0) { msg('Ikan sudah jinak hari ini. Kembali besok!', 'bad', 2.5); return; }
+      if (S.left != null && S.left <= 0) { msg('Jatah habis &mdash; pulih +1 dalam ' + regenTxt() + '.', 'bad', 2.5); return; }
       var cd = S.cooldownUntil - Date.now();
       if (cd > 0) { msg('Umpan disiapkan&hellip; ' + Math.ceil(cd / 1000) + ' dtk', '', 1); return; }
       if (bait().cost > (state.player.gold || 0)) { msg('Gold tidak cukup untuk ' + esc_(bait().name) + '.', 'bad'); return; }
@@ -229,7 +229,7 @@ var FG = (function () {
     google.script.run.withSuccessHandler(function (c) {
       S.awaiting = false;
       if (currentPanel !== 'fishing') return;
-      S.cast = c; S.left = c.left; S.cooldownUntil = Date.now() + 3000;
+      S.cast = c; S.left = c.left; setNext(c.nextMs); S.cooldownUntil = Date.now() + 3000;
       if (c.newGold != null && c.baitCost > 0) patchGold_(c.newGold);
       drawBar();
     }).withFailureHandler(function (e) {
@@ -273,7 +273,7 @@ var FG = (function () {
     var sp = fishPos(); splash(sp.x, sp.y, 18, sp.s);
     msg('<b>Dapat!</b>', 'good', 1.2); hint('');
     google.script.run.withSuccessHandler(function (r) {
-      S.res = r; S.left = r.left != null ? r.left : S.left;
+      S.res = r; S.left = r.left != null ? r.left : S.left; if (r.nextMs != null) setNext(r.nextMs); drawChips();
       if (r.caught) {
         patchGold_(r.newGold);
         S.log.push({ caught: true, id: r.fish.id, name: r.fish.name, kg: r.kg, gold: r.gold, rarity: r.fish.rarity });
@@ -334,6 +334,7 @@ var FG = (function () {
     var cv = document.getElementById('fgCanvas');
     if (!cv || currentPanel !== 'fishing') { S.raf = 0; return; }
     S.raf = requestAnimationFrame(frame);
+    if (S.nextAt && Math.floor(ts / 1000) !== S.chipSec) { S.chipSec = Math.floor(ts / 1000); drawChips(); }
     var dt = Math.min(0.05, S.last ? (ts - S.last) / 1000 : 0.016); S.last = ts; S.t += dt;
     var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(10, r.width), H = Math.max(10, r.height);
     if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
@@ -578,19 +579,38 @@ var FG = (function () {
     hideCard(); S.held = false; S.parts = []; S.rings = []; S.pal = null;
     drawTab();
     google.script.run.withSuccessHandler(function (i) {
-      S.info = i; S.left = i.left; S.cooldownUntil = Date.now() + (i.cooldownMs || 0);
+      S.info = i; S.left = i.left; setNext(i.nextMs); S.cooldownUntil = Date.now() + (i.cooldownMs || 0);
       if (!(i.baits || []).some(function (b) { return b.id === S.bait; })) S.bait = 'cacing';
       drawBar();
     }).withFailureHandler(function (e) { var b = document.getElementById('fgBar'); if (b) b.textContent = e.message; }).api_mgFishInfo();
     cancelAnimationFrame(S.raf); S.last = 0; S.raf = requestAnimationFrame(frame);
   }
 
+  // Jatah pulih +1 tiap regenMs (default 60 dtk dunia nyata), maks i.max
+  function setNext(ms) { S.nextAt = ms > 0 ? Date.now() + ms : 0; }
+  function regenTxt() {
+    var ms = Math.max(0, (S.nextAt || 0) - Date.now()), s = Math.ceil(ms / 1000);
+    return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  }
+  function regenTick() {
+    var i = S.info; if (!i || !S.nextAt || S.left == null) return;
+    var per = i.regenMs || 60000;
+    while (S.nextAt && Date.now() >= S.nextAt && S.left < i.max) { S.left++; S.nextAt = S.left < i.max ? S.nextAt + per : 0; }
+    if (S.left >= i.max) S.nextAt = 0;
+  }
+  function drawChips() {
+    var i = S.info, chips = document.getElementById('fgChips'); if (!i || !chips) return;
+    regenTick();
+    var left = S.left != null ? S.left : i.left;
+    chips.innerHTML = '<span class="fg-chip">' + ic('fish') + ' Sisa <b>' + left + '</b>/' + i.max +
+      (left < i.max && S.nextAt ? ' <span class="fg-regen">+1 ' + regenTxt() + '</span>' : '') + '</span>' +
+      '<span class="fg-chip">' + ic(i.night ? 'moon' : 'sun') + (i.night ? ' Malam &middot; ikan malam keluar' : ' Siang') + '</span>';
+  }
+
   function drawBar() {
     var el = document.getElementById('fgBar'), i = S.info; if (!el || !i) return;
     var R = rod(), next = i.rods[(i.rod || 0) + 1];
-    var chips = document.getElementById('fgChips');
-    if (chips) chips.innerHTML = '<span class="fg-chip">' + ic('fish') + ' Sisa <b>' + (S.left != null ? S.left : i.left) + '</b>/' + i.max + '</span>' +
-      '<span class="fg-chip">' + ic(i.night ? 'moon' : 'sun') + (i.night ? ' Malam &middot; ikan malam keluar' : ' Siang') + '</span>';
+    drawChips();
     var bn = document.getElementById('fgBookN'); if (bn) bn.textContent = (i.found || 0) + '/' + (i.total || 14);
     el.innerHTML = '<div class="fg-baits">' + i.baits.map(function (b, k) {
       var tone = ['#b58a6a', '#e08a6a', '#d06a8a', '#e0b43a'][k] || '#999';

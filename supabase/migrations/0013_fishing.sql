@@ -98,10 +98,50 @@ begin
   return r;
 end $$;
 
+-- Jatah mancing (v26): pulih +1 tiap FishRegenSeconds (default 60) detik dunia nyata, maks FishMaxCasts (20).
+-- q_left/q_t = jatah tersimpan & jangkar waktu pulih. null = penuh. Satu tangkapan sah memakai 1 jatah.
+alter table game.mp_fish add column if not exists q_left int;
+alter table game.mp_fish add column if not exists q_t    bigint;
+
+create or replace function game.fish_qmax() returns int
+language sql stable as $$ select greatest(1, game.cfg_num('FishMaxCasts', 20)::int) $$;
+create or replace function game.fish_qsec() returns bigint
+language sql stable as $$ select greatest(1, game.cfg_num('FishRegenSeconds', 60)::bigint) * 1000 $$;
+
+-- jatah saat ini (sudah termasuk pemulihan)
 create or replace function game.fish_left(p_id uuid) returns int
 language sql stable as $$
-  select 20 - coalesce((select n from game.mp_daily where player_id = p_id and kind = 'fish' and game_day = game.mp_day()), 0)
+  select case when f.q_left is null or f.q_t is null or f.q_left >= game.fish_qmax() then game.fish_qmax()
+    else least(game.fish_qmax(), f.q_left + floor(greatest(0, game.now_ms() - f.q_t) / game.fish_qsec())::int) end
+  from (select (select q_left from game.mp_fish where player_id = p_id) q_left,
+               (select q_t from game.mp_fish where player_id = p_id) q_t) f
 $$;
+
+-- ms sampai +1 berikutnya (0 bila penuh)
+create or replace function game.fish_next_ms(p_id uuid) returns bigint
+language sql stable as $$
+  select case when game.fish_left(p_id) >= game.fish_qmax() then 0
+    else game.fish_qsec() - mod(greatest(0, game.now_ms() - f.q_t), game.fish_qsec()) end
+  from game.mp_fish f where player_id = p_id
+$$;
+
+-- pakai 1 jatah; sisa progres pemulihan tetap dibawa
+create or replace function game.fish_use(p_id uuid) returns int
+language plpgsql as $$
+declare v_now bigint := game.now_ms(); v_max int := game.fish_qmax(); v_sec bigint := game.fish_qsec();
+  f game.mp_fish; v_left int; v_t bigint; v_gain int;
+begin
+  select * into f from game.mp_fish where player_id = p_id for update;
+  if f.q_left is null or f.q_t is null or f.q_left >= v_max then v_left := v_max; v_t := v_now;
+  else
+    v_gain := floor(greatest(0, v_now - f.q_t) / v_sec)::int;
+    v_left := least(v_max, f.q_left + v_gain);
+    v_t := case when v_left >= v_max then v_now else f.q_t + v_gain * v_sec end;
+  end if;
+  v_left := greatest(0, v_left - 1);
+  update game.mp_fish set q_left = v_left, q_t = v_t where player_id = p_id;
+  return v_left;
+end $$;
 
 -- Info panel dermaga
 create or replace function public.api_mgFishInfo(a jsonb default '[]'::jsonb) returns jsonb
@@ -109,7 +149,8 @@ language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me(); r game.mp_fish;
 begin
   r := game.fish_row(v_me.player_id);
-  return jsonb_build_object('left', game.fish_left(v_me.player_id), 'max', 20, 'rod', r.rod, 'rods', game.fish_rods(),
+  return jsonb_build_object('left', game.fish_left(v_me.player_id), 'max', game.fish_qmax(),
+    'nextMs', game.fish_next_ms(v_me.player_id), 'regenMs', game.fish_qsec(), 'rod', r.rod, 'rods', game.fish_rods(),
     'baits', game.fish_baits(), 'night', game.fish_is_night(), 'cityId', game.current_city(v_me.player_id),
     'found', (select count(*) from game.mp_fish_book where player_id = v_me.player_id),
     'total', (select count(*) from game.mp_fish_types),
@@ -133,7 +174,7 @@ begin
   fr := game.fish_row(v_id);
   if fr.cooldown_until > v_now then raise exception 'Umpan belum siap - tunggu sebentar.'; end if;
   v_left := game.fish_left(v_id);
-  if v_left <= 0 then raise exception 'Ikan di dermaga sudah jinak hari ini. Coba lagi besok (hari-game berikutnya).'; end if;
+  if v_left <= 0 then raise exception 'Jatah mancing habis - pulih +1 dalam % detik.', ceil(game.fish_next_ms(v_id) / 1000.0)::int; end if;
   select x into b from jsonb_array_elements(game.fish_baits()) x where x ->> 'id' = v_bait;
   if b is null then raise exception 'Umpan tidak dikenal.'; end if;
   v_cost := (b ->> 'cost')::int;
@@ -173,7 +214,7 @@ begin
   update game.mp_fish set cast_id = v_cast, fish = pick.id, t0 = v_now, wait_ms = v_wait, cooldown_until = v_now + 3000,
     bait = v_bait, dist = v_dist, kg = v_kg, fight_ms = v_fight
   where player_id = v_id;
-  return jsonb_build_object('castId', v_cast, 'waitMs', v_wait, 'left', v_left,
+  return jsonb_build_object('castId', v_cast, 'waitMs', v_wait, 'left', v_left, 'nextMs', game.fish_next_ms(v_id),
     'newGold', v_me.gold - v_cost, 'baitCost', v_cost, 'depth', v_depth,
     'fight', jsonb_build_object(
       'stam', pick.stam * (0.85 + 0.3 * (v_kg - pick.kg_min) / greatest(0.01, pick.kg_max - pick.kg_min)),
@@ -214,6 +255,7 @@ begin
       'fish', jsonb_build_object('id', f.id, 'name', f.name, 'rarity', f.rarity, 'kind', f.kind), 'kg', fr.kg);
   end if;
 
+  perform game.fish_use(v_id);
   insert into game.mp_daily as x (player_id, kind, game_day, n) values (v_id, 'fish', game.mp_day(), 1)
   on conflict (player_id, kind, game_day) do update set n = x.n + 1;
   v_luck := game.mp_jsnum(game.stats_json(v_id) ->> 'Luck', 0);
@@ -256,7 +298,7 @@ begin
     'fish', jsonb_build_object('id', f.id, 'name', f.name, 'rarity', f.rarity, 'kind', f.kind),
     'firstCatch', v_first, 'record', v_record and not v_first, 'globalRecord', v_global,
     'found', (select count(*) from game.mp_fish_book where player_id = v_id),
-    'left', game.fish_left(v_id));
+    'left', game.fish_left(v_id), 'nextMs', game.fish_next_ms(v_id));
 end $$;
 select game.expose('api_mgfishreel');
 
