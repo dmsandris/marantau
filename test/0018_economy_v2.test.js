@@ -20,6 +20,10 @@ const fs = require('fs'), path = require('path');
 
   // produsen murah, konsumen mahal
   await go('bjorneo');
+  // netralkan efek Kabar Pasar jam ini (tag Dicari/Panen Raya bergiliran tiap jam) supaya tes tidak tergantung jam
+  await H.sql(`update game.market m set stock = c.ref * case m.role when 'produce' then 1.5 when 'consume' then 0.65 else 1 end + 0.5,
+      at = now(), cyc = game.mkt_cycle_index() from game.commodities c
+    where c.id = m.commodity_id and m.commodity_id = 'lada' and m.city_id in ('bjorneo', 'skitraw')`);
   const ladaB = await item('bjorneo', 'lada'), ladaS = await item('skitraw', 'lada');
   assert(ladaB.role === 'produce' && ladaS.role === 'consume', 'peran kota');
   assert(ladaB.buyPrice < ladaS.sellPrice, 'rute Lada Bjorneo->Skitraw menguntungkan: ' + ladaB.buyPrice + ' vs ' + ladaS.sellPrice);
