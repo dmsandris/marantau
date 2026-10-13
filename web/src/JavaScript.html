@@ -4427,7 +4427,8 @@
     try { if (chatOpen_()) toggleChat_(false); hideInvite_(); } catch (e) {}
     var cc = document.getElementById('ccOverlay'); if (cc) cc.classList.remove('open');
     state = null; stateFresh = false; meta_ = null;
-    MPc.chat = { g: [], c: [] }; MPc.since = { g: 0, c: 0, ib: Date.now() - 60000 }; MPc.here = []; MPc.seen = {}; MPc.unread = 0; MPc.mePub = ''; MPc._rk = '';
+    MPc.chat = { g: [], c: [] }; MPc.since = { g: 0, c: 0, ib: Date.now() - 60000 }; MPc.here = []; MPc.seen = {}; MPc.unread = 0; MPc.mePub = ''; MPc._rk = ''; MPc.primed = { g: false, c: false };
+    CHR.k = ''; CHR.d = null; try { updUnread_(); } catch (e) {}
     if (scene && scene.setOthers) scene.setOthers([]);
   }
   window.logout_ = function () {
@@ -4529,20 +4530,87 @@
   }
 
   /* ---------- 2. Multiplayer inti: pulse, kehadiran, chat, kotak masuk ---------- */
-  var MPc = { on: false, timer: 0, busy: false, since: { g: 0, c: 0, ib: Date.now() - 60000 }, here: [], online: 0, onlineList: [], mePub: '', chat: { g: [], c: [] }, tab: 'c', unread: 0, seen: {}, invite: null, duelId: null, lastCity: '' };
+  var MPc = { on: false, timer: 0, busy: false, again: false, since: { g: 0, c: 0, ib: Date.now() - 60000 }, here: [], online: 0, onlineList: [], mePub: '', chat: { g: [], c: [] }, tab: 'c', unread: 0, seen: {}, invite: null, duelId: null, lastCity: '', primed: { g: false, c: false } };
+
+  /* ---- tanda "sudah dibaca" per kanal (disimpan di perangkat, per akun & per pelabuhan) ----
+   * Badge = jumlah pesan orang lain yang id-nya > id terakhir yang sudah dibaca.
+   * Membuka tab kanal = semua pesan di kanal itu dianggap terbaca -> badge tidak muncul lagi,
+   * termasuk setelah muat ulang (riwayat lama tidak dihitung ulang). */
+  var CHR = { k: '', d: null };
+  function chrKey_() { return 'mt_chat_read_v1:' + ((window.MTNet && MTNet.user && MTNet.user()) || (state && state.username) || (state && state.player && state.player.characterName) || 'x'); }
+  function chrLoad_() {
+    var k = chrKey_();
+    if (CHR.k === k && CHR.d) return CHR.d;
+    var d = {};
+    try { d = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { d = {}; }
+    CHR.k = k; CHR.d = d; return d;
+  }
+  function chrSave_() { try { localStorage.setItem(CHR.k, JSON.stringify(CHR.d || {})); } catch (e) {} }
+  function chanKey_(ch) { return ch === 'g' ? 'g' : 'c:' + (MPc.lastCity || (state && state.city && state.city.CityId) || ''); }
+  function readId_(ch) { var d = chrLoad_(), v = d[chanKey_(ch)]; return typeof v === 'number' ? v : null; }
+  function markRead_(ch) {
+    if (ch !== 'g' && ch !== 'c') return;
+    var arr = MPc.chat[ch] || [], last = arr.length ? arr[arr.length - 1].id : 0, d = chrLoad_(), k = chanKey_(ch);
+    if (!(typeof d[k] === 'number' && d[k] >= last)) { d[k] = last; chrSave_(); }
+  }
+  function unreadOf_(ch) {
+    var r = readId_(ch); if (r == null) return 0;
+    var n = 0; (MPc.chat[ch] || []).forEach(function (m) { if (m.id > r && m.p !== MPc.mePub) n++; });
+    return n;
+  }
+  function chatReading_(ch) { return chatOpen_() && MPc.tab === ch && !document.hidden; }
+
+  /* ---- Supabase Realtime: pesan & undangan masuk seketika (pulse tetap jadi cadangan) ---- */
+  var RT = { chans: {}, live: {} };
+  function rtWanted_() {
+    var t = ['chat:global'];
+    var docked = !(state && state.voyage && state.voyage.inTransit);
+    if (docked && state && state.city && state.city.CityId) t.push('chat:city:' + state.city.CityId);
+    if (MPc.mePub) t.push('player:' + MPc.mePub);
+    return t;
+  }
+  function rtSync_() {
+    if (!window.MTSB || typeof MTSB.channel !== 'function') return;
+    var want = MPc.on ? rtWanted_() : [];
+    Object.keys(RT.chans).forEach(function (tp) { if (want.indexOf(tp) < 0) { try { MTSB.removeChannel(RT.chans[tp]); } catch (e) {} delete RT.chans[tp]; delete RT.live[tp]; } });
+    want.forEach(function (tp) {
+      if (RT.chans[tp]) return;
+      try {
+        var ch = MTSB.channel(tp, { config: { private: true } });
+        ch.on('broadcast', { event: '*' }, function () { rtBell_(); });
+        RT.chans[tp] = ch;
+        var go = function () { ch.subscribe(function (status) { RT.live[tp] = status === 'SUBSCRIBED'; if (status === 'SUBSCRIBED') rtBell_(); }); };
+        if (MTSB.realtime && typeof MTSB.realtime.setAuth === 'function') { Promise.resolve(MTSB.realtime.setAuth()).then(go, go); } else go();
+      } catch (e) { console.warn('[Marantau] realtime', e && e.message); }
+    });
+  }
+  function rtLive_() { return !!RT.live['chat:global']; }
+  // "Bel pintu": ada pesan/undangan baru -> ambil sekarang lewat pulse (urutan & dedup tetap dari server)
+  function rtBell_() {
+    if (!MPc.on) return;
+    if (MPc.busy) { MPc.again = true; return; }
+    mpSchedule_(0);
+  }
   var ARCH_COL_ = { merchant: ['#b8862b', '#3d2708'], navigator: ['#2f7fa3', '#0e2a3a'], pirate: ['#b23a2a', '#3a0d08'], explorer: ['#3f8c3f', '#122a12'], gambler: ['#8e3d8a', '#2a0f28'], smuggler: ['#6b5a4a', '#1e1712'], diplomat: ['#c9a876', '#3a2a14'], adventurer: ['#4ea3c9', '#10303e'] };
   function faceOf_(p, arch) { var ap = p && p.f ? MTFace.sanitize(p.f) : MTFace.defaults((p && p.n) || 'x', arch || (p && p.a) || 'adventurer'); return MTFace.svg(ap, { arch: arch || (p && p.a), bgColors: ARCH_COL_[arch || (p && p.a)] || ['#3a5a7a', '#14202c'] }); }
   function startMp_() {
-    if (MPc.on) { if (state && state.city && state.city.CityId !== MPc.lastCity) { MPc.chat.c = []; MPc.since.c = 0; MPc.lastCity = state.city.CityId; renderChat_(); } return; }
+    if (MPc.on) {
+      if (state && state.city && state.city.CityId !== MPc.lastCity) { MPc.chat.c = []; MPc.since.c = 0; MPc.primed.c = false; MPc.lastCity = state.city.CityId; MPc._rk = ''; renderChat_(); updUnread_(); }
+      rtSync_();
+      return;
+    }
     MPc.on = true; MPc.lastCity = state && state.city ? state.city.CityId : '';
     buildMpDock_();
     mpSchedule_(600);
+    rtSync_();
   }
-  function stopMp_() { MPc.on = false; clearTimeout(MPc.timer); }
+  function stopMp_() { MPc.on = false; clearTimeout(MPc.timer); rtSync_(); }
   function mpInterval_() {
-    if (document.hidden) return 30000;
     if (MPc.invite || MPc.duelId) return 2500;
-    return state && state.voyage && state.voyage.inTransit ? 10000 : 5000;
+    // Realtime aktif -> pulse hanya cadangan (kehadiran & jaga-jaga pesan terlewat)
+    if (rtLive_()) return document.hidden ? 30000 : 8000;
+    if (document.hidden) return 15000;
+    return state && state.voyage && state.voyage.inTransit ? 6000 : 4000;
   }
   function mpSchedule_(ms) { clearTimeout(MPc.timer); MPc.timer = setTimeout(mpPulse_, ms == null ? mpInterval_() : ms); }
   function mpPulse_() {
@@ -4554,34 +4622,47 @@
       MPc.busy = false;
       if (r && r.needState) { loadState(); mpSchedule_(3000); return; }
       if (r) applyPulse_(r);
+      if (MPc.again) { MPc.again = false; mpSchedule_(0); return; }
       mpSchedule_();
     }).withFailureHandler(function (e) {
-      MPc.busy = false;
+      MPc.busy = false; MPc.again = false;
       console.warn('[Marantau] pulse gagal:', e && e.message);
       mpSchedule_(12000);
     }).api_mpPulse(MPc.since);
   }
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && MPc.on) mpSchedule_(300); });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && MPc.on) { mpSchedule_(300); if (chatOpen_()) { markRead_(MPc.tab); updUnread_(); } }
+  });
 
   function applyPulse_(r) {
+    var pubWas = MPc.mePub;
     MPc.here = r.here || []; MPc.online = r.online || 0; MPc.onlineList = r.onlineList || []; MPc.mePub = r.mePub || MPc.mePub;
+    if (MPc.mePub !== pubWas) rtSync_();
     if (scene && scene.setOthers) scene.setOthers(state && state.voyage && state.voyage.inTransit ? [] : MPc.here);
     var chip = document.getElementById('mpOnline'); if (chip) chip.textContent = MPc.online;
     var hereN = document.getElementById('mpHereN'); if (hereN) hereN.textContent = MPc.here.length ? MPc.here.length + ' di sini' : '';
     // chat
+    var fresh = false;
     ['g', 'c'].forEach(function (ch) {
-      var list = (r.chat && r.chat[ch]) || [];
+      var list = (r.chat && r.chat[ch]) || [], first = !MPc.primed[ch];
       list.forEach(function (m) {
         if (m.id <= MPc.since[ch]) return;
         MPc.since[ch] = m.id;
         MPc.chat[ch].push(m); if (MPc.chat[ch].length > 80) MPc.chat[ch].shift();
-        var mine = m.p === MPc.mePub;
-        if (!mine) {
-          if (!chatOpen_() || MPc.tab !== ch) { MPc.unread++; }
-          if (ch === 'c' && scene && scene.otherPos) { var pos = scene.otherPos(m.p); if (pos) speakAt_(pos, m.tx, m.p); }
-        }
+        if (first || m.p === MPc.mePub) return;          // riwayat lama saat pertama dimuat: tanpa gelembung/suara
+        var rd = readId_(ch);
+        if (rd != null && m.id <= rd) return;              // sudah pernah dibaca (mis. sebelum muat ulang)
+        fresh = true;
+        if (ch === 'c' && scene && scene.otherPos) { var pos = scene.otherPos(m.p); if (pos) speakAt_(pos, m.tx, m.p); }
       });
+      if (first) {
+        MPc.primed[ch] = true;
+        // Belum pernah ada tanda baca untuk kanal ini -> riwayat lama tidak dihitung sebagai pesan baru
+        if (readId_(ch) == null) markRead_(ch);
+      }
+      if (chatReading_(ch)) markRead_(ch);
     });
+    if (fresh && !chatOpen_()) au_('click');
     renderChat_(); updUnread_();
     // kotak masuk
     (r.inbox || []).forEach(function (it) {
@@ -4625,7 +4706,7 @@
     document.getElementById('mpChatBtn').addEventListener('click', function () { toggleChat_(); });
     document.getElementById('mpOnlineBtn').addEventListener('click', function () { toggleChat_(true, 'o'); });
     document.querySelector('#mpChat .mpc-x').addEventListener('click', function () { toggleChat_(false); });
-    document.querySelectorAll('#mpChat .mpc-head button[data-t]').forEach(function (b) { b.addEventListener('click', function () { MPc.tab = b.getAttribute('data-t'); renderChat_(); }); });
+    document.querySelectorAll('#mpChat .mpc-head button[data-t]').forEach(function (b) { b.addEventListener('click', function () { MPc.tab = b.getAttribute('data-t'); if (chatOpen_()) markRead_(MPc.tab); renderChat_(); updUnread_(); }); });
     document.querySelectorAll('#mpChat .mpc-quick button').forEach(function (b) { b.addEventListener('click', function () { sendChat_(b.textContent); }); });
     document.getElementById('mpcForm').addEventListener('submit', function () { var i = document.getElementById('mpcInput'); sendChat_(i.value); i.value = ''; });
   }
@@ -4635,10 +4716,22 @@
     if (tab) MPc.tab = tab;
     var want = on == null ? !c.classList.contains('open') : on;
     c.classList.toggle('open', want);
-    if (want) { MPc.unread = 0; updUnread_(); renderChat_(); setTimeout(function () { var i = document.getElementById('mpcInput'); if (i && MPc.tab !== 'o') i.focus(); }, 150); }
+    if (want) { markRead_(MPc.tab); updUnread_(); renderChat_(); setTimeout(function () { var i = document.getElementById('mpcInput'); if (i && MPc.tab !== 'o') i.focus(); }, 150); }
     au_(want ? 'open' : 'close');
   }
-  function updUnread_() { var u = document.getElementById('mpUnread'); if (u) { u.textContent = MPc.unread > 9 ? '9+' : (MPc.unread || ''); u.style.display = MPc.unread ? '' : 'none'; } }
+  function updUnread_() {
+    var uc = unreadOf_('c'), ug = unreadOf_('g');
+    MPc.unread = uc + ug;
+    var u = document.getElementById('mpUnread');
+    if (u) { u.textContent = MPc.unread > 9 ? '9+' : (MPc.unread || ''); u.style.display = MPc.unread ? '' : 'none'; }
+    // angka kecil di tab Pelabuhan / Dunia
+    [['c', uc], ['g', ug]].forEach(function (x) {
+      var b = document.querySelector('#mpChat .mpc-head button[data-t="' + x[0] + '"]'); if (!b) return;
+      var dot = b.querySelector('.mpc-ub');
+      if (x[1] > 0) { if (!dot) { dot = document.createElement('i'); dot.className = 'mpc-ub'; b.appendChild(dot); } dot.textContent = x[1] > 9 ? '9+' : x[1]; }
+      else if (dot) dot.remove();
+    });
+  }
   function renderChat_() {
     var list = document.getElementById('mpcList'); if (!list) return;
     var arr0 = MPc.chat[MPc.tab] || [], rk = MPc.tab + '|' + (MPc.tab === 'o' ? MPc.onlineList.map(function (o) { return o.id + (o.sea ? 's' : o.c); }).join(',') : arr0.length + ':' + (arr0.length ? arr0[arr0.length - 1].id : 0));
@@ -4670,7 +4763,7 @@
     text = String(text || '').trim(); if (!text) return;
     var ch = MPc.tab === 'g' ? 'global' : 'city';
     google.script.run.withSuccessHandler(function (r) {
-      if (r && r.msg) { var k = ch === 'global' ? 'g' : 'c'; if (r.msg.id > MPc.since[k]) { MPc.since[k] = r.msg.id; MPc.chat[k].push(r.msg); } renderChat_(); metaBump_('chat'); }
+      if (r && r.msg) { var k = ch === 'global' ? 'g' : 'c'; if (r.msg.id > MPc.since[k]) { MPc.since[k] = r.msg.id; MPc.chat[k].push(r.msg); } markRead_(k); renderChat_(); updUnread_(); metaBump_('chat'); }
     }).withFailureHandler(function (e) { showToast(e.message, 'error'); }).api_mpChat(ch, text);
     au_('click');
   }
