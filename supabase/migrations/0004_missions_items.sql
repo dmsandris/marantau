@@ -534,6 +534,13 @@ begin
   v_rep := case when jsonb_typeof(v_me.reputation) = 'object' then v_me.reputation else '{}'::jsonb end;
   v_rep := v_rep || jsonb_build_object(m.deliver_to_city_id,
     coalesce(case when jsonb_typeof(v_rep -> m.deliver_to_city_id) = 'number' then (v_rep ->> m.deliver_to_city_id)::numeric end, 0) + 1);
+  -- Titipan: kota pemberi misi juga menaikkan Standing (+1). Tanpa ini, pulau tersembunyi
+  -- (Paradiso, Marie Regal) tak pernah naik Standing lewat Titipan, karena kota lain
+  -- tidak pernah mengirim titipan ke pulau tersembunyi.
+  if v_type = 'courier' and m.city_id is not null and m.city_id is distinct from m.deliver_to_city_id then
+    v_rep := v_rep || jsonb_build_object(m.city_id,
+      coalesce(case when jsonb_typeof(v_rep -> m.city_id) = 'number' then (v_rep ->> m.city_id)::numeric end, 0) + 1);
+  end if;
   update game.players set gold = gold + m.reward, reputation = v_rep where player_id = v_pid;
 
   update game.player_missions

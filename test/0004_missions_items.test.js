@@ -104,6 +104,7 @@ const assert = require('assert');
   assert.strictEqual(await mload(A), 0);
   const rep = (await one('select reputation from game.players where player_id = $1', [A.id])).reputation;
   assert.strictEqual(rep[courier.deliverToCityId], 1);
+  assert.strictEqual(rep[city], 1, 'titipan juga menaikkan Standing kota pemberi');
   await H.expectError(() => A.call('api_completeMission', []), /^Tidak ada misi aktif\.$/);
   console.log('courier ok: reward', courier.reward);
 
