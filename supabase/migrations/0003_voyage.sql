@@ -674,7 +674,7 @@ end $$;
 -- LocationService.resolveArrivalIfDue (aman dari proses ganda: baris lokasi dikunci & dicek ulang)
 create or replace function game.resolve_arrival_if_due(p_pid uuid) returns jsonb
 language plpgsql as $$
-declare l game.player_location; enc jsonb;
+declare l game.player_location; enc jsonb; rd jsonb;
 begin
   select * into l from game.player_location where player_id = p_pid;
   if not found or coalesce(l.destination_city_id, '') = '' then return null; end if;
@@ -691,14 +691,26 @@ begin
   end if;
   if now() < l.arrive_at then return null; end if;
 
+  -- Quest (Saga 2 / 0023): tujuan boleh dibelokkan saat kapal tiba (badai, kompas berputar)
+  rd := game.quest_arrival_redirect(p_pid, l.city_id, l.destination_city_id);
+  if rd is not null and coalesce(rd ->> 'city', '') <> '' then
+    l.destination_city_id := rd ->> 'city';
+    update game.player_location set destination_city_id = l.destination_city_id where player_id = p_pid;
+    if coalesce((rd ->> 'quiet')::boolean, false) then
+      return game.voy_complete_arrival(p_pid, l.destination_city_id, rd ->> 'message') || jsonb_build_object('questRedirect', rd);
+    end if;
+  end if;
+
   enc := game.voy_roll_encounter(p_pid, l.destination_city_id);
   if enc is not null then
     update game.player_location set pending_encounter = enc where player_id = p_pid;
     perform game.log(p_pid, 'Sails spotted on the horizon - a pirate vessel closes in!');
-    return jsonb_build_object('cityId', null, 'event', null, 'pendingCombat', true, 'encounter', enc);
+    return jsonb_build_object('cityId', null, 'event', null, 'pendingCombat', true, 'encounter', enc)
+      || case when rd is not null then jsonb_build_object('questRedirect', rd) else '{}'::jsonb end;
   end if;
 
-  return game.voy_complete_arrival(p_pid, l.destination_city_id, null);
+  return game.voy_complete_arrival(p_pid, l.destination_city_id, rd ->> 'message')
+    || case when rd is not null then jsonb_build_object('questRedirect', rd) else '{}'::jsonb end;
 end $$;
 
 -- LocationService.finalizeArrival

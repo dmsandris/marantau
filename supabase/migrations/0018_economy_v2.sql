@@ -272,6 +272,8 @@ begin
   sell_mul := 1 - sp / 2 * (1 - ks);
   begin ev := coalesce(game.event_price_pct(p_city), 0); exception when others then ev := 0; end;
   ev_mul := (1 + ev::double precision / 100) * (1 - game.eco_arms_discount(p_city, p_comm) / 100);
+  -- Saga 2 (0023): krisis pasar per pemain saat kompas dunia rusak
+  ev_mul := ev_mul * coalesce(game.quest_price_mul(p_pid, p_city, p_comm), 1);
 end $$;
 
 -- Tide v24: harga per LOT. Titik stok dibulatkan ke tengah lot (common 10, mid 5, premium 1 = per unit),

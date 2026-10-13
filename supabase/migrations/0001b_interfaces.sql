@@ -279,3 +279,16 @@ language plpgsql stable as $$ begin return 1; end $$;
 -- Hadiah quest saat ikan tertangkap (mis. isi Peti Karam). null = tidak ada.
 create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+
+-- [Saga 2 · Quest 5 "Kompas yang Berputar" / 0023] -----------------------
+-- Status quest Kompas untuk getGameState (null = belum tersedia)
+create or replace function game.kp_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+-- Saat kapal tiba: quest boleh membelokkan tujuan pelayaran.
+-- null = tidak dibelokkan; selain itu {city, message, quiet}. quiet = tanpa bajak laut/event acak.
+-- Boleh menulis (memajukan langkah quest); dipanggil SEKALI per kedatangan.
+create or replace function game.quest_arrival_redirect(p_pid uuid, p_origin text, p_dest text) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+-- Pengali harga pasar per pemain (krisis pasar quest). 1 = normal.
+create or replace function game.quest_price_mul(p_pid uuid, p_city text, p_comm text) returns double precision
+language sql stable as $$ select 1::double precision $$;
