@@ -683,7 +683,7 @@ begin
     'debtBalance', game.eco_round(debt_bal),
     'bankRatePercent', trim_scale(bank_rate),
     'debtRatePercent', trim_scale(debt_rate),
-    'maxDebt', trim_scale(game.cfg_num('MaxDebtAmount', 5000)),
+    'maxDebt', trim_scale(game.cfg_num('MaxDebtAmount', 100000)),
     'migrated', true);
 end $$;
 

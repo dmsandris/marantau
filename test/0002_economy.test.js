@@ -190,7 +190,7 @@ const deq = assert.deepStrictEqual;
   // ------------------------------------------------------------ bank
   await H.sql('update game.players set gold = 5000 where player_id = $1', [alice.id]);
   let bk = await alice.call('api_getBankState', []);
-  deq(bk, { bankBalance: 0, debtBalance: 0, bankRatePercent: 0.5, debtRatePercent: 2, maxDebt: 5000, migrated: true });
+  deq(bk, { bankBalance: 0, debtBalance: 0, bankRatePercent: 0.5, debtRatePercent: 2, maxDebt: 100000, migrated: true });
   await E(() => alice.call('api_bankDeposit', [0]), /^Jumlah setor tidak valid\.$/);
   await E(() => alice.call('api_bankDeposit', [6000]), /^Gold tidak cukup\.$/);
   bk = await alice.call('api_bankDeposit', [1000]);
@@ -198,10 +198,10 @@ const deq = assert.deepStrictEqual;
   await E(() => alice.call('api_bankWithdraw', [2000]), /^Saldo Bank tidak cukup\.$/);
   bk = await alice.call('api_bankWithdraw', [400]);
   eq(bk.bankBalance, 600); eq(bk.newGold, 4400);
-  await E(() => alice.call('api_bankBorrow', [5001]), /^Melebihi batas pinjaman Moneylender \(maksimum utang 5000 gold\)\.$/);
+  await E(() => alice.call('api_bankBorrow', [100001]), /^Melebihi batas pinjaman Moneylender \(maksimum utang 100000 gold\)\.$/);
   bk = await alice.call('api_bankBorrow', [1000]);
   eq(bk.debtBalance, 1000); eq(bk.newGold, 5400);
-  await E(() => alice.call('api_bankBorrow', [4001]), /maksimum utang 5000 gold/);
+  await E(() => alice.call('api_bankBorrow', [99001]), /maksimum utang 100000 gold/);
   // bunga majemuk setelah 2 hari-game (60 menit per hari)
   await H.shiftTime(2 * 60 * 60000 + 1000);
   bk = await alice.call('api_getBankState', []);

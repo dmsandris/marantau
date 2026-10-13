@@ -377,7 +377,7 @@ insert into game.config(key, value) values
   ('WarehouseFeePerUnit', '2'),
   ('BankInterestRatePercent', '0.5'),
   ('DebtInterestRatePercent', '2'),
-  ('MaxDebtAmount', '5000'),
+  ('MaxDebtAmount', '100000'),
   ('ReputationMarketBonusPerPoint', '0.05'),
   ('ReputationMarketBonusCap', '10'),
   ('ShipRepairBaseCostPerPoint', '15'),
@@ -398,6 +398,11 @@ insert into game.config(key, value) values
   ('OverstockHalfLifeMinutes', '120'),
   ('OverstockFloorPercent', '35')
 on conflict (key) do nothing;
+
+-- Batas pinjaman Moneylender dinaikkan ke 100.000 untuk semua pemain (Okt 2026).
+-- Seed di atas tidak menimpa nilai lama, jadi naikkan di sini (aman diulang).
+update game.config set value = '100000'
+ where key = 'MaxDebtAmount' and coalesce(nullif(value, '')::numeric, 0) < 100000;
 
 -- ---------------------------------------------------------------------
 -- SEED: kota, komoditas, harga pasar (CommodityData.gs + migrasi kota)
