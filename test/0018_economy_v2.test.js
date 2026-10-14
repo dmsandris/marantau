@@ -11,7 +11,7 @@ const fs = require('fs'), path = require('path');
 
   // katalog
   const cat = await H.sql(`select id, tier, grp from game.commodities where active order by sort`);
-  assert(cat.length === 28, 'jumlah barang ' + cat.length);
+  assert(cat.length === 31, 'jumlah barang ' + cat.length); // 28 + 3 kopi Gading Island (0024)
   for (const g of ['pangan', 'minuman', 'rempah', 'bahan', 'kerajinan', 'mewah'])
     assert(cat.some(c => c.grp === g && c.tier === 'premium'), 'kelompok ' + g + ' punya premium');
   const m0 = await u.call('api_getMarket', ['bjorneo']);
