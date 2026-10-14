@@ -10,7 +10,9 @@
 --   1  Babak 1  badai - pelayaran yang sedang berjalan dibelokkan ke TooGood (saat tiba)
 --   2           terdampar di TooGood: juru mudi, gosip, Adu Gasing dwi (gasing won|lost)
 --   3  Babak 2  tersesat: 3 pelayaran dibelokkan ke pulau acak (data.lost),
---               pelayaran ke-4 butuh Jaring Angin (wind) lalu selalu tiba di Marie Regal
+--               pelayaran ke-4: kapal TERTAHAN di detik kedatangan sampai mini-game Jaring Angin
+--               dimainkan di laut (wind), lalu selalu mendarat di Marie Regal. Bila Jaring Angin
+--               tak kunjung dimainkan, setelah 10 menit kapal tetap mendarat di Marie Regal.
 --   4  Babak 3  Istana Hening - Marlya (marlya)
 --   5  Babak 4  IKN - jaminan 50.000 (bail)
 --   6           Tedsky bertanya kabar dunia (answer jujur|bohong)
@@ -76,6 +78,8 @@ begin
     'lost', coalesce((q.data ->> 'lost')::int, 0),
     'wind', coalesce((q.data ->> 'wind')::boolean, false),
     'windDue', v_step = 3 and coalesce((q.data ->> 'lost')::int, 0) >= game.kp_lost_need(),
+    'windHold', v_step = 3 and coalesce((q.data ->> 'lost')::int, 0) >= game.kp_lost_need()
+                and not coalesce((q.data ->> 'wind')::boolean, false) and game.in_transit(p_pid),
     'chosen', q.data ->> 'chosen',
     'redirect', q.data -> 'redirect',
     'gasing', q.data ->> 'gasing',
@@ -136,9 +140,6 @@ begin
     return;
   end if;
   if q.step = 3 then
-    if coalesce((q.data ->> 'lost')::int, 0) >= game.kp_lost_need() and not coalesce((q.data ->> 'wind')::boolean, false) then
-      raise exception 'Badai magnet menghadang di mulut pelabuhan. Layar harus menjaring angin dulu, Kapten. [JARING_ANGIN]';
-    end if;
     update game.player_quests set data = data || jsonb_build_object('chosen', p_dest), updated_at = now()
      where player_id = p_pid and quest_id = 'kompas';
   end if;
@@ -157,7 +158,7 @@ end $$;
 -- ---------------------------------------------------------------------
 create or replace function game.kp_arrival_redirect(p_pid uuid, p_origin text, p_dest text) returns jsonb
 language plpgsql as $$
-declare q game.player_quests; v_lost int; v_to text; rd jsonb; v_name text;
+declare q game.player_quests; v_lost int; v_to text; rd jsonb; v_name text; v_arrive timestamptz;
 begin
   select * into q from game.player_quests where player_id = p_pid and quest_id = 'kompas' for update;
   if not found then return null; end if;
@@ -174,7 +175,13 @@ begin
   if q.step = 3 then
     v_lost := coalesce((q.data ->> 'lost')::int, 0);
     if v_lost >= game.kp_lost_need() then
-      if not coalesce((q.data ->> 'wind')::boolean, false) then return null; end if;
+      if not coalesce((q.data ->> 'wind')::boolean, false) then
+        -- Tahan kapal di mulut badai magnet sampai Jaring Angin dimainkan (maks 10 menit)
+        select arrive_at into v_arrive from game.player_location where player_id = p_pid;
+        if now() < coalesce(v_arrive, now()) + interval '10 minutes' then
+          return jsonb_build_object('hold', true, 'kind', 'wind');
+        end if;
+      end if;
       rd := jsonb_build_object('city', 'marie_regal', 'kind', 'wind', 'from', p_dest, 'quiet', true, 'at', game.now_ms(),
         'message', 'Layar menjaring angin badai magnet, dan angin memilihkan jalan. Menara kaca berkilau di cakrawala: Marie Regal.');
       update game.player_quests set step = 4, data = data || jsonb_build_object('redirect', rd, 'wind', false), updated_at = now()
@@ -234,6 +241,17 @@ begin
   select * into q from game.player_quests where player_id = v_pid and quest_id = 'kompas' for update;
   v_step := coalesce(q.step, 0);
   if v_step = 0 then raise exception 'Kompasmu masih menunjuk utara, Kapten.'; end if;
+  -- Jaring Angin dimainkan DI LAUT, sesaat sebelum kapal tiba
+  if v_act = 'wind' then
+    if v_step <> 3 or coalesce((q.data ->> 'lost')::int, 0) < game.kp_lost_need() then
+      raise exception 'Angin masih bertiup biasa.';
+    end if;
+    if v_arg not in ('perfect', 'ok') then raise exception 'Hasil Jaring Angin tidak dikenal.'; end if;
+    if not game.in_transit(v_pid) then raise exception 'Badai magnet itu menunggu di tengah laut, Kapten. Angkat sauh dulu.'; end if;
+    perform game.kp_set(v_pid, 3, jsonb_build_object('wind', true, 'windPerfect', v_arg = 'perfect'));
+    perform game.log(v_pid, 'Layar berhasil menjaring angin badai magnet. Angin memilihkan jalan.');
+    return jsonb_build_object('kompas', game.kp_state(v_pid));
+  end if;
   if game.in_transit(v_pid) then raise exception 'Merapat dulu di pelabuhan, Kapten.'; end if;
 
   -- Babak 1: TooGood - Adu Gasing dengan dwi
@@ -248,17 +266,6 @@ begin
       ' dwi: "Kalau jarum tak tahu utara, biar laut yang memilihkan."');
     return jsonb_build_object('kompas', game.kp_state(v_pid), 'gold', case when v_arg = 'won' then 2000 else 0 end,
       'newGold', (select gold from game.players where player_id = v_pid));
-  end if;
-
-  -- Babak 2: Jaring Angin sebelum pelayaran ke-4
-  if v_act = 'wind' then
-    if v_step <> 3 or coalesce((q.data ->> 'lost')::int, 0) < game.kp_lost_need() then
-      raise exception 'Angin masih bertiup biasa.';
-    end if;
-    if v_arg not in ('perfect', 'ok') then raise exception 'Hasil Jaring Angin tidak dikenal.'; end if;
-    perform game.kp_set(v_pid, 3, jsonb_build_object('wind', true, 'windPerfect', v_arg = 'perfect'));
-    perform game.log(v_pid, 'Layar berhasil menjaring angin badai magnet. Ke mana pun haluanmu, angin yang akan memilih.');
-    return jsonb_build_object('kompas', game.kp_state(v_pid));
   end if;
 
   -- Babak 3: Marlya di Istana Hening

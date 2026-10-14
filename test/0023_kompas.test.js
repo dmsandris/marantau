@@ -84,15 +84,33 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
     assert(s.lost === i && s.redirect.kind === 'lost' && s.redirect.n === i && s.redirect.city === to && s.redirect.from === dest, 'jejak tersesat ' + JSON.stringify(s));
     seen.push(to);
   }
-  s = await st(); assert(s.windDue && !s.wind, 'pelayaran ke-4 butuh Jaring Angin');
-  const here = await city();
-  await H.expectError(() => u.call('api_setSail', [here === 'skitraw' ? 'joungjava' : 'skitraw']), /JARING_ANGIN/);
-  assert(!(await u.call('api_getGameState', [null])).voyage.inTransit && (await city()) === here, 'ditolak tanpa berangkat');
+  s = await st(); assert(s.windDue && !s.wind && !s.windHold, 'pelayaran ke-4 akan butuh Jaring Angin');
+  const here = await city(), dest4 = here === 'skitraw' ? 'joungjava' : 'skitraw';
+  // Berangkat tidak ditolak lagi (Jaring Angin dimainkan di laut, sesaat sebelum tiba)
+  await H.expectError(() => kp(['wind', 'ok']), /di tengah laut/);
+  await u.call('api_setSail', [dest4]);
+  s = await st(); assert(s.windHold && s.chosen === dest4, 'di laut: menunggu Jaring Angin ' + JSON.stringify(s));
+  await H.shiftTime(400000);
+  gs = await u.call('api_getGameState', [null]);
+  assert(gs.voyage.inTransit && gs.voyage.etaSeconds === 0 && !gs.voyage.encounterPending, 'kapal tertahan di detik kedatangan ' + JSON.stringify(gs.voyage));
+  await u.call('api_pollVoyage', []);
+  assert((await u.call('api_getGameState', [null])).voyage.inTransit, 'pollVoyage tidak mendaratkan kapal tanpa Jaring Angin');
   await H.expectError(() => kp(['wind', 'hebat']), /tidak dikenal/);
-  r = await kp(['wind', 'perfect']); assert(r.kompas.wind, 'angin terjaring');
-  await sail(here === 'skitraw' ? 'joungjava' : 'skitraw');
-  s = await st();
-  assert((await city()) === 'marie_regal' && s.step === 4 && s.redirect.kind === 'wind' && !s.wind, 'tiba di Marie Regal ' + JSON.stringify(s));
+  r = await kp(['wind', 'perfect']); assert(r.kompas.wind && !r.kompas.windHold, 'angin terjaring di laut');
+  gs = await u.call('api_getGameState', [null]);
+  s = gs.kompas;
+  assert(!gs.voyage.inTransit && (await city()) === 'marie_regal' && s.step === 4 && s.redirect.kind === 'wind' && !s.wind, 'mendarat di Marie Regal ' + JSON.stringify(s));
+
+  // Cadangan: pemain lain yang tidak memainkan Jaring Angin tetap mendarat setelah 10 menit
+  const v = await H.user('kompas3'); await v.call('api_createCharacter', ['Kapten Lupa', 'merchant']);
+  await H.sql(`insert into game.player_quests(player_id, quest_id, step, data) values ($1, 'kompas', 3, '{"lost": 3}')`, [v.id]);
+  await H.sql(`update game.player_location set city_id = 'skitraw' where player_id = $1`, [v.id]);
+  await v.call('api_setSail', ['joungjava']);
+  await H.shiftTime(400000);
+  assert((await v.call('api_getGameState', [null])).voyage.inTransit, 'kapal lain tertahan');
+  await H.shiftTime(11 * 60000);
+  const gv = await v.call('api_getGameState', [null]);
+  assert(!gv.voyage.inTransit && gv.kompas.step === 4 && (await H.sql('select city_id from game.player_location where player_id = $1', [v.id]))[0].city_id === 'marie_regal', 'setelah 10 menit tetap mendarat di Marie Regal');
 
   // --- Babak 3: Marlya ----------------------------------------------------------------
   r = await kp(['marlya']); assert(r.kompas.step === 5, 'Marlya');

@@ -246,7 +246,7 @@ var KP = (function () {
   var OBJ = {
     1: '<i>"Langit menghitam di tengah laut, dan jarum itu mulai gemetar."</i>',
     2: '<i>"Jarum itu menari, dan laut tak lagi mengenal namamu."</i>',
-    3: '<i>"Tiga dermaga yang tak kau pilih. Yang keempat, angin yang memilih."</i>',
+    3: '<i>"Kita tidak tahu ke mana angin berhembus akan membawa kita."</i>',
     4: 'Seekor burung besi menunggu di haluan. Ia ingin kau mengikutinya ke <i>istana yang tak pernah bersuara</i>.',
     5: '<i>"Yang merusak harus memperbaiki. Ia sedang memegang kuas di bawah sayap yang patah."</i>',
     6: 'Kuas itu hampir diletakkan. Ia hanya menunggu satu jawaban: <i>bagaimana kabar dunia?</i>',
@@ -304,7 +304,7 @@ var KP = (function () {
     if (btn) btn.disabled = true;
     game('gasing', {
       title: 'Adu Gasing', subtitle: "Black's Alley &middot; lawan dwi de'clown",
-      intro: 'Lilit tali, lempar tepat waktu, lalu sentil gasingmu saat ia goyah. Terbaik dari tiga ronde.',
+      intro: 'Lilit tali, lempar tepat waktu, lalu adu: hantam gasing lawan dan sentil gasingmu saat ia goyah. Terbaik dari tiga ronde.',
       opponent: { name: "dwi de'clown", title: "Penjaga Black's Alley", npcRole: 'lapau' }, variant: 'normal'
     }, function (res) {
       if (btn) btn.disabled = false;
@@ -330,38 +330,50 @@ var KP = (function () {
       actions('<button class="btn btn-gold" data-kp="ok">' + ic('anchor') + '&nbsp; Turun ke dermaga</button>') + '</div>');
     on(document.getElementById('modalContent'), '[data-kp=ok]', function () { closeModal(); });
   }
-  function needWind() { var s = st(); return !!(s && s.step === 3 && s.windDue && !s.wind && docked()); }
-  var windBusy = false, lastSail = null;
-  function startWind(cityId) {
+  // Jaring Angin: dimainkan DI LAUT, ±1 detik sebelum kapal tiba (pelayaran ke-4).
+  // Server menahan kapal di detik kedatangan sampai angin terjaring, lalu mendaratkannya di Marie Regal.
+  function needWind() { var s = st(); return !!(s && s.step === 3 && s.windDue && !s.wind && !docked()); }
+  function etaMs() {
+    var v = state && state.voyage; if (!v || !v.inTransit) return Infinity;
+    if (v.arriveAt) { var t = Date.parse(v.arriveAt); if (!isNaN(t)) return t - Date.now(); }
+    return (v.etaSeconds || 0) * 1000 - (Date.now() - (v._at || Date.now()));
+  }
+  var windBusy = false, windRetryAt = 0, lastSail = null;
+  function startWind() {
     if (windBusy) return; windBusy = true;
     if (currentPanel) closeModal();
     au_('error');
-    showToast('Badai magnet menghadang di mulut pelabuhan. Layar harus menjaring angin dulu, Kapten.', 'info');
+    showToast('Badai magnet menghadang di mulut pelabuhan! Layar harus menjaring angin, Kapten.', 'info');
     setTimeout(function () {
       game('angin', {
         title: 'Jaring Angin', subtitle: 'Badai magnet di mulut pelabuhan',
-        intro: 'Kompas tak bisa dipercaya. Putar haluan searah embusan angin yang bercahaya: selaras, kapal maju; salah, kapal terdorong mundur.',
+        intro: 'Pelabuhan sudah di depan mata, tapi badai magnet memutar arah angin. Putar layar searah embusan yang bercahaya: selaras, kapal maju; salah, kapal terdorong mundur.',
         variant: 'normal', zones: 3
       }, function (res) {
-        if (!res || res.cancelled) { windBusy = false; showToast('Layar diturunkan lagi. Kapal tetap di dermaga.', 'info'); return; }
+        if (!res || res.cancelled) {
+          windBusy = false; windRetryAt = Date.now() + 5000;
+          showToast('Kapal terombang-ambing di mulut badai. Layar harus dijaring lagi.', 'info');
+          return;
+        }
         call('wind', res.perfect ? 'perfect' : 'ok', function () {
           windBusy = false;
-          if (st()) st().wind = true;
+          if (st()) { st().wind = true; st().windHold = false; }
           au_('unfurl');
-          showToast(res.perfect ? 'Layar menjaring angin tanpa cela! Ke mana pun haluanmu, angin yang akan memilih.' : 'Layar menjaring angin. Ke mana pun haluanmu, angin yang akan memilih.', 'success');
-          if (cityId) setTimeout(function () { sail(cityId); }, 500);
-        }, null, function () { windBusy = false; });
+          showToast(res.perfect ? 'Layar menjaring angin tanpa cela! Angin memilihkan jalan.' : 'Layar menjaring angin. Angin memilihkan jalan.', 'success');
+          // mendarat sekarang (server sudah membelokkan tujuan)
+          setTimeout(function () { try { if (typeof pollVoyage_ === 'function') pollVoyage_(); else loadState(); } catch (e) { loadState(); } }, 300);
+        }, null, function () { windBusy = false; windRetryAt = Date.now() + 5000; });
       });
-    }, 350);
+    }, 250);
   }
-  function sail(cityId) {
-    if (typeof txPending !== 'undefined' && txPending) { setTimeout(function () { sail(cityId); }, 600); return; }
-    if (origSail && docked()) origSail(cityId);
-  }
+  setInterval(function () {
+    if (windBusy || Date.now() < windRetryAt || !needWind()) return;
+    var v = state && state.voyage; if (!v || v.encounterPending || inCombat() || gameOpen) return;
+    if (etaMs() <= 1000) startWind();
+  }, 250);
   var origSail = window.doSetSail;
   if (typeof origSail === 'function') {
     window.doSetSail = function (cityId) {
-      if (needWind() && !(typeof txPending !== 'undefined' && txPending)) { startWind(cityId); return; }
       lastSail = cityId;
       var s0 = st(), wasReady = !!(s0 && (s0.step || 0) === 0 && s0.ready);
       var r = origSail.apply(this, arguments);
@@ -380,21 +392,6 @@ var KP = (function () {
         }).withFailureHandler(function () { }).api_kompas('status', '');
       }, 3500);
       return r;
-    };
-  }
-  // cadangan: server tetap menolak pelayaran tanpa Jaring Angin -> tangkap tag-nya, mulai mini-game
-  var origToastFn = window.showToast;
-  if (typeof origToastFn === 'function') {
-    window.showToast = function (message, type) {
-      var m = String(message == null ? '' : message);
-      if (m.indexOf('[JARING_ANGIN]') >= 0) {
-        m = m.replace(/\s*\[JARING_ANGIN\]/g, '').replace(/^Gagal berlayar:\s*/, '');
-        if (st()) { st().windDue = true; st().wind = false; }
-        var dest = lastSail;
-        setTimeout(function () { if (!windBusy && docked()) startWind(dest); }, 600);
-        return origToastFn.call(this, m, 'info');
-      }
-      return origToastFn.apply(this, arguments);
     };
   }
 
@@ -653,7 +650,6 @@ var KP = (function () {
     var s = st(); if (!s || !docked()) return;
     var k = s.step, note = '';
     if (k === 7) note = '<div class="qg-callout"><div class="qg-callout-ico">' + ic('star') + '</div><div><b>Tedsky berdiri di haluan.</b><br><span class="muted small">"Simpan kompasmu. Aku membaca bintang."</span></div><span></span></div>';
-    else if (k === 3 && s.windDue && !s.wind) note = '<div class="qg-callout"><div class="qg-callout-ico">' + ic('wind') + '</div><div><b>Badai magnet bergulung di mulut pelabuhan.</b><br><span class="muted small">Layar harus menjaring angin sebelum sauh diangkat.</span></div><span></span></div>';
     else if (k >= 2 && k <= 3) note = '<div class="qg-callout"><div class="qg-callout-ico">' + ic('compass') + '</div><div><b>Jarum kompas di anjungan masih menari.</b><br><span class="muted small">Juru mudi menggeleng. "Kita berlayar dengan doa, Kapten."</span></div><span></span></div>';
     if (!note) return;
     var c = document.getElementById('modalContent'), anchor = c && (c.querySelector('.npc') || c.querySelector('.ph'));

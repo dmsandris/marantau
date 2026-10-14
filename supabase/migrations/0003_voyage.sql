@@ -693,6 +693,10 @@ begin
 
   -- Quest (Saga 2 / 0023): tujuan boleh dibelokkan saat kapal tiba (badai, kompas berputar)
   rd := game.quest_arrival_redirect(p_pid, l.city_id, l.destination_city_id);
+  -- Quest menahan kapal di detik kedatangan (mis. mini-game Jaring Angin belum dimainkan)
+  if rd is not null and coalesce((rd ->> 'hold')::boolean, false) then
+    return jsonb_build_object('cityId', null, 'event', null, 'pendingCombat', false, 'hold', true, 'questHold', rd);
+  end if;
   if rd is not null and coalesce(rd ->> 'city', '') <> '' then
     l.destination_city_id := rd ->> 'city';
     update game.player_location set destination_city_id = l.destination_city_id where player_id = p_pid;
