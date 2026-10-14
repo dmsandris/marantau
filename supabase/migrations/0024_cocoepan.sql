@@ -11,7 +11,7 @@
 --   2  Babak 2  pinjaman ditahan; Peti Bantuan (10 ruang palka) -> 'deliver' di Kamp Pemulung IKN
 --   3           'syahbandar' ok|gagal (Mata Syahbandar, Joungjava) -> 'flower' (bunga melati)
 --   4  Babak 3  Gading Island terbuka -> 'stumpy' (felyx)
---   5           'grave' (makam Nyonya Maudy) -> Buku Pancing Legenda
+--   5           'grave' (makam Miss Nansy) -> Buku Pancing Legenda
 --   6           ikan legenda Gading saat fajar (kait fish_quest_catch, otomatis)
 --   7  Babak 4  'mural' (Sandi Pelikan)
 --   8  Babak 5  menunggu hari kesepuluh -> 'return': pelunasan 2x lipat ke gold
@@ -76,7 +76,7 @@ insert into game.item_catalog(item_id, name, type, effects, value, price, source
    '{"cargoSize": 0, "desc": "Dibungkus kertas minyak dan diikat benang merah. coco epan tidak sanggup mengantarnya sendiri."}',
    0, null, 'quest', 94),
   ('qi_buku_pancing_maudy', 'Buku Pancing Legenda', 'quest',
-   '{"cargoSize": 0, "desc": "Catatan Nyonya Maudy: dua puluh satu ikan legenda di seluruh laut. Halaman pertama: \"Untuk E. Kalau aku tak sempat, selesaikan untukku.\""}',
+   '{"cargoSize": 0, "desc": "Catatan Miss Nansy: dua puluh satu ikan legenda di seluruh laut. Halaman pertama: \"Untuk E. Kalau aku tak sempat, selesaikan untukku.\""}',
    0, null, 'quest', 95),
   ('qi_surat_coco', 'Surat Bersegel Lilin', 'quest',
    '{"cargoSize": 0, "desc": "Surat coco epan untuk Ratu Marlya. Surat pertama antara dua darah itu dalam beberapa generasi."}',
@@ -212,13 +212,13 @@ on conflict (city_id, commodity_id) do update set base_price = excluded.base_pri
 
 -- ---------------------------------------------------------------------
 -- Ikan legenda Gading Island: tidak masuk Buku Ikan (14 ikan, syarat Quest 2 tetap utuh).
--- Hanya naik ke kail saat fajar, di Gading Island, setelah buku Maudy diterima (langkah 6).
+-- Hanya naik ke kail saat fajar, di Gading Island, setelah buku Nansy diterima (langkah 6).
 -- ---------------------------------------------------------------------
 alter table game.mp_fish_types add column if not exists book text not null default 'ikan';  -- ikan | legenda
 
 insert into game.mp_fish_types(id, name, v, w, zone, sp, rarity, kg_min, kg_max, stam, pow, agi, depth, tod, cities, kind, hint, sort, book)
 values ('kerapu_fajar', 'Kerapu Fajar', 1100, 1, 0.08, 2.5, 7, 4.0, 18.0, 9.0, 1.0, 0.85, 2, 'any',
-        array['gading_island'], 'fish', 'Sisiknya keemasan seperti langit sebelum matahari. Tercatat di Buku Pancing Maudy dengan tanda bintang.', 99, 'legenda')
+        array['gading_island'], 'fish', 'Sisiknya keemasan seperti langit sebelum matahari. Tercatat di Buku Pancing Miss Nansy dengan tanda bintang.', 99, 'legenda')
 on conflict (id) do update set name = excluded.name, v = excluded.v, w = excluded.w, zone = excluded.zone,
   sp = excluded.sp, rarity = excluded.rarity, kg_min = excluded.kg_min, kg_max = excluded.kg_max, stam = excluded.stam,
   pow = excluded.pow, agi = excluded.agi, depth = excluded.depth, tod = excluded.tod, cities = excluded.cities,
@@ -486,7 +486,7 @@ begin
     perform game.item_adjust(v_pid, 'qi_bunga_melati', -1);
     if game.item_qty(v_pid, 'qi_buku_pancing_maudy') < 1 then perform game.item_adjust(v_pid, 'qi_buku_pancing_maudy', 1); end if;
     perform game.cb_set(v_pid, 6, null);
-    perform game.log(v_pid, 'Melati diletakkan di makam Nyonya Maudy. felyx menyerahkan Buku Pancing Legenda.');
+    perform game.log(v_pid, 'Melati diletakkan di makam Miss Nansy. felyx menyerahkan Buku Pancing Legenda.');
     return jsonb_build_object('cocoepan', game.cb_state(v_pid),
       'item', jsonb_build_object('itemId', 'qi_buku_pancing_maudy', 'name', 'Buku Pancing Legenda'));
   end if;

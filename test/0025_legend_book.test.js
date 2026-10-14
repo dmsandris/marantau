@@ -3,7 +3,7 @@
 const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } };
 (async () => {
   const H = await require('./harness').create();
-  const u = await H.user('legenda1'); await u.call('api_createCharacter', ['Murid Maudy', 'explorer']);
+  const u = await H.user('legenda1'); await u.call('api_createCharacter', ['Murid Miss Nansy', 'explorer']);
   const pid = u.id;
   const one = async (q, p) => (await H.sql(q, p || []))[0];
   const go = c => H.sql(`update game.player_location set city_id = $2, destination_city_id = null, depart_at = null, arrive_at = null, pending_encounter = null where player_id = $1`, [pid, c]);

@@ -84,7 +84,7 @@ insert into game.mp_fish_types(id, name, v, w, zone, sp, rarity, kg_min, kg_max,
    'Kalau kau melihatnya, pulanglah. Kalau kau menangkapnya, jangan bilang siapa-siapa.', 119, 'legenda', 19, 'any', null, 'mesiu', false, 'moramora', 'Perairan dalam Benua', false),
   ('matahari_penari','Matahari Penari',        0, 1, 0.1, 2.6, 7, 0.5, 2, 6, 0.6, 1.2, 0, 'any', array['di_mana_pun'], 'fish',
    'Ikan kecil yang menari. Kata orang, ia anak Legenda Trust.', 120, 'legenda', 20, 'fajar', null, 'batik', false, 'moramora', 'Di mana pun', false),
-  ('ikan_terakhir',  'Ikan Terakhir Maudy',    0, 1, 0.06, 2, 7, 5, 20, 10, 1, 0.8, 2, 'any', array['gading_island'], 'fish',
+  ('ikan_terakhir',  'Ikan Terakhir Miss Nansy',    0, 1, 0.06, 2, 7, 5, 20, 10, 1, 0.8, 2, 'any', array['gading_island'], 'fish',
    '(Halaman ini kosong. Hanya ada gambar seorang perempuan bertopi pantai memegang joran.)', 121, 'legenda', 21, 'fajar', null, null, false, 'moramora', 'Gading Island', false)
 on conflict (id) do update set name = excluded.name, v = excluded.v, w = excluded.w, zone = excluded.zone, sp = excluded.sp,
   rarity = excluded.rarity, kg_min = excluded.kg_min, kg_max = excluded.kg_max, stam = excluded.stam, pow = excluded.pow,
