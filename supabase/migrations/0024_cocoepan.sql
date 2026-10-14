@@ -217,15 +217,15 @@ on conflict (city_id, commodity_id) do update set base_price = excluded.base_pri
 alter table game.mp_fish_types add column if not exists book text not null default 'ikan';  -- ikan | legenda
 
 insert into game.mp_fish_types(id, name, v, w, zone, sp, rarity, kg_min, kg_max, stam, pow, agi, depth, tod, cities, kind, hint, sort, book)
-values ('naga_fajar', 'Ikan Naga Fajar', 1100, 1, 0.08, 2.5, 7, 4.0, 18.0, 9.0, 1.0, 0.85, 2, 'any',
+values ('kerapu_fajar', 'Kerapu Fajar', 1100, 1, 0.08, 2.5, 7, 4.0, 18.0, 9.0, 1.0, 0.85, 2, 'any',
         array['gading_island'], 'fish', 'Sisiknya keemasan seperti langit sebelum matahari. Tercatat di Buku Pancing Maudy dengan tanda bintang.', 99, 'legenda')
 on conflict (id) do update set name = excluded.name, v = excluded.v, w = excluded.w, zone = excluded.zone,
   sp = excluded.sp, rarity = excluded.rarity, kg_min = excluded.kg_min, kg_max = excluded.kg_max, stam = excluded.stam,
   pow = excluded.pow, agi = excluded.agi, depth = excluded.depth, tod = excluded.tod, cities = excluded.cities,
   kind = excluded.kind, hint = excluded.hint, sort = excluded.sort, book = excluded.book;
 -- hapus sisa baris uji dari versi awal (bila ada)
-delete from game.mp_fish_book where fish_id = 'legenda_gading';
-delete from game.mp_fish_types where id = 'legenda_gading';
+delete from game.mp_fish_book where fish_id in ('legenda_gading', 'naga_fajar');
+delete from game.mp_fish_types where id in ('legenda_gading', 'naga_fajar');  -- nama lama (Tide v28 awal)
 
 -- Buku Ikan hanya menghitung ikan biasa (book = 'ikan')
 create or replace function game.tg_book(p_pid uuid) returns jsonb
@@ -271,11 +271,11 @@ begin
 end $$;
 select game.expose('api_mgfishbook');
 
--- Kait memancing: ikan legenda dulu, lalu Peti Karam Bjorneo (0022)
+-- Kait memancing: ikan legenda dulu, lalu Peti Karam Bjorneo (0022). Diperluas di 0025 (Buku Pancing Legenda).
 create or replace function game.fish_quest_weight(p_pid uuid, p_fish text, p_city text) returns numeric
 language plpgsql stable as $$
 begin
-  if p_fish = 'naga_fajar' then
+  if p_fish = 'kerapu_fajar' then
     if p_city = 'gading_island' and game.cb_step(p_pid) = 6 and game.cb_is_dawn() then return 40; end if;
     return 0;  -- tak pernah muncul di luar quest
   end if;
@@ -286,14 +286,14 @@ create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) return
 language plpgsql as $$
 declare v_kg numeric;
 begin
-  if p_fish = 'naga_fajar' then
+  if p_fish = 'kerapu_fajar' then
     -- catatan disimpan di Buku Pancing Legenda (data quest), bukan Buku Ikan
-    select best_kg into v_kg from game.mp_fish_book where player_id = p_pid and fish_id = 'naga_fajar';
-    delete from game.mp_fish_book where player_id = p_pid and fish_id = 'naga_fajar';
+    select best_kg into v_kg from game.mp_fish_book where player_id = p_pid and fish_id = 'kerapu_fajar';
+    delete from game.mp_fish_book where player_id = p_pid and fish_id = 'kerapu_fajar';
     if game.cb_step(p_pid) = 6 and game.current_city(p_pid) = 'gading_island' then
       update game.player_quests set step = 7, data = data || jsonb_build_object('legend', true, 'legendKg', v_kg), updated_at = now()
        where player_id = p_pid and quest_id = 'cocoepan';
-      perform game.log(p_pid, 'Ikan Naga Fajar tertangkap saat fajar di Gading Island. Halaman pertama Buku Pancing Legenda kini terisi.');
+      perform game.log(p_pid, 'Ikan Kerapu Fajar tertangkap saat fajar di Gading Island. Halaman pertama Buku Pancing Legenda kini terisi.');
       return jsonb_build_object('itemId', 'qi_buku_pancing_maudy', 'name', 'Buku Pancing Legenda', 'quest', 'cocoepan',
         'message', 'Sisiknya berkilau keemasan seperti langit sebelum matahari. Di Buku Pancing Legenda, entri pertama bertanda bintang kini bisa dicoret.');
     end if;

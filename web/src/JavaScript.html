@@ -1831,9 +1831,21 @@
     if (!lib.owned.length) {
       html += '<div class="card empty-state">' + ic('book') + 'Belum ada buku yang dikoleksi.</div>';
     } else {
-      html += '<div class="card-grid cols-2">' + lib.owned.map(function (b) {
+      // Ringkas: satu baris berisi jumlah buku & total bonus stat; dibuka bila perlu (diingat per perangkat)
+      var tot = {}, specials = 0;
+      lib.owned.forEach(function (b) {
+        try { var ef = JSON.parse(b.StatEffects || '{}'); Object.keys(ef).forEach(function (k) { tot[k] = (tot[k] || 0) + Number(ef[k] || 0); }); } catch (e) {}
+        if (b.SpecialEffect) specials++;
+      });
+      var sum = Object.keys(tot).filter(function (k) { return tot[k]; }).map(function (k) { return k + ' +' + tot[k]; });
+      if (specials) sum.push(specials + ' efek khusus');
+      var shelfOpen = false; try { shelfOpen = localStorage.getItem('mt_lib_shelf') === '1'; } catch (e) {}
+      html += '<details class="lib-shelf" id="libShelf"' + (shelfOpen ? ' open' : '') + '><summary>' + ic('book') +
+        '<div><div class="ls-t">' + lib.owned.length + ' buku sudah dimiliki</div><div class="ls-s">' + (sum.join(' &middot; ') || 'Tanpa bonus stat') + '</div></div>' +
+        '<span class="ls-tog"><span class="when-closed">Lihat semua</span><span class="when-open">Ringkas</span></span></summary>' +
+        '<div class="card-grid cols-2">' + lib.owned.map(function (b) {
         return '<div class="card book" style="--spine:' + (TIER_SPINE[b.Tier] || '#5a4526') + '"><span class="spine"></span><div><div class="bt">' + esc_(b.Name) + '</div><div class="be">' + bookEffectSummary(b) + '</div></div>' + tierBadge_(b.Tier) + '</div>';
-      }).join('') + '</div>';
+      }).join('') + '</div></details>';
     }
     html += '<h3>' + ic('scales') + 'Dijual di ' + esc_(state.city ? state.city.Name : 'sini') + '</h3>';
     if (!lib.available.length) {
@@ -1849,6 +1861,8 @@
     }
     html += '<p id="libraryMsg" class="msg-err"></p>';
     setModal_(html);
+    var shelf = document.getElementById('libShelf');
+    if (shelf) shelf.addEventListener('toggle', function () { try { localStorage.setItem('mt_lib_shelf', shelf.open ? '1' : '0'); } catch (e) {} });
   }
 
   function tierBadge_(tier) {

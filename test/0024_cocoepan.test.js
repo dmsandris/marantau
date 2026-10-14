@@ -1,5 +1,5 @@
 // Saga 2 · Quest 6 "Bunga yang Tak Pernah Layu": coco epan, pinjaman 10 hari (2x), Peti Bantuan IKN,
-// Mata Syahbandar, melati -> Gading Island, Stumpy, makam, ikan Naga Fajar (fajar), Sandi Pelikan,
+// Mata Syahbandar, melati -> Gading Island, Stumpy, makam, ikan Kerapu Fajar (fajar), Sandi Pelikan,
 // pelunasan, adu gasing, surat untuk Marlya. Juga menjaga: Buku Ikan Quest 2 tetap 14, waktu tempuh
 // antar-pulau lama tidak berubah, peran pasar kopi bertahan setelah migrasi diulang.
 const fs = require('fs'), path = require('path');
@@ -31,7 +31,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const info = await u.call('api_mgFishInfo', []);
   assert(info.total === 14, 'Info dermaga tetap 14 ikan');
   const fb = await u.call('api_mgFishBook', []);
-  assert(fb.length === 14 && !fb.some(f => f.id === 'naga_fajar'), 'Naga Fajar tidak muncul di Buku Ikan');
+  assert(fb.length === 14 && !fb.some(f => f.id === 'kerapu_fajar'), 'Kerapu Fajar tidak muncul di Buku Ikan');
   const rng = await one(`select dmax, dmin from game.voy_dist_range()`);
   const rngOld = await one(`select max(game.voy_map_distance(a.city_id, b.city_id)) dmax from game.cities a join game.cities b on a.city_id < b.city_id
     where not game.spot_city(a.city_id) and not game.spot_city(b.city_id) and a.city_id <> 'gading_island' and b.city_id <> 'gading_island'`);
@@ -123,19 +123,19 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert(rg.cocoepan.step === 6 && !rg.cocoepan.hasFlower && (await item('qi_buku_pancing_maudy')) === 1, 'makam & Buku Pancing Legenda');
   await H.expectError(() => cb(['mural']), /terkunci/);
 
-  // ikan Naga Fajar: hanya fajar, hanya Gading, hanya langkah 6
+  // ikan Kerapu Fajar: hanya fajar, hanya Gading, hanya langkah 6
   await setFrac(0.4);
-  assert(Number((await one(`select game.fish_quest_weight($1, 'naga_fajar', 'gading_island') w`, [pid])).w) === 0, 'siang: tidak muncul');
+  assert(Number((await one(`select game.fish_quest_weight($1, 'kerapu_fajar', 'gading_island') w`, [pid])).w) === 0, 'siang: tidak muncul');
   await setFrac(0.98);
   assert((await st()).dawn === true, 'fajar terdeteksi');
-  assert(Number((await one(`select game.fish_quest_weight($1, 'naga_fajar', 'gading_island') w`, [pid])).w) > 1, 'fajar: muncul');
-  assert(Number((await one(`select game.fish_quest_weight($1, 'naga_fajar', 'bjorneo') w`, [pid])).w) === 0, 'kota lain: tidak');
+  assert(Number((await one(`select game.fish_quest_weight($1, 'kerapu_fajar', 'gading_island') w`, [pid])).w) > 1, 'fajar: muncul');
+  assert(Number((await one(`select game.fish_quest_weight($1, 'kerapu_fajar', 'bjorneo') w`, [pid])).w) === 0, 'kota lain: tidak');
   assert(Number((await one(`select game.fish_quest_weight($1, 'peti', 'bjorneo') w`, [pid])).w) === 1, 'kait Peti Karam Barsati tetap jalan');
-  await H.sql(`insert into game.mp_fish_book(player_id, fish_id, n, best_kg, best_gold) values ($1, 'naga_fajar', 1, 9.5, 1100)`, [pid]);
-  const qi = (await one(`select game.fish_quest_catch($1, 'naga_fajar') q`, [pid])).q;
+  await H.sql(`insert into game.mp_fish_book(player_id, fish_id, n, best_kg, best_gold) values ($1, 'kerapu_fajar', 1, 9.5, 1100)`, [pid]);
+  const qi = (await one(`select game.fish_quest_catch($1, 'kerapu_fajar') q`, [pid])).q;
   s = await st();
-  assert(s.step === 7 && Number(s.legendKg) === 9.5 && qi && qi.quest === 'cocoepan', 'Naga Fajar tertangkap ' + JSON.stringify(s));
-  assert((await H.sql(`select 1 from game.mp_fish_book where player_id = $1 and fish_id = 'naga_fajar'`, [pid])).length === 0, 'tidak tercatat di Buku Ikan');
+  assert(s.step === 7 && Number(s.legendKg) === 9.5 && qi && qi.quest === 'cocoepan', 'Kerapu Fajar tertangkap ' + JSON.stringify(s));
+  assert((await H.sql(`select 1 from game.mp_fish_book where player_id = $1 and fish_id = 'kerapu_fajar'`, [pid])).length === 0, 'tidak tercatat di Buku Ikan');
   assert((await u.call('api_mgFishInfo', [])).found === 0, 'temuan Buku Ikan tidak bertambah');
 
   // --- Babak 4 & 5 ------------------------------------------------------------
