@@ -29,7 +29,23 @@ var FG = (function () {
     tuna: { a: '#1d385e', b: '#e1e9ef', fin: '#e8c33a', h: 0.34, fork: true, finlets: '#f0cf48' },
     hiu: { kind: 'shark', a: '#6d7d88', b: '#e6eaec', fin: '#56666f' },
     dewa: { a: '#eab54a', b: '#fff3c4', fin: '#d4553f', h: 0.46, glow: '#ffe28a', crown: true },
-    naga_fajar: { a: '#c8402a', b: '#ffd890', fin: '#e8a43a', h: 0.4, glow: '#ffc27a', crown: true, line: '#8a2414' }
+    kerapu_fajar: { a: '#c8402a', b: '#ffd890', fin: '#e8a43a', h: 0.4, glow: '#ffc27a', crown: true, line: '#8a2414' },
+    // Buku Pancing Legenda (0025)
+    hiu_garuda: { kind: 'shark', a: '#9a6a2a', b: '#e8c890', fin: '#7a4a1a' },
+    belut_gunung: { a: '#3a1a12', b: '#d8502a', fin: '#ff7a3a', h: 0.16, glow: '#ff8a4a', line: '#ff9a5a' },
+    pari_batik: { kind: 'ray', a: '#5a3a22', b: '#e8d6b0', spots: '#c9a033' },
+    kakap_rendang: { a: '#8a2a14', b: '#e8a26a', fin: '#5a1a0c', h: 0.44, blotch: '#4a1408' },
+    tongkol_kopi: { a: '#3a2216', b: '#c9a07a', fin: '#2a160c', h: 0.32, fork: true, bars: '#1a0e06' },
+    kakap_asap: { a: '#1a1a1e', b: '#5a5a62', fin: '#0e0e12', h: 0.42 },
+    penyu_mutiara: { kind: 'ray', a: '#4a6a4a', b: '#e8f0e6', spots: '#f6f2e6' },
+    ubur_kaca: { kind: 'squid', a: '#bfe8f6', b: '#f2fbff', spots: '#7fd8f0' },
+    koi_lampion: { a: '#e8402a', b: '#fff2e0', fin: '#f0a03a', h: 0.4, spots: '#fff8f0', glow: '#ffb070' },
+    tiram_otoland: { kind: 'chest' }, marlin_garam: { a: '#2a4a7a', b: '#e6eef6', fin: '#1a2a4a', h: 0.3, fork: true },
+    ikan_kabut: { a: '#c9ccd0', b: '#eef0f2', fin: '#a8acb2', h: 0.36 }, paus_bisu: { kind: 'shark', a: '#2a3442', b: '#8a96a6', fin: '#1a222c' },
+    ikan_rantai: { a: '#6b6560', b: '#c9c2b8', fin: '#4a4540', h: 0.38, bars: '#3a3632' }, lumba_gema: { kind: 'shark', a: '#6a8aa6', b: '#e6eef4', fin: '#4a6a86' },
+    gurita_arsip: { kind: 'squid', a: '#8a4a6a', b: '#e6c2d4', spots: '#5a2a44' }, kakap_dua_tangan: { a: '#c96a2a', b: '#f6d6b0', fin: '#8a4a1a', h: 0.42 },
+    hiu_kumis_hitam: { kind: 'shark', a: '#141416', b: '#4a4a52', fin: '#0a0a0c' }, matahari_penari: { a: '#e8b23a', b: '#fff6c4', fin: '#d4553f', h: 0.5, glow: '#ffe28a' },
+    ikan_terakhir: { a: '#d6c7a3', b: '#fffaf0', fin: '#b89a66', h: 0.4, glow: '#fff3c4', crown: true }
   };
   var S = {
     st: 'idle', info: null, bait: 'cacing', log: [], tab: 'log', book: null, raf: 0, last: 0, t: 0,
@@ -277,9 +293,17 @@ var FG = (function () {
       S.res = r; S.left = r.left != null ? r.left : S.left; if (r.nextMs != null) setNext(r.nextMs); drawChips();
       if (r.caught) {
         patchGold_(r.newGold);
-        S.log.push({ caught: true, id: r.fish.id, name: r.fish.name, kg: r.kg, gold: r.gold, rarity: r.fish.rarity });
+        var LQ = r.questItem && r.questItem.legend ? r.questItem : null;
+        if (LQ) { r.firstCatch = !!LQ.first; r.record = false; r.globalRecord = false; }   // legenda dicatat di Buku Pancing Legenda
+        S.log.push({ caught: true, id: r.fish.id, name: r.fish.name, kg: r.kg, gold: r.gold, rarity: r.fish.rarity, legend: !!LQ, release: !!(LQ && LQ.release) });
         metaBump_('fish'); if (r.fish.rarity >= 6) metaBump_('fishlegend');
-        if (r.firstCatch) metaBump_('fishnew'); if (q >= 0.8) metaBump_('fishperf');
+        if (r.firstCatch && !LQ) metaBump_('fishnew'); if (q >= 0.8) metaBump_('fishperf');
+        if (LQ) {
+          S.legend = null;
+          if (S.info) { S.info.legendFound = LQ.count; S.info.legendUnlocked = true; }
+          try { metaMax_('legendbook', LQ.count || 0); } catch (e) { }
+          setTimeout(function () { showToast('Buku Pancing Legenda #' + LQ.no + ': ' + esc_(LQ.name) + (LQ.release ? ' &middot; dilepas kembali' : '') + ' (' + LQ.count + '/21)', 'success'); }, 1400);
+        }
         if (S.info) S.info.found = r.found;
         au_(r.fish.rarity >= 5 ? 'achieve' : 'coin', { n: 2 });
         S.book = null;
@@ -309,12 +333,14 @@ var FG = (function () {
     if (caught && r.globalRecord) badges += '<span class="fg-badge gold">Rekor dermaga!</span>';
     else if (caught && r.record) badges += '<span class="fg-badge">Rekor pribadi</span>';
     if (caught && S.quality >= 0.8) badges += '<span class="fg-badge">Tarikan sempurna</span>';
+    var LQ = caught && r.questItem && r.questItem.legend ? r.questItem : null;
+    if (LQ) badges = '<span class="fg-badge gold">Buku Legenda #' + LQ.no + '</span>' + (LQ.first ? '<span class="fg-badge new">Entri baru!</span>' : '') + (S.quality >= 0.8 ? '<span class="fg-badge">Tarikan sempurna</span>' : '');
     var why = { snap: 'Talinya putus!', slip: 'Kailnya terlepas.', early: 'Kamu menyentak terlalu cepat.', late: 'Umpannya dicuri.', invalid: 'Ikannya lolos.' }[reason] || 'Ikannya lolos.';
     el.innerHTML = '<div class="fg-card-in ' + (caught ? 'ok' : 'miss') + '" style="--rc:' + R.c + '">' +
       '<div class="fg-rar">' + (caught ? R.n : 'Lepas') + '</div>' +
       '<canvas id="fgCardFish" width="440" height="220"></canvas>' +
       '<div class="fg-name">' + (caught ? esc_(r.fish.name) : 'Itu tadi&hellip; ' + esc_(r.fish.name) + '?') + '</div>' +
-      '<div class="fg-kg">' + (r.kg != null ? Number(r.kg).toLocaleString('id-ID') + ' kg' : '') + (caught ? ' &middot; <b>+' + formatGold(r.gold) + ' gold</b>' : ' &middot; ' + why) + '</div>' +
+      '<div class="fg-kg">' + (r.kg != null ? Number(r.kg).toLocaleString('id-ID') + ' kg' : '') + (caught ? (LQ && LQ.release ? ' &middot; <b>dilepas kembali ke laut</b>' : ' &middot; <b>+' + formatGold(r.gold) + ' gold</b>') : ' &middot; ' + why) + '</div>' +
       (badges ? '<div class="fg-badges">' + badges + '</div>' : '') +
       '<button class="btn btn-gold" id="fgAgain">' + ic('fish') + '&nbsp; Lempar lagi <span class="kbd">Spasi</span></button></div>';
     el.hidden = false;
@@ -566,7 +592,7 @@ var FG = (function () {
         '<div class="fg-msg" id="fgMsg"></div><div class="fg-hint" id="fgHint">' + (inT ? 'Kapal sedang berlayar &mdash; mancing saat merapat.' : '<b>Tahan</b> klik / Spasi untuk mengisi tenaga lemparan') + '</div>' +
         '<div class="fg-card" id="fgCard" hidden></div></div>' +
       '<div class="fg-bar" id="fgBar"><div class="skeleton-block" style="height:64px;"></div></div>' +
-      '<div class="fg-tabs"><button data-tab="log" class="on">' + ic('journal') + ' Tangkapan hari ini</button><button data-tab="book">' + ic('book') + ' Buku Ikan <span id="fgBookN"></span></button></div>' +
+      '<div class="fg-tabs"><button data-tab="log" class="on">' + ic('journal') + ' Tangkapan hari ini</button><button data-tab="book">' + ic('book') + ' Buku Ikan <span id="fgBookN"></span></button><button data-tab="legend" id="fgLegTab" hidden>' + ic('star') + ' Buku Legenda <span id="fgLegN"></span></button></div>' +
       '<div id="fgTab"></div>');
     var cv = document.getElementById('fgCanvas');
     cv.addEventListener('pointerdown', function (e) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} press(); });
@@ -576,6 +602,8 @@ var FG = (function () {
     document.querySelectorAll('.fg-tabs [data-tab]').forEach(function (b) {
       b.onclick = function () { S.tab = b.getAttribute('data-tab'); document.querySelectorAll('.fg-tabs [data-tab]').forEach(function (x) { x.classList.toggle('on', x === b); }); drawTab(); au_('click'); };
     });
+    if (S.tab === 'legend' && !(S.info && S.info.legendUnlocked)) S.tab = 'log';
+    document.querySelectorAll('.fg-tabs [data-tab]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === (S.tab || 'log')); });
     if (S.st !== 'idle' && S.st !== 'result') S.st = 'idle';
     hideCard(); S.held = false; S.parts = []; S.rings = []; S.pal = null;
     drawTab();
@@ -605,7 +633,8 @@ var FG = (function () {
     var left = S.left != null ? S.left : i.left;
     chips.innerHTML = '<span class="fg-chip">' + ic('fish') + ' Sisa <b>' + left + '</b>/' + i.max +
       (left < i.max && S.nextAt ? ' <span class="fg-regen">+1 ' + regenTxt() + '</span>' : '') + '</span>' +
-      '<span class="fg-chip">' + ic(i.night ? 'moon' : 'sun') + (i.night ? ' Malam &middot; ikan malam keluar' : ' Siang') + '</span>';
+      '<span class="fg-chip">' + ic(i.night ? 'moon' : 'sun') + (i.night ? ' Malam &middot; ikan malam keluar' : ' Siang') + '</span>' +
+      (i.dawn && i.legendUnlocked ? '<span class="fg-chip">' + ic('star') + ' Fajar &middot; jam Maudy memancing</span>' : '');
   }
 
   function drawBar() {
@@ -613,6 +642,8 @@ var FG = (function () {
     var R = rod(), next = i.rods[(i.rod || 0) + 1];
     drawChips();
     var bn = document.getElementById('fgBookN'); if (bn) bn.textContent = (i.found || 0) + '/' + (i.total || 14);
+    var lt = document.getElementById('fgLegTab'), ln = document.getElementById('fgLegN');
+    if (lt) lt.hidden = !i.legendUnlocked; if (ln) ln.textContent = (i.legendFound || 0) + '/' + (i.legendTotal || 21);
     el.innerHTML = '<div class="fg-baits">' + i.baits.map(function (b, k) {
       var tone = ['#b58a6a', '#e08a6a', '#d06a8a', '#e0b43a'][k] || '#999';
       return '<button class="fg-bait' + (b.id === S.bait ? ' on' : '') + '" data-b="' + b.id + '" title="' + esc_(b.desc) + '"><span class="fg-dot" style="--c:' + tone + '"></span><span class="fg-bn">' + esc_(b.name) + '</span><span class="fg-bc">' + (b.cost ? formatGold(b.cost) + ' g' : 'Gratis') + '</span></button>';
@@ -629,7 +660,41 @@ var FG = (function () {
     };
   }
 
-  function drawTab() { if (S.tab === 'book') drawBook(); else drawLog(); }
+  function drawTab() { if (S.tab === 'book') drawBook(); else if (S.tab === 'legend') drawLegend(); else drawLog(); }
+  var REGION = { nusantara: 'Mare Nusantara', baru: 'Pulau & laut baru', moramora: 'Benua Moramora' };
+  function drawLegend() {
+    var el = document.getElementById('fgTab'); if (!el) return;
+    if (!S.legend) {
+      el.innerHTML = '<div class="skeleton-block" style="height:120px;"></div>';
+      google.script.run.withSuccessHandler(function (b) { S.legend = b; if (S.tab === 'legend') drawLegend(); })
+        .withFailureHandler(function (e) { el.textContent = e.message; }).api_legendBook();
+      return;
+    }
+    var L = S.legend, html = '<div class="fg-book-head fg-leg-head"><b>' + L.found + '</b> dari ' + L.total + ' legenda tercatat &middot; <i>catatan tangan Nyonya Maudy</i>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round(L.found / L.total * 100) + '%;background:linear-gradient(90deg,#b56df0,#e0ae2a)"></div></div>' +
+      '<div class="muted small" style="margin-top:6px">Legenda hanya naik di tempat, waktu, dan dengan umpan dagang (di palka) yang tertulis. Umpan dermaga berkilau dan lemparan jauh paling ampuh.</div></div>';
+    ['nusantara', 'baru', 'moramora'].forEach(function (rg) {
+      var list = L.entries.filter(function (e) { return e.region === rg; }); if (!list.length) return;
+      var got = list.filter(function (e) { return e.found; }).length;
+      html += '<div class="fg-leg-rg">' + esc_(REGION[rg]) + ' <span>' + got + '/' + list.length + '</span></div><div class="fg-book">' + list.map(function (e) {
+        var cond = [esc_(e.place), esc_(e.time)];
+        if (e.event) cond.push(e.event === 'festival' ? 'Saat festival' : esc_(e.event));
+        if (e.bait) cond.push('Umpan ' + esc_(e.bait)); else if (e.available) cond.push('Tanpa umpan');
+        if (e.release) cond.push('Dilepas');
+        var tag = !e.available ? '<div class="fg-leg-tag lock">' + ic('lock') + ' Laut belum dipetakan</div>'
+          : e.ready ? '<div class="fg-leg-tag go">' + ic('star') + ' Bisa naik sekarang</div>'
+          : e.here ? '<div class="fg-leg-tag">' + ic('hourglass') + ' Di sini &middot; syarat belum lengkap</div>' : '';
+        return '<div class="fg-bk fg-leg' + (e.found ? '' : ' unk') + (e.available ? '' : ' locked') + '" style="--rc:' + (e.found ? '#b56df0' : '#8a7a5a') + '">' +
+          '<canvas width="160" height="80" data-fish="' + e.id + '" data-sh="' + (e.found ? 0 : 1) + '"></canvas>' +
+          '<div class="fg-bk-n"><span class="fg-leg-no">#' + e.no + '</span> ' + (e.found ? esc_(e.name) : '???') + (e.no === 9 ? ' ' + ic('star') : '') + '</div>' +
+          '<div class="fg-bk-r">' + cond.join(' &middot; ') + '</div>' +
+          (e.found ? '<div class="fg-bk-s">' + (e.bestKg ? 'Terbesar <b>' + Number(e.bestKg).toLocaleString('id-ID') + ' kg</b> &middot; ' : '') + e.n + '&times;</div>' : '') +
+          '<div class="fg-bk-h fg-leg-note">"' + esc_(e.hint) + '"</div>' + tag + '</div>';
+      }).join('') + '</div>';
+    });
+    el.innerHTML = html;
+    paintThumbs(el);
+  }
   function drawLog() {
     if (S.tab !== 'log') return;
     var el = document.getElementById('fgTab'); if (!el) return;
