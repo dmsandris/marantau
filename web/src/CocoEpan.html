@@ -1,0 +1,290 @@
+<style>
+  /* Saga 2 · Quest 6 "Bunga yang Tak Pernah Layu" */
+  .cb-wrap { margin: 10px 0; }
+  .cb-card { border: 1px solid rgba(184,134,43,.45); border-radius: 10px; padding: 12px 14px; background: linear-gradient(180deg, rgba(255,246,220,.6), rgba(255,236,190,.25)); }
+  .cb-card b { display: block; margin-bottom: 4px; }
+  .cb-card .muted { font-size: .86em; }
+  .cb-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .cb-form input { width: 150px; }
+  .cb-sand { display: grid; gap: 8px; margin-top: 10px; }
+  .cb-sand .cb-glyph { font-family: monospace; letter-spacing: .15em; font-size: 1.05em; text-align: center; padding: 6px; border: 1px dashed rgba(120,80,30,.5); border-radius: 8px; }
+  .cb-sand .cb-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .cb-sand .cb-bad { animation: cbShake .35s; }
+  @keyframes cbShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  @media (prefers-reduced-motion: reduce) { .cb-sand .cb-bad { animation: none; } }
+</style>
+<script>
+/* =====================================================================
+ * Saga 2 · QUEST 6 "BUNGA YANG TAK PERNAH LAYU" (klien)
+ * Coco Epan (Javasche Bank, Joungjava): pinjaman 1 juta -> Peti Bantuan (IKN) ->
+ * Mata Syahbandar -> bunga melati -> Gading Island (Stumpy, makam, ikan legenda) ->
+ * Sandi Pelikan (mural) -> pelunasan 2x -> adu gasing -> surat ke Marlya.
+ * Server: 0024_cocoepan.sql (api_cocoepan). Ikan legenda: kait fish_quest_catch (server).
+ * Sandi Pelikan dimainkan sebagai pilihan jawaban (bukan seret huruf).
+ * Modul ini MEMBUNGKUS setModal_ (kartu di panel) - inti tidak diubah.
+ * ===================================================================== */
+var CB = (function () {
+  /* ---------- tokoh ---------- */
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    var K = {};
+    try { K = window.KP && KP.N ? KP.N() : {}; } catch (e) { K = {}; }
+    NN = {
+      coco: { name: 'Coco Epan', title: 'Bankir Javasche Bank', ap: apOf('coco-epan', 'syahbandar', 0, { age: 0.8 }) },
+      karto: { name: 'Pak Tua Karto', title: 'Peminum kopi pahit', ap: apOf('pak-tua-karto', 'tukang', 0, { age: 0.85 }) },
+      felyx: { name: 'felyx', title: 'Penjaga kedai Stumpy', ap: apOf('felyx-stumpy', 'lapau', 0) },
+      marlya: K.marlya || { name: 'Marlya', title: 'Ratu Moramora', ap: apOf('marlya-moramora', 'pustakawan', 1) }
+    };
+    return NN;
+  }
+  function face(n) { return n.svg ? n.svg : MTFace.svg(n.ap, { bgColors: ['#5a4a2a', '#1c160c'] }); }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.cocoepan) || null; }
+  function step() { var s = st(); return s ? (s.step || 0) : -1; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function bankBal() { return state && state.bank ? (state.bank.bankBalance || 0) : 0; }
+  function speech(n, text, extra, title) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(title || n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function actions(btns) { return '<div class="qg-actions">' + btns + '</div>'; }
+  function btn(act, label, cls) { return '<button class="btn ' + (cls || 'btn-gold') + '" data-cb="' + act + '">' + label + '</button>'; }
+  function card(title, text, inner) { return '<div class="cb-card"><b>' + esc_(title) + '</b><div class="muted">' + text + '</div>' + (inner || '') + '</div>'; }
+  function metaOnce(k) { try { metaMax_(k, 1); } catch (e) { } }
+  function renderModal(html, binds, panel) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    if (panel) currentPanel = panel;
+    var c = document.getElementById('modalContent');
+    if (c && binds) for (var sel in binds) { var b = c.querySelector(sel); if (b) b.onclick = (function (f) { return function () { f(b); }; })(binds[sel]); }
+  }
+  // Beberapa halaman dialog: tekan "Lanjut" sampai halaman terakhir, lalu tombol akhir
+  function pages(n, title, list, lastHtml, onLast) {
+    var i = 0;
+    (function show() {
+      var last = i === list.length - 1;
+      var nav = last ? lastHtml : '<div class="qg-actions"><button class="btn btn-gold" data-cb-next="1">Lanjut</button></div>';
+      renderModal(speech(n, list[i], nav, title), last ? onLast.binds : { '[data-cb-next]': function () { i++; show(); } });
+      au_('page');
+    })();
+  }
+  function insert(html, panel) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    if (c.querySelector('.cb-wrap')) return null;
+    var w = document.createElement('div'); w.className = 'cb-wrap'; w.innerHTML = html;
+    var anchor = c.querySelector('.ph');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(w, anchor.nextSibling); else c.insertBefore(w, c.firstChild);
+    w.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-cb]'); if (!b) return;
+      handle(b.getAttribute('data-cb'), b, w);
+    });
+    return w;
+  }
+  function call(action, arg, ok, btnEl) {
+    if (btnEl) btnEl.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      r = r || {};
+      if (r.cocoepan !== undefined && state) state.cocoepan = r.cocoepan;
+      if (r.newGold != null && typeof patchGold_ === 'function') { patchGold_(r.newGold); if (typeof renderSidebar === 'function') try { renderSidebar(); } catch (e) { } }
+      try { ok(r); } catch (e) { console.warn('[CB]', action, e); }
+    }).withFailureHandler(function (e) {
+      if (btnEl) btnEl.disabled = false;
+      showToast((e && e.message) || String(e), 'error');
+    }).api_cocoepan(action, arg || '');
+  }
+  function game(kind, opts, cb) {
+    if (kind === 'syahbandar' && window.MTGames && typeof MTGames.open === 'function') { MTGames.open(kind, opts || {}, function (res) { cb(res || { win: false }); }); return; }
+    if (window.MTGames2 && typeof MTGames2.open === 'function') { MTGames2.open(kind, opts || {}, function (res) { cb(res || { win: false, cancelled: true }); }); return; }
+    cb({ win: true }); // cadangan bila mini-game belum termuat
+  }
+
+  /* ---------- Babak 1 & 2 & 3: Javasche Bank (Joungjava) ---------- */
+  function bankCard() {
+    var s = st(); if (!s || s.done) return '';
+    var k = s.step;
+    if (k === 0) return s.timeOk ? card('Coco Epan memanggilmu', 'Bankir tua itu menunggu di ruangannya.', actions(btn('talk', 'Temui Coco Epan'))) : '';
+    if (k === 1) {
+      var form = '<div class="cb-form"><input type="number" id="cbAmt" min="1000000" step="50000" value="1000000" class="input"> ' +
+        btn('loan', 'Pinjamkan') + ' ' + btn('decline', 'Tolak', 'btn-ghost-ink') + '</div>';
+      return card('Pinjaman', 'Minimal 1.000.000 gold. Dikembalikan 2x lipat pada hari kesepuluh. Maks: saldo bank ' + formatGold(bankBal()) + '.', form);
+    }
+    if (k === 3) {
+      if (!s.syah) return card('Kapal penimbun', 'Syahbandar Joungjava butuh bantuan memeriksa kapal yang menjual beras bantuan tiga kali lipat.', actions(btn('syahbandar', 'Periksa kapal (Mata Syahbandar)')));
+      return card('Bunga untukmu', 'Coco Epan menunggu di mejanya.', actions(btn('flower', 'Terima bunga melati')));
+    }
+    if (k === 8) {
+      if (s.repayReady) return card('Hari kesepuluh', 'Pinjaman siap dikembalikan: ' + formatGold(s.repay) + ' gold.', actions(btn('return', 'Kembalikan pinjaman')));
+      return card('Menunggu', 'Masa tahan pinjaman belum habis. Sisa ' + (s.holdDaysLeft || 0) + ' hari game.');
+    }
+    if (k === 9) return card('Adu gasing', 'Coco Epan mengeluarkan gasing kayu tua dari laci.', actions(btn('gasing', 'Ajak adu gasing')));
+    return '';
+  }
+
+  /* ---------- Babak 2: Kamp Pemulung IKN (panel Balai/tasks di IKN) ---------- */
+  function ikanCard() {
+    var s = st(); if (!s || s.step !== 2) return '';
+    return card('Peti Bantuan', 'Antarkan beras & garam ke Kamp Pemulung di bawah sayap Garuda.', actions(btn('deliver', 'Bagikan Peti Bantuan')));
+  }
+
+  /* ---------- Babak 3-4: Gading Island (panel Lapau/tavern) ---------- */
+  function gadingCard() {
+    var s = st(); if (!s || !docked()) return '';
+    if (s.step === 4) return card('Kedai Stumpy', 'Papan kayunya masih bertulis dengan tangan yang ramah.', actions(btn('stumpy', 'Duduk di kedai Stumpy')));
+    if (s.step === 5 && s.hasFlower) return card('Makam di bukit', 'Bunga melati menunggu di tangan.', actions(btn('grave', 'Letakkan bunga di makam')));
+    if (s.step === 6) return card('Buku Pancing', 'Ikan legenda Gading Island tercatat di bukunya. Pancing dermaga saat ia muncul.');
+    if (s.step === 7) return card('Gudang di balik Stumpy', 'Ada dinding yang tak pernah boleh dibuka.', actions(btn('mural', 'Buka dinding (Sandi Pelikan)')));
+    return '';
+  }
+
+  /* ---------- Babak 5: Istana Hening (panel tasks di Marie Regal) ---------- */
+  function regalCard() {
+    var s = st(); if (!s || s.step !== 10) return '';
+    return card('Surat Coco Epan', 'Surat bersegel lilin untuk Marlya. Ia tidak akan membalasnya; ia hanya ingin dibaca.', actions(btn('surat', 'Serahkan surat kepada Marlya')));
+  }
+
+  /* ---------- dekorasi panel ---------- */
+  var DECOR = {
+    bank: function () { if (cid() === 'joungjava') { var h = bankCard(); if (h) insert(h, 'bank'); } },
+    tasks: function () { if (cid() === 'ikn') { var h1 = ikanCard(); if (h1) insert(h1, 'tasks'); } if (cid() === 'marie_regal') { var h2 = regalCard(); if (h2) insert(h2, 'tasks'); } },
+    tavern: function () { if (cid() === 'gading_island') { var h3 = gadingCard(); if (h3) insert(h3, 'tavern'); } }
+  };
+  wrap_('setModal_', function () { var f = DECOR[currentPanel]; if (f) try { f(); } catch (e) { console.warn('[CB]', e); } });
+
+  /* ---------- aksi ---------- */
+  function handle(act, b, w) {
+    var s = st() || {};
+    if (act === 'talk') return call('talk', '', function () { return refresh(); }, b);
+    if (act === 'loan') {
+      var amt = parseInt((document.getElementById('cbAmt') || {}).value, 10);
+      if (!amt || amt < 1000000) return showToast('Pinjaman minimal 1.000.000 gold, Kapten.', 'error');
+      if (amt > bankBal()) return showToast('Saldo Bank tidak cukup untuk pinjaman itu.', 'error');
+      return call('loan', String(amt), function () {
+        pages(N().coco, 'Javasche Bank', [
+          '"Terima kasih, Kapten. Emasmu akan menghidupkan lagi jalur dagang yang sakit."',
+          '"Ada peti bantuan untuk Kamp Pemulung di IKN. Beras dan garam dari gudang bank. Antarkan sendiri, ya."'
+        ], actions(btn('close', 'Baik, Pak', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+      }, b);
+    }
+    if (act === 'decline') return call('decline', '', function () {
+      showToast('Coco Epan: "Pintu ini tidak pernah dikunci untukmu."', 'info'); refresh();
+    }, b);
+    if (act === 'deliver') return call('deliver', '', function () { showToast('Peti Bantuan dibagikan. Anak-anak itu tertawa.', 'success'); refresh(); }, b);
+    if (act === 'syahbandar') return game('syahbandar', { npc: N().karto }, function (res) {
+      call('syahbandar', res.win ? 'ok' : 'gagal', function () { showToast(res.win ? 'Kapal penimbun ditangkap. Harga beras pulih.' : 'Kapal penimbun lolos dari pemeriksaan.', res.win ? 'success' : 'info'); refresh(); }, b);
+    });
+    if (act === 'flower') return call('flower', '', function () {
+      pages(N().coco, 'Javasche Bank', [
+        '"Ada pulau di timur, jauh melewati menara kaca. Tolong antarkan ini. Saya... sudah lama tidak sanggup ke sana."',
+        'Peta dunia di dinding terbentang. Mare Nusantara mengecil ke sisi kiri. Di kabut timur, sebuah pulau bernama Gading Island muncul.'
+      ], actions(btn('close', 'Berangkat', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+    }, b);
+    if (act === 'stumpy') return call('stumpy', '', function () {
+      pages(N().felyx, 'Stumpy', [
+        '"Kedai ini tutup, Kapten. Sudah lama. Tapi kopi tidak pernah tutup. Coba. Tanpa gula. Kalau terasa manis, itu bijinya yang jujur."',
+        'Dulu seorang lelaki bermonokel dan istrinya datang ke pulau ini tanpa membawa apa-apa, hanya satu peti biji kopi. Papan itu tulisan istrinya: "Orang selalu bertanya kenapa kopinya manis padahal tanpa gula."',
+        'Nyonya Maudy suka memancing saat fajar, dan mencatat ikan-ikan legenda dunia dalam satu buku. Ia wafat di musim hujan, sebelum bukunya selesai.'
+      ], actions(btn('close', 'Ke makam', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+    }, b);
+    if (act === 'grave') return call('grave', '', function () {
+      metaOnce('cbmaudy');
+      pages(N().felyx, 'Makam di bukit', [
+        'Di nisan: "Maudy. Fajar selalu datang lebih dulu untuknya." Lonceng angin klenteng berdenting pelan.',
+        '"Ia menitipkan ini padaku. Katanya, berikan pada orang pertama yang membawa bunga untuknya selain suaminya." Buku Pancing Legenda, dibungkus kain. Halaman pertama: "Untuk E. Kalau aku tak sempat, selesaikan untukku."'
+      ], actions(btn('close', 'Terima buku', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+    }, b);
+    if (act === 'mural') return openMural(b);
+    if (act === 'return') return call('return', '', function (r) {
+      metaOnce('cbbank');
+      pages(N().coco, 'Javasche Bank', [
+        '"Tepat sepuluh hari. Utang emas memang yang paling mudah dibayar."',
+        'Ia melihat Buku Pancing Legenda di tanganmu, diam lama, lalu melepas monokel. Untuk pertama kalinya, matanya terlihat lelah.',
+        '"Kakek buyut saya menerima tawaran Kumis Hitam: menyelamatkan rakyatnya, dan menyerahkan keluarga Penjaga Suara. Saya pewaris pengkhianat bagi satu pihak, dan perampas takhta bagi pihak lain. Kami berdua benar, Kapten. Itulah yang paling menyakitkan."'
+      ], actions(btn('close', 'Lanjut', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+    }, b);
+    if (act === 'gasing') return game('gasing', {
+      title: 'Adu Gasing', subtitle: 'Javasche Bank &middot; lawan Coco Epan',
+      intro: 'Satu ronde, demi istrinya. Terbaik dari tiga.',
+      opponent: { name: 'Coco Epan', title: 'Bankir Javasche Bank', npcRole: 'syahbandar' }, variant: 'normal'
+    }, function (res) {
+      var won = !!res.win;
+      call('gasing', won ? 'won' : 'lost', function () {
+        showToast(won ? '"Ia akan menyukaimu."' : '"Kau mengalah? Ia juga tak pernah mengalah."', won ? 'success' : 'info');
+        refresh();
+      }, b);
+    });
+    if (act === 'surat') return call('surat', '', function () {
+      pages(N().marlya, 'Istana Hening', [
+        'Marlya membaca surat itu di tepi jendela tanpa sepatah kata. Ia melipatnya, dan pelikannya bertengger di sampingnya tanpa terbang membawa balasan.',
+        'Malam itu, di menara tertinggi, sebuah lampu yang lama padam kembali menyala. Jauh di barat, di beranda Javasche Bank, Coco Epan melihat titik cahaya itu, lalu perlahan melepas monokelnya.',
+        '"Utang emas bisa dibayar dalam sepuluh hari. Utang darah dibayar oleh anak-anak yang tidak pernah meminjamnya."'
+      ], actions(btn('close', 'Selesai', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+    }, b);
+    if (act === 'close') return closeModal();
+  }
+
+  function refresh() {
+    if (typeof renderBank === 'function' && currentPanel === 'bank') { try { renderBank(); } catch (e) { } }
+    if (typeof renderScene === 'function') { try { renderScene(); } catch (e) { } }
+  }
+
+  /* ---------- Sandi Pelikan (mural): pilih sandi yang benar di tiap panel ---------- */
+  var PANELS = [
+    { g: '✧ ❦ ✧ ❦', opts: ['DUA TANGAN', 'SATU KAPAL', 'SEJUTA ANGIN'], ans: 0,
+      read: 'Dua pendiri Moramora berdiri di satu kapal: Sang Pembuka Jalur memegang peta dan timbangan, Sang Penjaga Suara memegang menara dan burung pembawa surat. Moramora tumbuh dari dua tangan itu.' },
+    { g: '❦ ✧ ❦ ✧', opts: ['MENARA KARANG', 'JALUR DAGANG', 'TEMBOK BESI'], ans: 1,
+      read: 'Moramora makmur. Jalur dagang dan menara-menara suara menghubungkan seluruh laut timur.' },
+    { g: '◆ ◇ ◆ ◇', opts: ['ARMADA HITAM', 'HUJAN EMAS', 'BADAI API'], ans: 0,
+      read: 'Datang armada hitam. Bajak laut terkuat: Marshell MPA, "Kumis Hitam". Ia tak bisa mengalahkan dua pendiri sekaligus.' },
+    { g: '✧ ◆ ✧ ◆', opts: ['MAHKOTA', 'JANGKAR', 'LONCENG'], ans: 0,
+      read: 'Kumis Hitam memecah mereka. Ia menawarkan mahkota kepada keturunan Pembuka Jalur, dengan satu syarat: keluarga Penjaga Suara diserahkan.' },
+    { g: '◇ ❦ ◇ ❦', opts: ['KERAK', 'SUNYI', 'RANTAI'], ans: 2,
+      read: 'Panel terakhir sengaja dikerok. Yang tersisa: sebuah mahkota, sebuah rantai, dan satu sosok yang memalingkan wajah.' }
+  ];
+  function openMural(b) {
+    var i = 0, mistakes = 0;
+    function show() {
+      var p = PANELS[i];
+      var opts = p.opts.map(function (o, k) { return '<button class="btn btn-ghost-ink" data-cb-opt="' + k + '">' + esc_(o) + '</button>'; }).join('');
+      var html = '<div class="cb-wrap"><div class="cb-card" id="cbSand"><b>Sandi Pelikan &middot; panel ' + (i + 1) + ' dari ' + PANELS.length + '</b>' +
+        '<div class="cb-glyph">' + p.g + '</div><div class="cb-sand"><div class="muted">Pilih arti aksara itu:</div><div class="cb-opts">' + opts + '</div></div></div></div>';
+      renderModal(html, {}, null);
+      var c = document.getElementById('modalContent');
+      c.querySelectorAll('[data-cb-opt]').forEach(function (ob) {
+        ob.onclick = function () {
+          if (Number(ob.getAttribute('data-cb-opt')) === p.ans) {
+            pages(N().felyx, 'Dinding di gudang', [p.read], actions(btn('next', i < PANELS.length - 1 ? 'Panel berikutnya' : 'Selesaikan sandi', 'btn-gold')), {
+              binds: { '[data-cb=next]': function () { if (++i < PANELS.length) show(); else finishMural(b); } }
+            });
+          } else {
+            mistakes++;
+            var card = document.getElementById('cbSand'); if (card) { card.classList.add('cb-bad'); setTimeout(function () { card.classList.remove('cb-bad'); }, 400); }
+            showToast('Bukan itu, Kapten. Pelikan menggeleng.', 'error');
+          }
+        };
+      });
+    }
+    show();
+  }
+  function finishMural(b) {
+    call('mural', '', function () {
+      pages(N().felyx, 'Gudang di balik Stumpy', [
+        'Dinding itu kini terbaca. Dua tangan membangun satu negeri; satu kumis hitam memisahkannya. Dan di panel kelima, seseorang memalingkan wajah.',
+        '"Aku menyeduh kopi di depan dinding ini sepuluh tahun dan tak pernah tahu artinya. Mungkin memang lebih baik begitu."'
+      ], actions(btn('close', 'Tutup', 'btn-gold')), { binds: { '[data-cb=close]': function () { closeModal(); } } });
+    }, b);
+  }
+
+  /* ---------- tanda jasa ---------- */
+  if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+    { id: 'cb_bank', t: 3, ic: 'coins', n: 'Penolong Bank Dunia', d: 'Pinjamkan emas kepada bankir tua Joungjava dan terima pelunasannya tepat waktu.', g: function (m) { return [m.c.cbbank || 0, 1]; } },
+    { id: 'cb_maudy', t: 3, ic: 'scroll', n: 'Pembawa Bunga Maudy', d: 'Antarkan bunga melati ke makam Nyonya Maudy di Gading Island.', g: function (m) { return [m.c.cbmaudy || 0, 1]; } }
+  );
+
+  return { N: N, bankCard: bankCard, DECOR: DECOR, PANELS: PANELS };
+})();
+</script>

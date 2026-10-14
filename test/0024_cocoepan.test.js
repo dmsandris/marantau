@@ -64,7 +64,13 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert(s.cocoepan.step === 6 && s.cocoepan.bookGiven && s.cocoepan.hasFlower === false, 'makam & buku pancing');
   assert((await item('qi_buku_pancing_maudy')) === 1, 'Buku Pancing Legenda diterima');
   await H.expectError(() => cb(['mural']), /belum terbuka/);
-  s = await cb(['legend']); assert(s.cocoepan.step === 7, 'ikan legenda tertangkap');
+  // ikan legenda: lewat kait memancing (fish_quest_catch), bukan aksi manual
+  await H.sql(`select game.fish_quest_catch($1, 'legenda_gading')`, [pid]);
+  s = await st(); assert(s.step === 7 && s.legend === true, 'ikan legenda tertangkap lewat kait memancing');
+  const w = Number((await H.sql(`select game.fish_quest_weight($1, 'legenda_gading', 'gading_island') w`, [pid]))[0].w);
+  assert(w !== 1, 'bobot ikan legenda sudah lewat langkah 6');
+  const gs = await u.call('api_getGameState', [null]);
+  assert(gs.cocoepan && gs.cocoepan.step === 7, 'status Quest 6 ikut di getGameState');
   s = await cb(['mural']); assert(s.cocoepan.step === 8 && s.cocoepan.mural === true, 'mural Sandi Pelikan selesai');
 
   // --- Babak 4 pasar kopi ---------------------------------------------------

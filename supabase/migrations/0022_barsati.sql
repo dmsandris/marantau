@@ -402,14 +402,14 @@ language sql as $$ select coalesce(game.gala_boss_defeated(p_pid), game.ww_boss_
 -- ---------------------------------------------------------------------
 -- Memancing Peti Karam di Bjorneo (langkah 6): peluang dinaikkan & pasti berisi Mahkota Karam
 -- ---------------------------------------------------------------------
-create or replace function game.fish_quest_weight(p_pid uuid, p_fish text, p_city text) returns numeric
+create or replace function game.bx_fish_quest_weight(p_pid uuid, p_fish text, p_city text) returns numeric
 language plpgsql stable as $$
 begin
   if p_fish = 'peti' and p_city = 'bjorneo' and game.bx_step(p_pid) = 6 and not game.bx_has_crown(p_pid) then return 8; end if;
   return 1;
 end $$;
 
-create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
+create or replace function game.bx_fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
 language plpgsql as $$
 begin
   if p_fish <> 'peti' or game.current_city(p_pid) <> 'bjorneo' or game.bx_step(p_pid) <> 6 or game.bx_has_crown(p_pid) then return null; end if;
@@ -418,6 +418,13 @@ begin
   return jsonb_build_object('itemId', 'art_sunken_crown', 'name', 'Mahkota Karam', 'quest', 'barsati',
     'message', 'Engsel peti yang berkarat patah. Di antara lumpur dan kerang, sesuatu berpendar keemasan: sebuah mahkota tua bertatah mutiara hitam. Mahkota Karam - mahkota Raja Bjorneo.');
 end $$;
+
+-- Kait memancing: dipanggil 0013; quest lain (0024) membungkus hook ini
+create or replace function game.fish_quest_weight(p_pid uuid, p_fish text, p_city text) returns numeric
+language sql stable as $$ select game.bx_fish_quest_weight(p_pid, p_fish, p_city) $$;
+
+create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
+language sql as $$ select game.bx_fish_quest_catch(p_pid, p_fish) $$;
 
 -- ---------------------------------------------------------------------
 -- Dagang & misi tidak ada di titik laut quest

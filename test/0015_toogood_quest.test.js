@@ -77,7 +77,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   r = await tg(['zafa']); assert(r.toogood.step === 4, 'lapor zafachmie');
   r = await tg(['euis']); assert(r.toogood.step === 5, 'Teh Euis menolak');
   await clock(0.3); await H.expectError(() => tg(['dwi']), /Daeng Sore/);
-  await clock(0.8); r = await tg(['dwi']); assert(r.story && r.toogood.step === 6 && r.book.total === 14, 'kisah dwi');
+  await clock(0.8); r = await tg(['dwi']); assert(r.story && r.toogood.step === 6 && r.book.total === 15, 'kisah dwi');
   r = await tg(['dwi']); assert(r.needBook && r.toogood.step === 6, 'butuh buku ikan');
   await H.sql(`insert into game.mp_fish_book(player_id, fish_id, n, best_kg) select $1, id, 1, 1 from game.mp_fish_types on conflict do nothing`, [u.id]);
   r = await tg(['dwi']); assert(r.code === 'thepowerofdreams' && r.toogood.step === 7, 'kode sandi');

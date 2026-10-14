@@ -9,7 +9,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const pass = async u => H.sql('update game.mp_fish set t0 = t0 - 60000 where player_id = $1', [u.id]);
 
   const info = await A.call('api_mgFishInfo', []);
-  assert(info.left === 20 && info.max === 20 && info.nextMs === 0 && info.rod === 0 && info.baits.length === 4 && info.rods.length === 3 && info.total === 14 && info.found === 0, JSON.stringify(info));
+  assert(info.left === 20 && info.max === 20 && info.nextMs === 0 && info.rod === 0 && info.baits.length === 4 && info.rods.length === 3 && info.total === 15 && info.found === 0, JSON.stringify(info));
 
   // umpan berbayar memotong gold; nama ikan TIDAK dikirim saat melempar
   let g0 = await gold(A);
@@ -48,7 +48,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
 
   // buku ikan + rekor dermaga
   const book = await A.call('api_mgFishBook', []);
-  assert(book.length === 14, 'buku 14');
+  assert(book.length === 15, 'buku 15');
   const got = book.filter(b => b.found);
   assert(got.length === 1 && got[0].name === r.fish.name && got[0].n === 1 && Number(got[0].bestKg) === Number(r.kg), 'buku isi ' + JSON.stringify(got));
   assert(book.filter(b => !b.found).every(b => b.name === null && b.hint), 'spesies belum ditemukan disembunyikan');

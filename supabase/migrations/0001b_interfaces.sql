@@ -280,6 +280,10 @@ language plpgsql stable as $$ begin return 1; end $$;
 create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
 language plpgsql as $$ begin return null; end $$;
 
+-- [Saga 2 · Quest 6 "Bunga yang Tak Pernah Layu" / 0024] ----------------------
+create or replace function game.cb_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+
 -- [Saga 2 · Quest 5 "Kompas yang Berputar" / 0023] -----------------------
 -- Status quest Kompas untuk getGameState (null = belum tersedia)
 create or replace function game.kp_state(p_pid uuid) returns jsonb

@@ -12,7 +12,7 @@
 --   4  Babak 3  'flower' di Joungjava (bunga melati) -> Gading Island terbuka (peta meluas)
 --   5           'stumpy' di Gading Island (felyx)
 --   6           'grave' di Gading Island: bunga dipersembahkan, Buku Pancing Maudy diterima
---   7           'legend' - ikan legenda Gading Island tertangkap (pengait fish nanti)
+--   7           ikan legenda Gading Island tertangkap (kait fish_quest_catch, otomatis)
 --   8  Babak 4  'mural' di Gading Island - Sandi Pelikan selesai
 --  9  Babak 5  'return' di Joungjava pada hari ke-10 pinjaman: pengembalian 2x lipat (dibayar)
 --  10           'gasing' won|lost (Coco Epan) - adu gasing setelah pelunasan
@@ -86,6 +86,38 @@ language sql immutable as $$
   select round(p_loan * (1 + game.cb_rate() * game.cb_hold_days()))::bigint
 $$;
 
+-- Ikan legenda Gading Island: hanya tertangkap saat langkah 6 (berdasarkan kait fish_quest_weight)
+insert into game.mp_fish_types(id, name, v, w, zone, sp, rarity, kg_min, kg_max, stam, pow, agi, depth, tod, cities, kind, hint, sort)
+values ('legenda_gading', 'Ikan Legenda Gading', 900, 0.4, 0.3, 1.2, 4, 0.6, 2.0, 2.6, 0.8, 0.7, 2, 'any',
+        array['gading_island'], 'fish', 'Ikan yang tercatat di Buku Pancing Maudy. Konon hanya muncul untuk yang sabar.', 99)
+on conflict (id) do update set name = excluded.name, v = excluded.v, w = excluded.w, zone = excluded.zone,
+  sp = excluded.sp, rarity = excluded.rarity, kg_min = excluded.kg_min, kg_max = excluded.kg_max, stam = excluded.stam,
+  pow = excluded.pow, agi = excluded.agi, depth = excluded.depth, tod = excluded.tod, cities = excluded.cities,
+  kind = excluded.kind, hint = excluded.hint, sort = excluded.sort;
+
+-- Bobot ikan legenda hanya aktif saat langkah 6 (di Gading Island); selain itu nyaris mustahil
+create or replace function game.fish_quest_weight(p_pid uuid, p_fish text, p_city text) returns numeric
+language plpgsql stable as $$
+begin
+  if p_fish = 'legenda_gading' then return case when game.cb_step(p_pid) = 6 then 1 else 0.0001 end; end if;
+  return game.bx_fish_quest_weight(p_pid, p_fish, p_city);  -- Peti Karam Bjorneo (0022)
+end $$;
+
+-- Menangkap ikan legenda di langkah 6 -> langkah 7 (halaman pertama Buku Pancing terisi)
+create or replace function game.fish_quest_catch(p_pid uuid, p_fish text) returns jsonb
+language plpgsql as $$
+begin
+  if p_fish = 'legenda_gading' then
+    if game.cb_step(p_pid) = 6 and game.current_city(p_pid) = 'gading_island' then
+      update game.player_quests set step = 7, data = data || '{"legend": true}'::jsonb, updated_at = now()
+       where player_id = p_pid and quest_id = 'cocoepan';
+      perform game.log(p_pid, 'Ikan legenda Gading Island tertangkap. Halaman pertama Buku Pancing Legenda kini terisi.');
+    end if;
+    return null;
+  end if;
+  return game.bx_fish_quest_catch(p_pid, p_fish);  -- Peti Karam Bjorneo (0022)
+end $$;
+
 -- Pulau terbuka untuk pemain yang sudah memasuki Babak 3 (lihat city_open)
 create or replace function game.city_open(p_pid uuid, p_city text) returns boolean
 language sql stable as $$
@@ -141,7 +173,7 @@ end $$;
 -- ---------------------------------------------------------------------
 -- Aksi quest. a = [action, arg]
 --   status | talk | loan [jumlah] | decline | deliver | syahbandar | flower | stumpy
---   | grave | legend | mural | return | gasing [won|lost] | surat
+--   | grave | mural | return | gasing [won|lost] | surat
 -- ---------------------------------------------------------------------
 create or replace function game.cb_set(p_pid uuid, p_step int, p_data jsonb) returns void
 language sql as $$
@@ -264,14 +296,6 @@ begin
     perform game.log(v_pid, 'Bunga melati diletakkan di makam Nyonya Maudy. felyx menyerahkan Buku Pancing Legenda.');
     return jsonb_build_object('cocoepan', game.cb_state(v_pid),
       'item', jsonb_build_object('itemId', 'qi_buku_pancing_maudy', 'name', 'Buku Pancing Legenda'));
-  end if;
-
-  if v_act = 'legend' then
-    if v_step <> 6 then raise exception 'Ikan legenda itu belum menunggu kailmu.'; end if;
-    if v_city <> 'gading_island' then raise exception 'Ikan legenda itu hanya ada di perairan Gading Island.'; end if;
-    perform game.cb_set(v_pid, 7, jsonb_build_object('legend', true));
-    perform game.log(v_pid, 'Ikan legenda Gading Island tertangkap. Halaman pertama Buku Pancing Legenda kini terisi.');
-    return jsonb_build_object('cocoepan', game.cb_state(v_pid));
   end if;
 
   -- Babak 4: mural dua nakhoda (Sandi Pelikan dimainkan di klien)
