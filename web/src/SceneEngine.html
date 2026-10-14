@@ -2786,6 +2786,46 @@ var MTScene = (function () {
         ng.addColorStop(0, 'rgba(255,120,210,' + 0.45 * fl + ')'); ng.addColorStop(0.5, 'rgba(80,180,230,' + 0.18 * fl + ')'); ng.addColorStop(1, 'rgba(80,180,230,0)');
         ctx.fillStyle = ng; ctx.fillRect(d.x - d.w * 0.4, d.y - d.w * 0.4, d.w * 1.8, d.h + d.w * 0.8);
         ctx.globalCompositeOperation = 'source-over';
+      } else if (d.type === 'lampion') {
+        // lampion merah Gading Island: menyala redup di siang hari, hangat di malam hari
+        var lo = Math.max(0, p.lights), lu = d.u;
+        ctx.strokeStyle = p.lit('#3b2a1a', 0.7); ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        d.strands.forEach(function (st) { st.forEach(function (b, k) { if (!k) ctx.moveTo(b.x, b.y); else ctx.lineTo(b.x, b.y); }); });
+        ctx.stroke();
+        d.strands.forEach(function (st, si) {
+          st.forEach(function (b, k) {
+            var sw = inst.reduced ? 0 : Math.sin(t * 1.25 + k * 0.9 + si) * 0.07, sz = b.s;
+            ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(sw);
+            ctx.strokeStyle = p.lit('#3b2a1a', 0.8); ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, sz * 0.35); ctx.stroke();
+            if (lo > 0.12) {
+              ctx.globalCompositeOperation = 'lighter';
+              var lg = ctx.createRadialGradient(0, sz * 0.9, 0, 0, sz * 0.9, sz * 1.9);
+              lg.addColorStop(0, 'rgba(255,120,70,' + (0.32 * lo).toFixed(3) + ')'); lg.addColorStop(1, 'rgba(255,80,40,0)');
+              ctx.fillStyle = lg; ctx.fillRect(-sz * 2, -sz, sz * 4, sz * 4);
+              ctx.globalCompositeOperation = 'source-over';
+            }
+            ctx.fillStyle = lo > 0.12 ? U.css(U.mix([196, 38, 28], [255, 110, 70], lo * 0.8)) : p.lit('#c4261c');
+            ctx.beginPath(); ctx.ellipse(0, sz * 0.9, sz * 0.42, sz * 0.52, 0, 0, 6.3); ctx.fill();
+            ctx.strokeStyle = lo > 0.12 ? 'rgba(120,20,10,.5)' : p.lit('#7a1a12', 0.6); ctx.lineWidth = 0.5;
+            ctx.beginPath(); ctx.ellipse(0, sz * 0.9, sz * 0.2, sz * 0.52, 0, 0, 6.3); ctx.stroke();
+            ctx.fillStyle = p.lit('#d9a441'); ctx.fillRect(-sz * 0.22, sz * 0.32, sz * 0.44, sz * 0.12); ctx.fillRect(-sz * 0.22, sz * 1.36, sz * 0.44, sz * 0.12);
+            ctx.strokeStyle = p.lit('#c4261c'); ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(0, sz * 1.48); ctx.lineTo(0, sz * 1.85); ctx.stroke();
+            ctx.restore();
+          });
+        });
+        void lu;
+      } else if (d.type === 'stumpy') {
+        // Kedai Stumpy: tutup sampai epilog Quest 6; setelah dibuka, jendela hangat & uap kopi
+        var open = false;
+        try { open = !!(window.CB && CB.stumpyOpen && CB.stumpyOpen()); } catch (e) { open = false; }
+        if (open) {
+          ctx.fillStyle = p.lights > 0.15 ? 'rgba(255,196,120,' + (0.55 + 0.35 * p.lights).toFixed(3) + ')' : p.lit('#e8c890');
+          ctx.fillRect(d.x, d.y, d.w, d.h);
+          ctx.fillStyle = p.lit('#3b2616', 0.9); ctx.fillRect(d.x + d.w * 0.1, d.y + d.h * 0.62, d.w * 0.8, d.h * 0.08);
+          ctx.fillStyle = p.lit('#f6efdd'); for (var cu = 0; cu < 3; cu++) ctx.fillRect(d.x + d.w * (0.2 + cu * 0.25), d.y + d.h * 0.48, d.u * 0.16, d.u * 0.14);
+          if (Math.random() < 0.06) puff(inst, d.x + d.w * (0.25 + Math.random() * 0.5), d.y + d.h * 0.45, { vx: 0.02, vy: -0.18, r: d.u * 0.08, grow: 0.025, life: 2.2, col: 'rgba(255,255,255,A)', a: 0.35 });
+        }
       } else if (d.type === 'lights') {
         renderStringLights(ctx, p, t, d);
       } else if (d.type === 'steam') {
@@ -3285,7 +3325,8 @@ var MTChart = (function () {
     FallenCapital: '<path d="M-4 5v-7M0 5v-4M4 5v-8M-5 5h10" />',
     Paradise: '<path d="M0 5c0-3 1-6 1-8M1 -3c-2-2-5-2-6 0M1 -3c2-2 5-2 6 0M1 -3c-1-2 0-4 2-4" />',
     Freed: '<path d="M0 -5l1.5 3.4 3.7.4-2.8 2.5.8 3.7L0 3.1-3.2 5l.8-3.7-2.8-2.5 3.7-.4z" />',
-    Regal: '<ellipse cx="0" cy="0" rx="5" ry="3.2"/><path d="M-4 0q4 2.6 8 0M-2 1.4l-.4 1.8M0 1.9v1.9M2 1.4l.4 1.8" />'
+    Regal: '<ellipse cx="0" cy="0" rx="5" ry="3.2"/><path d="M-4 0q4 2.6 8 0M-2 1.4l-.4 1.8M0 1.9v1.9M2 1.4l.4 1.8" />',
+    Gading: '<ellipse cx="0" cy="0.5" rx="3" ry="3.6"/><path d="M-2 -3.6h4M-2 4.6h4M0 4.6v2" />'
   };
 
   function blob(cx, cy, r0, seed, n) {
@@ -3322,8 +3363,10 @@ var MTChart = (function () {
     var W = 720, H = 440, M = 36;
     var cities = o.cities || [];
     var pts = {};
-    // Saga 2 · Quest 6: setelah bunga melati (langkah 4+), peta meluas ke timur (Gading Island x~135)
-    var extX = (typeof state !== 'undefined' && state && state.cocoepan && state.cocoepan.step >= 4) ? 150 : 100;
+    // Saga 2 · Quest 6: bila ada pulau terlihat di luar Mare Nusantara (MapX > 100, mis. Gading Island),
+    // peta meluas ke timur - Mare Nusantara mengecil ke sisi barat, sisanya kabut "Belum Dipetakan".
+    var extX = 100;
+    cities.forEach(function (c) { if ((Number(c.MapX) || 0) > 100) extX = 170; });
     cities.forEach(function (c) {
       pts[c.CityId] = { x: M + (Number(c.MapX) || 50) / extX * (W - M * 2), y: M + (Number(c.MapY) || 50) / 100 * (H - M * 2), c: c };
     });
@@ -3355,6 +3398,19 @@ var MTChart = (function () {
       deco += '<path d="' + d0 + '" fill="#9fc2c0" opacity=".45" filter="url(#mcBlur)"/><path d="' + d0 + '" fill="url(#mcLand)" stroke="#5a4526" stroke-width=".9"/>';
     }
     s += deco;
+    // kabut "Belum Dipetakan" di laut timur jauh (hanya saat peta meluas)
+    if (extX > 100) {
+      var fx0 = M + 112 / extX * (W - M * 2), fr = U.rng(7071), fog = '';
+      fog += '<rect x="' + (fx0 + 120).toFixed(0) + '" y="0" width="' + (W - fx0).toFixed(0) + '" height="' + H + '" fill="#efe6cf" opacity=".55" filter="url(#mcBlur)"/>';
+      for (var fi = 0; fi < 9; fi++) {
+        var fxx = fx0 + 150 + fr() * (W - fx0 - 150), fyy = fr() * H, frr = 40 + fr() * 70;
+        if (Math.abs(fxx - (M + 135 / extX * (W - M * 2))) < 70 && Math.abs(fyy - (M + 40 / 100 * (H - M * 2))) < 60) continue;
+        fog += '<ellipse cx="' + fxx.toFixed(0) + '" cy="' + fyy.toFixed(0) + '" rx="' + frr.toFixed(0) + '" ry="' + (frr * 0.6).toFixed(0) + '" fill="#f4ecd8" opacity=".8" filter="url(#mcBlur)"/>';
+      }
+      fog += '<g transform="translate(' + (W - 64) + ' ' + (H * 0.62).toFixed(0) + ') rotate(-8)"><text text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="13" font-weight="700" letter-spacing="3" fill="#7a6440" opacity=".7">BELUM</text>' +
+        '<text y="16" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="13" font-weight="700" letter-spacing="3" fill="#7a6440" opacity=".7">DIPETAKAN</text></g>';
+      s += fog;
+    }
     // pulau kota
     cities.forEach(function (c) {
       var p = pts[c.CityId], seed = U.hashStr(c.CityId);
@@ -6702,7 +6758,161 @@ var MTCities = (function () {
   // Tanpa bangunan/plakat: hotspot hanya kapal pemain ("Kapalmu", ditambahkan getHotspots).
   function pusaran(B) { B.hillY = function () { return B.shoreY; }; B.noLamps = true; B.roamers = []; B.walk = null; B.noPosters = true; }
 
-  var BUILDERS = { sunda_empire: sunda, joungjava: joungjava, bjorneo: bjorneo, skitraw: skitraw, toogood: toogood, toogood_free: toogoodFree, ikn: ikn, paradiso: paradiso, marie_regal: marieRegal, marie_regal_free: marieRegalFree, pusaran: pusaran };
+  // GADING ISLAND (Saga 2 · Quest 6) - kepulauan di laut timur jauh, suasana pecinan yang hidup:
+  // gerbang paifang di dermaga, deretan ruko dua lantai berjendela kayu, Balai Kongsi, Rumah Mahjong,
+  // klenteng tua di bukit (sakral: tidak bisa diklik, hanya asap dupa), lampion merah, Kedai Stumpy.
+  // Ditulis dengan hormat: keindahan budaya, bukan dekorasi eksotis.
+  function gdRoof(ctx, x, top, w, rh, col, trim) {
+    var ov = w * 0.13;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(x - ov, top);
+    ctx.quadraticCurveTo(x + w * 0.1, top - rh * 0.3, x + w * 0.17, top - rh * 0.8);
+    ctx.lineTo(x + w * 0.83, top - rh * 0.8);
+    ctx.quadraticCurveTo(x + w * 0.9, top - rh * 0.3, x + w + ov, top);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 0.7;
+    for (var i = 1; i < 8; i++) { var fx = x + w * i / 8; ctx.beginPath(); ctx.moveTo(fx, top - rh * 0.78); ctx.lineTo(fx + (fx - (x + w / 2)) * 0.18, top); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(0,0,0,.24)'; ctx.fillRect(x - ov * 0.7, top - 1.4, w + ov * 1.4, 1.6);
+    // bubungan melengkung dengan ujung ekor walet yang mencuat
+    ctx.strokeStyle = trim || '#d9a441'; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1.3, rh * 0.13);
+    ctx.beginPath(); ctx.moveTo(x + w * 0.06, top - rh * 1.2);
+    ctx.quadraticCurveTo(x + w * 0.16, top - rh * 0.78, x + w * 0.5, top - rh * 0.84);
+    ctx.quadraticCurveTo(x + w * 0.84, top - rh * 0.78, x + w * 0.94, top - rh * 1.2); ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+  function gdRuko(B, x, base, w, h, wall, roofCol, o) {
+    var ctx = B.ctx, u = B.u; o = o || {};
+    var b = bld(B, { x: x, w: w, base: base, h: h, roof: 'flat', rh: u * 0.2, wall: wall, roofCol: roofCol });
+    // lantai bawah: pintu lipat kayu; lantai atas: jendela berdaun kayu + balkon
+    ctx.fillStyle = o.shop || '#5a3418'; ctx.fillRect(x + w * 0.1, base - h * 0.42, w * 0.8, h * 0.42);
+    ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 0.8;
+    for (var k = 1; k < 6; k++) { ctx.beginPath(); ctx.moveTo(x + w * 0.1 + w * 0.8 * k / 6, base - h * 0.42); ctx.lineTo(x + w * 0.1 + w * 0.8 * k / 6, base); ctx.stroke(); }
+    ctx.fillStyle = '#3b2616'; ctx.fillRect(x - w * 0.04, base - h * 0.5, w * 1.08, h * 0.06);
+    ctx.strokeStyle = '#3b2616'; ctx.lineWidth = 0.8;
+    for (var bb = 0; bb <= 8; bb++) { ctx.beginPath(); ctx.moveTo(x + w * bb / 8, base - h * 0.5); ctx.lineTo(x + w * bb / 8, base - h * 0.62); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(x - w * 0.04, base - h * 0.62); ctx.lineTo(x + w * 1.04, base - h * 0.62); ctx.stroke();
+    gdRoof(ctx, x, base - h, w, u * 0.9, roofCol, o.trim);
+    return b;
+  }
+  function gdLions(ctx, x, base, u, flip) {
+    ctx.save(); ctx.translate(x, base); if (flip) ctx.scale(-1, 1);
+    ctx.fillStyle = '#8f8a80'; ctx.fillRect(-u * 0.32, -u * 0.22, u * 0.64, u * 0.22);
+    ctx.fillStyle = '#a9a398'; ctx.beginPath(); ctx.moveTo(-u * 0.26, -u * 0.22); ctx.lineTo(-u * 0.24, -u * 0.62); ctx.quadraticCurveTo(-u * 0.05, -u * 0.95, u * 0.2, -u * 0.72); ctx.lineTo(u * 0.24, -u * 0.22); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#7a756c'; ctx.beginPath(); ctx.arc(u * 0.02, -u * 0.74, u * 0.15, 0, 6.3); ctx.fill();
+    ctx.restore();
+  }
+  function gdKlenteng(B, x, base, w, h) {
+    var ctx = B.ctx, u = B.u;
+    // undakan batu
+    ctx.fillStyle = '#b9ad98'; ctx.fillRect(x - u * 0.6, base - u * 0.25, w + u * 1.2, u * 0.25);
+    ctx.fillStyle = '#a4987f'; ctx.fillRect(x - u * 0.3, base - u * 0.5, w + u * 0.6, u * 0.25);
+    var b0 = base - u * 0.5;
+    ctx.fillStyle = '#a3241a'; ctx.fillRect(x, b0 - h, w, h);
+    ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.fillRect(x + w * 0.8, b0 - h, w * 0.2, h);
+    // tiang & balok berhias emas
+    ctx.fillStyle = '#7a1a12'; for (var c = 0; c < 5; c++) ctx.fillRect(x + w * (0.04 + c * 0.235), b0 - h, w * 0.05, h);
+    ctx.fillStyle = '#d9a441'; ctx.fillRect(x, b0 - h, w, h * 0.08); ctx.fillRect(x, b0 - h * 0.62, w, h * 0.03);
+    // pintu tengah berdaun ganda
+    ctx.fillStyle = '#5a1410'; ctx.fillRect(x + w * 0.36, b0 - h * 0.58, w * 0.28, h * 0.58);
+    ctx.fillStyle = '#d9a441'; for (var dd = 0; dd < 2; dd++) for (var kk = 0; kk < 3; kk++) { ctx.beginPath(); ctx.arc(x + w * (0.42 + dd * 0.16), b0 - h * (0.48 - kk * 0.15), u * 0.05, 0, 6.3); ctx.fill(); }
+    // atap bawah (serambi) + atap utama
+    gdRoof(ctx, x - w * 0.06, b0 - h * 0.62, w * 1.12, u * 0.6, '#2f5f4f', '#d9a441');
+    gdRoof(ctx, x + w * 0.08, b0 - h, w * 0.84, u * 1.25, '#2f5f4f', '#d9a441');
+    // mutiara di bubungan
+    ctx.fillStyle = '#e8c35a'; ctx.beginPath(); ctx.arc(x + w * 0.5, b0 - h - u * 1.18, u * 0.16, 0, 6.3); ctx.fill();
+    // tungku dupa di halaman + singa penjaga batu
+    ctx.fillStyle = '#6b5a3a'; ctx.fillRect(x + w * 0.5 - u * 0.3, base - u * 0.85, u * 0.6, u * 0.36);
+    ctx.fillStyle = '#4a3c26'; ctx.fillRect(x + w * 0.5 - u * 0.36, base - u * 0.9, u * 0.72, u * 0.08);
+    gdLions(ctx, x - u * 0.15, base - u * 0.25, u * 1.05, false);
+    gdLions(ctx, x + w + u * 0.15, base - u * 0.25, u * 1.05, true);
+    B.dyn.push({ type: 'steam', x: x + w * 0.5, y: base - u * 0.95, w: u * 0.25, u: u * 0.7, rate: 0.05 });
+    return b0 - h - u * 1.3;
+  }
+  function gdPaifang(ctx, x, base, w, h, u) {
+    ctx.fillStyle = '#9b2018';
+    ctx.fillRect(x + w * 0.06, base - h, w * 0.08, h); ctx.fillRect(x + w * 0.86, base - h, w * 0.08, h);
+    ctx.fillStyle = '#6b6258'; ctx.fillRect(x + w * 0.03, base - u * 0.3, w * 0.14, u * 0.3); ctx.fillRect(x + w * 0.83, base - u * 0.3, w * 0.14, u * 0.3);
+    ctx.fillStyle = '#7a1a12'; ctx.fillRect(x, base - h * 0.8, w, h * 0.08); ctx.fillRect(x + w * 0.04, base - h * 0.95, w * 0.92, h * 0.06);
+    gdRoof(ctx, x - w * 0.02, base - h, w * 1.04, u * 0.8, '#2f5f4f', '#d9a441');
+  }
+  function gading(B) {
+    var u = B.u, q = B.qTop, sy = B.shoreY, ctx = B.ctx, r = B.r;
+    hills(B, { c: ['#5f9a4a', '#33663a'], h: 0.24, peak: 0.46, trees: 34, kind: 'tree',
+      village: { walls: ['#efe4cc', '#d8c39a', '#f4ead8', '#c9a77a'], roofs: ['#8f2a1e', '#2f5f4f', '#6b2a20'], types: ['hip', 'pagoda', 'gable'], prob: 0.45 } });
+    // klenteng tua di lereng (sakral - tanpa papan klik) & makam di bukit di belakangnya
+    var kx = u * 12.6, kw = u * 5.2, kb = Math.min(sy - u * 3.4, B.hillY(kx + kw / 2) + u * 1.5);
+    var ktop = gdKlenteng(B, kx, kb, kw, u * 2.1);
+    var mx = u * 19.4, mb = Math.min(sy - u * 4, B.hillY(mx) + u * 0.9);
+    ctx.fillStyle = '#9a9283'; ctx.beginPath(); ctx.moveTo(mx - u * 0.45, mb); ctx.lineTo(mx - u * 0.4, mb - u * 0.7); ctx.quadraticCurveTo(mx, mb - u * 1.05, mx + u * 0.4, mb - u * 0.7); ctx.lineTo(mx + u * 0.45, mb); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(mx - u * 0.75, mb, u * 1.5, u * 0.14);
+    MTScene._h.tree(ctx, mx + u * 1.1, mb + u * 0.2, u * 0.5, [74, 120, 70], r);
+    hot(B, 'makam', 'Bukit Makam', 'star', mx - u * 0.8, mb - u * 1.4, u * 1.6, u * 1.6);
+    stoneQuay(B, 0, u * 29.5, '#b8ae9c');
+    // gerbang paifang di ujung dermaga
+    gdPaifang(ctx, u * 0.4, q, u * 4.6, u * 3.6, u);
+    sign(ctx, u * 1.0, q - u * 3.2, u * 3.4, u * 0.62, ['GADING ISLAND'], 'board', { bg: '#a3241a', fg: '#f2cf6a', frame: '#5a1410' });
+    hot(B, 'cargo', 'Gudang Pelabuhan', 'warehouse', u * 0.4, q - u * 4.4, u * 4.6, u * 4.4);
+    // deretan ruko
+    var R = [
+      ['#efe4cc', '#8f2a1e', 'market', 'Pasar Lampion', 'scales'],
+      ['#d9e6d6', '#2f5f4f', 'bank', 'Bank Giok', 'bank'],
+      ['#f4ead8', '#8f2a1e', 'library', 'Toko Obat', 'book'],
+      ['#e6d2b0', '#6b2a20', null]
+    ];
+    for (var i = 0; i < R.length; i++) {
+      var rx = u * (5.2 + i * 2.45), rw = u * 2.25, rh2 = u * (2.9 + (i % 2) * 0.35);
+      gdRuko(B, rx, q, rw, rh2, R[i][0], R[i][1], { trim: R[i][1] === '#2f5f4f' ? '#e8c35a' : '#d9a441' });
+      if (R[i][2]) hot(B, R[i][2], R[i][3], R[i][4], rx, q - rh2 - u * 1.2, rw, rh2 + u * 1.2);
+    }
+    // papan nama kecil pada ruko
+    sign(ctx, u * 5.4, q - u * 1.6, u * 1.85, u * 0.42, ['PASAR'], 'board', { bg: '#f6efdd' });
+    sign(ctx, u * 7.85, q - u * 1.6, u * 1.85, u * 0.42, ['BANK GIOK'], 'board', { bg: '#2f5f4f', fg: '#f2e7c4', frame: '#1c3a30' });
+    sign(ctx, u * 10.3, q - u * 1.6, u * 1.85, u * 0.42, ['TOKO OBAT'], 'board', { bg: '#f6efdd' });
+    var sc = ['#c4261c', '#d9a441', '#c4261c', '#e8dcc0'];
+    for (var s2 = 0; s2 < 4; s2++) stall(ctx, u * (5.3 + s2 * 0.7), q + u * 0.02, u * 0.65, u * 0.9, sc[s2], '#f6efdd');
+    // Balai Kongsi (papan misi) - balai berserambi
+    var bx = u * 17.7, bw = u * 3.9, bh = u * 2.4;
+    bld(B, { x: bx, w: bw, base: q, h: bh, roof: 'flat', rh: u * 0.2, wall: '#efe0c2', roofCol: '#8f2a1e' });
+    ctx.fillStyle = '#8f2a1e'; for (var cc = 0; cc < 5; cc++) ctx.fillRect(bx + bw * (0.04 + cc * 0.23), q - bh, bw * 0.04, bh);
+    gdRoof(ctx, bx, q - bh, bw, u * 1.05, '#8f2a1e', '#d9a441');
+    sign(ctx, bx + bw * 0.2, q - bh * 0.8, bw * 0.6, u * 0.46, ['BALAI KONGSI'], 'board', { bg: '#a3241a', fg: '#f2cf6a', frame: '#5a1410' });
+    hot(B, 'tasks', 'Balai Kongsi', 'scroll', bx, q - bh - u * 1.4, bw, bh + u * 1.4);
+    // Rumah Mahjong (lapau)
+    var hx = u * 21.9, hw = u * 2.6;
+    gdRuko(B, hx, q, hw, u * 3.1, '#f0d9b5', '#6b2a20');
+    sign(ctx, hx + u * 0.2, q - u * 1.65, hw - u * 0.4, u * 0.44, ['RUMAH MAHJONG'], 'board', { bg: '#f6efdd' });
+    hot(B, 'tavern', 'Rumah Mahjong', 'cup', hx, q - u * 4.3, hw, u * 4.3);
+    // Kedai Stumpy - kedai kayu kecil di ujung jalan
+    var kx2 = u * 15.1, kw2 = u * 2.2, kh2 = u * 1.9;
+    bld(B, { x: kx2, w: kw2, base: q, h: kh2, roof: 'gable', rh: u * 0.9, wall: '#8a6238', roofCol: '#4a3426' });
+    ctx.fillStyle = '#5a3c22'; ctx.fillRect(kx2 + kw2 * 0.12, q - kh2 * 0.62, kw2 * 0.76, kh2 * 0.5);
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 0.8;
+    for (var sl = 1; sl < 5; sl++) { ctx.beginPath(); ctx.moveTo(kx2 + kw2 * 0.12, q - kh2 * 0.62 + kh2 * 0.1 * sl); ctx.lineTo(kx2 + kw2 * 0.88, q - kh2 * 0.62 + kh2 * 0.1 * sl); ctx.stroke(); }
+    sign(ctx, kx2 + kw2 * 0.12, q - kh2 - u * 0.15, kw2 * 0.76, u * 0.5, ['Stumpy'], 'plank', { bg: '#d8b47a' });
+    B.dyn.push({ type: 'stumpy', x: kx2 + kw2 * 0.12, y: q - kh2 * 0.62, w: kw2 * 0.76, h: kh2 * 0.5, u: u });
+    hot(B, 'stumpy', 'Kedai Stumpy', 'coffee', kx2, q - kh2 - u * 1.5, kw2, kh2 + u * 1.5);
+    // dermaga lampion & galangan perahu
+    ctx.fillStyle = '#3b2616'; ctx.fillRect(u * 27.2, q - u * 2.2, u * 0.16, u * 2.2); ctx.fillRect(u * 29.2, q - u * 2.2, u * 0.16, u * 2.2);
+    gdRoof(ctx, u * 27.1, q - u * 2.2, u * 2.4, u * 0.8, '#6b2a20', '#d9a441');
+    ctx.fillStyle = '#8a5a32'; ctx.beginPath(); ctx.moveTo(u * 27.4, q - u * 0.9); ctx.quadraticCurveTo(u * 28.3, q + u * 0.1, u * 29.2, q - u * 1.0); ctx.lineTo(u * 28.9, q - u * 0.5); ctx.quadraticCurveTo(u * 28.3, q - u * 0.1, u * 27.6, q - u * 0.45); ctx.closePath(); ctx.fill();
+    hot(B, 'ship', 'Dermaga Lampion', 'wrench', u * 27.0, q - u * 3.4, u * 2.6, u * 3.4);
+    // untaian lampion merah: di gerbang, di depan ruko, di serambi balai, ke kedai
+    function strandL(x0, y0, x1, y1, sag, n, sz) { var pts = []; for (var j = 0; j <= n; j++) { var f = j / n; pts.push({ x: U.lerp(x0, x1, f), y: U.lerp(y0, y1, f) + Math.sin(f * Math.PI) * sag, s: sz }); } return pts; }
+    var L = [];
+    L.push(strandL(u * 0.9, q - u * 2.65, u * 4.5, q - u * 2.65, u * 0.25, 4, u * 0.42));
+    L.push(strandL(u * 5.0, q - u * 2.15, u * 14.8, q - u * 2.2, u * 0.45, 11, u * 0.34));
+    L.push(strandL(u * 17.7, q - u * 1.95, u * 21.6, q - u * 1.95, u * 0.2, 5, u * 0.38));
+    L.push(strandL(u * 21.9, q - u * 2.25, u * 26.6, q - u * 2.0, u * 0.4, 6, u * 0.32));
+    L.push(strandL(kx - u * 0.2, kb - u * 2.4, kx + kw + u * 0.2, kb - u * 2.4, u * 0.25, 4, u * 0.36));
+    B.dyn.push({ type: 'lampion', strands: L, u: u });
+    B.dyn.push({ type: 'fireworks', x0: u * 4, x1: u * 24, y0: B.hy * 0.22, y1: B.hy * 0.5, gap: 9, gapR: 14 });
+    B.flags.push({ x: u * 2.7, y: q - u * 4.6, h: u * 1, col: '#c4261c' }, { x: kx + kw / 2, y: ktop - u * 0.4, h: u * 0.9, col: '#d9a441' });
+    B.moored.push({ type: 'junk', x: B.W * 0.12, y: B.H * 0.8, s: B.H * 0.0021, dir: 1 }, { type: 'junk', x: B.W * 0.42, y: B.H * 0.72, s: B.H * 0.0013, dir: -1 },
+      { type: 'jukung', x: B.W * 0.27, y: B.H * 0.93, s: B.H * 0.003, dir: 1, sail: '#c4261c' });
+    B.walk = { style: 'villagers', n: 12, x0: u * 1, x1: u * 26 };
+  }
+
+  var BUILDERS = { sunda_empire: sunda, joungjava: joungjava, bjorneo: bjorneo, skitraw: skitraw, toogood: toogood, toogood_free: toogoodFree, ikn: ikn, paradiso: paradiso, marie_regal: marieRegal, marie_regal_free: marieRegalFree, pusaran: pusaran, gading_island: gading };
   var MOOD = { toogood: 'gloom', ikn: 'overcast', paradiso: 'paradise', marie_regal: 'regal', marie_regal_free: 'regal', pusaran: 'maelstrom' };
   return { get: function (id) { return BUILDERS[id]; }, mood: function (id) { return MOOD[id] || null; }, sign: sign, regalDyn: regalDyn, regalWater: regalWater, regalRobot: regalRobot, regalEye: regalEye, regalEyeOpen: regalEyeOpen, regalTower: regalTower };
 })();
