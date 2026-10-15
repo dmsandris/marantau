@@ -4649,6 +4649,7 @@
   });
 
   function applyPulse_(r) {
+    if (r && r.t) { var sk = Date.now() - r.t; MPc.skew = MPc.skew == null ? sk : MPc.skew * 0.7 + sk * 0.3; }
     var pubWas = MPc.mePub;
     MPc.here = r.here || []; MPc.online = r.online || 0; MPc.onlineList = r.onlineList || []; MPc.mePub = r.mePub || MPc.mePub;
     if (MPc.mePub !== pubWas) rtSync_();
@@ -4802,10 +4803,10 @@
         '<div class="cap-stat">' + ic('medal') + '<b>' + (p.badges || 0) + '</b><span>Tanda Jasa</span></div>' +
         '<div class="cap-stat">' + ic('swords') + '<b>' + rec.w + 'M &middot; ' + rec.l + 'K' + (rec.d ? ' &middot; ' + rec.d + 'S' : '') + '</b><span>Rating duel ' + rec.r + '</span></div>' +
       '</div></div>' +
-      (sameCity ? '<h3>' + ic('swords') + 'Tantang Duel</h3><div class="card"><div class="cap-row"><span class="muted small">Taruhan gold (dipegang server, pemenang ambil semua):</span></div>' +
+      (sameCity ? '<h3>' + ic('swords') + 'Tantang Duel</h3><div class="card"><div class="cap-row"><span class="muted small">Taruhan gold (dipegang server; diselesaikan sebelum Pertarungan Terakhir):</span></div>' +
         '<div class="cap-chips" id="capStakes">' + stakes.map(function (v, i) { return '<button class="chip-opt' + (i === 1 ? ' on' : '') + '" data-v="' + v + '">' + (v ? formatGold(v) : 'Tanpa taruhan') + '</button>'; }).join('') + '</div>' +
         '<div class="cap-actions"><button class="btn btn-danger" id="capDuel">' + ic('cannon') + '&nbsp; Duel Kapal</button><button class="btn" id="capDice">' + ic('dice') + '&nbsp; Duel Dadu</button></div>' +
-        '<p class="muted small" style="margin:8px 0 0;">Duel kapal: tiap ronde kalian memilih taktik diam-diam &mdash; Tembak, Manuver, Tabrak, Bertahan, atau Isi Peluru. Saling mengalahkan seperti batu-gunting-kertas.</p></div>'
+        '<p class="muted small" style="margin:8px 0 0;">Duel kapal: tiap giliran kalian mengunci perintah &mdash; kemudi, layar, meriam kiri/kanan, dan peluru. Angin dan sudut lambung menentukan. Saat kedua kapal sekarat, Pertarungan Terakhir dimainkan realtime (tanpa taruhan).</p></div>'
         : '<div class="card small muted">' + ic('anchor') + ' Duel hanya bisa kalau kalian merapat di pelabuhan yang sama.</div>') +
       '<h3>' + ic('gift') + 'Kirim Gold</h3><div class="card cap-gift"><input type="number" id="capGiftAmt" min="1" step="50" value="100"><button class="btn" id="capGift">' + ic('gift') + '&nbsp; Kirim</button></div>');
     var stake = 100;
@@ -4825,12 +4826,13 @@
   function challenge_(p, stake, kind) {
     if (stake > state.player.gold) { showToast('Gold-mu tidak cukup untuk taruhan itu.', 'error'); return; }
     google.script.run.withSuccessHandler(function (d) { closeModal(); openDuel_(d); au_('horn'); mpSchedule_(1500); })
-      .withFailureHandler(function (e) { showToast(e.message, 'error'); }).api_mpDuelChallenge(p.id, stake, kind);
+      .withFailureHandler(function (e) { showToast(e.message, 'error'); }).api_mpDuelChallenge(p.id, stake, kind === 'naval' ? 'lambung' : kind);
   }
 
   /* ---- undangan duel ---- */
   function showInvite_(it) {
-    if (Date.now() - it.ts > 58000) return;
+    var nowS = Date.now() - (MPc.skew || 0);   // jam server (jam HP pemain bisa meleset)
+    if (nowS - it.ts > 58000) return;
     MPc.invite = it;
     var host = document.getElementById('mpInvite');
     if (!host) { document.body.insertAdjacentHTML('beforeend', '<div id="mpInvite"></div>'); host = document.getElementById('mpInvite'); }
@@ -4841,7 +4843,7 @@
     au_('bell');
     var end = it.ts + 60000;
     clearInterval(host._t);
-    host._t = setInterval(function () { var s = Math.max(0, Math.round((end - Date.now()) / 1000)); var el = document.getElementById('invCd'); if (el) el.textContent = s; if (s <= 0) { hideInvite_(); } }, 500);
+    host._t = setInterval(function () { var s = Math.max(0, Math.round((end - (Date.now() - (MPc.skew || 0))) / 1000)); var el = document.getElementById('invCd'); if (el) el.textContent = s; if (s <= 0) { hideInvite_(); } }, 500);
     document.getElementById('invYes').addEventListener('click', function () { respondInvite_(true); });
     document.getElementById('invNo').addEventListener('click', function () { respondInvite_(false); });
     mpSchedule_(2500);
