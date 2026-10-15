@@ -21,6 +21,8 @@ const assert = require('assert');
   d = await B.call('api_mpDuelRespond', [d.id, true]);
   ok(d.status === 'active' && d.lb && d.lb.phase === 'plan' && d.lb.me === 'b' && d.round === 1, 'duel aktif ' + JSON.stringify(d.lb && d.lb.phase));
   ok(d.lb.st.a.hull === 100 && d.lb.st.b.hull === 100 && typeof d.lb.st.w === 'number', 'kapal awal');
+  ok(d.lb.st.a.rlL === undefined && d.lb.st.b.rlL === 0, 'meriam lawan dirahasiakan, meriam sendiri terlihat');
+  ok(d.lb.pw && d.lb.pw.you.dm > 0 && d.lb.pw.foe.sp > 0 && d.lb.pw.you.src.Combat != null, 'kekuatan kedua kapten terkirim');
   ok((await gold(A)) === 19000 && (await gold(B)) === 19000, 'taruhan dipegang server');
   const id = d.id;
   await ready(id);
@@ -44,13 +46,13 @@ const assert = require('assert');
   const TAU = Math.PI * 2, ang = a => a - TAU * Math.floor((a + Math.PI) / TAU);
   const wf = (h, w) => { const a = Math.abs(ang(h - (w + Math.PI))); if (a < 0.62) return 0.12 + a * 0.12; if (a < 1.75) return 0.25 + 0.75 * Math.sin((a - 0.62) / (1.75 - 0.62) * Math.PI / 2); return 1.0 - (a - 1.75) / (Math.PI - 1.75) * 0.22; };
   function step(s, rud, sails, dt, w) {
-    const tr = 0.2 * (sails === 1 ? 0.85 : 1) * (0.55 + 0.45 * Math.min(1, s.v / 30));
+    const tr = 0.2 * (sails === 1 ? 0.85 : 1) * (0.55 + 0.45 * Math.min(1, s.v / 30)) * (s.tm || 1);
     s.h = ang(s.h + rud * tr * dt);
-    const ts = 62 * wf(s.h, w) * (sails === 1 ? 1 : 0.55) * (0.3 + 0.7 * s.sail / 100);
+    const ts = 62 * wf(s.h, w) * (sails === 1 ? 1 : 0.55) * (0.3 + 0.7 * s.sail / 100) * (s.sp || 1);
     s.v = s.v + (ts - s.v) * (1 - Math.exp(-dt * 0.9));
     s.x += Math.sin(s.h) * s.v * dt; s.y -= Math.cos(s.h) * s.v * dt;
   }
-  const st0 = ev.start, ja = Object.assign({}, st0.a), jb = Object.assign({}, st0.b);
+  const st0 = (await row(id)).ev.start, ja = Object.assign({}, st0.a), jb = Object.assign({}, st0.b);
   for (let i = 0; i < 60; i++) { step(ja, ev.oa.rud, ev.oa.sails, 0.05, st0.w); step(jb, ev.ob.rud, ev.ob.sails, 0.05, st0.w); }
   ok(Math.abs(ja.x - s1.a.x) < 0.01 && Math.abs(jb.y - s1.b.y) < 0.01, 'JS = server ' + ja.x + ' vs ' + s1.a.x);
 
@@ -141,13 +143,27 @@ const assert = require('assert');
 
   // --- Pertarungan Terakhir kedaluwarsa tanpa laporan B -> A menang -------------------------
   d = await A.call('api_mpDuelChallenge', [pb, 0, 'naval']); d = await B.call('api_mpDuelRespond', [d.id, true]);
-  await H.sql(`update game.mp_duels set round = 24 where id = $1`, [d.id]); await ready(d.id);
-  await A.call('api_mpDuelAct', [d.id, 24, ORD()]); vb = await B.call('api_mpDuelAct', [d.id, 24, ORD()]);
-  ok(vb.lb.phase === 'final', 'giliran 24 -> Pertarungan Terakhir');
+  for (let r = d.round; r <= 7; r++) { await ready(d.id); await A.call('api_mpDuelAct', [d.id, r, ORD()]); vb = await B.call('api_mpDuelAct', [d.id, r, ORD()]); }
+  ok(vb.lb.phase === 'final' && vb.round === 7, 'giliran ke-7 -> Pertarungan Terakhir ' + vb.round);
   await A.call('api_mpDuelFinal', [d.id, 50, 50, false]);
-  await age(d.id, 110000);
+  await age(d.id, 340000);
   const tf = await A.call('api_mpDuelState', [d.id]);
   ok(tf.status === 'done' && tf.winner === 'you', 'B tidak melapor -> A menang ' + JSON.stringify([tf.status, tf.winner]));
+
+  // --- keahlian & kapal berpengaruh -------------------------------------------------------------
+  const pw = async f => (await H.sql('select game.lb_power($1::jsonb) p', [JSON.stringify(f)]))[0].p;
+  const lo = await pw({ tier: 1, cond: 100, stx: { Combat: 35, Luck: 15, Navigation: 35, Sailing: 35, Knowledge: 5, Negotiation: 35 }, ups: {} });
+  const hi = await pw({ tier: 4, cond: 100, cannonPct: 52, stx: { Combat: 82, Luck: 73, Navigation: 141, Sailing: 91, Knowledge: 92, Negotiation: 84 }, ups: { speed: 1, cannons: 1, condition: 0.8 } });
+  ok(hi.dm > lo.dm + 0.3 && hi.tf < lo.tf - 0.25 && hi.sp > lo.sp + 0.15 && hi.tm > lo.tm + 0.15 && hi.hm > lo.hm && hi.rm < lo.rm - 0.2 && hi.bm > lo.bm,
+     'kapten & kapal kuat terasa ' + JSON.stringify([lo, hi].map(x => [x.dm, x.tf, x.sp, x.tm, x.hm, x.rm, x.bm])));
+  const dmg = await pw({ tier: 1, cond: 20, stx: {}, ups: {} });
+  ok(dmg.hull0 === 68, 'kapal rusak masuk duel tidak utuh ' + dmg.hull0);
+  // waktu habis: darah tertinggi menang
+  d = await A.call('api_mpDuelChallenge', [pb, 0, 'naval']); d = await B.call('api_mpDuelRespond', [d.id, true]);
+  for (let r = 1; r <= 7; r++) { await ready(d.id); await A.call('api_mpDuelAct', [d.id, r, ORD()]); vb = await B.call('api_mpDuelAct', [d.id, r, ORD()]); }
+  await A.call('api_mpDuelFinal', [d.id, 30, 90, false]);
+  const hb = await B.call('api_mpDuelFinal', [d.id, 50, 10, false]);
+  ok(hb.status === 'done' && hb.winner === 'you', 'lambung tertinggi menang walau awak lebih sedikit ' + JSON.stringify([hb.status, hb.winner]));
 
   console.log('DUEL LAMBUNG TESTS PASSED');
   process.exit(0);
