@@ -50,12 +50,12 @@ alter table game.mp_duel_rtev enable row level security;
 create or replace function game.lb_k(p_key text) returns float8
 language sql immutable as $$
   select case p_key
-    when 'plan_ms'  then 15000   -- waktu memberi perintah
+    when 'plan_ms'  then 9000    -- waktu memberi perintah (v30b: 9 detik)
     when 'anim_ms'  then 3400    -- animasi 3 detik + jeda
-    when 'final_ms' then 75000   -- lama Pertarungan Terakhir
+    when 'final_ms' then 300000  -- lama Pertarungan Terakhir (v30b: maks 5 menit)
     when 'grace_ms' then 20000   -- batas tunggu laporan akhir
     when 'final_at' then 40      -- % lambung kedua kapal untuk masuk Pertarungan Terakhir
-    when 'max_rounds' then 24
+    when 'max_rounds' then 7     -- v30b: 7 giliran taktis lalu Pertarungan Terakhir
     else 0 end
 $$;
 
@@ -74,13 +74,15 @@ begin
 end $$;
 
 -- satu langkah fisika kapal: kembalikan {x, y, h, v, bump}
-create or replace function game.lb_step(x float8, y float8, h float8, v float8, rud int, sails int, sail float8, dt float8, w float8)
+drop function if exists game.lb_step(float8, float8, float8, float8, int, int, float8, float8, float8);
+-- sp = pengali kecepatan, tm = pengali kemudi (dari keahlian kapten & upgrade kapal; lihat lb_power)
+create or replace function game.lb_step(x float8, y float8, h float8, v float8, rud int, sails int, sail float8, dt float8, w float8, sp float8, tm float8)
 returns float8[] language plpgsql immutable as $$
 declare tr float8; ts float8; bump float8 := 0; m float8 := 60;
 begin
-  tr := 0.2 * (case when sails = 1 then 0.85 else 1 end) * (0.55 + 0.45 * least(1, v / 30));
+  tr := 0.2 * (case when sails = 1 then 0.85 else 1 end) * (0.55 + 0.45 * least(1, v / 30)) * tm;
   h := game.lb_ang(h + rud * tr * dt);
-  ts := 62 * game.lb_wf(h, w) * (case when sails = 1 then 1 else 0.55 end) * (0.3 + 0.7 * sail / 100);
+  ts := 62 * game.lb_wf(h, w) * (case when sails = 1 then 1 else 0.55 end) * (0.3 + 0.7 * sail / 100) * sp;
   v := v + (ts - v) * (1 - exp(-dt * 0.9));
   x := x + sin(h) * v * dt; y := y - cos(h) * v * dt;
   if x < m then x := m; bump := 1; end if;
@@ -95,8 +97,9 @@ create or replace function game.lb_reload(crew float8) returns float8
 language sql immutable as $$ select 5.4 * (1 + (100 - crew) / 100 * 0.9) $$;
 
 -- salvo 5 meriam dari (fx,fy,fh) ke sasaran (tx,ty) di sisi side (-1 kiri, +1 kanan)
+drop function if exists game.lb_volley(float8, float8, float8, float8, float8, int, text, float8, float8, float8);
 create or replace function game.lb_volley(fx float8, fy float8, fh float8, tx float8, ty float8, side int, ammo text,
-  crew float8, dm float8, tf float8)
+  crew float8, dm float8, tf float8, hm float8)
 returns jsonb language plpgsql volatile as $$
 declare rel float8; off float8; q float8 := 0; d float8; maxr float8; p float8; hits jsonb := '[]'::jsonb; k int; hit boolean;
   dh float8 := 0; ds float8 := 0; dc float8 := 0; cl float8;
@@ -106,7 +109,7 @@ begin
   off := abs(game.lb_ang(rel - side * pi() / 2));
   if off <= 0.62 then q := 1 - off / 0.62 * 0.6; end if;
   maxr := case when ammo = 'grape' then 300 else 470 end;
-  p := greatest(0, least(0.92, 1.05 - d / (maxr * 1.05))) * (0.75 + 0.25 * crew / 100);
+  p := greatest(0, least(0.95, (1.05 - d / (maxr * 1.05)) * hm)) * (0.75 + 0.25 * crew / 100);
   cl := greatest(0, least(1, (300 - d) / 200));
   for k in 1..5 loop
     hit := q > 0 and d <= maxr and random() < p * q;
@@ -122,14 +125,53 @@ begin
     'hull', round(dh::numeric, 2), 'sail', round(ds::numeric, 2), 'crew', round(dc::numeric, 2));
 end $$;
 
--- kapal awal dari statistik petarung (mp_fighter): daya tembak & ketangguhan ikut tier/upgrade
+-- ---------------------------------------------------------------------
+-- Kekuatan di laut dari KEAHLIAN KAPTEN + TIER & UPGRADE KAPAL (v30b)
+--   f(s) = s / (s + 100): makin tinggi makin terasa, tapi tidak meledak.
+--   Meriam (dm)   : Combat + upgrade Cannons            -> damage yang diberikan
+--   Lambung (tf)  : Tier kapal + upgrade Hull Condition -> damage yang diterima (makin kecil makin kuat)
+--   Kecepatan (sp): Sailing + upgrade Speed
+--   Kemudi (tm)   : Navigation + upgrade Speed
+--   Bidikan (hm)  : Luck + Combat                       -> peluang tembakan kena
+--   Isi ulang (rm): Knowledge + upgrade Cannons         -> waktu isi ulang (makin kecil makin cepat)
+--   Penyerbuan(bm): Negotiation + Combat                -> skor serbu geladak
+--   Lambung awal  : kondisi kapal saat ini (kapal rusak masuk duel tidak utuh)
+-- ---------------------------------------------------------------------
+create or replace function game.lb_f(v float8) returns float8
+language sql immutable as $$ select greatest(0, coalesce(v, 0)) / (greatest(0, coalesce(v, 0)) + 100) $$;
+
+create or replace function game.lb_power(f jsonb) returns jsonb
+language plpgsql immutable as $$
+declare x jsonb := coalesce(f -> 'stx', '{}'::jsonb); u jsonb := coalesce(f -> 'ups', '{}'::jsonb);
+  cb float8 := game.lb_f((x ->> 'Combat')::float8); lk float8 := game.lb_f((x ->> 'Luck')::float8);
+  nv float8 := game.lb_f((x ->> 'Navigation')::float8); sl float8 := game.lb_f((x ->> 'Sailing')::float8);
+  kn float8 := game.lb_f((x ->> 'Knowledge')::float8); ng float8 := game.lb_f((x ->> 'Negotiation')::float8);
+  us float8 := coalesce((u ->> 'speed')::float8, 0); uc float8 := coalesce((u ->> 'cannons')::float8, 0); uh float8 := coalesce((u ->> 'condition')::float8, 0);
+  tier float8 := greatest(1, least(5, coalesce((f ->> 'tier')::float8, 1))); cond float8 := greatest(0, least(100, coalesce((f ->> 'cond')::float8, 100)));
+  cp float8 := greatest(0, coalesce((f ->> 'cannonPct')::float8, 0));
+begin
+  return jsonb_build_object(
+    'dm', round((0.85 + 0.5 * cb + least(0.3, cp * 0.004) + 0.05 * uc)::numeric, 3),
+    'tf', round(greatest(0.6, 1.05 - 0.07 * (tier - 1) - 0.15 * uh)::numeric, 3),
+    'sp', round((0.82 + 0.3 * sl + 0.15 * us)::numeric, 3),
+    'tm', round((0.8 + 0.5 * nv + 0.1 * us)::numeric, 3),
+    'hm', round((0.85 + 0.4 * lk + 0.1 * cb)::numeric, 3),
+    'rm', round(greatest(0.7, 1.15 - 0.35 * kn - 0.12 * uc)::numeric, 3),
+    'bm', round((60 * ng + 40 * cb)::numeric, 1),
+    'hull0', round((60 + 0.4 * cond)::numeric, 1),
+    'src', jsonb_build_object('Combat', x -> 'Combat', 'Luck', x -> 'Luck', 'Navigation', x -> 'Navigation', 'Sailing', x -> 'Sailing',
+      'Knowledge', x -> 'Knowledge', 'Negotiation', x -> 'Negotiation', 'tier', tier, 'cond', cond,
+      'speedUp', round(us::numeric, 2), 'cannonUp', round(uc::numeric, 2), 'hullUp', round(uh::numeric, 2)));
+end $$;
+
 create or replace function game.lb_ship0(f jsonb, x float8, y float8, h float8) returns jsonb
-language sql immutable as $$
-  select jsonb_build_object('x', x, 'y', y, 'h', h, 'v', 22, 'hull', 100, 'sail', 100, 'crew', 100, 'rlL', 0, 'rlR', 0,
+language plpgsql immutable as $$
+declare pw jsonb := game.lb_power(f);
+begin
+  return jsonb_build_object('x', x, 'y', y, 'h', h, 'v', 22, 'hull', (pw ->> 'hull0')::float8, 'sail', 100, 'crew', 100, 'rlL', 0, 'rlR', 0,
     'rud', 0, 'sails', 1, 'ammo', 'ball',
-    'dm', greatest(0.8, least(1.35, 0.8 + (coalesce((f ->> 'atk')::float8, 20) - 20) / 100)),
-    'tf', greatest(0.75, least(1.25, 120 / greatest(1, coalesce((f ->> 'maxHp')::float8, 120)))))
-$$;
+    'dm', pw -> 'dm', 'tf', pw -> 'tf', 'sp', pw -> 'sp', 'tm', pw -> 'tm', 'hm', pw -> 'hm', 'rm', pw -> 'rm', 'bm', pw -> 'bm');
+end $$;
 
 create or replace function game.lb_auto(s jsonb) returns jsonb
 language sql immutable as $$
@@ -226,6 +268,8 @@ declare
   bhull float8 := (sb0 ->> 'hull')::float8; bsail float8 := (sb0 ->> 'sail')::float8; bcrew float8 := (sb0 ->> 'crew')::float8;
   arl float8 := (sa0 ->> 'rlL')::float8; arr float8 := (sa0 ->> 'rlR')::float8; brl float8 := (sb0 ->> 'rlL')::float8; brr float8 := (sb0 ->> 'rlR')::float8;
   adm float8 := (sa0 ->> 'dm')::float8; atf float8 := (sa0 ->> 'tf')::float8; bdm float8 := (sb0 ->> 'dm')::float8; btf float8 := (sb0 ->> 'tf')::float8;
+  asp float8 := coalesce((sa0 ->> 'sp')::float8, 1); atm float8 := coalesce((sa0 ->> 'tm')::float8, 1); ahm float8 := coalesce((sa0 ->> 'hm')::float8, 1); arm float8 := coalesce((sa0 ->> 'rm')::float8, 1);
+  bsp float8 := coalesce((sb0 ->> 'sp')::float8, 1); btm float8 := coalesce((sb0 ->> 'tm')::float8, 1); bhm float8 := coalesce((sb0 ->> 'hm')::float8, 1); brm float8 := coalesce((sb0 ->> 'rm')::float8, 1);
   ra int := (oa ->> 'rud')::int; sla int := (oa ->> 'sails')::int; rb int := (ob ->> 'rud')::int; slb int := (ob ->> 'sails')::int;
   ama text := oa ->> 'ammo'; amb text := ob ->> 'ammo';
   areef float8 := 0; breef float8 := 0; ramcd float8 := 0; dt float8 := 0.05; t float8 := 0; i int; fired boolean := false;
@@ -234,9 +278,9 @@ declare
   v_end text; t_now bigint := game.now_ms();
 begin
   for i in 1..60 loop
-    r := game.lb_step(ax, ay, ah, av, ra, sla, asail, dt, w); ax := r[1]; ay := r[2]; ah := r[3]; av := r[4];
+    r := game.lb_step(ax, ay, ah, av, ra, sla, asail, dt, w, asp, atm); ax := r[1]; ay := r[2]; ah := r[3]; av := r[4];
     if r[5] = 1 and areef <= 0 then ahull := greatest(0, ahull - 2.5); areef := 1.2; end if;
-    r := game.lb_step(bx, by_, bh, bv, rb, slb, bsail, dt, w); bx := r[1]; by_ := r[2]; bh := r[3]; bv := r[4];
+    r := game.lb_step(bx, by_, bh, bv, rb, slb, bsail, dt, w, bsp, btm); bx := r[1]; by_ := r[2]; bh := r[3]; bv := r[4];
     if r[5] = 1 and breef <= 0 then bhull := greatest(0, bhull - 2.5); breef := 1.2; end if;
     areef := areef - dt; breef := breef - dt;
     arl := greatest(0, arl - dt); arr := greatest(0, arr - dt); brl := greatest(0, brl - dt); brr := greatest(0, brr - dt);
@@ -245,22 +289,22 @@ begin
       fired := true;
       -- salvo serentak: damage dihitung dari posisi saat ini, lalu diterapkan bersama
       if coalesce((oa ->> 'fl')::boolean, false) and arl <= 0 then
-        vol := game.lb_volley(ax, ay, ah, bx, by_, -1, ama, acrew, adm, btf); arl := game.lb_reload(acrew);
+        vol := game.lb_volley(ax, ay, ah, bx, by_, -1, ama, acrew, adm, btf, ahm); arl := game.lb_reload(acrew) * arm;
         shots := shots || jsonb_build_array(vol || jsonb_build_object('by', 'a', 'side', -1, 'ammo', ama, 'fx', ax, 'fy', ay, 'fh', ah, 'tx', bx, 'ty', by_));
         hit_b := jsonb_build_object('hull', (hit_b ->> 'hull')::float8 + (vol ->> 'hull')::float8, 'sail', (hit_b ->> 'sail')::float8 + (vol ->> 'sail')::float8, 'crew', (hit_b ->> 'crew')::float8 + (vol ->> 'crew')::float8);
       end if;
       if coalesce((oa ->> 'fr')::boolean, false) and arr <= 0 then
-        vol := game.lb_volley(ax, ay, ah, bx, by_, 1, ama, acrew, adm, btf); arr := game.lb_reload(acrew);
+        vol := game.lb_volley(ax, ay, ah, bx, by_, 1, ama, acrew, adm, btf, ahm); arr := game.lb_reload(acrew) * arm;
         shots := shots || jsonb_build_array(vol || jsonb_build_object('by', 'a', 'side', 1, 'ammo', ama, 'fx', ax, 'fy', ay, 'fh', ah, 'tx', bx, 'ty', by_));
         hit_b := jsonb_build_object('hull', (hit_b ->> 'hull')::float8 + (vol ->> 'hull')::float8, 'sail', (hit_b ->> 'sail')::float8 + (vol ->> 'sail')::float8, 'crew', (hit_b ->> 'crew')::float8 + (vol ->> 'crew')::float8);
       end if;
       if coalesce((ob ->> 'fl')::boolean, false) and brl <= 0 then
-        vol := game.lb_volley(bx, by_, bh, ax, ay, -1, amb, bcrew, bdm, atf); brl := game.lb_reload(bcrew);
+        vol := game.lb_volley(bx, by_, bh, ax, ay, -1, amb, bcrew, bdm, atf, bhm); brl := game.lb_reload(bcrew) * brm;
         shots := shots || jsonb_build_array(vol || jsonb_build_object('by', 'b', 'side', -1, 'ammo', amb, 'fx', bx, 'fy', by_, 'fh', bh, 'tx', ax, 'ty', ay));
         hit_a := jsonb_build_object('hull', (hit_a ->> 'hull')::float8 + (vol ->> 'hull')::float8, 'sail', (hit_a ->> 'sail')::float8 + (vol ->> 'sail')::float8, 'crew', (hit_a ->> 'crew')::float8 + (vol ->> 'crew')::float8);
       end if;
       if coalesce((ob ->> 'fr')::boolean, false) and brr <= 0 then
-        vol := game.lb_volley(bx, by_, bh, ax, ay, 1, amb, bcrew, bdm, atf); brr := game.lb_reload(bcrew);
+        vol := game.lb_volley(bx, by_, bh, ax, ay, 1, amb, bcrew, bdm, atf, bhm); brr := game.lb_reload(bcrew) * brm;
         shots := shots || jsonb_build_array(vol || jsonb_build_object('by', 'b', 'side', 1, 'ammo', amb, 'fx', bx, 'fy', by_, 'fh', bh, 'tx', ax, 'ty', ay));
         hit_a := jsonb_build_object('hull', (hit_a ->> 'hull')::float8 + (vol ->> 'hull')::float8, 'sail', (hit_a ->> 'sail')::float8 + (vol ->> 'sail')::float8, 'crew', (hit_a ->> 'crew')::float8 + (vol ->> 'crew')::float8);
       end if;
@@ -326,8 +370,13 @@ begin
   elsif fa is null then d.winner := 'b'; d.forfeit := 'a';
   elsif fb is null then d.winner := 'a'; d.forfeit := 'b';
   else
-    ha := (fa ->> 'hull')::float8 + (fa ->> 'crew')::float8 * 0.25; hb := (fb ->> 'hull')::float8 + (fb ->> 'crew')::float8 * 0.25;
-    d.winner := case when abs(ha - hb) < 2 then 'draw' when ha > hb then 'a' else 'b' end;
+    -- waktu habis: lambung ("darah") tertinggi menang; sama -> awak terbanyak; masih sama -> seri
+    ha := (fa ->> 'hull')::float8; hb := (fb ->> 'hull')::float8;
+    if abs(ha - hb) >= 1 then d.winner := case when ha > hb then 'a' else 'b' end;
+    else
+      ha := (fa ->> 'crew')::float8; hb := (fb ->> 'crew')::float8;
+      d.winner := case when abs(ha - hb) < 1 then 'draw' when ha > hb then 'a' else 'b' end;
+    end if;
   end if;
   return game.mp_finish(d);
 end $$;
@@ -428,6 +477,9 @@ begin
   ms := case when me_a then 'a' else 'b' end; os := case when me_a then 'b' else 'a' end;
   you := case when me_a then d.fa else d.fb end; foe := case when me_a then d.fb else d.fa end;
   sw := d.st ->> 'stakeWin';
+  -- kondisi meriam lawan dirahasiakan (v30b)
+  if d.st is not null and d.st -> os is not null then d.st := jsonb_set(d.st, array[os], (d.st -> os) - 'rlL' - 'rlR'); end if;
+  if d.ev is not null and d.ev -> 'start' -> os is not null then d.ev := jsonb_set(d.ev, array['start', os], (d.ev -> 'start' -> os) - 'rlL' - 'rlR'); end if;
   return jsonb_build_object(
     'id', d.id, 'kind', d.kind, 'status', d.status, 'stake', d.stake, 'round', d.round, 'maxRounds', game.lb_k('max_rounds'),
     'created', d.created, 't', game.now_ms(), 'challenger', me_a,
@@ -445,6 +497,8 @@ begin
       'stakeWin', case when sw is null then null when sw = 'draw' then 'draw' when sw = ms then 'you' else 'foe' end,
       'reported', d.fin -> ms is not null, 'foeReported', d.fin -> os is not null,
       'finFoe', case when d.status = 'done' then d.fin -> os else null end,
+      'city', d.city,
+      'pw', jsonb_build_object('you', game.lb_power(you), 'foe', game.lb_power(foe)),
       'k', jsonb_build_object('planMs', game.lb_k('plan_ms'), 'animMs', game.lb_k('anim_ms'), 'finalMs', game.lb_k('final_ms'), 'finalAt', game.lb_k('final_at'))));
 end $$;
 
@@ -515,7 +569,14 @@ begin
     'atk', 12 + game.mp_jsnum(st ->> 'Combat', 0) * 0.18 + game.mp_jsnum(sh ->> 'Combat', 0) * 1.2
                + game.mp_jsnum(sh ->> 'CannonBonusPercent', 0) * 0.08,
     'luck', game.mp_jsnum(st ->> 'Luck', 0),
-    'ammoMax', least(6, game.mp_jsnum(sh ->> 'MaxCannonAmmo', 3)));
+    'ammoMax', least(6, game.mp_jsnum(sh ->> 'MaxCannonAmmo', 3)),
+    'cond', v_cond, 'cannonPct', game.mp_jsnum(sh ->> 'CannonBonusPercent', 0), 'shipName', coalesce(sh ->> 'ShipName', ''),
+    'stx', jsonb_build_object('Combat', st -> 'Combat', 'Luck', st -> 'Luck', 'Navigation', st -> 'Navigation', 'Sailing', st -> 'Sailing',
+      'Knowledge', st -> 'Knowledge', 'Negotiation', st -> 'Negotiation', 'Trading', st -> 'Trading'),
+    'ups', jsonb_build_object(
+      'speed', least(1, (coalesce((sh #>> '{ShipUpgrades,speed,tier}')::numeric, 0) * 5 + coalesce((sh #>> '{ShipUpgrades,speed,level}')::numeric, 0)) / 25),
+      'cannons', least(1, (coalesce((sh #>> '{ShipUpgrades,cannons,tier}')::numeric, 0) * 5 + coalesce((sh #>> '{ShipUpgrades,cannons,level}')::numeric, 0)) / 25),
+      'condition', least(1, (coalesce((sh #>> '{ShipUpgrades,condition,tier}')::numeric, 0) * 5 + coalesce((sh #>> '{ShipUpgrades,condition,level}')::numeric, 0)) / 25)));
 end $$;
 
 -- ---------------------------------------------------------------------
