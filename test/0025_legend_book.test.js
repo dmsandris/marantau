@@ -29,11 +29,11 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   await H.sql(`select game.item_adjust($1, 'qi_buku_pancing_maudy', 1)`, [pid]);
   let b = await book();
   assert(b.total === 21 && b.found === 0 && b.entries.length === 21, 'buku 21 entri');
-  assert(b.entries.filter(e => e.available).length === 10, '10 legenda bisa ditangkap sekarang');
+  assert(b.entries.filter(e => e.available).length === 12, '12 legenda bisa ditangkap (10 + Tiram Otoland & Paus Bisu dari Quest 7)');
   assert(b.entries.every((e, i) => e.no === i + 1) && b.entries.every(e => e.name === null), 'urut 1..21, nama tersembunyi');
   const hiu = b.entries.find(e => e.id === 'hiu_garuda');
   assert(hiu.here && hiu.ready && hiu.bait === 'Besi' && hiu.time === 'Siang', 'Hiu Garuda siap di IKN siang dengan besi ' + JSON.stringify(hiu));
-  assert(b.entries.find(e => e.no === 11).available === false && !b.entries.find(e => e.no === 11).ready, 'Tiram Otoland terkunci');
+  assert(b.entries.find(e => e.no === 11).available === true && !b.entries.find(e => e.no === 11).ready, 'Tiram Otoland tersedia, belum siap (pulau belum terbuka)');
 
   // --- Syarat ----------------------------------------------------------------
   assert((await w('hiu_garuda', 'ikn')) === 4, 'IKN siang + besi: muncul');

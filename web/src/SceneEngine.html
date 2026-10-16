@@ -2856,6 +2856,9 @@ var MTScene = (function () {
         renderHammock(ctx, p, t, d);
       } else if (d.type === 'regal') {
         if (window.MTCities && MTCities.regalDyn) MTCities.regalDyn(inst, ctx, p, t, dt, d);
+      } else if (d.type === 'fn' && typeof d.fn === 'function') {
+        // Tide v31: elemen dinamis milik modul kota lain (kincir, lilin tangga, tungku FreeYork, dll.)
+        try { d.fn(inst, ctx, p, t, dt, d, puff); } catch (e) { d.fn = null; }
       } else if (d.type === 'bxglint') {
         // Tide v25: kilau cat perunggu baru menyapu sayap Garuda yang diperbaiki
         var ph = (t * 0.22) % 1, gx0 = d.x + (ph * 1.6 - 0.3) * d.w, ga = Math.sin(Math.min(1, ph * 1.25) * Math.PI) * (0.55 + 0.45 * (1 - p.night));
@@ -6914,7 +6917,10 @@ var MTCities = (function () {
 
   var BUILDERS = { sunda_empire: sunda, joungjava: joungjava, bjorneo: bjorneo, skitraw: skitraw, toogood: toogood, toogood_free: toogoodFree, ikn: ikn, paradiso: paradiso, marie_regal: marieRegal, marie_regal_free: marieRegalFree, pusaran: pusaran, gading_island: gading };
   var MOOD = { toogood: 'gloom', ikn: 'overcast', paradiso: 'paradise', marie_regal: 'regal', marie_regal_free: 'regal', pusaran: 'maelstrom' };
-  return { get: function (id) { return BUILDERS[id]; }, mood: function (id) { return MOOD[id] || null; }, sign: sign, regalDyn: regalDyn, regalWater: regalWater, regalRobot: regalRobot, regalEye: regalEye, regalEyeOpen: regalEyeOpen, regalTower: regalTower };
+  // Tide v31: kota bersignature dari modul lain (CitiesSaga2.html) memakai helper yang sama
+  function register(id, fn, mood) { BUILDERS[id] = fn; if (mood) MOOD[id] = mood; }
+  var helpers = { hills: hills, bld: bld, hot: hot, sign: sign, stoneQuay: stoneQuay, woodQuay: woodQuay, beach: beach, stall: stall, chimney: chimney, row: row, gdRoof: gdRoof, gdLions: gdLions };
+  return { get: function (id) { return BUILDERS[id]; }, mood: function (id) { return MOOD[id] || null; }, register: register, H: helpers, sign: sign, regalDyn: regalDyn, regalWater: regalWater, regalRobot: regalRobot, regalEye: regalEye, regalEyeOpen: regalEyeOpen, regalTower: regalTower };
 })();
 
 

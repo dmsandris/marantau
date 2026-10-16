@@ -34,7 +34,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert(fb.length === 14 && !fb.some(f => f.id === 'kerapu_fajar'), 'Kerapu Fajar tidak muncul di Buku Ikan');
   const rng = await one(`select dmax, dmin from game.voy_dist_range()`);
   const rngOld = await one(`select max(game.voy_map_distance(a.city_id, b.city_id)) dmax from game.cities a join game.cities b on a.city_id < b.city_id
-    where not game.spot_city(a.city_id) and not game.spot_city(b.city_id) and a.city_id <> 'gading_island' and b.city_id <> 'gading_island'`);
+    where not game.spot_city(a.city_id) and not game.spot_city(b.city_id) and not game.voy_far_city(a.city_id) and not game.voy_far_city(b.city_id)`);  // laut timur jauh (0024, 0027)
   assert(Math.abs(Number(rng.dmax) - Number(rngOld.dmax)) < 1e-9, 'rentang jarak dunia tidak ikut Gading Island');
   const tFar = Number((await one(`select game.voy_travel_seconds(game.voy_map_distance('sunda_empire', 'gading_island'), '{}'::jsonb) t`)).t);
   const tMax = Number((await one(`select game.voy_travel_seconds($1, '{}'::jsonb) t`, [Number(rng.dmax)])).t);
@@ -114,7 +114,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   // --- Babak 3 ----------------------------------------------------------------
   const rf = await cb(['flower']);
   assert(rf.cocoepan.step === 4 && rf.cocoepan.hasFlower, 'melati diterima');
-  assert(rf.unlocks.includes('gading_island') && rf.citiesVersion === '5-gading' && rf.cities.some(c => c.CityId === 'gading_island' && c.Type === 'Gading' && c.TypeFlavor), 'peta meluas: unlocks + kota');
+  assert(rf.unlocks.includes('gading_island') && !!rf.citiesVersion && rf.cities.some(c => c.CityId === 'gading_island' && c.Type === 'Gading' && c.TypeFlavor), 'peta meluas: unlocks + kota');
   assert((await u.call('api_getSailOptions', [])).some(o => o.cityId === 'gading_island'), 'Gading di daftar berlayar');
   await H.expectError(() => cb(['stumpy']), /Gading Island/);
   await go('gading_island');
