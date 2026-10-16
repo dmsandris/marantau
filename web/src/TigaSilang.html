@@ -328,6 +328,44 @@ var TS = (function () {
     markSeen('sky');
     cine('ts_sky', SL_SKY, function () { if (after) after(); });
   }
+  /* Langit Hitam diputar 3 detik sebelum kapal tiba di pelayaran ke-3.
+   * Server menaikkan langkah ke 1 saat berangkat; klien menanyakan status
+   * sekali tiap pelayaran baru (setSail tidak memuat ulang state penuh).
+   * Kedatangan ditahan sampai sinematik selesai, lalu kabar dermaga muncul. */
+  var SKY_LEAD = 3, skyVoy = null, skyHold = false, skyArrivePending = false;
+  function voyEta() {
+    var v = state && state.voyage; if (!v || !v.inTransit) return null;
+    return (v.etaSeconds || 0) - (Date.now() - (v._at || Date.now())) / 1000;
+  }
+  if (typeof window.arriveSmooth_ === 'function') {
+    var origArrive = window.arriveSmooth_;
+    window.arriveSmooth_ = function () {
+      if (skyHold) { skyArrivePending = true; return; }
+      return origArrive.apply(this, arguments);
+    };
+  }
+  function skyNow() {
+    skyHold = true;
+    if (currentPanel) close();
+    skyScene(function () {
+      skyHold = false;
+      if (skyArrivePending) { skyArrivePending = false; window.arriveSmooth_(); return; }
+      if (docked()) rumorScene();
+    });
+  }
+  setInterval(function skyTick() {
+    var v = state && state.voyage, s = st();
+    if (!v || !v.inTransit || v._optimistic || v.encounterPending || !s || s.done || skyHold) return;
+    var k = (v.originCityId || '') + '>' + (v.destinationCityId || '');
+    if ((s.step || 0) === 0) {
+      if (k !== skyVoy) { skyVoy = k; call('status', '', function () { }); }
+      return;
+    }
+    if ((s.step || 0) !== 1 || seen('sky')) return;
+    var eta = voyEta();
+    if (eta == null || eta > SKY_LEAD || busyUi()) return;
+    skyNow();
+  }, 250);
   function rumorScene() {
     markSeen('rumor');
     var w = modalWrap('alert', 'Kabar di dermaga', state && state.city ? esc_(state.city.Name) : '');
@@ -1295,7 +1333,8 @@ var TS = (function () {
     if (cur >= 4) { try { metaMax_('tsraja', 1); } catch (e) { } }
     if (cur >= 8) { try { metaMax_('tsempat', 1); } catch (e) { } }
     if (cur >= 9) { try { metaMax_('tspenabuh', 1); } catch (e) { } }
-    if (cur === 1 && !seen('sky')) { if (currentPanel) close(); skyScene(function () { if (docked()) rumorScene(); }); return; }
+    if (skyHold) return;
+    if (cur === 1 && !seen('sky')) { if (!docked()) return; skyNow(); return; }
     if (!docked()) return;
     var c = cid();
     if (cur === 1 && !seen('rumor')) { if (currentPanel) close(); rumorScene(); return; }
