@@ -642,6 +642,8 @@ var MTGames = (function () {
   GAMES.pantun = {
     title: 'Balas Pantun Adat', kicker: 'Balai Adat · Sunda Empire',
     create: function (S, opts) {
+      var BANK = opts.bank && opts.bank.length >= 6 ? opts.bank : PANTUN; // Tide v31: bank pantun khusus (mis. versi protokoler em pe'er de pe'er)
+      var PL = opts.place || 'Balai Adat &middot; Sunda Empire', TL = opts.title || 'Balas Pantun Adat';
       var ROUNDS = 5, PASS = opts.pass || 4, COOLDOWN = (opts.cooldownSec != null ? opts.cooldownSec : 60) * 1000;
       var gov = opts.npc || cityNpc('sunda_empire', 'Gubernur Sunda Empire', 'sunda_empire|syahbandar', 'Gubernur Sunda Empire');
       var govName = gov.name || 'Gubernur', who = esc(govName) + (gov.title && gov.title !== govName ? ', ' + esc(gov.title) : '');
@@ -651,9 +653,9 @@ var MTGames = (function () {
 
       function prog() { S.progress(S.pips(ROUNDS, G.res, G.round < ROUNDS ? G.round : -1)); }
       function newDeck() {
-        var withK = shuffle(PANTUN.filter(function (p) { return p.k; }));
+        var withK = shuffle(BANK.filter(function (p) { return p.k; }));
         var fin = withK[0];
-        var rest = shuffle(PANTUN.filter(function (p) { return p !== fin; })).slice(0, ROUNDS - 1);
+        var rest = shuffle(BANK.filter(function (p) { return p !== fin; })).slice(0, ROUNDS - 1);
         G.deck = rest.concat([fin]); G.round = 0; G.res = [];
       }
       function govSay(text) { return '<div class="pt-gov"><div class="mtg-face">' + faceHtml(gov) + '</div><div class="pt-bub"><b>' + esc(govName) + '</b>' + text + '</div></div>'; }
@@ -662,14 +664,14 @@ var MTGames = (function () {
         S.progress(S.pips(ROUNDS, [], -1));
         S.stage.innerHTML = deco + '<div class="pt-wrap"></div>';
         S.intro({
-          face: gov, kicker: 'Balai Adat &middot; Sunda Empire', title: 'Balas Pantun Adat',
-          quote: 'Di Balai Adat, perang dimulai dengan pantun, bukan meriam.', who: who,
+          face: gov, kicker: PL, title: TL,
+          quote: opts.quote || 'Di Balai Adat, perang dimulai dengan pantun, bukan meriam.', who: who,
           steps: ['Gubernur membacakan <b>sampiran</b> &mdash; dua baris pertama pantun.',
             'Pilih <b>isi</b> yang benar dari tiga pilihan: rimanya harus <b>a-b-a-b</b> dan maknanya pantas.',
             'Ronde terakhir: <b>susun kata terakhir</b> dari kepingan kata.',
             '5 pantun &mdash; lulus bila benar <b>minimal ' + PASS + '</b>.'],
           controls: { desk: ['<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> pilih isi', '<kbd>Enter</kbd> lanjut'], touch: ['Ketuk pilihan &middot; ketuk kepingan kata'] },
-          cta: 'Duduk di Balai Adat'
+          cta: opts.cta || 'Duduk di Balai Adat'
         }, function () { if (ptLockUntil() > Date.now()) showFail(true); else start(); });
       }
       function start() { newDeck(); S.attempts = S.attempts || 0; nextRound(); }
@@ -683,7 +685,7 @@ var MTGames = (function () {
       /* ---------- ronde pilih isi ---------- */
       function roundChoose() {
         var P = G.deck[G.round];
-        var miss = shuffle(PANTUN.filter(function (q) { return q !== P && q.r[0] !== P.r[0] && q.r[1] !== P.r[1]; }))[0] || PANTUN[(PANTUN.indexOf(P) + 3) % PANTUN.length];
+        var miss = shuffle(BANK.filter(function (q) { return q !== P && q.r[0] !== P.r[0] && q.r[1] !== P.r[1]; }))[0] || BANK[(BANK.indexOf(P) + 3) % BANK.length];
         var opts3 = shuffle([{ t: 'ok', l: P.i }, { t: 'bad', l: P.bad }, { t: 'miss', l: miss.i }]);
         var l1 = ptLineHtml(P.s[0], '', 0.25, true), l2 = ptLineHtml(P.s[1], '', l1.end + 0.15, true);
         var intro = pick(['Dengarkan baik-baik, Kapten.', 'Sampiran kedua. Jawablah dengan hati.', 'Laut punya bahasanya sendiri. Balaslah.', 'Hampir sampai. Jangan tergesa.']);
@@ -723,7 +725,7 @@ var MTGames = (function () {
         revealIsi(P, P.i);
         var rimaTxt = '<b>-' + esc(P.r[0]) + '</b> / <b>-' + esc(P.r[1]) + '</b> / <b>-' + esc(P.r[0]) + '</b> / <b>-' + esc(P.r[1]) + '</b>';
         var head, body;
-        if (ok) { head = pick(['Tepat!', 'Bagus, Kapten!', 'Pantun yang berbudi.']); body = 'Rima a-b-a-b ' + rimaTxt + ', dan isinya pantas diucapkan di Balai Adat.'; }
+        if (ok) { head = pick(['Tepat!', 'Bagus, Kapten!', 'Pantun yang berbudi.']); body = 'Rima a-b-a-b ' + rimaTxt + ', dan isinya pantas diucapkan di ' + (opts.hall || 'Balai Adat') + '.'; }
         else if (o.t === 'bad') { head = 'Rimanya cocok, maknanya tidak'; body = 'Bunyinya memang a-b-a-b, tetapi isinya mengkhianati semangat pantun &mdash; di Balai Adat, pantun bicara keberanian dan kesetiaan.'; }
         else { head = 'Maknanya baik, rimanya lari'; body = 'Isi itu tidak berima dengan sampiran. Yang benar: ' + rimaTxt + '.'; }
         var note = S.stage.querySelector('.pt-note');
@@ -738,7 +740,7 @@ var MTGames = (function () {
       function roundBuild() {
         var P = G.deck[G.round], target = P.k.join(''), lw = lastWord(P.i[1]);
         var pool = [];
-        shuffle(PANTUN.filter(function (q) { return q !== P && q.k; })).forEach(function (q) { q.k.forEach(function (sy) { if (P.k.indexOf(sy) < 0 && pool.indexOf(sy) < 0) pool.push(sy); }); });
+        shuffle(BANK.filter(function (q) { return q !== P && q.k; })).forEach(function (q) { q.k.forEach(function (sy) { if (P.k.indexOf(sy) < 0 && pool.indexOf(sy) < 0) pool.push(sy); }); });
         var tiles = shuffle(P.k.map(function (sy, i) { return { s: sy, id: 'k' + i }; }).concat(pool.slice(0, P.k.length > 3 ? 3 : 2).map(function (sy, i) { return { s: sy, id: 'd' + i }; })));
         var line4 = P.i[1].replace(new RegExp(lw.replace(/[-]/g, '\\-') + '([.,!?;:]*)$'), '%%BLANK%%$1');
         var l1 = ptLineHtml(P.s[0], 'ra', 0.2, true), l2 = ptLineHtml(P.s[1], 'rb', l1.end, true), l3 = ptLineHtml(P.i[0], 'ra', l2.end + 0.1, true);
@@ -792,9 +794,9 @@ var MTGames = (function () {
         prog();
         if (sc >= PASS) {
           S.win({ perfect: sc === ROUNDS, score: sc }, {
-            face: gov, kicker: 'Sunda Empire bergabung', title: 'Genderang Ikut Berlayar',
+            face: gov, kicker: opts.winKicker || 'Sunda Empire bergabung', title: opts.winTitle || 'Genderang Ikut Berlayar',
             badge: sc === ROUNDS ? 'Sempurna &middot; 5 dari 5' : null,
-            quote: 'Sunda Empire tidak lupa siapa yang membebaskan TooGood. Genderang kami ikut berlayar.', who: who,
+            quote: opts.winQuote || 'Sunda Empire tidak lupa siapa yang membebaskan TooGood. Genderang kami ikut berlayar.', who: who,
             stats: [['Pantun benar', sc + ' / ' + ROUNDS]]
           });
         } else {

@@ -1,0 +1,1339 @@
+<style>
+  /* ================= Saga 2 · Quest 7 "Malam Tiga Tanda Silang" ================= */
+  .ts-wrap { margin: 10px 0 14px; display: grid; gap: 10px; }
+  .ts-journal { position: relative; background: linear-gradient(180deg, rgba(20,20,30,.06), rgba(255,250,240,.84)); border-color: rgba(60,60,80,.45); }
+  .ts-journal .legend-tag { background: #16141c; color: #f0e2c0; border: 1px solid #4a4458; border-radius: 99px; padding: 2px 8px; }
+  .ts-clock { margin: 6px 0; padding: 7px 10px; border-radius: 10px; background: #15131b; color: #ece2cc; font-size: .86em; display: flex; gap: 8px; align-items: center; }
+  .ts-clock .ico { width: 16px; height: 16px; color: #e8c35a; flex: none; }
+  .ts-narr { padding: 14px 16px; border-radius: 14px; background: linear-gradient(180deg, #fffaf0, #efe2c6); border: 1px solid rgba(120,100,60,.4); color: #3a2a16; line-height: 1.62; animation: qgIn .45s var(--ease-spring); }
+  .ts-narr .tn-k { font-family: var(--font-title); letter-spacing: .14em; text-transform: uppercase; font-size: .7em; color: #6b5a3a; display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .ts-narr .tn-k .ico { width: 14px; height: 14px; }
+  .ts-narr p { margin: .45em 0; }
+  .ts-narr.night { background: radial-gradient(ellipse at 50% 0%, #1c2030, #07080e); border-color: rgba(232,191,85,.35); color: #e3e6f0; }
+  .ts-narr.night .tn-k { color: #f0cf78; } .ts-narr.night b { color: #ffe7a3; } .ts-narr.night i { color: #f4ead2; }
+  .ts-narr.wind { background: linear-gradient(180deg, #f4f8fb, #dde9f1); border-color: rgba(79,127,168,.45); color: #1e3348; } .ts-narr.wind .tn-k { color: #2f6aa8; }
+  .ts-narr.dewan { background: linear-gradient(180deg, #fbf6ea, #ecdfc0); border-color: rgba(154,42,36,.4); color: #3a1c14; } .ts-narr.dewan .tn-k { color: #9a2a24; }
+  .ts-narr.forge { background: radial-gradient(ellipse at 50% 100%, #3a1a0e, #110806); border-color: rgba(255,140,60,.4); color: #f2e2cc; } .ts-narr.forge .tn-k { color: #ffb070; } .ts-narr.forge b { color: #ffd39a; }
+  .ts-narr.grief { background: radial-gradient(ellipse at 50% 0%, #20283a, #090b12); border-color: rgba(255,210,140,.35); color: #e6e8ef; } .ts-narr.grief .tn-k { color: #ffd59a; } .ts-narr.grief b { color: #fff0c8; }
+  .ts-letter { margin: 6px 0; padding: 14px 16px; border-radius: 6px; background: repeating-linear-gradient(180deg, #f7f0dc 0 26px, #ece2c8 26px 27px); color: #2a1a10; font-family: Georgia, serif; font-style: italic; line-height: 1.7; border: 1px solid #c9b48a; box-shadow: 0 6px 14px -8px rgba(0,0,0,.5); }
+  .ts-letter.black { background: #1a1614; color: #efe2c8; border-color: #4a4038; }
+  .ts-poster { margin: 4px auto; max-width: 320px; padding: 12px 14px 10px; text-align: center; background: linear-gradient(180deg, #f2e2bc, #dcc58f); border: 3px solid #4a2a10; color: #3a1a0a; font-family: "Pirata One", Georgia, serif; box-shadow: 0 8px 18px -8px rgba(0,0,0,.6); transform: rotate(-1.2deg); }
+  .ts-poster .pt { font-size: 1.8em; letter-spacing: .06em; color: #6e1410; }
+  .ts-poster .pf { width: 120px; height: 120px; margin: 6px auto; border: 2px solid #3a2410; background: #2a1e12; filter: sepia(.6) contrast(1.05); overflow: hidden; }
+  .ts-poster .pf svg { width: 100%; height: 100%; display: block; }
+  .ts-poster .pn { font-family: Georgia, serif; font-size: .95em; }
+  .ts-poster .pg { font-size: 1.5em; color: #6e1410; }
+  .ts-poster .ps { font-family: Georgia, serif; font-style: italic; font-size: .7em; opacity: .85; }
+  .ts-poster.torn { clip-path: polygon(0 0, 100% 0, 100% 62%, 78% 70%, 60% 58%, 40% 74%, 18% 60%, 0 70%); }
+  .ts-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ts-choice button { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 14px; border-radius: 14px; text-align: left; transition: transform .15s, box-shadow .15s; }
+  .ts-choice button:hover, .ts-choice button:focus-visible { transform: translateY(-2px); box-shadow: 0 10px 22px -10px rgba(0,0,0,.6); outline: 2px solid rgba(255,210,122,.6); }
+  .ts-choice button[disabled] { opacity: .5; pointer-events: none; }
+  .ts-choice .a { background: linear-gradient(160deg, #fff6dc, #f0d79a); color: #3a2410; border: 1px solid #c9a033; }
+  .ts-choice .b { background: linear-gradient(160deg, #eef2f6, #d5dde6); color: #1e2a36; border: 1px solid #8fa0b4; }
+  .ts-choice > button > b { font-family: var(--font-display); font-size: 1.08em; display: flex; gap: 8px; align-items: center; }
+  .ts-choice > button > b .ico { width: 18px; height: 18px; }
+  .ts-choice > button > span { font-size: .86em; line-height: 1.45; opacity: .92; }
+  .ts-quote { margin: 4px 0; padding: 18px 20px; border-radius: 14px; background: radial-gradient(circle at 50% 0%, #1e1a24, #07060a); color: #f0e6d4; border: 1px solid rgba(232,191,85,.45); font-family: Georgia, serif; font-style: italic; line-height: 1.7; font-size: 1.06em; text-align: center; }
+  .ts-quote cite { display: block; margin-top: 10px; font-style: normal; font-family: var(--font-title); letter-spacing: .12em; font-size: .72em; color: #f0cf78; text-transform: uppercase; }
+  .chip.ts-chip { background: rgba(22,20,28,.78); border-color: rgba(232,195,90,.5); color: #f4ead6; }
+  .chip.ts-chip .ico { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+  .chip.ts-chip.hunt { background: rgba(110,20,16,.82); border-color: rgba(255,120,100,.6); }
+  .ts-cine .ts-skip { position: absolute; right: max(14px, env(safe-area-inset-right)); top: max(14px, env(safe-area-inset-top)); z-index: 2; background: rgba(8,8,12,.55); color: #f4ead8;
+    border: 1px solid rgba(232,191,85,.45); border-radius: 999px; padding: 6px 14px; font: 600 12px "Cinzel", Georgia, serif; letter-spacing: 1px; cursor: pointer; opacity: 0; transition: opacity .6s; }
+  .ts-cine .ts-skip.on { opacity: .85; }
+  .ts-cine .ts-skip:hover, .ts-cine .ts-skip:focus-visible { opacity: 1; outline: none; border-color: #e8c878; }
+  /* pertempuran yang tak bisa dimenangkan */
+  .ts-battle { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: radial-gradient(ellipse at 50% 0%, #2a1018, #07050a 70%); color: #f0e2d0; border: 1px solid rgba(255,90,80,.4); }
+  .ts-battle .tb-en { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .ts-battle .tb-en b { font-family: var(--font-display); font-size: 1.15em; color: #ffd0c0; }
+  .ts-battle .tb-bar { height: 10px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .ts-battle .tb-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #a8302a, #ff7a5a); }
+  .ts-battle .tb-shield { font-size: .8em; color: #9fd8ff; }
+  .ts-battle .tb-log { min-height: 4.4em; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); line-height: 1.5; }
+  .ts-battle .tb-log b { color: #ffe7a3; }
+  .ts-battle .tb-act { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ts-dice { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 4px; min-height: 52px; }
+  .ts-dice.shake { animation: tsShake .18s linear infinite; }
+  @keyframes tsShake { 25% { transform: translate(-2px, 1px) rotate(-2deg); } 75% { transform: translate(2px, -1px) rotate(2deg); } }
+  .ts-casino { background: radial-gradient(circle at 50% 0%, #2a1a3a, #0e0814 75%); color: #f3e6ff; border-radius: 14px; padding: 14px; border: 1px solid rgba(232,191,85,.4); }
+  .ts-casino .qg-card { background: linear-gradient(180deg, #fff8ec, #efdcc0); }
+  @media (max-width: 640px) { .ts-choice { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .ts-dice.shake { animation: none; } }
+</style>
+<script>
+/* =====================================================================
+ * Saga 2 · QUEST 7 "MALAM TIGA TANDA SILANG" (klien)
+ * Pelayaran ke-3 setelah Quest 6 -> Langit Hitam -> Javasche Bank dibobol (Olah Jejak, poster Andry,
+ * Peta Pengasingan) -> Otoland (Ny. Upayy, Adu Gasing, Sandi Pelikan di sarang gagak) -> Pulau em pe'er
+ * de pe'er (Paman Ocid, Pesta Topeng: Pantun protokoler, Mata Pesta, Tedsky, Garlyena) -> FreeYork
+ * (Tassyaaa, Olah Jejak bengkel, Tungku Seribu Gagak) -> Paradiso (Andry, dadu, gasing, surat hitam) ->
+ * Titik Buta (Jarum yang Berbalik, Kalau Salah Satu Jatuh) -> TooGood (Seribu Lentera, Tari Genderang
+ * duka) -> diburu Pemburu Sayap Patah -> Kunci Dua Jarum di Gading -> penutup di Javasche Bank.
+ * Server: 0027_tigasilang.sql (api_tigasilang). Mini-game: TigaSilangGames (MTGames3), Saga2Games
+ * (gasing, genderang), BarsatiGames (pantun). Sinematik: CinemaSaga2 (ts_*). Kota: CitiesSaga2.
+ * Modul ini MEMBUNGKUS fungsi inti (setModal_, openPanel, npc_, rumors_, applyFreshState_, ...).
+ * ===================================================================== */
+var TS = (function () {
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+
+  /* ---------- gaya bicara Tassyaaa: setiap huruf vokal ditulis tiga kali ---------- */
+  // Teks disimpan normal. Tag HTML, «nama diri» dan kata "orang" tidak dimolorkan.
+  function tassy(text) {
+    return String(text).split(/(<[^>]+>|«[^»]*»|\borang\b)/).map(function (part) {
+      if (!part) return '';
+      if (part[0] === '<') return part;
+      if (part[0] === '«') return part.slice(1, -1);
+      if (part === 'orang') return part;
+      return part.replace(/[aiueoAIUEO]/g, function (c) { return c + c.toLowerCase() + c.toLowerCase(); });
+    }).join('');
+  }
+
+  /* ---------- tokoh ---------- */
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    var CN = {}, BN = {}, KN = {};
+    try { CN = window.CB && CB.N ? CB.N() : {}; } catch (e) { CN = {}; }
+    try { BN = window.BX && BX.N ? BX.N() : {}; } catch (e) { BN = {}; }
+    try { KN = window.KP && KP.N ? KP.N() : {}; } catch (e) { KN = {}; }
+    var coco = CN.coco || { name: 'coco epan', title: 'Bankir Javasche Bank', ap: apOf('joungjava|bankir', 'bankir', 0, { head: 'bowler', eye: 'monocle', item: 'pipe', age: 0.86 }) };
+    NN = {
+      coco: { name: 'coco epan', title: 'Bankir Javasche Bank', ap: coco.ap },
+      cocoBare: CN.cocoBare || coco,
+      karto: CN.karto || { name: 'Pak Tua Karto', title: 'Peminum Kopi Pahit', ap: { fem: 0, skin: 3, hair: 4, hairStyle: 5, facial: 2, head: 'arch', eyes: 0, seed: 1717, role: 'lapau', age: 0.95 } },
+      felyx: CN.felyx || { name: 'felyx', title: 'Penjaga Kedai Stumpy', ap: apOf('felyx-stumpy-gading', 'lapau', 0, { age: 0.32 }) },
+      juru: KN.juru || { name: 'Juru Mudi', title: 'Awak kapalmu', ap: apOf('juru-mudi-kapal', 'tukang', 0, { head: 'iket', age: 0.5 }) },
+      tedsky: { name: 'Jendral Tedsky', title: 'Bertopeng Garuda perunggu', ap: (KN.tedsky || BN.tedsky || { ap: apOf('tedsky', 'syahbandar', 0) }).ap, medals: true, paint: true },
+      andry: Object.assign({}, BN.andry || { name: 'Andry Ivankov', ap: apOf('adik-topeng', 'saudagar', 0) }, { title: 'Pemimpin Armada Bebas' }),
+      marlya: Object.assign({}, BN.marlya || { name: 'Marlya', ap: apOf('marlya-moramora', 'pustakawan', 1) }, { title: 'Ratu Moramora' }),
+      zafa: Object.assign({}, BN.zafa || { name: 'zafachmie', ap: apOf('zafa', 'pustakawan', 0), fat: true }, { title: 'Gubernur TooGood' }),
+      euis: Object.assign({}, BN.euis || { name: 'Teh Euis', ap: apOf('euis', 'saudagar', 1) }, { title: 'Penjaga Perpustakaan Rakyat' }),
+      dwi: Object.assign({}, BN.dwi || { name: "dwi de'clown", ap: apOf('dwi', 'lapau', 0), clown: true }, { title: 'Pelukis Black’s Alley', clown: false }),
+      gala: Object.assign({}, BN.gala || { name: 'Uda Gala', ap: apOf('gala', 'tukang', 0) }, { title: 'Pemilik Galangan Gaul-Wash' }),
+      upayy: { name: 'Ny. Upayy', title: 'Penjaga kincir tua, Otoland', ap: apOf('upayy-otoland-kincir', 'lapau', 1, { age: 0.95, hair: 4, head: 'none', outfit: 'kebaya' }) },
+      nelayan: { name: 'Nelayan Otoland', title: 'Dermaga Jaring', ap: apOf('nelayan-otoland', 'gudang', 0, { age: 0.6 }) },
+      ocid: { name: 'Paman Ocid', title: 'Penjaga Arsip & Jam Agung', ap: apOf('ocid-kubah-arsip', 'pustakawan', 0, { age: 0.9, head: 'blangkon', eye: 'glasses', facial: 3 }) },
+      garlyena: { name: 'Miss Garlyena', title: 'Ketua Dewan Mahkota', ap: apOf('garlyena-dewan-mahkota', 'saudagar', 1, { age: 0.5, ear: 'pearl', neck: 'pearls' }) },
+      protokol: { name: 'Petugas Protokol', title: 'Bersarung tangan putih', ap: apOf('protokol-empeer', 'syahbandar', 0, { age: 0.35 }) },
+      tassyaaa: { name: 'Tassyaaa', title: 'Pandai besi FreeYork', ap: apOf('tassyaaa-freeyork-tempa', 'tukang', 1, { age: 0.5, outfit: 'apron', head: 'ikat', facial: 0 }) }
+    };
+    return NN;
+  }
+  var PAINT = '<g opacity=".9"><circle cx="30" cy="70" r="3.4" fill="#b8843a"/><circle cx="35" cy="76" r="1.8" fill="#c99448"/><circle cx="66" cy="60" r="2.4" fill="#a8742e"/><circle cx="71" cy="83" r="2.8" fill="#9a6a28"/></g>';
+  function face(n) {
+    if (n.kind && window.MTBX && typeof MTBX.face === 'function') { try { var b = MTBX.face(n.kind); if (b) return b; } catch (e) { } }
+    if (n.svg) return n.svg;
+    var s = MTFace.svg(n.ap, { bgColors: ['#3a3448', '#0e0c14'], fat: n.fat, clown: n.clown, medals: n.medals });
+    if (n.paint) s = s.replace(/<\/svg>\s*$/, PAINT + '</svg>');
+    return s;
+  }
+  // NPC kota di tiga pulau baru (nama wajar, tidak dibuat-buat)
+  var ISLE_NPC = {
+    otoland: { syahbandar: ['Pak Darmin', 'Ketua Balai Nelayan', 0], saudagar: ['Bu Sumi', 'Pedagang Garam', 1], pustakawan: ['Pak Wiryo', 'Juru Tulis Pulau', 0], bankir: ['Bu Tarni', 'Pengurus Koperasi', 1], lapau: ['Mbok Rah', 'Pemilik Warung Jaring', 1], tukang: ['Pak Gimin', 'Tukang Perahu', 0], gudang: ['Mas Yanto', 'Penjaga Gudang Garam', 0] },
+    empeer_depeer: { syahbandar: ['Tuan Sekretaris Rahardi', 'Sekretariat Dewan Mahkota', 0], saudagar: ['Nyonya Laksmi', 'Pedagang Sutra Berizin', 1], pustakawan: ['Paman Ocid', 'Penjaga Arsip & Jam Agung', 0], bankir: ['Tuan Bendahara Wisesa', 'Bank Mahkota', 0], lapau: ['Bu Kartika', 'Kantin Pegawai', 1], tukang: ['Pak Suryo', 'Dermaga Protokol', 0], gudang: ['Pak Harjo', 'Pencap Gudang', 0] },
+    freeyork: { syahbandar: ['Pak Bonar', 'Ketua Balai Serikat', 0], saudagar: ['Bu Rumi', 'Pedagang Besi', 1], pustakawan: ['Pak Sapto', 'Pengukir Nama Kapal', 0], bankir: ['Pak Lukas', 'Bank Rantai', 0], lapau: ['Mak Ijah', 'Kedai Arang', 1], tukang: ['Bang Togar', 'Penjaga Dok Legenda', 0], gudang: ['Bang Udin', 'Gudang Senjata', 0] }
+  };
+  var inCache = {};
+  function isleNpc(city, role) {
+    var d = ISLE_NPC[city] && ISLE_NPC[city][role]; if (!d) return null;
+    if (city === 'empeer_depeer' && role === 'pustakawan') return N().ocid;
+    var k = city + '|' + role;
+    return inCache[k] || (inCache[k] = { name: d[0], title: d[1], ap: apOf(k, role, d[2]) });
+  }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.tigasilang) || null; }
+  function step() { var s = st(); return s ? (s.step || 0) : -1; }
+  function done() { var s = st(); return !!(s && (s.done || s.step >= 12)); }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function uname() { return (state && (state.username || (state.player && state.player.characterName))) || 'x'; }
+  function inCombat() { return typeof combatSceneOpen !== 'undefined' && combatSceneOpen; }
+  var gameOpen = false, flowBusy = false;
+  function busyUi() { return gameOpen || flowBusy || inCombat() || !!document.querySelector('.qt-cine, .bx-crd, .bx-credits, .mtg.on, .tsg.on'); }
+  function seenKey(k) { return 'ts:' + uname() + ':' + k; }
+  function seen(k) { try { return localStorage.getItem(seenKey(k)) === '1'; } catch (e) { return !!SEEN_MEM[k]; } }
+  var SEEN_MEM = {};
+  function markSeen(k) { SEEN_MEM[k] = 1; try { localStorage.setItem(seenKey(k), '1'); } catch (e) { } }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function night() { var f = typeof dayFrac_ === 'function' ? dayFrac_() : 0.3; return f >= 0.72 || f < 0.04; }
+  function nightInMs() {
+    var f = typeof dayFrac_ === 'function' ? dayFrac_() : 0.3, len = (state && state.dayLengthMinutes) || 60;
+    if (f >= 0.72 || f < 0.04) return 0;
+    return (0.72 - f) * len * 60000;
+  }
+  function dur(ms) { var m = Math.max(1, Math.round((ms || 0) / 60000)), h = Math.floor(m / 60); return h >= 1 ? h + ' jam' + (m % 60 ? ' ' + (m % 60) + ' menit' : '') : m + ' menit'; }
+  function truth() { var s = st(); return s && s.truth === 'bohong' ? 'bohong' : 'jujur'; }
+  function speech(n, text, extra, title) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(title || n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function narr(kicker, text, extra, icon, cls) {
+    return '<div class="ts-narr ' + (cls || '') + '"><div class="tn-k">' + ic(icon || 'scroll') + esc_(kicker || '') + '</div>' + text + (extra || '') + '</div>';
+  }
+  function actions(btns) { return '<div class="qg-actions">' + btns + '</div>'; }
+  function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
+  function next(t) { return '<div class="qg-next">' + ic('scroll') + ' ' + (t || 'Catatan baru di jurnalmu.') + '</div>'; }
+  var OTHER_WRAPS = '.cb-wrap, .kp-wrap, .bx-wrap, .ww-wrap, .qt-wrap, .qg-wrap';
+  function insert(html, opts) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    if (c.querySelector('.ts-wrap')) return null;
+    if (opts && opts.quiet) c.querySelectorAll(OTHER_WRAPS).forEach(function (e) { e.remove(); });
+    var anchor = opts && opts.top ? c.querySelector('.ph') : (c.querySelector('.cb-wrap') || c.querySelector('.kp-wrap') || c.querySelector('.bx-wrap') || c.querySelector('.qt-wrap') || c.querySelector('.ww-wrap') || c.querySelector('.qg-wrap') || c.querySelector('.npc') || c.querySelector('.ph'));
+    var wrap = document.createElement('div'); wrap.className = 'ts-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function applyUnlocks(r) {
+    if (!r || !state) return;
+    if (r.unlocks) state.unlocks = r.unlocks;
+    if (r.cities && r.cities.length) {
+      try { if (typeof setCachedCities_ === 'function') setCachedCities_(r.citiesVersion, r.cities); } catch (e) { }
+      try { state.cities = typeof visibleCities_ === 'function' ? visibleCities_(r.cities, state) : r.cities; } catch (e) { }
+      if (r.citiesVersion) state.citiesVersion = r.citiesVersion;
+    }
+    if (typeof invalidatePanelCache_ === 'function') invalidatePanelCache_();
+  }
+  function call(action, arg, ok, btn, fail, arg2) {
+    if (btn) btn.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      r = r || {};
+      if (r.tigasilang !== undefined && state) { state.tigasilang = r.tigasilang; prevStep = r.tigasilang ? (r.tigasilang.step || 0) : null; }
+      if (r.newGold != null && typeof patchGold_ === 'function') { patchGold_(r.newGold); try { renderSidebar(); } catch (e) { } }
+      applyUnlocks(r);
+      if (typeof refreshCargoQuiet_ === 'function') { try { refreshCargoQuiet_(); } catch (e) { } }
+      try { ok(r); } catch (e) { console.warn('[TS]', action, e); }
+    }).withFailureHandler(function (e) {
+      if (btn) btn.disabled = false;
+      showToast((e && e.message) || String(e), 'error');
+      if (fail) fail(e);
+    }).api_tigasilang(action, arg || '', arg2 || '');
+  }
+  function pages(w, n, list, lastBtns, bind, title) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], who = (pg && pg.n) || n, txt = (pg && pg.t) || pg;
+      var nav = actions(last ? lastBtns : '<button class="btn btn-gold" data-ts="next">Lanjut</button>') + dots(i, list.length);
+      w.innerHTML = pg && pg.narr ? narr(pg.narr, txt, nav, pg.icon, pg.cls) : speech(who, txt, nav, pg && pg.title ? pg.title : (who === n ? title : null));
+      au_('page');
+      if (!last) on(w, '[data-ts=next]', function () { i++; show(); }); else if (bind) bind(w);
+    }
+    show();
+  }
+  function showModal(html) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function modalWrap(icon, title, sub) { showModal(panelHeader_(icon, title, sub)); return insert('<div></div>', { top: true }); }
+  function close() { if (typeof closeModal === 'function') closeModal(); }
+
+  /* ---------- sinematik layar penuh (bisa dilewati) ---------- */
+  function cine(kind, slides, cb, onSlide) {
+    var finished = false;
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    flowBusy = true;
+    var ov = document.createElement('div'); ov.className = 'qt-cine ts-cine';
+    ov.innerHTML = '<canvas></canvas><button class="ts-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind) || stop; } catch (e) { console.warn('[TS] cine', e); }
+    var i = 0, txt = ov.querySelector('.qt-captext'), btn = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.ts-skip');
+    function show() {
+      txt.classList.remove('in'); void txt.offsetWidth;
+      txt.innerHTML = slides[i]; txt.classList.add('in');
+      btn.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai';
+      if (onSlide) try { onSlide(i); } catch (e) { }
+    }
+    function finish() {
+      if (finished) return; finished = true;
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      flowBusy = false;
+      if (cb) setTimeout(cb, 60);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    btn.onclick = function () { au_('page'); if (++i < slides.length) show(); else finish(); };
+    skip.onclick = function () { au_('page'); finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1500);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!finished) show(); }, 900);
+  }
+
+  /* ---------- mini-game ---------- */
+  var FALLBACK = { gasing: { win: false }, genderang: { win: true, score: 70 }, pantun: { win: true }, jejak: { win: true }, pesta: { win: true }, jarum: { win: true }, sandi: { win: true } };
+  function game(kind, opts, cb) {
+    function fin(res) { gameOpen = false; try { cb(res || { kind: kind, cancelled: true }); } catch (e) { console.warn('[TS] game cb', e); } }
+    var lib = kind === 'pantun' ? window.MTGames : (kind === 'gasing' || kind === 'genderang') ? window.MTGames2 : window.MTGames3;
+    if (lib && typeof lib.open === 'function') {
+      gameOpen = true;
+      try { lib.open(kind, opts || {}, fin); return; } catch (e) { gameOpen = false; console.warn('[TS] game', e); }
+    }
+    showModal(panelHeader_('compass', esc_((opts && opts.title) || 'Mini-game'), '') +
+      '<div class="ts-wrap"><div class="ts-narr"><p>' + ((opts && opts.intro) || '') + '</p><p class="muted small">Mini-game belum termuat di perangkat ini. Kau tetap bisa melanjutkan cerita.</p>' +
+      actions('<button class="btn btn-gold" data-ts="fb-go">Lanjutkan cerita</button><button class="btn btn-ghost-ink" data-ts="fb-no">Nanti dulu</button>') + '</div></div>');
+    var c = document.getElementById('modalContent');
+    on(c, '[data-ts=fb-go]', function () { close(); fin(Object.assign({ kind: kind }, FALLBACK[kind] || { win: true })); });
+    on(c, '[data-ts=fb-no]', function () { close(); fin({ kind: kind, cancelled: true }); });
+  }
+
+  /* ---------- catatan samar (jurnal) ---------- */
+  function objective(s) {
+    var k = s.step || 0;
+    if (k === 1) return '<i>"Sungai hitam mengalir di langit, menuju tanah paling subur. Satu ekor tertinggal untuk mengendus palkamu."</i>';
+    if (k === 2) return '<i>"Emas berhamburan supaya tak ada yang melihat apa yang dibawa pergi."</i>' + (s.jejak1 ? ' Bankir tua itu menunggu pertanyaanmu.' : ' Ruang brankas masih gelap.');
+    if (k === 3) return '<i>"Tiga pulau. Saya belum pernah kembali."</i> Yang pertama, <i>pulau datar tempat angin tak pernah berhenti</i>.';
+    if (k === 4) return '<i>"Di pulau berangin, seorang raja belajar memasang jam di pergelangan orang lain. Di atas kincirnya, seekor burung hitam menunggu surat untuk seseorang bernama G."</i> Pesta bulan mati, <i>tangga ke-999</i>.';
+    if (k === 5) return '<i>"Di gedung berkubah di ujung seribu tangga, jam yang mati berdetak semenit untuk seorang tamu bertopeng perunggu. Ia memuji kompasmu."</i> Pulau ketiga: <i>tanah para pembuat rantai</i>.';
+    if (k === 6) return '<i>"Di tanah para pembuat rantai yang menamai dirinya bebas, burung-burung hitam ditempa dengan janji. Di meja seorang ibu, ada jarum kecil yang bukan untuk jam."</i> Sebuah wajah ditempel di setiap dinding, <i>dan ia menunggumu di tempat uang berputar tanpa henti</i>.';
+    if (k === 7) return '<i>"Hanya empat orang yang tahu tempat itu. Tiga burung kecil akan berkumpul, dan kau diundang menjadi yang keempat."</i> Titik di tengah laut, <i>saat lampu-lampu dinyalakan</i>.';
+    if (k === 8) return '<i>"Jarum itu tidak pernah menunjuk tempat. Ia menunjuk dirimu."</i> <i>Sarang tempat asap dulu tak pernah padam</i> menunggu.';
+    if (k === 9) return '<i>"Seribu lentera di teluk, empat genderang, tiga penabuh."</i> Bankir tua itu berdiri di pinggir dermaga, memandangi kompasmu.';
+    if (k === 10) return '<i>"Jarum ketiga ditempa di tanah pandai besi."</i> Seseorang <i>di pulau tempat lampion tak pernah padam</i> pandai membuka apa saja yang berdetak.';
+    if (k === 11) return '<i>"Jarum yang mengkhianatimu sudah patah. Dua yang tersisa menunjuk ke tempat dua tangan pertama kali bertemu."</i> Sebuah kunci dan sebuah kotak alat menunggu dikembalikan <i>ke tanah paling subur</i>.';
+    return '';
+  }
+  function journal() {
+    var s = st(); if (!s) return '';
+    var k = s.step || 0;
+    if (k < 1 || k > 11) return '';
+    var clock = '';
+    if (k === 4 && s.ocid && !s.mata) clock = '<div class="ts-clock">' + ic(night() ? 'moon' : 'sun') + (night() ? ' Lilin di seribu tangga sudah dinyalakan. Pesta dimulai.' : ' Pesta Topeng dimulai saat malam &plusmn;' + dur(nightInMs()) + ' lagi.') + '</div>';
+    if (k === 7) clock = '<div class="ts-clock">' + ic(night() ? 'moon' : 'sun') + (night() ? ' Lampu-lampu sudah dinyalakan. Titik itu terlihat di petamu.' : ' Titik itu baru tampak saat malam &plusmn;' + dur(nightInMs()) + ' lagi.') + '</div>';
+    if (s.hunted) clock += '<div class="ts-clock">' + ic('alert') + ' Pemburu Sayap Patah mengintai setiap pelayaranmu (&plusmn;' + (s.huntChance || 0) + '%).</div>';
+    return '<div class="qg-journal ts-journal"><div class="qg-jh">' + ic('wind') + ' <b>Malam Tiga Tanda Silang</b><span class="legend-tag">Saga Kedua</span></div>' + clock +
+      '<div class="qg-obj">' + ic('compass') + ' <b>Catatan terakhirmu:</b><br>' + objective(s) + '</div></div>';
+  }
+
+  /* ---------- poster buronan Andry ---------- */
+  function poster(torn) {
+    return '<div class="ts-poster' + (torn ? ' torn' : '') + '"><div class="pt">DICARI</div><div class="pf">' + face(N().andry) + '</div>' +
+      '<div class="pn">ANDRY IVANKOV &middot; ARMADA BEBAS</div><div class="pn">PERAMPOK JAVASCHE BANK</div><div class="pg">1.000.000 GOLD</div><div class="ps">ttd. Residen Joungjava</div></div>';
+  }
+
+  /* ================= BABAK 0: Langit Hitam ================= */
+  var SL_SKY = [
+    'Langit sore menggelap. <b>Bukan karena awan.</b>',
+    '<b>Ribuan gagak mesin hitam</b> terbang rendah melewati kapalmu ke arah barat, seperti sungai hitam di langit. Bunyi <i>klik-klik</i> logam memenuhi udara.',
+    'Seekor memisahkan diri dan mendarat di tutup palka. Ia <b>mematuk-matuk kayu tepat di atas tempat Kompas Tedsky disimpan</b>.',
+    'Juru mudi mengusirnya dengan dayung: <b>"Burung sialan. Seperti mencium bau sesuatu di bawah sana."</b> Gagak itu memiringkan kepala ke arahmu, mata merahnya berkedip dua kali, lalu menyusul kawanannya.'
+  ];
+  function skyScene(after) {
+    markSeen('sky');
+    cine('ts_sky', SL_SKY, function () { if (after) after(); });
+  }
+  function rumorScene() {
+    markSeen('rumor');
+    var w = modalWrap('alert', 'Kabar di dermaga', state && state.city ? esc_(state.city.Name) : '');
+    if (!w) return;
+    var jj = cid() === 'joungjava';
+    w.innerHTML = narr('Di dermaga', '<p>Warga berkerumun, berbisik-bisik keras:</p><p><b>"Kau sudah dengar? Javasche Bank dibobol semalam! Burung-burung hitam keluar dari atapnya seperti asap!"</b></p>', '', 'alert') + journal() +
+      actions(jj ? '<button class="btn btn-gold" data-ts="go">' + ic('bank') + '&nbsp; Ke Javasche Bank</button>' : '<button class="btn btn-gold" data-ts="sail">' + ic('ship') + '&nbsp; Buka peta berlayar</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>');
+    on(w, '[data-ts=go]', function () { vaultArrival(); });
+    on(w, '[data-ts=sail]', function () { openPanel('setsail'); });
+    on(w, '[data-ts=later]', function () { close(); });
+  }
+
+  /* ================= BABAK 1: Brankas yang Terbuka ================= */
+  var SL_VAULT = [
+    'Pak Tua Karto berdiri di dermaga dengan cangkir kopinya. "Malam itu aku belum tidur, Nak."',
+    '<b>Kubah kaca Javasche Bank pecah.</b> Gagak menyerbu masuk lewat atap, seperti asap yang mengalir terbalik.',
+    'Pintu brankas <b>dibuka dari dalam</b>. Lalu <b>koin emas berhamburan dari langit</b> ke pasar pantai. Warga berebut di bawah hujan emas.',
+    'Saat semua orang menunduk memungut, kawanan gagak terbang keluar membawa <b>sesuatu yang kecil</b>.',
+    '<b>"Mereka menjatuhkan emas supaya kami sibuk memungut. Pencuri yang pintar tidak mencuri emas, Nak. Ia memakai emas."</b>'
+  ];
+  function vaultArrival() {
+    var s = st(); if (!s) return;
+    if (s.step === 1) {
+      call('vault', '', function () {
+        close();
+        cine('ts_vault', SL_VAULT, function () { posterScene(); });
+      });
+      return;
+    }
+    bankScene();
+  }
+  function posterScene() {
+    var w = modalWrap('alert', 'Dinding Syahbandar', 'Joungjava');
+    if (!w) return;
+    w.innerHTML = poster(false) + narr('Di dinding Syahbandar', '<p>Poster buronan baru, tintanya masih basah. Residen Joungjava yakin: di pintu brankas ada <b>tiga goresan silang</b>, tanda Armada Bebas.</p><p>Wajah di poster itu tanpa topeng. Kau mengenalnya.</p>', '', 'eye') +
+      actions('<button class="btn btn-gold" data-ts="vault">' + ic('eye') + '&nbsp; Periksa ruang brankas</button>');
+    on(w, '[data-ts=vault]', function () { jejakBrankas(); });
+  }
+  function jejakBrankas() {
+    close();
+    game('jejak', { variant: 'brankas', doneLine: 'Gagak, cat perunggu, tanda silang buatan, emas yang tak disentuh, dan satu laci kosong.' }, function (res) {
+      if (!res || res.cancelled) { showToast('Ruang brankas menunggu. Kembalilah ke Javasche Bank kapan saja.', 'info'); return; }
+      call('jejak', '', function () { bankScene(); });
+    });
+  }
+  function bankScene() {
+    var s = st() || {}, n = N();
+    var w = modalWrap('bank', 'Javasche Bank', 'Ruang kerja bankir');
+    if (!w) return;
+    if (!s.jejak1) {
+      w.innerHTML = narr('Javasche Bank', '<p>Pecahan kaca kubah berserakan di lobi. Pintu ruang brankas terbuka lebar, gelap.</p>', '', 'bank') + actions('<button class="btn btn-gold" data-ts="vault">' + ic('eye') + '&nbsp; Periksa ruang brankas</button>');
+      on(w, '[data-ts=vault]', function () { jejakBrankas(); });
+      return;
+    }
+    var asked = s.asked || [];
+    function qbtns() {
+      var a = (st() || {}).asked || [];
+      return '<button class="btn' + (a.indexOf('diri') >= 0 ? '' : ' btn-gold') + '" data-q="diri">' + ic('user') + '&nbsp; "Ceritakan lebih banyak tentang dirimu."</button>' +
+        '<button class="btn' + (a.indexOf('tedsky') >= 0 ? '' : ' btn-gold') + '" data-q="tedsky">' + ic('compass') + '&nbsp; "Ke mana Tedsky pergi?"</button>';
+    }
+    var ANS = {
+      diri: '"Tentang diri saya sendiri&hellip; saya tidak pandai. <b>Tanyakan pada pulau-pulau yang saya tinggalkan.</b> Mereka lebih jujur dari saya."',
+      tedsky: '"Orang seperti dia selalu berjalan menuju sesuatu. Dan anehnya&hellip; <b>jalannya mungkin sama dengan jalan yang dulu saya tempuh.</b>"'
+    };
+    function ask(text) {
+      w.innerHTML = speech(n.coco, text, actions(qbtns()), 'Javasche Bank') + journal();
+      w.querySelectorAll('[data-q]').forEach(function (b) {
+        b.onclick = function () {
+          var q = b.getAttribute('data-q');
+          call('ask', q, function (r) {
+            var a = (r.tigasilang || {}).asked || [];
+            if (a.indexOf('diri') >= 0 && a.indexOf('tedsky') >= 0) mapScene(ANS[q]); else ask(ANS[q]);
+          }, b);
+        };
+      });
+    }
+    if (asked.indexOf('diri') >= 0 && asked.indexOf('tedsky') >= 0) { mapScene(null); return; }
+    if (asked.length) { ask('coco epan menunggu pertanyaanmu berikutnya, monokelnya retak.'); return; }
+    pages(w, n.coco, [
+      { narr: 'Ruang kerja bankir', icon: 'eye', t: '<p>coco epan duduk di ruangannya, tenang tapi pucat. <b>Monokelnya retak.</b></p>' },
+      '"Mereka mengambil satu-satunya warisan leluhur saya yang tidak pernah saya jual: <b>separuh Peta Jalur Pendiri.</b> Separuh milik Pembuka Jalur."',
+      '"Separuhnya lagi milik keluarga Penjaga Suara. Kalau kedua separuh itu bertemu&hellip; <b>orang bisa berlayar ke tempat yang seharusnya tidak dicari siapa pun.</b>"',
+      { narr: 'Di jendela', icon: 'scroll', t: '<p>Seekor <b>pelikan mesin</b> mendarat di jendela. Surat di paruhnya bertinta perak:</p><div class="ts-letter">"Seseorang membobol arsip Istana Hening dengan burung-burung hitam. Yang hilang hanya satu: peta jalur para pendiri, separuh milik keluargaku. Kapten, ini bukan pencuri biasa. — M."</div>' },
+      'coco epan menurunkan surat itu pelan. <b>"Sekarang ia punya keduanya."</b>'
+    ], qbtns(), function (w2) {
+      w2.querySelectorAll('[data-q]').forEach(function (b) {
+        b.onclick = function () {
+          var q = b.getAttribute('data-q');
+          call('ask', q, function (r) {
+            var a = (r.tigasilang || {}).asked || [];
+            if (a.indexOf('diri') >= 0 && a.indexOf('tedsky') >= 0) mapScene(ANS[q]); else ask(ANS[q]);
+          }, b);
+        };
+      });
+    }, 'Javasche Bank');
+    function mapScene(lastAnswer) {
+      var list = [];
+      if (lastAnswer) list.push(lastAnswer);
+      list.push(
+        { narr: 'Ruang kerja bankir', icon: 'map', t: '<p>Ia membuka laci terkunci dan mengeluarkan sebuah <b>peta tangan yang lusuh</b>. Tiga pulau dilingkari tinta pudar.</p><p>Di pojoknya, tulisan tangan perempuan: <i>"Jalan pulang kita, kalau suatu hari kau ingin pulang."</i></p>' },
+        '"Mereka mencuri peta yang menunjuk ke masa lalu leluhur saya. Mereka tidak tahu ada peta yang menunjuk ke <b>masa lalu saya sendiri</b>. Tiga pulau. Saya belum pernah kembali."',
+        '"Satu lagi, Kapten. Goresan di pintu itu bukan Andry. <b>Orang yang dua puluh tahun memakai topeng tidak akan meninggalkan tanda tangannya di pintu.</b>"'
+      );
+      pages(w, n.coco, list, '<button class="btn btn-gold" data-ts="map">' + ic('map') + '&nbsp; Terima Peta Pengasingan</button>', function (w3) {
+        on(w3, '[data-ts=map]', function (b) {
+          call('map', '', function () {
+            au_('unfurl'); close();
+            mapCine('otoland', function () {
+              var w4 = modalWrap('map', 'Peta Pengasingan', 'Pulau pertama');
+              if (!w4) return;
+              w4.innerHTML = narr('Di peta anjunganmu', '<p>Kabut di timur Marie Regal tersibak. Sebuah pulau datar bertabur titik-titik kecil seperti kincir: <b>Otoland</b>.</p><p>Dua lingkaran lain di peta masih kabur.</p>', '', 'map') + next('Peta Pengasingan ada di tanganmu.') + journal() +
+                actions('<button class="btn btn-gold" data-ts="sail">' + ic('ship') + '&nbsp; Buka peta berlayar</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>');
+              on(w4, '[data-ts=sail]', function () { openPanel('setsail'); });
+              on(w4, '[data-ts=later]', function () { close(); });
+              showToast('Otoland muncul di peta.', 'success');
+            });
+          }, b);
+        });
+      }, 'Javasche Bank');
+    }
+  }
+  var MAP_SL = {
+    otoland: ['coco epan membentangkan Peta Pengasingan di atas meja. Tintanya pudar, tapi tiga lingkaran itu jelas.', 'Kabut di timur Marie Regal <b>tersibak</b>. Pulau datar, puluhan titik kecil berputar di atasnya seperti kincir.', '<b>Otoland.</b> Dua lingkaran lain masih tertutup kabut.'],
+    empeer: ['Di Peta Pengasingan, lingkaran kedua mulai terbaca.', 'Sebuah pulau dengan bangunan berkubah di puncaknya, dan <b>tangga panjang</b> yang turun sampai ke laut.', "<b>Pulau em pe'er de pe'er.</b> Tangga ke-999."],
+    freeyork: ['Lingkaran terakhir di Peta Pengasingan.', 'Sebuah tanjung batu hitam. Asap tipis naik dari tinta, seolah peta itu sendiri berasap.', '<b>FreeYork.</b> Di pinggir lingkarannya, tulisan kecil coco epan: <i>"Saya tidak turun dari kapal. Saya tidak sanggup."</i>']
+  };
+  function mapCine(which, cb) { window.TS_MAP = which; cine('ts_map', MAP_SL[which], function () { window.TS_MAP = null; if (cb) cb(); }); }
+
+  /* ================= BABAK 2: Otoland ================= */
+  function arrivalOtoland() {
+    markSeen('oto');
+    var w = modalWrap('wind', 'Otoland', 'Pulau kincir');
+    if (!w) return;
+    w.innerHTML = narr('Otoland', '<p>Angin kencang langsung menampar layarmu. Puluhan kincir kayu berderit memutar pompa ladang garam; petak-petak garam berkilau seperti cermin pecah.</p>' +
+      '<p>Rumah-rumah nelayan berdinding biru, jaring dijemur di mana-mana. Di ujung tanjung berdiri satu <b>kincir tua berpintu biru</b>.</p>', '', 'wind', 'wind') +
+      actions('<button class="btn btn-gold" data-ts="go">' + ic('compass') + '&nbsp; Ke kincir tua</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>');
+    on(w, '[data-ts=go]', function () { upayyScene(); });
+    on(w, '[data-ts=later]', function () { close(); });
+  }
+  function upayyScene() {
+    var s = st() || {}, n = N(), k = s.step || 0;
+    var w = modalWrap('compass', 'Kincir Tua', 'Ujung tanjung, Otoland');
+    if (!w) return;
+    if (k < 3) { w.innerHTML = narr('Kincir tua', '<p>Pintu birunya tertutup. Hanya angin yang menjawab ketukanmu.</p>', '', 'wind', 'wind'); return; }
+    if (k > 3) {
+      w.innerHTML = speech(n.upayy, pickLine_(['"Angin di sini tak pernah berhenti, Kapten. Kenangan juga."', '"Pintu kincir ini tidak pernah dikunci."', '"Nansy dulu memancing di batu itu setiap fajar. Batunya masih di sana."'], 'tsupayy')) + journal();
+      return;
+    }
+    if (!s.upayy) {
+      pages(w, n.upayy, [
+        { narr: 'Kincir tua', icon: 'wind', cls: 'wind', t: '<p>Seorang perempuan tua sedang menambal jaring di bawah kincir. Ia melihat Peta Pengasingan di tanganmu dan berhenti menjahit.</p>' },
+        '"Itu tulisan <b>Nansy</b>. Dari mana kau mendapatkannya?"',
+        'Ia menepuk bangku kayu di sebelahnya. "Duduk. Aku Upayy. Ibunya."',
+        '"Dulu seorang lelaki asing terdampar di sini. Pakaiannya mahal tapi robek, tangannya halus. <b>Ia tak mau menyebut nama.</b>"',
+        '"Ia menjual jasa modifikasi jam supaya bisa makan. Jam saku orang-orang ia ubah menjadi jam yang bisa dipakai <b>di pergelangan tangan</b>. Nelayan di sini suka sekali. Tidak perlu lagi merogoh saku yang basah untuk tahu kapan pasang naik."',
+        '"Lambat, sering jatuh, ditertawakan anak-anak. Nansy satu-satunya yang tidak menertawakannya. Ia mengajarinya memancing saat fajar."',
+        '"Suatu pagi aku melihat lelaki itu tertawa untuk pertama kalinya. Nansy baru saja mengalahkannya main mahjong dan gasing."',
+        '"Mereka pergi berdua membawa satu peti biji kopi Otoland. Nansy pulang tiga kali." Jarumnya berhenti. "Lalu yang datang hanya surat dari anak muda bernama felyx."',
+        '"Aku tidak marah. <b>Aku hanya ingin tahu&hellip; apakah anakku bahagia.</b>"'
+      ], '<div class="ts-choice"><button class="a" data-a="bahagia"><b>' + ic('star') + '"Ia sangat bahagia."</b><span>Ceritakan tentang kedai Stumpy, papan bertulisan tangan, dan makam yang menghadap laut timur.</span></button>' +
+        '<button class="b" data-a="sendiri"><b>' + ic('user') + '"Ceritakan sendiri pada suaminya."</b><span>Biarkan lelaki itu yang datang dan menjawab.</span></button></div>', function (w2) {
+        w2.querySelectorAll('[data-a]').forEach(function (b) {
+          b.onclick = function () {
+            var a = b.getAttribute('data-a');
+            call('upayy', a, function () {
+              pages(w2, n.upayy, [a === 'bahagia'
+                ? { narr: 'Kincir tua', icon: 'wind', cls: 'wind', t: '<p>Ny. Upayy tersenyum. Lalu ia menangis <b>tanpa suara</b>, tangannya tetap menambal jaring.</p>' }
+                : { narr: 'Kincir tua', icon: 'wind', cls: 'wind', t: '<p>Diam lama. Kincir di atas kalian berderit tiga kali.</p><p>"Kalau ia berani datang, <b>pintu kincir ini tidak pernah dikunci</b>."</p>' },
+                'Ia mengambil sebuah gasing kecil yang retak dari keranjang. "Ini milik Nansy. Ia mengalahkan semua anak di pulau ini. <b>Coba kalahkan aku, Kapten. Aku gurunya.</b>"'
+              ], '<button class="btn btn-gold" data-ts="spin">' + ic('star') + '&nbsp; Adu Gasing</button>', function (w3) { on(w3, '[data-ts=spin]', function (bb) { gasingUpayy(w3, bb); }); }, 'Penjaga kincir tua');
+            }, b);
+          };
+        });
+      }, 'Penjaga kincir tua');
+      return;
+    }
+    if (!s.gasing1) {
+      w.innerHTML = speech(n.upayy, 'Gasing kecil yang retak itu masih di telapak tangannya. "<b>Aku gurunya.</b>"', actions('<button class="btn btn-gold" data-ts="spin">' + ic('star') + '&nbsp; Adu Gasing</button>'), 'Penjaga kincir tua');
+      on(w, '[data-ts=spin]', function (b) { gasingUpayy(w, b); });
+      return;
+    }
+    afterGasingUpayy(w);
+  }
+  function gasingUpayy(w, btn) {
+    var n = N();
+    if (btn) btn.disabled = true;
+    game('gasing', {
+      title: 'Adu Gasing', subtitle: 'Kincir tua · lawan Ny. Upayy', kicker: 'Otoland · gasing kecil milik Nansy',
+      intro: 'Gasing kecil yang retak milik Miss Nansy. Lilit tali, lempar tepat waktu, hantam gasing lawan. Terbaik dari tiga ronde.',
+      opponent: { name: 'Ny. Upayy', title: 'Guru gasing Nansy', npcRole: 'lapau', ap: n.upayy.ap }, variant: 'normal', easy: true,
+      winLine: '"Kau mengalahkan gurunya. Ia akan tertawa."', loseLine: '"Ia juga kalah dariku, dulu. Sekali."'
+    }, function (res) {
+      if (btn) btn.disabled = false;
+      if (!res || res.cancelled) { showToast('Ny. Upayy: "Gasing ini sudah menunggu lama. Ia bisa menunggu sebentar lagi."', 'info'); return; }
+      call('gasing', res.win ? 'won' : 'lost', function () {
+        au_(res.win ? 'victory' : 'page');
+        var w2 = modalWrap('compass', 'Kincir Tua', 'Ujung tanjung, Otoland');
+        if (w2) afterGasingUpayy(w2, res.win);
+      });
+    });
+  }
+  function afterGasingUpayy(w, won) {
+    var n = N();
+    pages(w, n.upayy, [
+      (won === true ? '"Kau menang. Ia juga menang dariku pada umur sembilan." ' : won === false ? '"Kalah dariku bukan aib. Semua anak di pulau ini pernah." ' : '') + 'Ia menyelipkan sebuah <b>joran bambu kecil</b> ke tanganmu. "Joran pertamanya. Bawalah."',
+      'Lalu ia menyerahkan <b>kotak kayu kecil</b>: obeng mungil, kaca pembesar, tali kulit jam. "Ini ditinggalkannya waktu mereka pergi. Katanya, <i>\'Di kota besar saya tidak akan butuh ini lagi.\'</i> Bawalah. <b>Mungkin suatu hari ia butuh.</b>"',
+      { narr: 'Kincir tua', icon: 'scroll', cls: 'wind', t: '<p>Dari kaleng teh, ia mengeluarkan sebuah surat yang tak pernah dikirim. "Mataku sudah kabur. Bacakan untukku."</p><div class="ts-letter">"C., kalau suatu hari orang-orang di gedung kubah itu memanggilmu pulang, jangan pergi. Mereka yang membungkuk di sana tidak merindukanmu. Mereka merindukan mahkotanya. — N."</div>' },
+      { n: n.nelayan, t: 'Di dermaga, seorang nelayan berbisik: "Dua minggu lalu lelaki berseragam putih belepotan cat perunggu membeli garam paling banyak yang pernah dibeli satu orang. <b>Untuk mengawetkan bekal perjalanan jauh.</b>"' },
+      { narr: 'Puncak kincir tua', icon: 'wind', cls: 'wind', t: '<p>Di puncak kincir tua ada <b>sarang gagak</b>. Di dalamnya, sebuah <b>tabung surat</b> yang belum diambil. Kertasnya licin, tulisannya aksara pelikan.</p>' }
+    ], '<button class="btn btn-gold" data-ts="read">' + ic('eye') + '&nbsp; Baca tabung surat (Sandi Pelikan)</button>', function (w2) {
+      w2.insertAdjacentHTML('beforeend', '<div class="qg-next">' + ic('fish') + ' Joran Kecil Miss Nansy &middot; ' + ic('wrench') + ' Kotak Alat Jam Coco</div>');
+      on(w2, '[data-ts=read]', function () { sandiOtoland(); });
+    }, 'Penjaga kincir tua');
+  }
+  function sandiOtoland() {
+    close();
+    game('sandi', {
+      panels: ['UNTUK G', 'PESTA BULAN MATI', 'RAJAMU AKAN PULANG'],
+      reveal: '<p>"Untuk G. &mdash; Pesta bulan mati. Tangga ke-999. Rajamu akan pulang, dan tidak ada lagi ratu perampas. Siapkan tamu-tamumu. &mdash; J.T."</p><p style="font-size:.8em;font-style:normal">(Angka 999 ditulis biasa, tanpa aksara.)</p>'
+    }, function (res) {
+      if (!res || res.cancelled) { showToast('Tabung surat itu menunggu di puncak kincir tua.', 'info'); return; }
+      call('sandi', '', function () {
+        try { metaMax_('tsraja', 1); } catch (e) { }
+        mapCine('empeer', function () {
+          var w = modalWrap('map', 'Peta Pengasingan', 'Pulau kedua');
+          if (!w) return;
+          w.innerHTML = narr('Tabung surat gagak', '<p>Ada <b>"G."</b> di pulau berikutnya. Dan ia bersekongkol dengan Tedsky.</p><p>Di Peta Pengasingan, lingkaran kedua kini terbaca: <b>Pulau em pe\'er de pe\'er</b>.</p>', '', 'eye', 'wind') +
+            next() + journal() + actions('<button class="btn btn-gold" data-ts="sail">' + ic('ship') + '&nbsp; Buka peta berlayar</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>');
+          on(w, '[data-ts=sail]', function () { openPanel('setsail'); });
+          on(w, '[data-ts=later]', function () { close(); });
+          showToast("Pulau em pe'er de pe'er muncul di peta.", 'success');
+          setTimeout(function () { showToast('Buku Pancing Legenda: Tiram Otoland naik di pagi hari, dengan umpan garam.', 'info'); }, 2600);
+        });
+      });
+    });
+  }
+
+  /* ================= BABAK 3: Pesta Topeng di Gedung Kubah ================= */
+  function arrivalEmpeer() {
+    markSeen('emp');
+    var n = N(), w = modalWrap('star', "Pulau em pe'er de pe'er", 'Dermaga Protokol');
+    if (!w) return;
+    pages(w, n.protokol, [
+      { narr: 'Dermaga Protokol', icon: 'scroll', cls: 'dewan', t: '<p>Seorang <b>petugas protokol bersarung tangan putih</b> memeriksa surat izin bersandarmu, lalu memberi <b>tiga cap berbeda</b>. Ia tidak tersenyum sekali pun.</p>' },
+      '"Di sini, izin bersandar harus dicap tujuh kali, Kapten. Empat sisanya di atas." Ia menunjuk tangga.',
+      { narr: 'Seribu tangga', icon: 'star', cls: 'dewan', t: '<p>Tangga batu yang sangat panjang naik dari dermaga ke <b>Gedung Kubah</b>: kubah hijau yang terbelah dua seperti punggung kura-kura. Bendera dan patung singa berjajar di kiri-kanan.</p><p>Seorang bangsawan tua berpakaian kebesaran yang pudar melihat Peta Pengasingan di tanganmu&hellip; dan <b>membungkuk</b>.</p>' }
+    ], '<button class="btn btn-gold" data-ts="up">' + ic('star') + '&nbsp; Naik ke Gedung Kubah</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>', function (w2) {
+      on(w2, '[data-ts=up]', function () { kubahScene(); });
+      on(w2, '[data-ts=later]', function () { close(); });
+    }, 'Dermaga Protokol');
+  }
+  function kubahScene() {
+    var s = st() || {}, n = N(), k = s.step || 0;
+    var w = modalWrap('star', 'Gedung Kubah', 'Di bawah Jam Agung');
+    if (!w) return;
+    if (k !== 4) {
+      w.innerHTML = speech(n.ocid, k > 4 ? (s.garlyena === 'bongkar' ? pickLine_(['"Ketua Dewan? Saya hanya penjaga jam yang tidak berjalan, Kapten. Gelarnya terlalu besar untuk saya."', '"Garlyena sekarang di ruang arsip. Ia merapikan map-map lama. Ia rapi sekali, sungguh."'], 'tsocid1')
+        : pickLine_(['"Pesta tidak pernah digelar lagi sejak malam itu, Kapten."', '"Miss Garlyena memimpin rapat setiap pagi. Tanpa senyum, tanpa pesta."'], 'tsocid2')) : '"Jam itu berhenti dua puluh tahun lalu, Kapten."', null, 'Penjaga Arsip & Jam Agung') + journal();
+      return;
+    }
+    if (!s.ocid) {
+      pages(w, n.ocid, [
+        { narr: 'Di bawah Jam Agung', icon: 'star', cls: 'dewan', t: '<p>Di atas gerbang Gedung Kubah, sebuah jam besar berhenti pada pukul <b>sebelas lewat tujuh</b>. Seorang lelaki tua berkacamata berdiri di bawahnya, memegang kemoceng.</p>' },
+        '"Kau membawa peta Baginda. <b>Itu berarti ia masih hidup.</b>"',
+        '"Jam itu Baginda sendiri yang merakit, waktu masih muda. Membongkar jam adalah satu-satunya pekerjaan tangan yang diizinkan protokol untuk seorang putra mahkota."',
+        '"Jam itu berhenti pada malam ia pergi. Tidak ada yang berani memperbaikinya. <b>Tidak ada yang mengerti mesinnya selain dia.</b>"',
+        '"Baginda dinobatkan muda. Ia tahu sejarah leluhurnya, dan ia <b>malu memakai mahkota</b>. Diam-diam ia mencari keluarga Penjaga Suara yang dirantai, tapi tak pernah berani membebaskan mereka."',
+        '"Ia raja yang baik hati dan penakut. <b>Itu kombinasi paling menyedihkan.</b>"',
+        '"Malam Marlya datang, pasukan istana siap bertempur. Baginda berdiri di tangga istana dan berkata: <i>\'Jangan ada darah lagi atas nama mahkota ini.\'</i> Ia meletakkan mahkota di anak tangga, turun, dan tidak menoleh."',
+        '"Kami yang ikut mengungsi membangun gedung ini persis seperti istana lama. Lengkap dengan tangganya. <b>Supaya kalau Baginda pulang, ia tidak merasa asing.</b>"',
+        { n: n.garlyena, t: 'Seorang perempuan bersarung tangan renda menghampiri, diiringi dua ajudan membawa map bersegel. "Atas nama Dewan Mahkota, tamu yang membawa peta Baginda adalah <b>tamu kehormatan negara</b>."' },
+        { n: n.garlyena, t: '"Malam ini bulan mati, malam kami mengenang raja kami. Hadirlah di pesta, Kapten. Pakailah topeng. <b>Di em pe\'er de pe\'er, wajah hanya dipakai di siang hari.</b>"' },
+        { narr: 'Catatanmu', icon: 'scroll', cls: 'dewan', t: '<p>Kau teringat surat di sarang gagak: <i>"Pesta bulan mati. Tangga ke-999."</i></p><p>Nama perempuan itu diawali huruf <b>G</b>.</p>' }
+      ], '<button class="btn btn-gold" data-ts="ok">' + ic('scroll') + '&nbsp; Terima undangan</button>', function (w2) {
+        on(w2, '[data-ts=ok]', function (b) { call('ocid', '', function () { kubahScene(); }, b); });
+      }, 'Penjaga Arsip & Jam Agung');
+      return;
+    }
+    if (!night()) {
+      w.innerHTML = speech(n.ocid, '"Pesta dimulai saat lilin di seribu tangga dinyalakan, Kapten. <b>Saat malam.</b>"', null, 'Penjaga Arsip & Jam Agung') + journal();
+      return;
+    }
+    if (!s.pantun) { w.innerHTML = narr('Malam bulan mati', '<p>Lilin-lilin sudah menyala di setiap anak tangga. Gamelan istana terdengar dari dalam Gedung Kubah.</p>', actions('<button class="btn btn-gold" data-ts="go">' + ic('star') + '&nbsp; Hadiri Pesta Topeng</button>'), 'moon', 'night'); on(w, '[data-ts=go]', function () { pestaStart(); }); return; }
+    if (!s.mata) { w.innerHTML = narr('Ruang Sidang Agung', '<p>Para bangsawan bertopeng berdansa pelan. Di antara mereka ada seseorang yang tidak seharusnya ada.</p>', actions('<button class="btn btn-gold" data-ts="go">' + ic('eye') + '&nbsp; Amati para tamu</button>'), 'eye', 'night'); on(w, '[data-ts=go]', function () { mataPesta(); }); return; }
+    garlyenaReveal(w, true);
+  }
+  var SL_CANDLES = [
+    '<b>Seribu lilin</b> menyala di setiap anak tangga, dari dermaga sampai gerbang Gedung Kubah. Anak tangga ke-999 tepat di bawah Jam Agung.',
+    'Di dalam Ruang Sidang Agung, kursi-kursi beludru disingkirkan ke tepi. Para bangsawan bertopeng berdansa pelan diiringi gamelan istana.',
+    'Pengeras suara corong mengumumkan setiap tamu dengan gelar lengkapnya. Kain mahal yang ditambal, perhiasan imitasi, <b>karpet merah yang menipis di tengah</b>.'
+  ];
+  var PANTUN_DEWAN = [
+    { s: ['Lilin dinyala di anak tangga,', 'Cahayanya jatuh ke karpet merah.'], i: ['Setia bukan soal mahkota dan harga,', 'Tetapi hati yang tak mudah berubah.'], bad: ['Setia itu soal emas dan harga,', 'Siapa membayar, ke sana aku melangkah.'], r: ['ga', 'ah'], k: ['be', 'ru', 'bah'] },
+    { s: ['Jam Agung berhenti di atas gerbang,', 'Jarumnya diam dua puluh tahun.'], i: ['Yang pergi tetap dikenang dengan sayang,', 'Walau hujan dan kabut terus turun.'], bad: ['Yang pergi biar hilang tak terbayang,', 'Kursinya kita bagi sebelum turun.'], r: ['ang', 'un'], k: ['tu', 'run'] },
+    { s: ['Map bersegel lilin berwarna jingga,', 'Dicap tujuh kali oleh petugas.'], i: ['Janji pada kawan tetap kita jaga,', 'Walau zaman berganti tak berbekas.'], bad: ['Janji pada kawan tak usah dijaga,', 'Asal namaku tercatat di atas kertas.'], r: ['ga', 'as'], k: ['ber', 'be', 'kas'] },
+    { s: ['Burung gagak terbang ke barat,', 'Hinggap di kincir berpintu biru.'], i: ['Kehilangan bukan untuk diratap berat,', 'Tetapi untuk menjaga yang tersisa selalu.'], bad: ['Kehilangan biar jadi alasan khianat,', 'Siapa jatuh, biar kulewati dulu.'], r: ['at', 'u'] },
+    { s: ['Kain beludru di kursi sidang,', 'Ditambal rapi dengan benang perak.'], i: ['Walau istana tinggal kenang,', 'Budi yang baik takkan retak.'], bad: ['Walau istana tinggal kenang,', 'Kawan susah biar tergeletak.'], r: ['ang', 'ak'], k: ['re', 'tak'] },
+    { s: ['Topeng porselen dari timur,', 'Dipakai menari di bulan mati.'], i: ['Biar wajah tertutup di malam kabur,', 'Kesetiaan tetap terbaca di hati.'], bad: ['Biar wajah tertutup, biar kabur,', 'Raja kujual demi sepeti upeti.'], r: ['ur', 'ti'], k: ['di', 'ha', 'ti'] },
+    { s: ['Garam dijemur di bawah kincir,', 'Angin bertiup tiada henti.'], i: ['Meski badai datang bergilir,', 'Sahabat lama tetap menanti.'], bad: ['Meski badai datang bergilir,', 'Sahabat lama tak perlu dinanti.'], r: ['ir', 'ti'], k: ['me', 'nan', 'ti'] },
+    { s: ['Seribu lilin di bulan mati,', 'Gamelan istana berbunyi pelan.'], i: ['Orang setia selalu dinanti,', 'Walau terpisah oleh lautan.'], bad: ['Orang setia tak usah dinanti,', 'Kursinya boleh kita bagikan.'], r: ['ti', 'an'], k: ['lau', 'tan'] }
+  ];
+  function pestaStart() {
+    close();
+    if (seen('candles')) { pantunDewan(); return; }
+    markSeen('candles');
+    cine('ts_candles', SL_CANDLES, function () { pantunDewan(); });
+  }
+  function pantunDewan() {
+    var n = N();
+    var w = modalWrap('scroll', 'Gerbang Pesta', 'Anak tangga ke-999');
+    if (!w) return;
+    w.innerHTML = speech(n.protokol, '"Di em pe\'er de pe\'er, pintu dibuka dengan <b>pantun dan tiga cap</b>, bukan dengan emas." Ia membuka map bersegel. "Lima pantun, Kapten. Kesetiaan dan kehilangan."',
+      actions('<button class="btn btn-gold" data-ts="go">' + ic('scroll') + '&nbsp; Balas pantun</button>'), 'Gerbang Pesta');
+    on(w, '[data-ts=go]', function (b) {
+      b.disabled = true;
+      game('pantun', {
+        bank: PANTUN_DEWAN, npc: { name: 'Petugas Protokol', title: "Gerbang Pesta, em pe'er de pe'er", ap: n.protokol.ap },
+        place: "Gerbang Pesta &middot; Pulau em pe'er de pe'er", kicker: "Gerbang Pesta · em pe'er de pe'er", title: 'Balas Pantun Protokoler', hall: 'Gedung Kubah',
+        quote: "Di em pe'er de pe'er, pintu dibuka dengan pantun dan tiga cap, bukan dengan emas.", cta: 'Berdiri di gerbang pesta',
+        winKicker: 'Tiga cap untuk tamu kehormatan', winTitle: 'Pintu Dibuka', winQuote: 'Silakan masuk, Kapten. Topengnya jangan dilepas.'
+      }, function (res) {
+        b.disabled = false;
+        if (!res || res.cancelled) return;
+        if (!res.win) { call('pantun', 'gagal', function () { showToast('Petugas protokol: "Belum, Kapten. Silakan coba lagi."', 'info'); }); return; }
+        call('pantun', 'ok', function () { mataPesta(); });
+      });
+    });
+  }
+  function mataPesta() {
+    close();
+    game('pesta', {}, function (res) {
+      if (!res || res.cancelled) { showToast('Para tamu masih berdansa. Kembalilah ke Gedung Kubah malam ini.', 'info'); return; }
+      call('mata', 'ok', function () { try { metaMax_('tstamu', 1); } catch (e) { } tedskyBalcony(); });
+    });
+  }
+  function tedskyBalcony() {
+    var n = N(), jujur = truth() === 'jujur';
+    var w = modalWrap('star', 'Balkon di bawah kubah', 'Pesta Topeng Bulan Mati');
+    if (!w) return;
+    pages(w, n.tedsky, [
+      { narr: 'Ruang Sidang Agung', icon: 'eye', cls: 'night', t: '<p>Ia tidak lari. Ia mengajakmu berdiri di balkon di bawah kubah, membelakangi pesta.</p>' },
+      '"Kapten. Kau datang tepat waktu. <b>Kau selalu tepat waktu</b>, itu yang kusukai darimu."',
+      '"Kau tahu apa yang dirindukan orang-orang ini? Bukan raja. Mereka rindu <b>dibungkuki</b>. Aku juga, dulu. Bedanya, aku lahir di bawah tangga."',
+      '"Mereka bilang batu di teluk itu hanya menyala untuk tangan yang rela." Ia tersenyum. "<b>Rela itu soal sudut pandang.</b>"',
+      '"Satu pertanyaan, sebagai sesama tamu: di mana tiga anak budak yang kabur dari TooGood dua puluh tahun lalu sekarang berkumpul?"',
+      'Ia memandang tasmu. "Kompas yang bagus. Jaga baik-baik. <b>Jangan sampai hilang.</b>"',
+      jujur ? '"Kau orang yang jujur. Aku menghargainya. Sungguh. <b>Itu yang membuat ini sedikit menyedihkan.</b>"'
+        : '"Kau bilang dunia sudah lupa namaku. Lihat: <b>satu gedung penuh orang berpesta untuk rencanaku.</b>"'
+    ], '<button class="btn btn-gold" data-ts="mask">' + ic('eye') + '&nbsp; Raih topengnya</button>', function (w2) {
+      on(w2, '[data-ts=mask]', function () {
+        close();
+        cine('ts_clock', [
+          'Kau meraih topeng Garuda itu. <b>Kaca-kaca jendela pecah.</b>',
+          'Kawanan gagak menyerbu masuk dan memadamkan lilin, satu tangga demi satu tangga.',
+          'Gagak-gagak mencengkeram mantel Tedsky dan mengangkatnya ke puncak kubah, lalu ke Jam Agung.',
+          'Beratnya menyentak jarum jam: <b>jam yang mati dua puluh tahun berdetak satu menit</b>, lalu berhenti lagi. Tedsky lenyap ke langit gelap.',
+          'Paman Ocid, di anak tangga ke-999, menatap jam: <b>"&hellip;Ia membuat jam Baginda berjalan. Tanpa izin."</b>'
+        ], function () { var w3 = modalWrap('star', 'Ruang Sidang Agung', 'Setelah gagak pergi'); if (w3) garlyenaReveal(w3, false); });
+      });
+    }, 'Bertopeng Garuda perunggu');
+  }
+  function garlyenaReveal(w, resumed) {
+    var n = N();
+    var list = [];
+    if (!resumed) list.push({ narr: 'Lantai sidang', icon: 'scroll', cls: 'night', t: '<p>Di lantai sidang tertinggal sebuah <b>tabung surat kosong</b>, sama persis dengan yang di sarang gagak Otoland. Tabung itu terjatuh dari sarung tangan renda Miss Garlyena.</p><p>Ia tidak menyangkal.</p>' });
+    list.push(
+      { n: n.garlyena, t: '"Ya. Saya yang menyambutnya. Saya yang memberinya tempat. <b>Saya yang memberitahunya di mana separuh peta itu disimpan.</b>"' },
+      { n: n.garlyena, t: '"Ia berjanji batu di teluk akan menjadikan Baginda penguasa semua jalur. Tidak ada lagi raja yang mengungsi. Tidak ada lagi bangsawan yang menambal bajunya sendiri."' },
+      { n: n.garlyena, t: '"Anda pikir saya jahat? <b>Saya hanya satu-satunya di gedung ini yang masih berani berharap.</b> Yang lain hanya berani rapat."' }
+    );
+    pages(w, n.garlyena, list, '<div class="ts-choice"><button class="a" data-g="bongkar"><b>' + ic('scales') + 'Bongkar di Sidang Paripurna</b><span>Garlyena dilucuti gelarnya. Paman Ocid jadi Ketua Dewan. Cap Restu Dewan: Sutra & Porselen -10% di pulau ini.</span></button>' +
+      '<button class="b" data-g="simpan"><b>' + ic('lock') + 'Simpan rahasianya</b><span>"Sekarang Anda berutang pada saya, atau saya pada Anda?" Ia mungkin berguna nanti.</span></button></div>', function (w2) {
+      w2.querySelectorAll('[data-g]').forEach(function (b) {
+        b.onclick = function () {
+          var g = b.getAttribute('data-g');
+          call('garlyena', g, function () {
+            pages(w2, n.ocid, [
+              g === 'bongkar'
+                ? { n: n.garlyena, t: 'Di Sidang Paripurna, para bangsawan mendengarkan dengan wajah pucat. Garlyena melepas sarung tangan rendanya sendiri. "<b>Anda baru saja memastikan Baginda tidak akan pernah pulang.</b>"' }
+                : { n: n.garlyena, t: 'Garlyena menatapmu lama. "Sekarang Anda berutang pada saya, atau saya pada Anda? <b>Kita lihat nanti.</b>"' },
+              g === 'bongkar' ? '"Ketua Dewan." Paman Ocid tertawa pelan, sedih. "Mereka memberi saya gelar yang terlalu besar. Dan mereka memberimu <b>Cap Restu Dewan</b>."' : '"Kau menyimpan rahasianya." Paman Ocid tidak bertanya kenapa. "Kadang itu juga bentuk kesetiaan."',
+              'Ia menyerahkan sebuah <b>kunci kuningan berukir mahkota</b>. "Kunci Jam Agung. Kalau Baginda kembali, berikan ini padanya. Biar ia sendiri yang memutuskan kapan jam itu berjalan lagi. <b>Bukan orang lain.</b>"'
+            ], '<button class="btn btn-gold" data-ts="map">' + ic('map') + '&nbsp; Buka Peta Pengasingan</button>', function (w3) {
+              w3.insertAdjacentHTML('beforeend', '<div class="qg-next">' + ic('key') + ' Kunci Jam Agung' + (g === 'bongkar' ? ' &middot; ' + ic('scroll') + ' Cap Restu Dewan' : '') + '</div>');
+              on(w3, '[data-ts=map]', function () {
+                close();
+                mapCine('freeyork', function () {
+                  var w4 = modalWrap('map', 'Peta Pengasingan', 'Pulau ketiga');
+                  if (!w4) return;
+                  w4.innerHTML = narr('Peta Pengasingan', '<p>Lingkaran terakhir: <b>FreeYork</b>, tanjung batu hitam. Di pinggirnya, tulisan kecil coco epan: <i>"Saya tidak turun dari kapal. Saya tidak sanggup."</i></p>', '', 'map', 'forge') + next() + journal() +
+                    actions('<button class="btn btn-gold" data-ts="sail">' + ic('ship') + '&nbsp; Buka peta berlayar</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>');
+                  on(w4, '[data-ts=sail]', function () { openPanel('setsail'); });
+                  on(w4, '[data-ts=later]', function () { close(); });
+                  showToast('FreeYork muncul di peta.', 'success');
+                });
+              });
+            }, 'Penjaga Arsip & Jam Agung');
+          }, b);
+        };
+      });
+    }, 'Ketua Dewan Mahkota');
+  }
+
+  /* ================= BABAK 4: FreeYork ================= */
+  function arrivalFreeYork() {
+    markSeen('fy');
+    var w = modalWrap('hammer', 'FreeYork', 'Tanah pandai besi');
+    if (!w) return;
+    w.innerHTML = narr('FreeYork', '<p>Asap bengkel dan palu bersahutan. Gerobak batu bara meluncur dari tambang di lereng. Anak-anak kurus dengan pipi hitam arang menatap kapalmu. Rantai baru bertumpuk, tak terjual.</p>' +
+      '<p>Di ujung dermaga ada <b>Dok Legenda</b>: rangka lunas raksasa yang berkarat. Di dinding batunya terukir nama kapal-kapal yang lahir di sana. Nama terakhir yang terukir: <b>Black Pearl</b>.</p>' +
+      '<p class="muted small">Gosip dermaga: "Pernah ada kapal berbendera bank berlabuh semalam, lalu pergi sebelum fajar. Besoknya gudang kami penuh beras tanpa nama pengirim."</p>', '', 'hammer', 'forge') +
+      actions('<button class="btn btn-gold" data-ts="go">' + ic('hammer') + '&nbsp; Ke bengkel besar</button><button class="btn btn-ghost-ink" data-ts="later">Nanti dulu</button>');
+    on(w, '[data-ts=go]', function () { bengkelScene(); });
+    on(w, '[data-ts=later]', function () { close(); });
+  }
+  function bengkelScene() {
+    var s = st() || {}, n = N(), k = s.step || 0;
+    var w = modalWrap('hammer', 'Bengkel Tassyaaa', 'FreeYork');
+    if (!w) return;
+    if (k !== 5) {
+      w.innerHTML = speech(n.tassyaaa, tassy(k > 5 ? (s.tempa === 'padam' ? 'Sunyi. Tambang juga berhenti. Kami tidak tahu apakah ini lebih baik.' : 'Tungku masih menyala. Anak-anak masih makan. Jangan tanya untuk apa bara ini.') : 'Orang barat. Mau beli rantai murah?'), null, 'Pandai besi FreeYork') + journal();
+      return;
+    }
+    if (!s.tass) {
+      pages(w, n.tassyaaa, [
+        { narr: 'Bengkel besar', icon: 'hammer', cls: 'forge', t: '<p>Seorang perempuan bercelemek kulit, lengannya berotot, menurunkan palu dan menatapmu curiga.</p>' },
+        tassy('"«Orang» barat datang ke sini hanya untuk dua hal: beli rantai murah, atau menertawakan kami."'),
+        { narr: 'Bengkel besar', icon: 'ship', cls: 'forge', t: '<p>Ia melirik kapalmu di dermaga, dan sedikit melunak.</p>' },
+        tassy('"Kapalmu bagus. Tapi lunasnya bukan buatan sini. Kapal yang lunasnya ditempa di «FreeYork» tidak pernah tenggelam. Tanya saja «Black Pearl»."')
+      ], '<button class="btn btn-gold" data-ts="look">' + ic('eye') + '&nbsp; Telusuri bengkel</button>', function (w2) {
+        on(w2, '[data-ts=look]', function (b) { call('tassyaaa', '', function () { jejakBengkel(); }, b); });
+      }, 'Pandai besi FreeYork');
+      return;
+    }
+    if (!s.jejak2) { w.innerHTML = speech(n.tassyaaa, tassy('"Lihat-lihat saja. Jangan sentuh bara."'), actions('<button class="btn btn-gold" data-ts="look">' + ic('eye') + '&nbsp; Telusuri bengkel</button>'), 'Pandai besi FreeYork'); on(w, '[data-ts=look]', function () { jejakBengkel(); }); return; }
+    tempaChoice(w);
+  }
+  function jejakBengkel() {
+    close();
+    game('jejak', { variant: 'bengkel', doneLine: 'Sayap, mata merah, pesanan bercap J.T., cetakan jarum, dan surat seorang anak untuk ibunya.' }, function (res) {
+      if (!res || res.cancelled) { showToast('Bengkel itu masih gelap. Kembalilah kapan saja.', 'info'); return; }
+      call('jejak', '', function () {
+        cine('ts_furnace', [
+          'Tassyaaa menarik tuas. Batu bara dari tambang mengalir ke tungku utama.',
+          'Pintu gudang belakang terbuka: <b>ratusan gagak mesin</b> tergantung berjajar sampai langit-langit.',
+          'Saat tungku menyala, <b>mata merah mereka menyala serentak</b>. Suara klik-klik bergemuruh seperti hujan logam.',
+          'Di ujung gudang, sepasang <b>sayap logam raksasa</b> yang belum selesai. Sayap untuk sebuah kapal.'
+        ], function () { var w = modalWrap('hammer', 'Bengkel Tassyaaa', 'Tungku Seribu Gagak'); if (w) confession(w); });
+      });
+    });
+  }
+  function confession(w) {
+    var n = N();
+    pages(w, n.tassyaaa, [
+      tassy('"Ya. Kami yang membuat burung-burung itu. Dia membayar dengan janji, bukan emas."'),
+      tassy('"Kau tahu siapa dia? Anak tetangga kami. Ayahnya pembuat rantai terbaik di «Moramora». Waktu perbudakan dihapus, tak ada yang mau mempekerjakan pembuat rantai. Kami diusir ke tanjung ini. Ayahnya mati kelaparan."'),
+      tassy('"Dia pergi umur dua belas. Dia kembali dengan seragam putih belepotan cat dan bilang, \'Kita akan pulang ke «Moramora» sebagai tuan, bukan sebagai pembuat rantai.\' Lalu dia membawa anakku."'),
+      { narr: 'Bisikan', icon: 'eye', cls: 'forge', t: '<p>Tassyaaa ragu, lalu berbisik. Molornya tetap ada, tapi lebih pelan:</p><p>' + tassy('"Malam sebelum berlayar, dia bilang sesuatu yang aneh: \'Tiga burung kecil akan berkumpul di satu sangkar. Aku tidak perlu mengejar mereka. Aku cukup menunggu tamu yang membawa kompasku.\'"') + '</p><p class="muted small">Kau belum mengerti.</p>' }
+    ], '<button class="btn btn-gold" data-ts="tungku">' + ic('fire') + '&nbsp; Tentukan nasib tungku</button>', function (w2) { on(w2, '[data-ts=tungku]', function () { tempaChoice(w2); }); }, 'Pandai besi FreeYork');
+  }
+  function tempaChoice(w) {
+    var s = st() || {}, n = N(), beras = s.beras || 0, garam = s.garam || 0;
+    var okPadam = beras >= 20, okB = beras >= 10, okG = garam >= 10;
+    w.innerHTML = speech(n.tassyaaa, tassy('"Jadi, «orang» barat. Kau mau apa dengan tungku kami?"'), null, 'Pandai besi FreeYork') +
+      '<div class="ts-choice"><button class="a" data-t="padam"' + (okPadam ? '' : ' disabled') + '><b>' + ic('x') + 'Padamkan tungku</b><span>Siram tungku utama dengan air laut, tutup saluran batu bara. Produksi gagak & sayap terhenti. Kampung kehilangan penghasilannya: setor <b>20 Beras</b> (di palka: ' + beras + ').</span></button>' +
+      '<button class="b" data-t="biarkan"' + (okB || okG ? '' : ' disabled') + '><b>' + ic('fire') + 'Biarkan menyala</b><span>Setor <b>10 Beras atau 10 Garam</b> untuk kampung pekerja (di palka: ' + beras + ' beras, ' + garam + ' garam). Tassyaaa menitip pesan untuk Petrik.</span></button></div>' +
+      (!okPadam && !okB && !okG ? '<p class="muted small">Belilah beras atau garam dulu, lalu kembali ke bengkel ini.</p>' : '') + journal();
+    w.querySelectorAll('[data-t]').forEach(function (b) {
+      b.onclick = function () {
+        var t = b.getAttribute('data-t'), arg2 = t === 'biarkan' ? (okB ? 'beras' : 'garam') : '';
+        call('tempa', t, function () {
+          pages(w, n.tassyaaa, t === 'padam' ? [
+            { narr: 'Tungku utama', icon: 'x', cls: 'forge', t: '<p>Air laut mendesis di bara. Uap putih memenuhi bengkel. Di gudang belakang, ratusan mata merah <b>padam satu per satu</b>.</p>' },
+            tassy('"Kau benar. Dan anak-anak kami lapar. Dua-duanya benar."'),
+            { narr: 'Meja kerja', icon: 'hammer', cls: 'forge', t: '<p>Saat ia berbalik, kau mengambil <b>palu kecil</b> dari meja kerjanya. Gagangnya hitam oleh arang.</p>' }
+          ] : [
+            tassy('"Kau «orang» barat pertama yang tidak memilih untuk kami."'),
+            'Ia menyerahkan sebuah <b>palu kecil</b>, gagangnya hitam oleh arang. ' + tassy('"Bawa ini. Dan kalau kau bertemu anakku, bilang Mak masih masak untuk dua «orang»."')
+          ], '<button class="btn btn-gold" data-ts="ok">' + ic('anchor') + '&nbsp; Kembali ke dermaga</button>', function (w2) {
+            w2.insertAdjacentHTML('beforeend', '<div class="qg-next">' + ic('hammer') + ' Palu Kecil Tempa</div>' + journal());
+            on(w2, '[data-ts=ok]', function () { close(); });
+          }, 'Pandai besi FreeYork');
+        }, b, null, arg2);
+      };
+    });
+  }
+
+  /* ================= BABAK 5: Wajah di Poster (Paradiso) ================= */
+  function r6() { return 1 + Math.floor(Math.random() * 6); }
+  function dieHtml(v) { return typeof dieHtml_ === 'function' ? dieHtml_(v) : '<span class="die">' + v + '</span>'; }
+  function andryScene(w) {
+    var s = st() || {}, n = N();
+    if (!s.andryTalk) {
+      w.innerHTML = '<div class="ts-casino"><div class="ts-pg"></div></div>';
+      pages(w.querySelector('.ts-pg'), n.andry, [
+        { narr: 'Ruang VIP, Kasino Mutiara', icon: 'dice', cls: 'night', t: '<p>Pelayan menyelipkan sekeping koin bergores tiga silang ke tanganmu. Di ruang VIP, <b>Andry Ivankov</b>, tanpa topeng, sedang merobek poster wajahnya sendiri pelan-pelan.</p>' + poster(true) },
+        '"Sejuta. Dua puluh tahun aku memakai topeng supaya tidak dikenali. Sekarang wajahku ditempel di semua dinding, dihargai lebih mahal dari kapalku, untuk kejahatan yang tidak kulakukan. <b>Ia memakai wajahku seperti aku dulu memakai namanya.</b>"',
+        '"Tidak perlu topeng lagi. Topeng itu untuk musuh. <b>Kau bukan musuh.</b>"',
+        'Ia mengocok tiga dadu di dalam cangkir. "Demi masa lalu. <b>Besar</b> atau <b>kecil</b>?"'
+      ], '<button class="btn btn-gold" data-ts="cup">' + ic('dice') + '&nbsp; Ambil cangkir dadu</button>', function (w2) { on(w2, '[data-ts=cup]', function (b) { call('andry', '', function () { andryScene(w); }, b); }); }, 'Ruang VIP, Kasino Mutiara');
+      return;
+    }
+    if (!s.dice) {
+      w.innerHTML = '<div class="ts-casino">' + speech(n.andry, '"Satu ronde. Demi masa lalu. <b>Besar</b> 11&ndash;18, <b>kecil</b> 3&ndash;10."', null, 'Ruang VIP, Kasino Mutiara') +
+        '<div class="ts-dice" id="tsDice">' + [6, 3, 1].map(dieHtml).join('') + '</div><div class="bx-dice-res" id="tsDiceRes" style="text-align:center">Tiga dadu.</div>' +
+        actions('<button class="btn" data-side="kecil">' + ic('dice') + '&nbsp; Kecil</button><button class="btn btn-gold" data-side="besar">' + ic('dice') + '&nbsp; Besar</button>') + '</div>';
+      w.querySelectorAll('[data-side]').forEach(function (b) {
+        b.onclick = function () {
+          var side = b.getAttribute('data-side'), cup = w.querySelector('#tsDice'), res = w.querySelector('#tsDiceRes'), t0 = Date.now(), out = null, err = false;
+          w.querySelectorAll('[data-side]').forEach(function (x) { x.disabled = true; });
+          cup.classList.add('shake'); au_('dig');
+          var iv = setInterval(function () {
+            if (!cup.isConnected) { clearInterval(iv); return; }
+            if (err) { clearInterval(iv); cup.classList.remove('shake'); w.querySelectorAll('[data-side]').forEach(function (x) { x.disabled = false; }); return; }
+            if (out && Date.now() - t0 > 1300) {
+              clearInterval(iv); cup.classList.remove('shake');
+              cup.innerHTML = out.dice.map(dieHtml).join('') + '<b style="color:#ffe7a3">' + out.sum + '</b>';
+              au_(out.win ? 'coin' : 'error', { n: 3 });
+              res.innerHTML = 'Jumlah <b>' + out.sum + '</b>. ' + (out.win ? 'Kau menang.' : 'Kau kalah.');
+              setTimeout(function () { andryScene(w); }, 1100);
+              return;
+            }
+            cup.innerHTML = [r6(), r6(), r6()].map(dieHtml).join('');
+          }, 90);
+          call('dadu', side, function (r) { out = { dice: r.dice || [r6(), r6(), r6()], sum: r.sum || 0, win: !!r.win }; }, null, function () { err = true; });
+        };
+      });
+      return;
+    }
+    var jujur = truth() === 'jujur', biarkan = s.tempa === 'biarkan';
+    var list = [
+      (s.dice === 'won' ? '"Kau menang. Si gendut selalu bilang aku pembawa sial di meja dadu." ' : '"Kalah. Tapi kau tidak lari dari meja." ') + 'Ia mendengarkan ceritamu tentang tiga pulau sampai habis.',
+      '"Dua separuh peta. Dua darah pendiri. Jadi itu yang ia kejar: <b>Jantung Jalur</b>. Ia butuh Marlya&hellip; dan raja tua bertopi bulat itu."',
+      '"Dan ia memfitnahku supaya semua pelabuhan menutup pintunya untuk Armada Bebas. Kami tidak bisa berlabuh, tidak bisa membeli mesiu. <b>Kami jadi sendirian.</b>"',
+      'Ia merendahkan suara. "Ada yang membocorkan. Setiap kali kapal kami bersandar, gagak sudah menunggu. Aku menaruh satu orang di kapal Tedsky, <b>juru mudinya</b>. Suratnya berhenti seminggu lalu."'
+    ];
+    if (biarkan) list.push({ narr: 'Ruang VIP', icon: 'chat', cls: 'night', t: '<p>Kau menyampaikan pesan Tassyaaa: juru mudi itu bernama <b>Petrik</b>, dan ibunya masih memasak untuk dua orang.</p><p>Andry diam. <b>"Jadi ia anak seorang ibu. Semoga ia masih hidup."</b></p>' });
+    list.push(jujur ? { narr: 'Ruang VIP', icon: 'scales', cls: 'night', t: '<p>Kau mengaku: <i>"Aku yang memberitahu Tedsky namamu."</i></p><p>Andry mengangkat bahu. <b>"Cepat atau lambat ia akan tahu. Lebih baik dari mulut yang jujur."</b></p>' }
+      : '"Kau membohonginya? Hati-hati. <b>Ia mengoleksi kebohongan seperti medali.</b>"');
+    list.push('"Marlya ingin kita bertemu besok malam, di tempat yang hanya muncul saat lampu dinyalakan. <b>Hanya empat orang yang tahu</b>: aku, si gendut, Marlya. Dan kau, yang keempat."',
+      '"Kalau ada yang bocor malam itu, <b>berarti bocornya dari kita berempat.</b>"',
+      'Ia mengeluarkan sebuah gasing kayu bergores tiga silang. "Waktu kecil aku selalu kalah dari si gendut. Marlya selalu menang dari kami berdua. Satu putaran?"');
+    w.innerHTML = '<div class="ts-casino"><div class="ts-pg"></div></div>';
+    pages(w.querySelector('.ts-pg'), n.andry, list, '<button class="btn btn-gold" data-ts="spin">' + ic('star') + '&nbsp; Adu Gasing</button>', function (w2) {
+      on(w2, '[data-ts=spin]', function (b) { gasingAndry(b); });
+    }, 'Ruang VIP, Kasino Mutiara');
+  }
+  function gasingAndry(btn) {
+    var n = N();
+    if (btn) btn.disabled = true;
+    game('gasing', {
+      title: 'Adu Gasing', subtitle: 'Ruang VIP · lawan Andry Ivankov', kicker: 'Kasino Mutiara · gasing bergores tiga silang',
+      intro: 'Gasing kayu bergores tiga silang milik Andry. Terbaik dari tiga ronde.',
+      opponent: { name: 'Andry Ivankov', title: 'Pemimpin Armada Bebas', ap: n.andry.ap, svg: face(n.andry) }, variant: 'normal',
+      winLine: '"Seperti Marlya. Persis."', loseLine: '"Akhirnya aku menang dari seseorang."'
+    }, function (res) {
+      if (btn) btn.disabled = false;
+      if (!res || res.cancelled) { showToast('Andry: "Gasing ini sabar. Aku juga."', 'info'); return; }
+      call('gasing', res.win ? 'won' : 'lost', function () {
+        au_('page');
+        var w = modalWrap('dice', 'Kasino Mutiara', 'Ruang VIP');
+        if (!w) return;
+        pages(w, n.andry, [
+          'Apa pun hasilnya, Andry tersenyum. <b>Itu senyum terakhirnya yang kau lihat.</b>',
+          { narr: 'Ruang VIP', icon: 'scroll', cls: 'night', t: '<p>Ia menyerahkan sebuah <b>surat bersegel lilin hitam</b>.</p><p>"Buka kalau aku tidak datang. Kalau aku datang, kembalikan, dan kita pura-pura ini tidak pernah terjadi."</p>' }
+        ], '<button class="btn btn-gold" data-ts="ok">' + ic('scroll') + '&nbsp; Simpan surat</button>', function (w2) {
+          w2.insertAdjacentHTML('beforeend', '<div class="qg-next">' + ic('scroll') + ' Surat Bersegel Lilin Hitam</div>' + journal());
+          on(w2, '[data-ts=ok]', function () { close(); showToast('Titik Buta muncul di peta saat lampu-lampu dinyalakan.', 'info'); });
+        }, 'Ruang VIP, Kasino Mutiara');
+      });
+    });
+  }
+
+  /* ================= BABAK 6: Malam Tiga Tanda Silang (Titik Buta) ================= */
+  function titikButaScene() {
+    markSeen('tb7');
+    var n = N();
+    var w = modalWrap('moon', 'Titik Buta', 'Lingkaran lentera');
+    if (!w) return;
+    pages(w, n.marlya, [
+      { narr: 'Titik Buta', icon: 'moon', cls: 'night', t: '<p>Malam. Kapal Andry, <b>Black Pearl</b>, dan kapal perak Marlya membentuk <b>lingkaran lentera</b>. Pertama kalinya ketiganya bertemu sejak pusaran.</p><p>Mereka menyambut kapalmu dengan tiga tembakan suar ke langit.</p>' },
+      { n: n.zafa, t: 'Di geladak, Marlya menggelar salinan peta dari ingatannya. zafachmie gelisah. "<b>Ia selalu tahu di mana kita. Selalu.</b> Aku tidak suka ini."' },
+      '"Kalau ada pembocor, <b>ia ada di kapal ini malam ini</b>."',
+      { narr: 'Geladak', icon: 'eye', cls: 'night', t: '<p>Hening. Ketiganya saling pandang. Lalu mereka memandangmu.</p>' }
+    ], '<button class="btn" data-l="1">"Bukan aku."</button><button class="btn" data-l="2">"Kita tidak punya waktu untuk saling curiga."</button>', function (w2) {
+      w2.querySelectorAll('[data-l]').forEach(function (b) { b.onclick = function () { needleScene(); }; });
+    }, 'Ratu Moramora');
+  }
+  function needleScene() {
+    close();
+    cine('ts_needle', [
+      'Dari palkamu terdengar dengung. <b>Kompas Tedsky</b> bergetar di dalam kotaknya.',
+      'Jarum-jarumnya berputar. Lalu satu jarum, jarum kecil yang tidak pernah kau perhatikan, <b>menunjuk lurus ke dirimu sendiri</b> dan menyala merah redup.',
+      'Kalimat Tassyaaa bergema: <i>' + tassy('"Aku cukup menunggu tamu yang membawa kompasku."') + '</i> Lalu suara Tedsky di balkon: <i>"Jangan sampai hilang."</i>',
+      'Marlya, pelan, menatap kompas: <b>"&hellip;Itu bukan kompas. Itu suar."</b>',
+      'Di kejauhan, satu lentera berkedip dari arah gelap: tiga panjang, tiga pendek. <b>Isyarat Petrik.</b> Terlambat.',
+      'Laut pecah oleh <b>ratusan mata merah</b>. Kawanan gagak membentuk sepasang sayap raksasa di langit. Di bawahnya, kapal berlambung putih kotor dengan sayap logam patah: <b>"Sayap Patah"</b>.',
+      'Tedsky: <b>"Terima kasih sudah membawaku ke sini, Kapten. Kau selalu jadi pengantar yang baik."</b>'
+    ], function () { battleScene(); });
+  }
+  function battleScene() {
+    var w = modalWrap('cannon', 'Pertempuran', 'Titik Buta');
+    if (!w) return;
+    var round = 0;
+    var ROUND = [
+      'Tembakanmu menghantam kawanan gagak yang membentuk perisai di depan Sayap Patah, dan <b>memantul</b>. Tak satu pun menembus.',
+      'Rantai-rantai ditembakkan dari Sayap Patah, <b>menembus geladak Black Pearl</b>. zafachmie meraung.',
+      'Gagak menyerbu kapal perak Marlya. <b>Layarnya terbakar.</b>'
+    ];
+    function render(msg) {
+      w.innerHTML = '<div class="ts-battle"><div class="tb-en"><b>Sayap Patah</b><span>Jendral Tedsky</span></div><div class="tb-bar"><i></i></div><div class="tb-shield">' + ic('shield') + ' Perisai gagak penuh &middot; damage-mu hampir nol</div>' +
+        '<div class="tb-log">' + (msg || 'Sayap logam patah itu terbentang di atas lingkaran lentera. Kau tidak bisa kabur, berunding, atau menabrak.') + '</div>' +
+        '<div class="tb-act"><button class="btn btn-gold" data-a="fire">' + ic('cannon') + '&nbsp; Tembak</button><button class="btn" data-a="reload">' + ic('reload') + '&nbsp; Isi ulang</button><button class="btn" disabled>' + ic('wind') + '&nbsp; Kabur</button></div>' +
+        '<div class="muted small">Ronde ' + Math.min(3, round + 1) + ' dari 3</div></div>';
+      w.querySelectorAll('[data-a]').forEach(function (b) {
+        b.onclick = function () {
+          au_(b.getAttribute('data-a') === 'fire' ? 'cannon' : 'page');
+          var m = ROUND[round]; round++;
+          if (round >= 3) {
+            render(m);
+            w.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+            setTimeout(function () { fallScene(); }, 1600);
+            return;
+          }
+          render(m);
+        };
+      });
+    }
+    render();
+  }
+  var SL_FALL = [
+    'Gagak menyerbu kapal Marlya dan Black Pearl. Rantai ditembakkan. Geladak dinaiki pasukan Tedsky.',
+    'Andry memutar kemudi dan <b>menabrakkan kapalnya ke lambung Sayap Patah</b>, membuka celah bagi kapalmu.',
+    '<b>"Kapten! Pergi! Kalau salah satu dari kita jatuh&mdash;"</b>',
+    'Kapalmu terlempar keluar lingkaran. Dari kejauhan, kapal Andry tenggelam perlahan, <b>lenteranya padam satu per satu</b>.',
+    'Marlya dan zafachmie diseret ke Sayap Patah. zafachmie melawan dengan tangan kosong sampai lima rantai menahannya.',
+    'Mengapung ke arah kapalmu: <b>pemukul genderang Andry</b>. Dari geladak Sayap Patah, suara Tedsky: <b>"Utang dibayar, a\'dik."</b>',
+    'Sayap Patah menghilang ke timur. Di langit, sayap gagak itu bubar menjadi ribuan titik hitam.'
+  ];
+  function fallScene() {
+    close();
+    cine('ts_fall', SL_FALL, function () {
+      call('titikbuta', '', function (r) {
+        try { metaMax_('tsempat', 1); } catch (e) { }
+        if (r.stats && state) state.stats = r.stats;
+        showToast('Pemukul Genderang Andry: +5 Combat.', 'success');
+        try { loadState(); } catch (e) { }
+        // kapal sudah terdampar di TooGood: langsung ke Seribu Lentera (scenes() juga menjaga lewat seen)
+        setTimeout(function () { if (!seen('funeral') && step() === 8) funeralScene(); }, 2600);
+      });
+    });
+  }
+
+  /* ================= BABAK 7: Seribu Lentera untuk Andry (TooGood) ================= */
+  var SL_LANTERNS = [
+    'Kapalmu merapat di TooGood. <b>Bendera Armada Bebas setengah tiang.</b>',
+    'Malam itu, seluruh warga TooGood, sisa awak Armada Bebas, dan kapal-kapal dari pulau sekitar melepas <b>lentera kertas</b> ke teluk.',
+    'Teluk TooGood menjadi lautan cahaya. Di tengahnya, satu perahu kecil yang kosong mengapung pelan ke arah laut.'
+  ];
+  function funeralScene() {
+    markSeen('funeral');
+    if (currentPanel || document.getElementById('modalOverlay').classList.contains('open')) close();
+    cine('ts_lanterns', SL_LANTERNS, function () { funeralTalk(); });
+  }
+  function funeralTalk() {
+    var n = N();
+    var w = modalWrap('fire', 'Seribu Lentera', 'Dermaga TooGood');
+    if (!w) return;
+    pages(w, n.dwi, [
+      'dwi de\'clown, tanpa riasan badut, melukis Andry dari ingatan: anak kecil bercap di leher, pria bertopeng porselen, lalu pria tanpa topeng yang tersenyum. "<b>Aku melukis orang supaya mereka tidak hilang. Ternyata aku terlambat satu lukisan.</b>"',
+      { n: n.euis, t: 'Teh Euis menyerahkan serpih tiang dermaga dengan <b>tiga tanda silang</b>, yang diukir Andry dua puluh tahun lalu.' },
+      { n: n.gala, t: 'Uda Gala datang dari Skitraw dan berdiri di belakang. <b>Untuk kedua kalinya, ia tidak punya cerita.</b>' },
+      { n: n.coco, t: 'coco epan datang. Pertama kalinya ia menginjak TooGood. Ia berdiri di pinggir dermaga, topi bowler di dada, memegang <b>poster buronan Andry</b> yang ia cabut sendiri dari dinding Javasche Bank. "Residen sudah mencabut tuduhannya. Terlambat. <b>Semua yang benar di cerita ini selalu terlambat.</b>"' },
+      { narr: 'Surat bersegel lilin hitam', icon: 'scroll', cls: 'grief', t: '<div class="ts-letter black">"Kapten. Kalau surat ini dibuka, berarti aku terlambat datang, atau datang terlalu cepat ke tempat yang tak bisa kembali.<br><br>Jangan balas dendam atas namaku. Aku sudah dua puluh tahun hidup untuk membalas, dan lihat ke mana itu membawaku &mdash; ke sebuah pusaran, lalu ke sebuah malam.<br><br>Kantong di tangan Euis itu untukmu. Bukan bayaran. Anggap saja aku membeli satu pukulan genderang darimu, setiap kali kau menabuhnya.<br><br>Dan kalau si gendut dan Marlya masih hidup &mdash; jemput mereka. Kalau salah satu dari kita jatuh, dua yang lain datang. Sekarang tinggal kau yang bisa datang. &mdash; A."</div>' },
+      { narr: 'Dermaga TooGood', icon: 'burst', cls: 'grief', t: '<p>Empat genderang di dermaga. <b>Satu tidak ditabuh</b>: tempat Andry.</p><p>Kau memegang pemukul Andry.</p>' }
+    ], '<button class="btn btn-gold" data-ts="drum">' + ic('burst') + '&nbsp; Tabuh genderang duka</button>', function (w2) { on(w2, '[data-ts=drum]', function (b) { drumsDuka(b); }); }, "Pelukis Black's Alley");
+  }
+  function drumsDuka(btn) {
+    if (btn) btn.disabled = true;
+    game('genderang', {
+      title: 'Tari Genderang', subtitle: 'Untuk Andry', kicker: 'Dermaga TooGood · empat genderang, tiga penabuh',
+      intro: 'Tabuh ritme duka dengan pemukul Andry. Genderang keempat diam, sampai ketukan terakhir.',
+      variant: 'duka', drums: 4, silentDrum: 3, easy: true
+    }, function (res) {
+      if (btn) btn.disabled = false;
+      if (!res || res.cancelled) { showToast('Genderang-genderang itu menunggu.', 'info'); return; }
+      call('pemakaman', '', function (r) {
+        try { metaMax_('tspenabuh', 1); } catch (e) { }
+        au_('coin', { n: 3 });
+        var n = N(), w = modalWrap('burst', 'Seribu Lentera', 'Ketukan terakhir');
+        if (!w) return;
+        pages(w, n.euis, [
+          { narr: 'Ketukan terakhir', icon: 'burst', cls: 'grief', t: '<p>Di ketukan terakhir, warga TooGood ikut menabuh apa saja: tong, panci, papan, lambung kapal.</p><p><b>Genderang yang kosong itu akhirnya berbunyi</b>, ditabuh semua orang sekaligus.</p>' },
+          { t: 'Teh Euis menyerahkan sebuah kantong yang berat. "Untuk kapten yang keempat." <div class="qg-next">' + ic('coins') + ' +' + fmt(r.paid || 50000) + ' gold</div>' },
+          { narr: 'Perahu kosong', icon: 'wind', cls: 'grief', t: '<p>Seekor gagak mendarat di perahu kosong itu, meninggalkan secarik kertas, lalu terbang lagi.</p><div class="ts-letter black">' + (truth() === 'jujur'
+            ? '"Terima kasih atas kejujuranmu, Kapten. Kejujuranmulah yang memberitahuku siapa a\'dik. Kompasmu memberitahuku di mana. Kini aku tahu di mana kau. — J.T."'
+            : '"Kau berbohong padaku, Kapten. Kompasmu tidak. Pembohong selalu ketahuan oleh barang yang ia bawa. Kini giliranmu. — J.T."') + '</div>' }
+        ], '<button class="btn btn-gold" data-ts="coco">' + ic('compass') + '&nbsp; Hampiri coco epan</button>', function (w2) { on(w2, '[data-ts=coco]', function () { cocoNeedle(); }); }, 'Penjaga Perpustakaan Rakyat');
+      });
+    });
+  }
+  function cocoNeedle() {
+    var s = st() || {}, n = N();
+    var w = modalWrap('compass', 'Dermaga TooGood', 'Setelah pemakaman');
+    if (!w) return;
+    var list = [
+      'coco epan melihat kompas di tanganmu, lalu menutup mata. "Saya pernah bilang, jangan tunjukkan pada siapa pun. Saya salah memilih kata. <b>Kompas itu tidak perlu ditunjukkan. Ia menunjukkan dirinya sendiri.</b>"',
+      '"Dua pendiri kami membuat satu jarum masing-masing. Tedsky menambahkan <b>jarum ketiga</b>, ditempa di FreeYork. Jarum itulah yang menunjuk dirimu kepadanya."',
+      { narr: 'Ingatanmu', icon: 'hammer', cls: 'grief', t: '<p>Cetakan jarum di meja Tassyaaa. ' + tassy('"Itu jarum jam."') + '</p>' },
+      '"Felyx di Gading Island menyimpan sesuatu dari Nansy: ia bilang suami Nansy <b>bisa memperbaiki apa saja yang berdetak</b>. Bawa kotak alat saya ke sana. Dan palu kecil itu."'
+    ];
+    if (s.garlyena === 'simpan') list.push({ narr: 'Seekor merpati', icon: 'scroll', cls: 'grief', t: '<p>Seekor merpati mendarat di bahumu, membawa surat bersegel lilin Dewan:</p><div class="ts-letter">"Anda menyimpan rahasia saya. Ini rahasianya: para pemburunya berangkat dari selatan FreeYork dan selalu menyisir angin timur. — G."</div>' });
+    list.push({ narr: 'Peringatan', icon: 'alert', cls: 'grief', t: '<p>Sampai jarum ketiga dipatahkan, <b>Pemburu Sayap Patah</b> akan mencegat pelayaranmu. Kalah tidak menenggelamkan kapal: kau mundur dan memperbaikinya.</p>' });
+    pages(w, n.coco, list, '<button class="btn btn-gold" data-ts="ok">' + ic('ship') + '&nbsp; Ke Gading Island</button>', function (w2) {
+      on(w2, '[data-ts=ok]', function (b) {
+        call('jarum', '', function () {
+          w2.insertAdjacentHTML('beforeend', journal());
+          b.disabled = true;
+          setTimeout(function () { openPanel('setsail'); }, 400);
+        }, b);
+      });
+    }, 'Bankir Javasche Bank');
+  }
+
+  /* ================= BABAK 8: Kunci Dua Jarum (Gading Island) ================= */
+  function felyxNeedle() {
+    var n = N();
+    var w = modalWrap('coffee', 'Kedai Stumpy', 'Gading Island');
+    if (!w) return;
+    pages(w, n.felyx, [
+      'felyx membuka <b>Kotak Alat Jam Coco</b> di atas meja kedai pelan-pelan, seperti membuka surat lama.',
+      '"Ini alat Pak Coco dari Otoland. Miss Nansy dulu bilang, suaminya bisa memperbaiki apa saja yang berdetak. Jam, kompas&hellip; <b>kecuali hatinya sendiri</b>."',
+      'Ia membuka tutup Kompas Tedsky dengan obeng mungil. Di dalamnya, tiga cincin bergigi bertumpuk: emas, perak, dan <b>merah</b>.'
+    ], '<button class="btn btn-gold" data-ts="go">' + ic('wrench') + '&nbsp; Kunci Dua Jarum</button>', function (w2) {
+      on(w2, '[data-ts=go]', function () {
+        close();
+        game('jarum', {}, function (res) {
+          if (!res || res.cancelled) { showToast('felyx: "Kompasnya tidak ke mana-mana. Kita coba lagi nanti."', 'info'); return; }
+          call('cut', '', function () {
+            cine('ts_cut', [
+              'Palu kecil menghantam. <b>Jarum merah pecah menjadi serbuk.</b>',
+              'Jauh di laut, di meja kapal <b>Sayap Patah</b>, kompas kembarannya padam.',
+              'Tedsky menatapnya lama, lalu tersenyum tipis: <b>"Pintar. Tidak apa-apa, Kapten. Aku sudah tidak butuh tahu di mana kau. Kau yang akan datang padaku."</b>',
+              'Kompas di tanganmu kini tenang. <b>Dua jarum</b> menunjuk satu arah: ke timur jauh, melewati FreeYork, menembus kabut "Belum Dipetakan".'
+            ], function () {
+              var w3 = modalWrap('compass', 'Kompas Dua Jarum', 'Kedai Stumpy');
+              if (!w3) return;
+              w3.innerHTML = narr('Kedai Stumpy', '<p>Pemburu Sayap Patah tidak akan mencegatmu lagi.</p><p>felyx menutup kotak alat itu dan menyodorkannya kembali padamu. "Kembalikan ke pemiliknya. <b>Sudah waktunya.</b>"</p>', '', 'compass') +
+                next('Kompas Dua Jarum. Pemburu berhenti.') + journal() + actions('<button class="btn btn-gold" data-ts="ok">' + ic('anchor') + '&nbsp; Kembali ke dermaga</button>');
+              on(w3, '[data-ts=ok]', function () { close(); });
+              showToast('Jarum ketiga patah. Pemburu Sayap Patah berhenti.', 'success');
+            });
+          });
+        });
+      });
+    }, 'Penjaga Kedai Stumpy');
+  }
+
+  /* ================= PENUTUP: coco epan memutuskan ================= */
+  function closingScene(w) {
+    var s = st() || {}, n = N(), list = [
+      { narr: 'Javasche Bank', icon: 'bank', t: '<p>Kubah kaca Javasche Bank sedang diperbaiki. Satu kaca dibiarkan retak. "Supaya saya ingat," kata coco epan.</p>' },
+      'Kau meletakkan <b>Kunci Jam Agung</b> dan <b>Kotak Alat Jam Coco</b> di mejanya. Ia memandangi keduanya lama.',
+      '"Ocid masih hidup&hellip; dan jam saya masih berhenti. <b>Saya meninggalkan terlalu banyak hal dalam keadaan berhenti</b>, Kapten."',
+      '"Ocid bilang jam itu sempat berdetak semenit karena Tedsky?" Ia tersenyum kecil. "<b>Bahkan jam saya ia curi semenit. Cukup.</b>"'
+    ];
+    if (s.upayy === 'sendiri') list.push('"Ny. Upayy menunggu saya. Saya tahu. Saya akan datang. <b>Tapi tidak sebagai orang yang lari lagi.</b>"');
+    list.push('"Jarum itu menunjuk ke tempat dua leluhur kami pertama kali berjabat tangan. <b>Teluk di benua Moramora.</b> Di sanalah Tedsky membawa Marlya."',
+      '"Ia butuh dua darah untuk membuka batu itu. Ia sudah punya satu. <b>Ia menunggu saya.</b>"',
+      '"Dua puluh tahun saya lari dari utang darah. <b>Kali ini, saya yang membayar.</b>"',
+      { n: n.euis, t: 'Teh Euis datang membawa sebuah kunci tua. "zafachmie bilang, kalau ia tidak ada, <b>Black Pearl hanya mau dinakhodai satu orang</b>."' });
+    pages(w, n.cocoBare, list, '<button class="btn btn-gold" data-ts="end">' + ic('star') + '&nbsp; Serahkan kunci & kotak alat</button>', function (w2) {
+      on(w2, '[data-ts=end]', function (b) {
+        call('tutup', '', function () {
+          close();
+          showModal(panelHeader_('star', 'Malam Tiga Tanda Silang', 'Kutipan akhir') +
+            '<div class="ts-quote">"Orang bilang dendam itu api. Salah. Dendam itu kompas: ia selalu tahu ke mana harus pergi, dan tak pernah peduli siapa yang terinjak di jalan."<cite>dwi de\'clown</cite></div>' +
+            actions('<button class="btn btn-gold" data-ts="rw">' + ic('star') + '&nbsp; Penutup</button>'));
+          on(document.getElementById('modalContent'), '[data-ts=rw]', function () { rewardsModal(); });
+        }, b);
+      });
+    }, 'Pewaris Sang Pembuka Jalur');
+  }
+  function rewardsModal() {
+    var s = st() || {};
+    try { metaMax_('tsraja', 1); metaMax_('tstamu', 1); metaMax_('tsempat', 1); metaMax_('tspenabuh', 1); } catch (e) { }
+    showModal(panelHeader_('star', 'Malam Tiga Tanda Silang', 'Saga Kedua &middot; quest ketiga selesai') +
+      '<div class="qg-rewards">' +
+      '<div class="qg-reward">' + ic('coins') + '<div><b>50.000 gold</b><span>Kantong Andry di tangan Teh Euis, "untuk kapten yang keempat"</span></div></div>' +
+      '<div class="qg-reward paradiso">' + ic('map') + '<div><b>Tiga pulau baru</b><span>Otoland &middot; Pulau em pe\'er de pe\'er &middot; FreeYork, terbuka untukmu selamanya</span></div></div>' +
+      '<div class="qg-reward">' + ic('burst') + '<div><b>Pemukul Genderang Andry</b><span>+5 Combat</span></div></div>' +
+      '<div class="qg-reward">' + ic('compass') + '<div><b>Kompas Dua Jarum</b><span>Menunjuk ke tempat dua tangan pertama kali bertemu</span></div></div>' +
+      '<div class="qg-reward">' + ic('fish') + '<div><b>Joran Kecil Miss Nansy &middot; Surat Wasiat Andry</b><span>Buku Pancing Legenda: Tiram Otoland & Bayang Paus Bisu kini bisa ditangkap</span></div></div>' +
+      (s.garlyena === 'bongkar' ? '<div class="qg-reward">' + ic('scroll') + '<div><b>Cap Restu Dewan</b><span>Sutra & Porselen -10% di Pulau em pe\'er de pe\'er</span></div></div>' : '') +
+      '<div class="qg-reward paradiso">' + ic('medal') + '<div><b>Tanda Jasa: Pengikut Jejak Raja &middot; Tamu Bulan Mati &middot; Yang Keempat &middot; Penabuh untuk Andry</b><span>Untuk tiga pulau, satu pesta, satu malam, dan satu genderang</span></div></div>' +
+      '<div class="qg-reward">' + ic('landscape') + '<div><b>Dunia berubah</b><span>Bendera Armada Bebas setengah tiang &middot; lukisan Andry di Black\'s Alley &middot; satu kaca Javasche Bank dibiarkan retak</span></div></div></div>' +
+      '<p class="muted small" style="text-align:center;margin-top:10px;"><i>Dua jarum menunjuk ke timur jauh. Black Pearl menunggu nakhodanya.</i></p>' +
+      actions('<button class="btn btn-gold" data-ts="end">' + ic('anchor') + '&nbsp; Kembali ke dermaga</button>'));
+    on(document.getElementById('modalContent'), '[data-ts=end]', function () { close(); });
+    au_('victory');
+    showToast('Malam Tiga Tanda Silang selesai!', 'success');
+    try { loadState(); } catch (e) { }
+  }
+
+  /* ================= DEKORASI PANEL ================= */
+  function cocoLine(k) {
+    return speech(N().coco, pickLine_(k >= 3 && k <= 6 ? ['"Tiga pulau, Kapten. Saya menggambar peta itu dengan tangan saya sendiri, dan tidak pernah berani memakainya."', '"Brankas sudah ditutup. Yang hilang tidak akan kembali lewat pintu yang sama."']
+      : k === 7 ? ['"Malam ini lampu-lampu dinyalakan, Kapten. Hati-hati."'] : ['"Saya akan ke TooGood. Saya belum pernah ke sana. Saya rasa sudah waktunya."'], 'tscoco' + k), null, 'Javasche Bank');
+  }
+  function decorBank() {
+    var s = st(); if (!s || !docked()) return;
+    var k = s.step || 0, c = cid(), w;
+    if (c === 'joungjava') {
+      if (k === 1) { w = insert(narr('Javasche Bank', '<p>Kerumunan memadati lobi. Kubah kaca di atas kepalamu <b>pecah</b>, pecahannya berserakan di lantai marmer.</p>', actions('<button class="btn btn-gold" data-ts="go">' + ic('eye') + '&nbsp; Masuk</button>'), 'bank'), { quiet: true, top: true }); on(w, '[data-ts=go]', function () { vaultArrival(); }); return; }
+      if (k === 2) { w = insert(narr('Javasche Bank', '<p>Pintu ruang kerja coco epan terbuka.</p>', actions('<button class="btn btn-gold" data-ts="go">' + ic('user') + '&nbsp; Temui coco epan</button>'), 'bank') + journal(), { quiet: true, top: true }); on(w, '[data-ts=go]', function () { bankScene(); }); return; }
+      if (k === 11) { w = insert('<div></div>', { quiet: true, top: true }); if (w) closingScene(w); return; }
+      if (k >= 3 && k <= 10) { insert(cocoLine(k) + journal(), { quiet: true }); return; }
+      if (k >= 12) { insert(speech(N().coco, pickLine_(['"Satu kaca itu tetap retak, Kapten. Saya yang memintanya."', '"Kunci itu ada di laci saya. Saya belum memutuskan kapan. Tapi saya akan memutuskan."'], 'tscoco12'), null, 'Javasche Bank'), { quiet: true }); }
+      return;
+    }
+    if (c === 'paradiso' && k === 6) {
+      w = insert('<div class="ts-casino"><div class="qg-callout" style="background:linear-gradient(135deg,rgba(232,191,85,.18),rgba(232,191,85,.04));color:#f3e6ff;border-color:rgba(232,191,85,.45)"><div class="qg-callout-ico">' + ic('dice') + '</div><div><b>Ruang VIP Kasino Mutiara</b><br><span class="small" style="color:#d8c6ef">Pelayan menyelipkan sekeping koin bergores tiga silang ke tanganmu.</span></div><button class="btn btn-gold" data-ts="vip">Masuk ruang VIP</button></div></div>', { quiet: true, top: true });
+      on(w, '[data-ts=vip]', function () { var w2 = modalWrap('dice', 'Kasino Mutiara', 'Ruang VIP'); if (w2) andryScene(w2); });
+      return;
+    }
+    if (c === 'paradiso' && k >= 7) insert('<div class="ts-casino">' + narr('Ruang VIP', '<p>' + (k >= 8 ? 'Meja dadu di ruang VIP ditutup kain hitam. Di atasnya, tiga dadu dan sebuah poster yang robek separuh.' : 'Ruang VIP kosong. Di meja, poster yang robek separuh.') + '</p>', '', 'dice', 'night') + '</div>', { quiet: true });
+  }
+  function decorTasks() {
+    var s = st(); if (!s || !docked()) return;
+    var k = s.step || 0, c = cid();
+    if (c === 'joungjava' && k >= 2 && k <= 8) { insert(poster(false) + journal(), { quiet: true }); return; }
+    if (c === 'joungjava' && k >= 9 && k <= 11) { insert(narr('Dinding Syahbandar', '<p>Bekas lem poster masih terlihat di dinding. Residen sudah mencabut tuduhannya.</p>', '', 'scroll') + journal(), { quiet: true }); return; }
+    if (k >= 1 && k <= 11) insert(journal());
+  }
+  function decorTavern() {
+    var s = st(); if (!s || !docked()) return;
+    var k = s.step || 0, c = cid(), w;
+    if (c === 'toogood' && k === 8) { w = insert(narr('Dermaga TooGood', '<p>Lentera-lentera kertas menunggu dinyalakan.</p>', actions('<button class="btn btn-gold" data-ts="go">' + ic('fire') + '&nbsp; Ke dermaga</button>'), 'fire', 'grief'), { quiet: true, top: true }); on(w, '[data-ts=go]', function () { funeralScene(); }); return; }
+    if (c === 'toogood' && k === 9) { w = insert(narr('Dermaga TooGood', '<p>coco epan masih berdiri di pinggir dermaga.</p>', actions('<button class="btn btn-gold" data-ts="go">' + ic('compass') + '&nbsp; Hampiri coco epan</button>'), 'compass', 'grief'), { quiet: true, top: true }); on(w, '[data-ts=go]', function () { cocoNeedle(); }); return; }
+    if (c === 'toogood' && k >= 10) { insert(narr("Black's Alley", '<p>' + pickLine_(['Lukisan Andry karya dwi de\'clown tergantung di dinding: pria tanpa topeng yang tersenyum.', 'Genderang keempat tak pernah lagi disimpan. Siapa pun boleh menabuhnya.'], 'tstg') + '</p>', '', 'burst', 'grief'), { quiet: true }); return; }
+    var LINES = {
+      otoland: ['Angin di sini tak pernah berhenti. Kenangan juga.', 'Kincir tua di tanjung itu milik Ny. Upayy. Pintunya biru, tak pernah dikunci.', 'Dulu ada lelaki asing yang memasang jam di pergelangan kami. Sejak itu nelayan Otoland tak pernah terlambat pasang naik.'],
+      empeer_depeer: ['Di sini, orang masih membungkuk pada mahkota yang sudah tidak ada.', 'Izin bersandar harus dicap tujuh kali. Kantin ini butuh dua.', 'Jam Agung berhenti pukul sebelas lewat tujuh. Tidak ada yang berani menyentuhnya.'],
+      freeyork: ['Mereka menamai kota ini FreeYork waktu rantai terakhir dilepas. Bebas, katanya. Bebas lapar.', 'Kapal yang lunasnya ditempa di sini tak pernah tenggelam. Tanya Black Pearl.', 'Arangnya dari tambang di lereng. Debunya sampai ke gelas kopi.']
+    };
+    if (LINES[c]) insert(narr(c === 'otoland' ? 'Warung Jaring' : c === 'freeyork' ? 'Kedai Arang' : 'Kantin Pegawai', '<p>' + pickLine_(LINES[c], 'tsl' + c) + '</p>', '', 'cup', c === 'otoland' ? 'wind' : c === 'freeyork' ? 'forge' : 'dewan'));
+  }
+  function decorShip() {
+    var s = st(); if (!s || !docked()) return;
+    if (cid() === 'freeyork') insert(narr('Dok Legenda', '<p>Di dinding batu dok terukir nama kapal-kapal yang lahir di sini. Nama terakhir: <b>Black Pearl</b>' + ((s.step || 0) >= 9 ? '. Seseorang mengukir tiga goresan silang kecil di bawahnya, masih baru.' : '.') + '</p>', '', 'wrench', 'forge'));
+  }
+  var DECOR = { tasks: decorTasks, tavern: decorTavern, bank: decorBank, ship: decorShip };
+  wrap_('setModal_', function () { var f = DECOR[currentPanel]; if (f) try { f(); } catch (e) { console.warn('[TS]', e); } });
+
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      var s = st();
+      if (panel === 'kincir') { if (s && cid() === 'otoland' && docked()) upayyScene(); else { var w0 = modalWrap('compass', 'Kincir Tua', 'Otoland'); if (w0) w0.innerHTML = narr('Kincir tua', '<p>Pintu birunya tertutup. Hanya angin yang menjawab.</p>', '', 'wind', 'wind'); } return; }
+      if (panel === 'kubah') { if (s && cid() === 'empeer_depeer' && docked()) kubahScene(); else { var w1 = modalWrap('star', 'Gedung Kubah', ''); if (w1) w1.innerHTML = narr('Gedung Kubah', '<p>Pintunya dijaga petugas protokol bersarung tangan putih.</p>', '', 'star', 'dewan'); } return; }
+      if (panel === 'bengkel') { if (s && cid() === 'freeyork' && docked()) bengkelScene(); else { var w2 = modalWrap('hammer', 'Bengkel', ''); if (w2) w2.innerHTML = narr('Bengkel', '<p>Palu bersahutan dari dalam.</p>', '', 'hammer', 'forge'); } return; }
+      if (panel === 'stumpy' && s && step() === 10 && cid() === 'gading_island' && docked()) { felyxNeedle(); return; }
+      return origOpen.apply(this, arguments);
+    };
+  }
+
+  /* ---------- NPC pulau baru ---------- */
+  var origNpc = window.npc_;
+  if (typeof origNpc === 'function') {
+    window.npc_ = function (role) { var g = isleNpc(cid(), role); if (g) return g; return origNpc.apply(this, arguments); };
+  }
+
+  /* ---------- chip di kartu lokasi ---------- */
+  wrap_('renderScene', function () {
+    var s = st(); if (!s || !state) return;
+    var k = s.step || 0, box = document.getElementById('cityTypeFlavor'), chip = '';
+    if (!box) return;
+    if (s.hunted) chip = '<span class="chip ts-chip hunt">' + ic('alert') + 'Diburu Sayap Patah</span>';
+    else if (k === 7) chip = '<span class="chip ts-chip">' + ic('scroll') + 'Surat bersegel hitam</span>';
+    else if (k === 4 && cid() === 'empeer_depeer' && s.ocid) chip = '<span class="chip ts-chip">' + ic(night() ? 'moon' : 'sun') + (night() ? 'Pesta Topeng malam ini' : 'Pesta saat malam') + '</span>';
+    if (!chip) return;
+    var row = box.querySelector('.loc-chips');
+    if (row) row.insertAdjacentHTML('afterbegin', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+  });
+
+  /* ---------- panel berlayar ---------- */
+  wrap_('renderSetSailWith_', function () {
+    var s = st(); if (!s || !docked()) return;
+    var k = s.step, note = '';
+    if (k === 7 && cid() === 'titik_buta') note = '<div class="qg-callout ww-night"><div class="qg-callout-ico">' + ic('moon') + '</div><div><b>Lingkaran lentera.</b><br><span class="muted small">Kapal Andry, Black Pearl, dan kapal perak Marlya menunggumu.</span></div><button class="btn btn-gold" data-ts="ring">Naik ke geladak</button></div>';
+    else if (k === 7) note = night()
+      ? '<div class="qg-callout ww-night"><div class="qg-callout-ico">' + ic('moon') + '</div><div><b>Lampu-lampu sudah dinyalakan.</b><br><span class="muted small">Titik Buta berkedip di petamu. Tiga kapal menunggu yang keempat.</span></div><span></span></div>'
+      : '<div class="qg-callout"><div class="qg-callout-ico">' + ic('sun') + '</div><div><b>Titik itu belum tampak.</b><br><span class="muted small">Titik Buta baru muncul saat malam (&plusmn;' + dur(nightInMs()) + ' lagi).</span></div><span></span></div>';
+    else if (s.hunted) note = '<div class="qg-callout gold"><div class="qg-callout-ico">' + ic('alert') + '</div><div><b>Pemburu Sayap Patah mengintai.</b><br><span class="muted small">Peluang dicegat &plusmn;' + (s.huntChance || 0) + '%. Kalah tidak menenggelamkan kapal. Perbaiki lambung sebelum berangkat.</span></div><span></span></div>';
+    else if ((k === 3 || k === 4 || k === 5) && ['otoland', 'empeer_depeer', 'freeyork'].indexOf(cid()) < 0) note = '<div class="qg-callout"><div class="qg-callout-ico">' + ic('map') + '</div><div><b>Peta Pengasingan.</b><br><span class="muted small">Pulau-pulau itu di laut timur, di antara Marie Regal dan Gading Island. Pelayarannya lebih panjang.</span></div><span></span></div>';
+    if (!note) return;
+    var c = document.getElementById('modalContent'), anchor = c && (c.querySelector('.npc') || c.querySelector('.ph'));
+    if (anchor && !c.querySelector('.ts-sailnote')) { var d = document.createElement('div'); d.className = 'ts-sailnote'; d.style.margin = '6px 0 10px'; d.innerHTML = note; anchor.parentNode.insertBefore(d, anchor.nextSibling); on(d, '[data-ts=ring]', function () { titikButaScene(); }); }
+  });
+
+  /* ---------- barang quest: ikon ---------- */
+  var ITEM_ICON = {
+    'Peta Pengasingan': 'map', 'Joran Kecil Miss Nansy': 'fish', 'Kotak Alat Jam Coco': 'wrench', 'Kunci Jam Agung': 'key', 'Palu Kecil Tempa': 'hammer',
+    'Surat Bersegel Lilin Hitam': 'scroll', 'Surat Wasiat Andry': 'scroll', 'Pemukul Genderang Andry': 'burst', 'Kompas Dua Jarum': 'compass'
+  };
+  wrap_('renderItemsWith_', function () {
+    var c = document.getElementById('modalContent'); if (!c) return;
+    c.querySelectorAll('.row-item').forEach(function (row) {
+      var b = row.querySelector('b'); if (!b) return;
+      var nm = (b.textContent || '').replace(/\s*×\d+$/, '').trim(), f = ITEM_ICON[nm];
+      var icn = row.querySelector('.upg-ico'); if (f && icn && !icn.querySelector('.ts-mark')) icn.innerHTML = '<span class="ts-mark" style="display:contents">' + ic(f) + '</span>';
+    });
+  });
+
+  /* ---------- tipe kota, gosip & warga ---------- */
+  try {
+    if (typeof TYPE_META !== 'undefined') {
+      TYPE_META.Kincir = { icon: 'wind', label: 'Pulau Kincir' };
+      TYPE_META.Dewan = { icon: 'star', label: 'Pulau Dewan' };
+      TYPE_META.Tempa = { icon: 'hammer', label: 'Tanah Pandai Besi' };
+    }
+    if (typeof CITY_LORE !== 'undefined') {
+      CITY_LORE.otoland = ['Angin di sini tak pernah berhenti. Kenangan juga.', 'Garam Otoland dijemur angin, bukan matahari saja. Rasanya lebih tajam.', 'Kincir tua di tanjung itu lebih tua dari dermaga.'];
+      CITY_LORE.empeer_depeer = ['Di sini, orang masih membungkuk pada mahkota yang sudah tidak ada. Dan izin bersandar pun harus dicap tujuh kali.', 'Tangga ke Gedung Kubah ada 999 anak tangga. Jangan tanya siapa yang menghitung.', 'Sutra di sini ditenun untuk raja. Rajanya tidak pernah pulang.'];
+      CITY_LORE.freeyork = ['Mereka menamai kota ini FreeYork waktu rantai terakhir dilepas. Bebas, katanya. Bebas lapar.', 'Dok Legenda itu tempat Black Pearl ditempa. Namanya yang terakhir diukir di dinding.', 'Batu bara dari lereng, besi dari tungku, rantai untuk siapa saja yang membayar.'];
+    }
+  } catch (e) { }
+  function rumorPool() {
+    var s = st(); if (!s) return null;
+    var k = s.step || 0, c = cid();
+    if (k === 0 && (s.sails || 0) >= 2) return ['Akhir-akhir ini banyak burung hitam terbang ke barat. Pertanda buruk, kata orang tua.'];
+    if (k === 1) return ['Kau sudah dengar? Javasche Bank dibobol semalam! Burung-burung hitam keluar dari atapnya seperti asap!'];
+    if (k === 2) return ['Sejuta gold untuk kepala Andry Ivankov. Siapa sangka?', 'Katanya ada koin emas jatuh dari langit di pasar pantai Joungjava.'];
+    if (k >= 3 && k <= 5) return ['Pernah dengar Otoland? Pulau kincir di timur. Kata orang, raja pernah tinggal di sana.', 'Gagak mesin terlihat terbang ke timur, ke laut yang belum dipetakan.'];
+    if (k >= 5 && k <= 7) return ['Sejuta gold untuk kepala satu orang. Armada Bebas merampok bank. Siapa sangka, pahlawan pusaran ternyata maling.'];
+    if (k >= 8 && k <= 10) return c === 'marie_regal' ? ['Papan "HIDUP RATU MARLYA" mati. Hanya berkedip-kedip.'] : ['Bendera Armada Bebas setengah tiang di setiap pelabuhan.', 'Ada kapal kecil bersayap logam yang mengintai di jalur-jalur dagang.'];
+    if (k >= 12) return c === 'freeyork' ? ['Ada kapal bank yang datang lagi. Kali ini pemiliknya turun.'] : c === 'toogood' ? ['Genderang keempat tak pernah lagi disimpan. Siapa pun boleh menabuhnya.'] : null;
+    return null;
+  }
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments), pool = rumorPool();
+      if (!pool || !out || !out.length) return out;
+      out[Math.floor(Math.random() * out.length)] = pool[Math.floor(Math.random() * pool.length)];
+      return out;
+    };
+  }
+  if (typeof window.walkerLine_ === 'function') {
+    var origWalker = window.walkerLine_;
+    window.walkerLine_ = function () {
+      var c = cid();
+      if (c === 'otoland' && Math.random() < 0.4) return ['Anginnya kencang, Kapten! Pegang topimu.', 'Garam baru dipanen pagi ini!', 'Jaringnya jangan diinjak, baru dijahit.'][Math.floor(Math.random() * 3)];
+      if (c === 'empeer_depeer' && Math.random() < 0.4) return ['Sudah dicap tujuh kali, Tuan?', 'Mohon membungkuk saat lewat di depan Gedung Kubah.', 'Sidang dimulai setelah lonceng ketiga.'][Math.floor(Math.random() * 3)];
+      if (c === 'freeyork' && Math.random() < 0.4) return ['Minggir, gerobak arang lewat!', 'Rantai murah, Tuan? Murah sekali.', 'Debunya jangan dihirup dalam-dalam.'][Math.floor(Math.random() * 3)];
+      return origWalker.apply(this, arguments);
+    };
+  }
+
+  /* ================= KEDATANGAN & TRANSISI ================= */
+  var prevStep = null;
+  function scenes(prev, cur) {
+    var s = st(); if (!s) return;
+    if (cur >= 5) { try { metaMax_('tstamu', 1); } catch (e) { } }
+    if (cur >= 4) { try { metaMax_('tsraja', 1); } catch (e) { } }
+    if (cur >= 8) { try { metaMax_('tsempat', 1); } catch (e) { } }
+    if (cur >= 9) { try { metaMax_('tspenabuh', 1); } catch (e) { } }
+    if (cur === 1 && !seen('sky')) { if (currentPanel) close(); skyScene(function () { if (docked()) rumorScene(); }); return; }
+    if (!docked()) return;
+    var c = cid();
+    if (cur === 1 && !seen('rumor')) { if (currentPanel) close(); rumorScene(); return; }
+    if (cur === 1 && c === 'joungjava' && !seen('vaultAuto')) { markSeen('vaultAuto'); setTimeout(function () { showToast('Kerumunan memadati Javasche Bank.', 'info'); }, 1500); return; }
+    if (cur === 3 && c === 'otoland' && !seen('oto')) { if (currentPanel) close(); arrivalOtoland(); return; }
+    if (cur === 4 && c === 'empeer_depeer' && !seen('emp')) { if (currentPanel) close(); arrivalEmpeer(); return; }
+    if (cur === 5 && c === 'freeyork' && !seen('fy')) { if (currentPanel) close(); arrivalFreeYork(); return; }
+    if (cur === 6 && c === 'paradiso' && !seen('par')) { markSeen('par'); setTimeout(function () { showToast('Seorang pelayan Kasino Mutiara memberi isyarat dari pintu ruang VIP.', 'info'); }, 1500); return; }
+    if (cur === 7 && c === 'titik_buta' && !SEEN_MEM.tbOpen) { SEEN_MEM.tbOpen = 1; if (currentPanel) close(); titikButaScene(); return; }
+    if (cur === 8 && c === 'toogood' && !seen('funeral')) { funeralScene(); return; }
+    if (cur === 10 && c === 'gading_island' && !seen('gd10')) { markSeen('gd10'); setTimeout(function () { showToast('felyx melambai dari pintu Kedai Stumpy.', 'info'); }, 1500); return; }
+    if (cur === 11 && c === 'joungjava' && !seen('j11')) { markSeen('j11'); setTimeout(function () { showToast('coco epan menunggumu di Javasche Bank.', 'info'); }, 1500); return; }
+  }
+  wrap_('applyFreshState_', function () {
+    var s = st(), cur = s ? (s.step || 0) : null, prev = prevStep;
+    prevStep = cur;
+    if (!s) return;
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !st()) return;
+      if (busyUi()) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { scenes(prev, st().step || 0); } catch (e) { console.warn('[TS] scenes', e); }
+    }, 1400);
+  });
+
+  /* ---------- Tanda Jasa ---------- */
+  if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+    { id: 'ts_raja', t: 3, ic: 'map', n: 'Pengikut Jejak Raja', d: 'Ikuti Peta Pengasingan ke pulau berangin tempat seorang raja belajar menjadi manusia.', g: function (m) { return [m.c.tsraja || 0, 1]; } },
+    { id: 'ts_tamu', t: 3, ic: 'star', n: 'Tamu Bulan Mati', d: 'Temukan tamu yang tak diundang di Pesta Topeng, di ujung seribu tangga.', g: function (m) { return [m.c.tstamu || 0, 1]; } },
+    { id: 'ts_empat', t: 3, ic: 'moon', n: 'Yang Keempat', d: 'Datang ke lingkaran lentera di Titik Buta, sebagai yang keempat.', g: function (m) { return [m.c.tsempat || 0, 1]; } },
+    { id: 'ts_penabuh', t: 3, ic: 'burst', n: 'Penabuh untuk Andry', d: 'Tabuh genderang duka dengan pemukul Andry di dermaga TooGood.', g: function (m) { return [m.c.tspenabuh || 0, 1]; } }
+  );
+
+  return {
+    N: N, journal: journal, scenes: scenes, tassy: tassy, poster: poster,
+    forgeOut: function () { var s = st(); return !!(s && s.tempa === 'padam' && (s.step || 0) >= 6); },
+    lanternRing: function () { return step() === 7; },
+    _sky: skyScene, _bank: bankScene, _upayy: upayyScene, _kubah: kubahScene, _bengkel: bengkelScene, _andry: andryScene, _titik: titikButaScene, _funeral: funeralScene, _felyx: felyxNeedle, _closing: closingScene, _rewards: rewardsModal
+  };
+})();
+</script>

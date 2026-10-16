@@ -1,0 +1,503 @@
+<style>
+  /* ================= Mini-game Quest 7 (MTGames3): Olah Jejak, Mata Pesta, Kunci Dua Jarum, Sandi Gagak ================= */
+  .tsg { position: fixed; inset: 0; z-index: 9800; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto;
+    background: radial-gradient(ellipse at 50% 0%, #1d1a24, #07060a 70%); color: #f4e7c8; opacity: 0; transition: opacity .35s;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  .tsg.on { opacity: 1; }
+  .tsg-top { width: min(860px, 100%); display: flex; align-items: center; gap: 10px; padding: 6px 2px 8px; }
+  .tsg-top .k { font: 700 11px "Cinzel", Georgia, serif; letter-spacing: .26em; text-transform: uppercase; color: #e8c878; }
+  .tsg-top h2 { margin: 0; font-family: "Pirata One", Georgia, serif; font-weight: 400; font-size: 1.6em; line-height: 1; color: #fff3d6; }
+  .tsg-top .sp { flex: 1; min-width: 0; }
+  .tsg-x { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(232,200,120,.45); font: 600 12px "Cinzel", Georgia, serif; color: #f4ead8; }
+  .tsg-x:hover, .tsg-x:focus-visible { border-color: #e8c878; background: rgba(232,200,120,.12); }
+  .tsg-stage { position: relative; width: min(860px, 100%); border-radius: 14px; overflow: hidden; border: 1px solid rgba(232,200,120,.35); background: #0b0a0e; touch-action: manipulation; }
+  .tsg-stage svg.scene { display: block; width: 100%; height: auto; }
+  .tsg-stage canvas.dark { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .tsg-msg { width: min(860px, 100%); min-height: 2.6em; margin: 8px 0 4px; padding: 8px 12px; border-radius: 10px; background: rgba(255,240,210,.07); border: 1px solid rgba(232,200,120,.2); font-size: .95em; line-height: 1.5; }
+  .tsg-msg b { color: #ffe7a3; } .tsg-msg.bad { border-color: rgba(255,120,100,.45); } .tsg-msg.good { border-color: rgba(150,230,170,.5); }
+  .tsg-list { width: min(860px, 100%); display: grid; gap: 6px; margin: 4px 0; padding: 0; list-style: none; }
+  .tsg-list li { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; border-radius: 10px; background: rgba(255,250,236,.05); font-size: .9em; line-height: 1.45; color: #e9dcc0; }
+  .tsg-list li .ck { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.08); font-size: 12px; }
+  .tsg-list li.got .ck { background: #3f7a4a; color: #fff; }
+  .tsg-list li:not(.got) { opacity: .55; }
+  .tsg-row { width: min(860px, 100%); display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0; }
+  .tsg-pips { display: flex; gap: 6px; } .tsg-pips i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.18); } .tsg-pips i.on { background: #e8c878; } .tsg-pips i.done { background: #6fcf8a; }
+  /* Mata Pesta */
+  .tsg-ball { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 10px 6px 4px; background: linear-gradient(180deg, #3a1214, #1a0a0c 60%, #2a1a12); }
+  .tsg-guest { all: unset; cursor: pointer; display: block; border-radius: 10px; padding: 2px; transition: transform .25s, background .2s; }
+  .tsg-guest svg { width: 100%; height: auto; display: block; }
+  .tsg-guest:hover, .tsg-guest:focus-visible { background: rgba(255,220,140,.12); outline: 2px solid rgba(255,220,140,.5); }
+  .tsg-guest.no { animation: tsgNo .35s; } .tsg-guest.yes { background: rgba(150,230,170,.18); outline: 2px solid #6fcf8a; }
+  .tsg-guest .bowg { transform-origin: 50% 92%; transition: transform .7s cubic-bezier(.4,.1,.2,1); }
+  .tsg-ball.bow .tsg-guest:not(.proud) .bowg { transform: rotate(14deg) translateY(4px); }
+  .tsg-ball.bow .tsg-guest.late .bowg { transition-delay: .9s; }
+  @keyframes tsgNo { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  .tsg-clue { font-family: "Cinzel", Georgia, serif; font-size: .82em; letter-spacing: .08em; color: #e8c878; text-transform: uppercase; }
+  /* Kunci Dua Jarum */
+  .tsg-lock { display: grid; grid-template-columns: 1fr; justify-items: center; padding: 10px; background: radial-gradient(circle at 50% 40%, #3a2c1c, #120c08 75%); }
+  .tsg-lock svg { width: min(360px, 82vw); height: auto; }
+  .tsg-ctrl { display: grid; grid-template-columns: auto auto auto; gap: 6px 10px; align-items: center; justify-content: center; margin: 6px 0; }
+  .tsg-ctrl span { font-family: "Cinzel", Georgia, serif; font-size: .8em; letter-spacing: .08em; text-align: center; min-width: 7em; }
+  .tsg-ctrl button { min-width: 48px; min-height: 40px; }
+  .tsg-red-shake { animation: tsgShake .12s linear infinite; transform-origin: 180px 180px; }
+  @keyframes tsgShake { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
+  /* Sandi gagak */
+  .tsg-ciph { padding: 14px 8px; background: linear-gradient(180deg, #e9dcc0, #d6c39c); color: #3a2412; }
+  .tsg-ciph .ln { display: flex; flex-wrap: wrap; gap: 10px 14px; justify-content: center; }
+  .tsg-ciph .wd { display: flex; gap: 3px; }
+  .tsg-cell { all: unset; cursor: pointer; width: 30px; display: grid; justify-items: center; gap: 2px; padding: 4px 1px 3px; border-radius: 8px; background: rgba(255,250,236,.85); border: 1px solid rgba(120,80,30,.35); }
+  .tsg-cell svg { width: 22px; height: 22px; } .tsg-cell b { font-family: "Cinzel", Georgia, serif; font-size: .88em; min-height: 1.1em; line-height: 1.1em; }
+  .tsg-cell.known { background: #f3e2bc; cursor: default; } .tsg-cell.sel { outline: 2px solid #a3241a; background: #fff1e4; }
+  .tsg-keys { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; } .tsg-keys button { min-width: 38px; }
+  .tsg-shake { animation: tsgNo .35s; }
+  @media (max-width: 640px) {
+    .tsg-top h2 { font-size: 1.3em; }
+    .tsg-ball { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .tsg-cell { width: 25px; } .tsg-cell svg { width: 18px; height: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .tsg-red-shake, .tsg-guest.no, .tsg-shake { animation: none; } .tsg-guest .bowg { transition: none; } }
+</style>
+<script>
+/* =====================================================================
+ * MTGames3 — mini-game Saga 2 · Quest 7 "Malam Tiga Tanda Silang"
+ *   MTGames3.open(kind, opts, cb)  kind = jejak | pesta | jarum | sandi
+ *   cb({ win, cancelled, kind, ... })
+ * Semua digambar SVG/canvas prosedural. Tidak ada gagal permanen: pemain selalu bisa mengulang.
+ * ===================================================================== */
+var MTGames3 = (function () {
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function au(n, o) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n, o); } catch (e) { } }
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  var cur = null;
+
+  function shell(kicker, title) {
+    if (cur) cur.close(true);
+    var root = document.createElement('div'); root.className = 'tsg';
+    root.innerHTML = '<div class="tsg-top"><div class="sp"><div class="k">' + kicker + '</div><h2>' + title + '</h2></div><button class="tsg-x" type="button">Nanti dulu</button></div>' +
+      '<div class="tsg-body" style="width:100%;display:flex;flex-direction:column;align-items:center"></div>';
+    document.body.appendChild(root);
+    requestAnimationFrame(function () { root.classList.add('on'); });
+    var S = { root: root, body: root.querySelector('.tsg-body'), done: false, cb: null, timers: [], onClose: null };
+    S.close = function (silent, res) {
+      if (S.done) return; S.done = true;
+      S.timers.forEach(function (t) { clearInterval(t); clearTimeout(t); });
+      if (S.onClose) try { S.onClose(); } catch (e) { }
+      document.removeEventListener('keydown', onKey);
+      root.classList.remove('on'); setTimeout(function () { root.remove(); }, 380);
+      if (cur === S) cur = null;
+      if (!silent && S.cb) setTimeout(function () { S.cb(res || { cancelled: true }); }, 60);
+    };
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); S.close(false, { cancelled: true }); } }
+    document.addEventListener('keydown', onKey);
+    root.querySelector('.tsg-x').onclick = function () { au('page'); S.close(false, { cancelled: true }); };
+    cur = S;
+    return S;
+  }
+  function finishBtn(S, label, res) {
+    var row = document.createElement('div'); row.className = 'tsg-row';
+    row.innerHTML = '<button class="btn btn-gold" type="button">' + label + '</button>';
+    S.body.appendChild(row);
+    row.querySelector('button').onclick = function () { au('page'); S.close(false, res); };
+    try { row.querySelector('button').focus(); } catch (e) { }
+  }
+
+  /* ============================ OLAH JEJAK ============================ */
+  // Adegan diam (SVG 1000x600) + senter yang mengikuti jari/kursor. 5 jejak; tiap jejak membuka satu pikiran.
+  var JEJAK = {
+    brankas: {
+      kicker: 'Javasche Bank &middot; ruang brankas', title: 'Olah Jejak',
+      intro: 'Ruang brankas gelap gulita. Arahkan senter, lalu <b>ketuk benda yang mencurigakan</b>. Ada lima jejak.',
+      clues: [
+        { id: 'bulu', x: 205, y: 520, r: 46, t: 'Bulu logam hitam', th: 'Bulu ini dari logam, bukan bulu burung. <b>Gagak mesin.</b>' },
+        { id: 'cat', x: 610, y: 330, r: 40, t: 'Cat perunggu di gagang pintu', th: 'Bekas cat perunggu di gagang pintu brankas. Warna yang sama dengan Garuda IKN. <b>Tedsky.</b>' },
+        { id: 'silang', x: 520, y: 210, r: 52, t: 'Tiga goresan silang', th: 'Tiga goresan silang, tanda Armada Bebas&hellip; tapi goresannya <b>rapi dan sama dalam</b>. Dibuat dengan alat, bukan pisau. <b>Fitnah.</b>' },
+        { id: 'emas', x: 830, y: 440, r: 56, t: 'Emas yang tidak disentuh', th: 'Tumpukan emas dan surat berharga ini <b>tidak disentuh sama sekali</b>. Pencurinya tidak butuh uang.' },
+        { id: 'laci', x: 335, y: 395, r: 46, t: 'Laci kecil yang kosong', th: 'Satu laci kecil terbuka dan <b>kosong</b>. Di sebelahnya, foto Nansy, terbalik seperti biasa. Ada yang lebih berharga dari emas.' }
+      ]
+    },
+    bengkel: {
+      kicker: 'FreeYork &middot; bengkel besar', title: 'Olah Jejak',
+      intro: 'Bengkel itu gelap kecuali bara di tungku kecil. Arahkan lentera, lalu <b>ketuk benda yang mencurigakan</b>. Ada lima jejak.',
+      clues: [
+        { id: 'sayap', x: 230, y: 300, r: 60, t: 'Rangka di bawah terpal', th: 'Puluhan rangka logam kecil berbentuk <b>sayap</b>, ditutupi terpal.' },
+        { id: 'mata', x: 470, y: 470, r: 46, t: 'Peti mata kaca', th: 'Satu peti penuh <b>mata kaca merah</b>. Ratusan.' },
+        { id: 'pesanan', x: 760, y: 190, r: 46, t: 'Kertas pesanan bercap J.T.', th: '<i>"500 ekor. Dan dua sayap besar untuk kapalku. Dibayar saat kita pulang."</i> Cap: <b>J.T.</b>' },
+        { id: 'jarum', x: 640, y: 405, r: 34, t: 'Cetakan jarum kecil', th: 'Sebuah <b>cetakan jarum</b>, panjangnya sejari. Tassyaaa sendiri tidak tahu untuk apa: "Iiituuu jaaaruuum jaaam."' },
+        { id: 'surat', x: 885, y: 395, r: 40, t: 'Surat di saku celemek', th: '<i>"Mak, aku juru mudi sekarang. Kapal kami punya sayap. Jangan cari aku. — Petrik."</i>' }
+      ]
+    }
+  };
+  function sceneBrankas() {
+    var s = '<defs><radialGradient id="tjDoor" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#8a8f96"/><stop offset="1" stop-color="#3a3e44"/></radialGradient>' +
+      '<linearGradient id="tjWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3026"/><stop offset="1" stop-color="#20180f"/></linearGradient></defs>';
+    s += '<rect width="1000" height="600" fill="url(#tjWall)"/>';
+    // kubah kaca pecah & cahaya bulan
+    s += '<path d="M330 0 Q500 -40 670 0 L640 60 Q500 30 360 60 Z" fill="#1c2a3a"/><path d="M420 20 L470 70 M560 10 L530 80 M500 30 L505 90" stroke="#9fb8d0" stroke-width="2" opacity=".6"/>';
+    s += '<polygon points="380,60 620,60 760,600 240,600" fill="rgba(170,200,240,.06)"/>';
+    // dinding laci
+    for (var r = 0; r < 4; r++) for (var c = 0; c < 4; c++) { var x = 120 + c * 70, y = 250 + r * 62; s += '<rect x="' + x + '" y="' + y + '" width="60" height="52" rx="4" fill="#5a4630" stroke="#2a1e12" stroke-width="2"/><circle cx="' + (x + 30) + '" cy="' + (y + 26) + '" r="4" fill="#c9a441"/>'; }
+    // laci kosong terbuka + foto terbalik
+    s += '<rect x="300" y="372" width="70" height="50" fill="#2a1e12" stroke="#c9a441" stroke-width="2"/><rect x="306" y="378" width="58" height="34" fill="#0e0a06"/>';
+    s += '<rect x="380" y="410" width="34" height="26" fill="#d9cfb8" transform="rotate(8 397 423)"/>';
+    // pintu brankas bundar terbuka
+    s += '<circle cx="560" cy="270" r="150" fill="#181410" stroke="#2a2420" stroke-width="10"/>';
+    s += '<ellipse cx="660" cy="270" rx="58" ry="150" fill="url(#tjDoor)" stroke="#2a2e34" stroke-width="6"/>';
+    s += '<circle cx="660" cy="270" r="26" fill="#2a2e34"/><path d="M660 244v52M634 270h52" stroke="#9aa0a8" stroke-width="5"/>';
+    s += '<rect x="596" y="320" width="28" height="16" rx="6" fill="#7a6040"/><path d="M598 326 q8 -4 18 2" stroke="#b8843a" stroke-width="4" fill="none"/>';
+    // tiga goresan silang (rapi)
+    [0, 1, 2].forEach(function (i) { var x = 490 + i * 30; s += '<path d="M' + (x - 10) + ' 195l20 30M' + (x + 10) + ' 195l-20 30" stroke="#e8e0d0" stroke-width="3.5" stroke-linecap="round"/>'; });
+    // meja dengan emas & surat berharga
+    s += '<rect x="730" y="470" width="220" height="16" fill="#4a3220"/><rect x="745" y="486" width="12" height="90" fill="#3a2618"/><rect x="925" y="486" width="12" height="90" fill="#3a2618"/>';
+    for (var g = 0; g < 9; g++) s += '<rect x="' + (760 + (g % 4) * 32) + '" y="' + (452 - Math.floor(g / 4) * 14) + '" width="30" height="14" rx="2" fill="#e8c35a" stroke="#8f6522"/>';
+    s += '<rect x="880" y="430" width="50" height="38" fill="#efe6d2" stroke="#8f6522" transform="rotate(-6 905 449)"/>';
+    // koin berserakan & bulu logam
+    for (var k = 0; k < 7; k++) s += '<circle cx="' + (430 + k * 55) + '" cy="' + (560 + (k % 3) * 8) + '" r="7" fill="#d9a441" opacity=".8"/>';
+    s += '<path d="M180 530 q20 -30 55 -24 q-18 6 -30 22 z" fill="#15161a" stroke="#6a7280" stroke-width="1.5"/><path d="M190 527 l38 -18" stroke="#8a929e" stroke-width="1"/>';
+    return '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Ruang brankas Javasche Bank">' + s + '</svg>';
+  }
+  function sceneBengkel() {
+    var s = '<defs><linearGradient id="tjB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1a14"/><stop offset="1" stop-color="#120a06"/></linearGradient></defs>';
+    s += '<rect width="1000" height="600" fill="url(#tjB)"/>';
+    for (var b = 0; b < 10; b++) s += '<rect x="0" y="' + (b * 60) + '" width="1000" height="2" fill="#000" opacity=".25"/>';
+    // terpal menutupi rangka sayap
+    s += '<path d="M90 380 Q150 210 330 230 Q380 300 370 390 Z" fill="#5a5040" stroke="#2a2418" stroke-width="3"/>';
+    for (var w = 0; w < 5; w++) s += '<path d="M' + (140 + w * 40) + ' 380 l30 -70 l14 70" stroke="#8a8a90" stroke-width="3" fill="none"/>';
+    // peti mata kaca
+    s += '<rect x="410" y="440" width="120" height="70" fill="#5a3a22" stroke="#2a1a0e" stroke-width="3"/>';
+    for (var e = 0; e < 8; e++) s += '<circle cx="' + (425 + (e % 4) * 28) + '" cy="' + (452 + Math.floor(e / 4) * 18) + '" r="7" fill="#c8201a" stroke="#ff8070" stroke-width="1"/>';
+    // dinding: kertas pesanan
+    s += '<rect x="720" y="150" width="82" height="96" fill="#e6dcc4" transform="rotate(4 761 198)"/><circle cx="790" cy="225" r="12" fill="none" stroke="#a3241a" stroke-width="3"/><text x="781" y="230" font-size="11" fill="#a3241a" font-family="Georgia">J.T.</text>';
+    for (var l = 0; l < 4; l++) s += '<rect x="732" y="' + (170 + l * 12) + '" width="54" height="3" fill="#6a5a40"/>';
+    // meja kerja + cetakan jarum
+    s += '<rect x="560" y="420" width="190" height="16" fill="#4a3220"/><rect x="575" y="436" width="12" height="130" fill="#3a2618"/><rect x="720" y="436" width="12" height="130" fill="#3a2618"/>';
+    s += '<rect x="615" y="396" width="56" height="22" rx="3" fill="#6a6460" stroke="#2a2420"/><path d="M622 407 h42" stroke="#1a1614" stroke-width="3"/><path d="M660 405 l6 2 -6 2" fill="#1a1614"/>';
+    s += '<rect x="690" y="404" width="40" height="12" fill="#2a2420"/>';
+    // celemek kulit tergantung + surat
+    s += '<path d="M860 300 h50 l8 160 h-66 z" fill="#7a5032" stroke="#3a2412" stroke-width="3"/><rect x="866" y="385" width="38" height="26" fill="#5a3a22"/><rect x="872" y="378" width="26" height="18" fill="#efe6d2"/>';
+    // tungku kecil berbara
+    s += '<rect x="40" y="470" width="110" height="90" fill="#3a2a22"/><rect x="62" y="500" width="66" height="34" fill="#ff7a2a" opacity=".85"/>';
+    return '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Bengkel besar FreeYork">' + s + '</svg>';
+  }
+  function playJejak(opts, cb) {
+    var cfg = JEJAK[opts.variant] || JEJAK.brankas, S = shell(cfg.kicker, cfg.title);
+    S.cb = cb;
+    S.body.innerHTML = '<div class="tsg-stage">' + (opts.variant === 'bengkel' ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
+      '<div class="tsg-msg">' + cfg.intro + '</div><ul class="tsg-list"></ul>';
+    var stage = S.body.querySelector('.tsg-stage'), svg = stage.querySelector('svg'), cv = stage.querySelector('canvas'), ctx = cv.getContext('2d');
+    var msg = S.body.querySelector('.tsg-msg'), list = S.body.querySelector('.tsg-list'), found = {}, nFound = 0, lx = 500, ly = 300, lastFind = Date.now(), hint = null;
+    list.innerHTML = cfg.clues.map(function (c) { return '<li data-id="' + c.id + '"><span class="ck">?</span><span>' + esc(c.t) + '</span></li>'; }).join('');
+    var warm = opts.variant === 'bengkel';
+    function size() { var r = stage.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); ctx.setTransform(d, 0, 0, d, 0, 0); draw(); }
+    function k() { var r = stage.getBoundingClientRect(); return r.width / 1000; }
+    function hole(x, y, rad, a) {
+      var g = ctx.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, 'rgba(0,0,0,' + a + ')'); g.addColorStop(0.65, 'rgba(0,0,0,' + (a * 0.85) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 6.3); ctx.fill();
+    }
+    function draw() {
+      var r = stage.getBoundingClientRect(), K = k();
+      ctx.globalCompositeOperation = 'source-over'; ctx.clearRect(0, 0, r.width, r.height);
+      ctx.fillStyle = warm ? 'rgba(8,4,2,.93)' : 'rgba(4,5,10,.94)'; ctx.fillRect(0, 0, r.width, r.height);
+      ctx.globalCompositeOperation = 'destination-out';
+      hole(lx * K, ly * K, 130 * K, 1);
+      cfg.clues.forEach(function (c) { if (found[c.id]) hole(c.x * K, c.y * K, c.r * 1.3 * K, 0.85); });
+      if (hint) { var hp = 0.4 + 0.4 * Math.abs(Math.sin(Date.now() / 220)); hole(hint.x * K, hint.y * K, hint.r * 1.6 * K, hp); }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = warm ? 'rgba(255,190,110,.5)' : 'rgba(220,235,255,.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(lx * K, ly * K, 128 * K, 0, 6.3); ctx.stroke();
+      cfg.clues.forEach(function (c) { if (!found[c.id]) return; ctx.strokeStyle = 'rgba(150,230,170,.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x * K, c.y * K, c.r * 0.95 * K, 0, 6.3); ctx.stroke(); });
+    }
+    function pt(e) { var r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 1000, y: (e.clientY - r.top) / r.height * 600 }; }
+    stage.addEventListener('pointermove', function (e) { var p = pt(e); lx = p.x; ly = p.y; draw(); });
+    stage.addEventListener('pointerdown', function (e) {
+      var p = pt(e); lx = p.x; ly = p.y;
+      var best = null, bd = 1e9;
+      cfg.clues.forEach(function (c) { if (found[c.id]) return; var d = Math.hypot(c.x - p.x, c.y - p.y); if (d < c.r + 18 && d < bd) { bd = d; best = c; } });
+      if (best) {
+        found[best.id] = 1; nFound++; lastFind = Date.now(); hint = null; au('coin');
+        var li = list.querySelector('[data-id="' + best.id + '"]'); li.classList.add('got'); li.querySelector('.ck').textContent = '✓';
+        li.querySelector('span:last-child').innerHTML = '<b>' + esc(best.t) + '.</b> ' + best.th;
+        msg.className = 'tsg-msg good'; msg.innerHTML = best.th + ' <span style="opacity:.7">(' + nFound + '/' + cfg.clues.length + ')</span>';
+        if (nFound >= cfg.clues.length) { au('success'); msg.innerHTML = '<b>Lima jejak.</b> ' + (opts.doneLine || 'Gambarnya mulai utuh.'); finishBtn(S, 'Selesai memeriksa', { win: true, kind: 'jejak' }); }
+      } else { au('page'); }
+      draw();
+    });
+    S.timers.push(setInterval(function () {
+      if (nFound >= cfg.clues.length) { hint = null; draw(); return; }
+      if (!hint && Date.now() - lastFind > 20000) {
+        var rest = cfg.clues.filter(function (c) { return !found[c.id]; }), best = null, bd = 1e9;
+        rest.forEach(function (c) { var d = Math.hypot(c.x - lx, c.y - ly); if (d < bd) { bd = d; best = c; } });
+        hint = best; msg.className = 'tsg-msg'; msg.innerHTML = 'Ada sesuatu yang berkilat di kegelapan&hellip;';
+      }
+      if (hint) draw();
+    }, 120));
+    window.addEventListener('resize', size); S.onClose = function () { window.removeEventListener('resize', size); };
+    setTimeout(size, 30);
+  }
+
+  /* ============================ MATA PESTA ============================ */
+  // 7 tamu bertopeng; 3 ronde, satu petunjuk per ronde. Semua petunjuk mengarah ke orang yang sama.
+  var GOWNS = ['#6a1f2a', '#1f3a5a', '#2a4a2a', '#5a3a6a', '#7a5a1a', '#1a1a2a', '#4a2a1a'];
+  function guestSvg(g, round) {
+    var body = g.gown, tall = g.target ? 1.08 : 1, mask = g.mask, glove = g.glove;
+    var s = '<svg viewBox="0 0 80 150" aria-hidden="true"><g class="bowg">';
+    s += '<path d="M' + (40 - 20 * tall) + ' 148 L' + (40 - 13) + ' ' + (150 - 92 * tall) + ' L' + (40 + 13) + ' ' + (150 - 92 * tall) + ' L' + (40 + 20 * tall) + ' 148 Z" fill="' + body + '"/>';
+    s += '<path d="M33 ' + (150 - 90 * tall) + ' L40 ' + (150 - 76 * tall) + ' L47 ' + (150 - 90 * tall) + '" fill="#efe6d2" opacity=".8"/>';
+    var hy = 150 - 103 * tall;
+    s += '<circle cx="40" cy="' + hy + '" r="11" fill="#c99470"/><path d="M29 ' + (hy - 3) + ' Q40 ' + (hy - 18) + ' 51 ' + (hy - 3) + '" fill="#2a1a12"/>';
+    // topeng
+    var mfill = mask === 'metal' ? 'url(#tsgMetal)' : mask === 'gold' ? '#e8cf8a' : '#f6f2ea';
+    s += '<defs><linearGradient id="tsgMetal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9a36a"/><stop offset=".5" stop-color="#7a6040"/><stop offset="1" stop-color="#b8905a"/></linearGradient></defs>';
+    s += '<path d="M29 ' + (hy - 2) + ' Q40 ' + (hy - 9) + ' 51 ' + (hy - 2) + ' Q50 ' + (hy + 6) + ' 40 ' + (hy + 4) + ' Q30 ' + (hy + 6) + ' 29 ' + (hy - 2) + ' Z" fill="' + mfill + '" stroke="' + (mask === 'metal' ? '#4a3a24' : '#b8a888') + '" stroke-width="1"/>';
+    s += '<ellipse cx="35" cy="' + (hy - 1) + '" rx="3" ry="2" fill="#1a1210"/><ellipse cx="45" cy="' + (hy - 1) + '" rx="3" ry="2" fill="#1a1210"/>';
+    if (mask === 'metal') { s += '<circle cx="31" cy="' + (hy + 1) + '" r=".9" fill="#f4e0b0"/><circle cx="49" cy="' + (hy + 1) + '" r=".9" fill="#f4e0b0"/><path d="M38 ' + (hy + 2) + ' L40 ' + (hy + 7) + ' L42 ' + (hy + 2) + '" fill="#8a6a40"/>'; }
+    if (mask === 'porc') s += '<path d="M33 ' + (hy - 5) + ' q4 -2 7 0" stroke="#d9b45a" stroke-width=".8" fill="none"/>';
+    // lengan & sarung tangan
+    var ay = 150 - 70 * tall;
+    s += '<path d="M27 ' + (150 - 86 * tall) + ' L20 ' + ay + '" stroke="' + body + '" stroke-width="6" stroke-linecap="round"/><path d="M53 ' + (150 - 86 * tall) + ' L60 ' + ay + '" stroke="' + body + '" stroke-width="6" stroke-linecap="round"/>';
+    s += '<circle cx="20" cy="' + ay + '" r="4.6" fill="#f6f2ea" stroke="#b8a888"/><circle cx="60" cy="' + ay + '" r="4.6" fill="#f6f2ea" stroke="#b8a888"/>';
+    if (glove) s += '<circle cx="' + (glove.side < 0 ? 19 : 61) + '" cy="' + (ay + 1) + '" r="2.6" fill="' + glove.col + '" opacity=".95"/><circle cx="' + (glove.side < 0 ? 22 : 58) + '" cy="' + (ay - 2) + '" r="1.3" fill="' + glove.col + '"/>';
+    s += '</g></svg>';
+    return s;
+  }
+  function playPesta(opts, cb) {
+    var S = shell("Pulau em pe'er de pe'er &middot; Ruang Sidang Agung", 'Mata Syahbandar &middot; Pesta Topeng');
+    S.cb = cb;
+    var ROUNDS = [
+      { clue: 'Ronde 1 &middot; Topeng dari logam, bukan porselen', hint: 'Topeng porselen berkilau putih. Cari yang buram dan berpaku.' },
+      { clue: 'Ronde 2 &middot; Sarung tangan bernoda cat perunggu', hint: 'Noda anggur itu merah; noda tinta itu biru. Cat perunggu warnanya seperti sayap Garuda.' },
+      { clue: 'Ronde 3 &middot; Tamu yang tidak membungkuk saat lagu kebesaran', hint: 'Dengarkan lagu kebesaran. Semua membungkuk&hellip; hampir semua.' }
+    ];
+    var round = 0, miss = 0;
+    function guests(rd) {
+      var gs = GOWNS.map(function (c, i) { return { id: i, gown: c, mask: 'porc', glove: null, target: i === 0 }; });
+      gs[0].gown = '#e8e2d2';
+      if (rd === 0) { gs[0].mask = 'metal'; gs[3].mask = 'gold'; gs[5].mask = 'gold'; }
+      if (rd === 1) { gs[0].glove = { col: '#a8743a', side: 1 }; gs[2].glove = { col: '#7a1a2a', side: -1 }; gs[4].glove = { col: '#2a3a7a', side: 1 }; gs[6].glove = { col: '#7a1a2a', side: 1 }; }
+      return shuffle(gs);
+    }
+    function render() {
+      var R = ROUNDS[round], gs = guests(round);
+      var pips = ROUNDS.map(function (x, i) { return '<i class="' + (i < round ? 'done' : i === round ? 'on' : '') + '"></i>'; }).join('');
+      S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center"><span class="tsg-clue">' + R.clue + '</span><span class="tsg-pips">' + pips + '</span></div>' +
+        '<div class="tsg-stage"><div class="tsg-ball">' + gs.map(function (g) {
+          var late = round === 2 && g.id === 4;
+          return '<button class="tsg-guest' + (round === 2 && g.target ? ' proud' : '') + (late ? ' late' : '') + '" type="button" data-id="' + g.id + '" aria-label="Tamu bertopeng">' + guestSvg(g, round) + '</button>';
+        }).join('') + '</div></div><div class="tsg-msg">' + (round === 2 ? 'Gamelan istana berhenti. Pengeras suara corong berderak: <b>"Lagu kebesaran!"</b>' : 'Ketuk tamu yang cocok dengan petunjuk.') + '</div>';
+      var ball = S.body.querySelector('.tsg-ball'), msg = S.body.querySelector('.tsg-msg');
+      if (round === 2) S.timers.push(setTimeout(function () { ball.classList.add('bow'); au('page'); }, REDUCE ? 200 : 1500));
+      ball.querySelectorAll('.tsg-guest').forEach(function (b) {
+        b.onclick = function () {
+          if (round === 2 && !ball.classList.contains('bow')) { msg.innerHTML = 'Tunggu lagu kebesarannya dimulai, Kapten.'; return; }
+          var id = +b.getAttribute('data-id');
+          if (id === 0) {
+            b.classList.add('yes'); au('coin');
+            msg.className = 'tsg-msg good';
+            msg.innerHTML = ['Topeng itu bukan porselen. <b>Logam</b>, dengan paku kecil di pipinya.', 'Di ujung jari sarung tangan putih itu: <b>noda cat perunggu</b>.', 'Satu orang tetap berdiri tegak saat semua kepala tertunduk. <b>Pria tinggi bertopeng perunggu.</b>'][round];
+            S.timers.push(setTimeout(function () {
+              round++; miss = 0;
+              if (round < ROUNDS.length) render();
+              else {
+                au('success');
+                S.body.innerHTML = '<div class="tsg-stage" style="display:grid;place-items:center;padding:16px;background:radial-gradient(circle,#4a2a14,#120a06)">' +
+                  '<div style="width:min(260px,60vw)">' + guestSvg({ gown: '#e8e2d2', mask: 'metal', glove: { col: '#a8743a', side: 1 }, target: true }, 0) + '</div></div>' +
+                  '<div class="tsg-msg good">Ketiga petunjuk menunjuk satu orang: pria tinggi bertopeng <b>Garuda perunggu</b>. Ia tidak lari. Ia malah menoleh, dan mengangkat gelasnya ke arahmu.</div>';
+                finishBtn(S, 'Hampiri dia', { win: true, kind: 'pesta' });
+              }
+            }, 1100));
+          } else {
+            miss++; au('error'); b.classList.remove('no'); void b.offsetWidth; b.classList.add('no');
+            msg.className = 'tsg-msg bad';
+            if (miss >= 3) { msg.innerHTML = 'Para tamu mulai berbisik curiga. Kau mundur ke dekat pilar dan mengamati ulang&hellip; <i>' + R.hint + '</i>'; miss = 0; S.timers.push(setTimeout(render, 1600)); }
+            else msg.innerHTML = 'Bukan dia. ' + (miss === 2 ? '<i>' + R.hint + '</i>' : '');
+          }
+        };
+      });
+    }
+    render();
+  }
+
+  /* ============================ KUNCI DUA JARUM ============================ */
+  // 3 cincin bergigi (emas, perak, merah), posisi 0..11 (30°). Memutar satu cincin ikut memutar cincin
+  // tetangganya berlawanan arah. Tujuan: emas & perak sejajar di arah TIMUR (3), merah di celah pelepas (9).
+  // Lalu ketuk jarum merah dengan palu tepat saat ia berhenti bergetar.
+  function compassSvg(a, stage, shake, slot) {
+    var cx = 180, cy = 180, R = [150, 112, 74], col = ['#e8c35a', '#cfd6de', '#d23a2a'], nm = ['emas', 'perak', 'merah'];
+    var s = '<svg viewBox="0 0 360 360" role="img" aria-label="Kompas Tedsky dibuka dari atas">';
+    s += '<circle cx="180" cy="180" r="172" fill="#2a1e12" stroke="#c9a441" stroke-width="4"/>';
+    for (var i = 0; i < 3; i++) {
+      var r = R[i];
+      s += '<circle cx="180" cy="180" r="' + r + '" fill="' + ['#3a2a18', '#33261a', '#2a2016'][i] + '" stroke="#8f6522" stroke-width="2"/>';
+      for (var t = 0; t < 36; t++) { var aa = t / 36 * 6.283; s += '<line x1="' + (cx + Math.cos(aa) * (r - 6)) + '" y1="' + (cy + Math.sin(aa) * (r - 6)) + '" x2="' + (cx + Math.cos(aa) * r) + '" y2="' + (cy + Math.sin(aa) * r) + '" stroke="#6b4a22" stroke-width="2"/>'; }
+    }
+    // tanda arah: timur (sasaran emas & perak) dan celah pelepas (sasaran merah)
+    s += '<text x="338" y="186" font-size="16" fill="#e8c35a" font-family="Cinzel,Georgia" text-anchor="middle">T</text>';
+    s += '<path d="M' + (cx - 160) + ' ' + (cy - 8) + ' l-10 8 l10 8z" fill="#d23a2a"/><text x="14" y="214" font-size="11" fill="#e89080" font-family="Cinzel,Georgia">celah</text>';
+    for (var j = 2; j >= 0; j--) {
+      var ang = a[j] / 12 * 6.283, L = R[j] - 12, w = j === 2 ? 4 : 6;
+      var grp = '<g class="' + (j === 2 && shake ? 'tsg-red-shake' : '') + '"><line x1="180" y1="180" x2="' + (cx + Math.cos(ang) * L) + '" y2="' + (cy + Math.sin(ang) * L) + '" stroke="' + col[j] + '" stroke-width="' + w + '" stroke-linecap="round"/>' +
+        '<circle cx="' + (cx + Math.cos(ang) * L) + '" cy="' + (cy + Math.sin(ang) * L) + '" r="' + (j === 2 ? 5 : 7) + '" fill="' + col[j] + '"/></g>';
+      if (j === 2 && stage < 1) continue; // tahap 1: cincin merah belum dibuka
+      s += grp;
+      void nm;
+    }
+    s += '<circle cx="180" cy="180" r="12" fill="#c9a441" stroke="#5a3a10" stroke-width="2"/>';
+    if (slot) s += '<circle cx="' + (cx - 160) + '" cy="' + cy + '" r="14" fill="none" stroke="#ffd36a" stroke-width="3"/>';
+    return s + '</svg>';
+  }
+  function playJarum(opts, cb) {
+    var S = shell('Gading Island &middot; Kedai Stumpy', 'Kunci Dua Jarum');
+    S.cb = cb;
+    var GOAL = [3, 3, 9], stage = 0, a = [0, 0, 0], asked = false, phase = 'rings', still = false, tries = 0;
+    var STAGES = [
+      { rings: [0, 1], couple: 0.0, scramble: 3, drift: false, note: 'Tahap 1 &middot; Sejajarkan jarum <b>emas</b> dan <b>perak</b> ke arah <b>timur</b> (T).' },
+      { rings: [0, 1, 2], couple: 1, scramble: 5, drift: false, note: 'Tahap 2 &middot; Cincin merah terbuka. Memutar satu cincin ikut memutar cincin di sebelahnya, berlawanan arah. Emas & perak ke <b>timur</b>, merah ke <b>celah</b>.' },
+      { rings: [0, 1, 2], couple: 1, scramble: 6, drift: true, note: 'Tahap 3 &middot; Jarum merah <b>melawan</b>: ia bergeser sendiri setiap beberapa detik. Kunci emas & perak dulu, lalu kejar si merah.' }
+    ];
+    function mod(n) { return ((n % 12) + 12) % 12; }
+    function turn(i, d) {
+      var st = STAGES[stage];
+      a[i] = mod(a[i] + d);
+      if (st.couple) { if (i === 0) a[1] = mod(a[1] - d); else if (i === 1) { a[0] = mod(a[0] - d); } else if (i === 2) a[1] = mod(a[1] - d); }
+    }
+    function solved() { var st = STAGES[stage]; return a[0] === GOAL[0] && a[1] === GOAL[1] && (st.rings.indexOf(2) < 0 || a[2] === GOAL[2]); }
+    function setup() {
+      a = GOAL.slice(); asked = false;
+      var st = STAGES[stage];
+      for (var k = 0; k < st.scramble; k++) { var i = st.rings[Math.floor(Math.random() * st.rings.length)]; turn(i, Math.random() < 0.5 ? 1 : -1); }
+      if (solved()) turn(st.rings[0], 2);
+      if (st.rings.indexOf(2) < 0) a[2] = 0;
+      render('');
+    }
+    function hintText() {
+      var st = STAGES[stage];
+      if (a[0] !== GOAL[0] || a[1] !== GOAL[1]) {
+        if (!st.couple) return 'felyx: "Putar <b>' + (a[0] !== GOAL[0] ? 'cincin emas' : 'cincin perak') + '</b> sampai menunjuk T."';
+        var d = mod(GOAL[0] - a[0]);
+        return 'felyx: "Lihat roda giginya. Kalau emas maju satu, perak mundur satu. Coba atur <b>merah</b> dulu, lalu emas ' + (d <= 6 ? d + ' langkah ke kanan' : (12 - d) + ' langkah ke kiri') + ', lalu rapikan perak."';
+      }
+      return 'felyx: "Emas dan perak sudah benar. Sekarang <b>cincin merah</b> ke celah. Kalau perak ikut bergeser, kembalikan dengan cincin emas."';
+    }
+    function render(m, cls) {
+      var st = STAGES[stage];
+      var pips = STAGES.map(function (x, i) { return '<i class="' + (i < stage ? 'done' : i === stage ? 'on' : '') + '"></i>'; }).join('');
+      var ctrl = '';
+      st.rings.forEach(function (i) { ctrl += '<button class="btn" data-r="' + i + '" data-d="-1" aria-label="Putar cincin ' + ['emas', 'perak', 'merah'][i] + ' ke kiri">&#9664;</button><span style="color:' + ['#e8c35a', '#cfd6de', '#ff8a7a'][i] + '">Cincin ' + ['emas', 'perak', 'merah'][i] + '</span><button class="btn" data-r="' + i + '" data-d="1" aria-label="Putar cincin ' + ['emas', 'perak', 'merah'][i] + ' ke kanan">&#9654;</button>'; });
+      S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center"><span class="tsg-clue">Tahap ' + (stage + 1) + ' dari 3</span><span class="tsg-pips">' + pips + '</span></div>' +
+        '<div class="tsg-stage"><div class="tsg-lock">' + compassSvg(a, st.rings.length - 2, false, false) + '</div></div>' +
+        '<div class="tsg-msg ' + (cls || '') + '">' + (m || st.note) + '</div><div class="tsg-ctrl">' + ctrl + '</div>' +
+        '<div class="tsg-row"><button class="btn btn-ghost-ink" data-ask="1"' + (asked ? ' disabled' : '') + ' style="color:#f4e7c8;border-color:rgba(232,200,120,.45)">Tanya felyx</button><button class="btn btn-ghost-ink" data-reset="1" style="color:#f4e7c8;border-color:rgba(232,200,120,.45)">Setel ulang</button></div>';
+      S.body.querySelectorAll('[data-r]').forEach(function (b) {
+        b.onclick = function () {
+          turn(+b.getAttribute('data-r'), +b.getAttribute('data-d')); au('page');
+          if (solved()) { au('coin', { n: 2 }); if (stage < 2) { stage++; render('<b>Klik.</b> Roda gigi mengunci. ' + STAGES[stage].note, 'good'); setTimeout(setup, 900); return; } hammer(); return; }
+          render('');
+        };
+      });
+      var askB = S.body.querySelector('[data-ask]'); if (askB) askB.onclick = function () { asked = true; render(hintText()); };
+      var rs = S.body.querySelector('[data-reset]'); if (rs) rs.onclick = function () { setup(); };
+    }
+    // tahap 3: si merah bergeser sendiri
+    S.timers.push(setInterval(function () {
+      if (phase !== 'rings' || stage !== 2) return;
+      if (a[0] === GOAL[0] && a[1] === GOAL[1] && a[2] === GOAL[2]) return;
+      turn(2, Math.random() < 0.5 ? 1 : -1); // lewat roda gigi (perak ikut terseret) - teka-teki tetap bisa diselesaikan
+      var lock = S.body.querySelector('.tsg-lock'); if (lock) lock.innerHTML = compassSvg(a, 1, false, false);
+    }, REDUCE ? 6000 : 4200));
+    function hammer() {
+      phase = 'hammer';
+      S.body.innerHTML = '<div class="tsg-row"><span class="tsg-clue">Langkah terakhir</span></div><div class="tsg-stage"><div class="tsg-lock">' + compassSvg(a, 1, true, true) + '</div></div>' +
+        '<div class="tsg-msg">Jarum merah <b>bergetar</b> di celah pelepas, menyala redup. Pegang Palu Kecil Tempa, lalu <b>ketuk tepat saat ia berhenti bergetar</b>.</div>' +
+        '<div class="tsg-row"><button class="btn btn-gold" data-hit="1" style="min-width:160px;min-height:48px">Ketuk dengan palu</button></div>';
+      var lock = S.body.querySelector('.tsg-lock'), msg = S.body.querySelector('.tsg-msg');
+      function cycle() {
+        if (S.done || phase !== 'hammer') return;
+        still = false; lock.innerHTML = compassSvg(a, 1, true, true);
+        var shakeMs = REDUCE ? 1400 : 900 + Math.random() * 1300;
+        S.timers.push(setTimeout(function () {
+          if (S.done || phase !== 'hammer') return;
+          still = true; lock.innerHTML = compassSvg(a, 1, false, true);
+          S.timers.push(setTimeout(cycle, REDUCE ? 1600 : (tries >= 3 ? 1300 : 850)));
+        }, shakeMs));
+      }
+      cycle();
+      S.body.querySelector('[data-hit]').onclick = function () {
+        if (phase !== 'hammer') return;
+        if (still) {
+          phase = 'done'; au('victory');
+          lock.innerHTML = compassSvg(a, 0, false, false); // jarum merah sudah tiada
+          msg.className = 'tsg-msg good'; msg.innerHTML = '<b>Tak!</b> Palu kecil menghantam, dan jarum merah pecah menjadi serbuk. Lonceng angin klenteng berdenting di luar.';
+          finishBtn(S, 'Selesai', { win: true, kind: 'jarum', tries: tries });
+        } else {
+          tries++; au('error'); msg.className = 'tsg-msg bad';
+          msg.innerHTML = 'Palu memantul &mdash; jarum masih bergetar. ' + (tries >= 3 ? 'felyx menahan napas: "Pelan-pelan. Tunggu ia diam."' : 'Tunggu ia diam.');
+        }
+      };
+    }
+    setup();
+  }
+
+  /* ============================ SANDI GAGAK ============================ */
+  // Aksara pelikan (sama dengan Quest 6): tiap huruf = kombinasi 5 goresan. Ketuk aksara, pilih huruf.
+  var STROKES = ['M5 7 Q12 2 19 7', 'M12 5 V19', 'M6 18 L18 8', 'M17 16.5 a1.6 1.6 0 1 0 0.01 0', 'M5 13 H14 Q18 13 18 17'];
+  function glyph(ch) {
+    if (window.CB && CB.glyph) return CB.glyph(ch);
+    var i = ch.charCodeAt(0) - 64; if (i < 1 || i > 26) return '';
+    var d = ''; for (var b = 0; b < 5; b++) if ((i >> b) & 1) d += '<path d="' + STROKES[b] + '"/>';
+    if (i === 1 || i === 2 || i === 4 || i === 8 || i === 16) d += '<path d="M8 21 h8"/>';
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#5a2a14" stroke-width="2" stroke-linecap="round">' + d + '</svg>';
+  }
+  function playSandi(opts, cb) {
+    var S = shell(opts.kicker || 'Otoland &middot; puncak kincir tua', opts.title || 'Sandi Pelikan');
+    S.cb = cb;
+    var PANELS = opts.panels || ['UNTUK G', 'PESTA BULAN MATI', 'RAJAMU AKAN PULANG'], known = {}, pi = 0, sel = null;
+    (opts.known || 'ANU').split('').forEach(function (c) { known[c] = 1; });
+    function solved(t) { for (var i = 0; i < t.length; i++) if (t[i] !== ' ' && !known[t[i]]) return false; return true; }
+    function render() {
+      var t = PANELS[pi];
+      var line = t.split(' ').map(function (wd) {
+        return '<span class="wd">' + wd.split('').map(function (c) {
+          var kn = !!known[c];
+          return '<button class="tsg-cell' + (kn ? ' known' : '') + (sel === c && !kn ? ' sel' : '') + '" type="button" data-c="' + c + '"' + (kn ? ' tabindex="-1" aria-disabled="true"' : '') + ' aria-label="Aksara ' + (kn ? c : 'belum terbaca') + '">' + glyph(c) + '<b>' + (kn ? c : '?') + '</b></button>';
+        }).join('') + '</span>';
+      }).join('');
+      var need = []; for (var i = 0; i < t.length; i++) { var c = t[i]; if (c !== ' ' && !known[c] && need.indexOf(c) < 0) need.push(c); }
+      var pool = need.slice(), deco = 'BCDEFHIKLOSTWY'.split('').filter(function (c) { return pool.indexOf(c) < 0 && !known[c]; });
+      for (var d = 0; d < 3 && deco.length; d++) pool.push(deco.splice(Math.floor(Math.random() * deco.length), 1)[0]);
+      pool.sort();
+      S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center"><span class="tsg-clue">Baris ' + (pi + 1) + ' dari ' + PANELS.length + '</span></div>' +
+        '<div class="tsg-stage"><div class="tsg-ciph"><div class="ln">' + line + '</div>' + (need.length ? '<div class="tsg-keys">' + pool.map(function (c) { return '<button class="btn btn-sm" data-k="' + c + '"' + (sel ? '' : ' disabled') + '>' + c + '</button>'; }).join('') + '</div>' : '') + '</div></div>' +
+        '<div class="tsg-msg">Aksara yang sama dengan surat-surat pelikan Marlya. <b>Ketuk aksara yang belum terbaca</b>, lalu pilih hurufnya. Huruf yang benar terisi di semua tempat.</div>';
+      S.body.querySelectorAll('.tsg-cell:not(.known)').forEach(function (b) { b.onclick = function () { sel = b.getAttribute('data-c'); au('page'); render(); }; });
+      S.body.querySelectorAll('[data-k]').forEach(function (b) {
+        b.onclick = function () {
+          if (!sel) return;
+          if (b.getAttribute('data-k') === sel) {
+            known[sel] = 1; sel = null; au('coin');
+            if (solved(PANELS[pi])) { pi++; if (pi >= PANELS.length) return done(); }
+            render();
+          } else { au('error'); var ln = S.body.querySelector('.ln'); if (ln) { ln.classList.remove('tsg-shake'); void ln.offsetWidth; ln.classList.add('tsg-shake'); } }
+        };
+      });
+      if (!need.length) setTimeout(function () { if (!S.done) { pi++; if (pi >= PANELS.length) done(); else render(); } }, 300);
+    }
+    function done() {
+      au('success');
+      S.body.innerHTML = '<div class="tsg-stage"><div class="tsg-ciph"><div class="ln" style="flex-direction:column;gap:6px;font-family:Georgia,serif;font-size:1.1em;text-align:center">' + (opts.reveal || '') + '</div></div></div>';
+      finishBtn(S, 'Lipat suratnya', { win: true, kind: 'sandi' });
+    }
+    render();
+  }
+
+  var KINDS = { jejak: playJejak, pesta: playPesta, jarum: playJarum, sandi: playSandi };
+  function open(kind, opts, cb) {
+    var f = KINDS[kind];
+    if (!f) { if (cb) setTimeout(function () { cb({ cancelled: true, error: 'unknown' }); }, 0); return; }
+    try { if (window.MTAudio && MTAudio.unlock) MTAudio.unlock(); } catch (e) { }
+    try { f(opts || {}, function (res) { if (cb) cb(res || { cancelled: true }); }); }
+    catch (e) { console.warn('[MTGames3]', kind, e); if (cur) cur.close(true); if (cb) cb({ cancelled: true, error: String(e) }); }
+  }
+  function isOpen() { return !!cur; }
+  return { open: open, isOpen: isOpen, glyph: glyph, _compass: compassSvg };
+})();
+</script>
