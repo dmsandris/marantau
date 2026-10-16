@@ -20,6 +20,7 @@
   .tsg-list li .ck { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.08); font-size: 12px; }
   .tsg-list li.got .ck { background: #3f7a4a; color: #fff; }
   .tsg-list li:not(.got) { opacity: .55; }
+  .tsg-bat { position: relative; width: 74px; height: 12px; border-radius: 4px; border: 1px solid rgba(232,200,120,.5); padding: 1px; } .tsg-bat::after { content: ''; position: absolute; right: -5px; top: 3px; width: 3px; height: 6px; background: rgba(232,200,120,.5); border-radius: 1px; } .tsg-bat i { display: block; height: 100%; width: 100%; border-radius: 2px; background: #e8c878; transition: width .2s, background .3s; }
   .tsg-row { width: min(860px, 100%); display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0; }
   .tsg-pips { display: flex; gap: 6px; } .tsg-pips i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.18); } .tsg-pips i.on { background: #e8c878; } .tsg-pips i.done { background: #6fcf8a; }
   /* Mata Pesta */
@@ -104,28 +105,77 @@ var MTGames3 = (function () {
   }
 
   /* ============================ OLAH JEJAK ============================ */
-  // Adegan diam (SVG 1000x600) + senter yang mengikuti jari/kursor. 5 jejak; tiap jejak membuka satu pikiran.
+  // Versi dewasa: adegan gelap (SVG 1000x600), senter bertenaga baterai yang mengikuti jari/kursor.
+  // - 5 jejak asli tidak disebut namanya; daftar hanya menunjukkan berapa yang sudah ketemu.
+  // - Benda pengecoh (red herring) & ketukan kosong menguras baterai. Baterai juga habis pelan.
+  //   Baterai habis = senter padam beberapa detik, lalu menyala lagi setengah (tidak ada kalah).
+  // - Lingkar senter mengecil seiring baterai. Kena jejak harus tepat (zona sempit).
+  // - Petunjuk kilat baru muncul setelah 60 detik tanpa temuan, dan hanya menandai area kasar.
+  // - Setelah 5 jejak: dua pertanyaan penalaran. Jawaban salah dijelaskan lalu boleh dicoba lagi.
   var JEJAK = {
     brankas: {
       kicker: 'Javasche Bank &middot; ruang brankas', title: 'Olah Jejak',
-      intro: 'Ruang brankas gelap gulita. Arahkan senter, lalu <b>ketuk benda yang mencurigakan</b>. Ada lima jejak.',
+      intro: 'Ruang brankas gelap gulita. Ada <b>lima jejak</b> yang ditinggalkan pencurinya. Banyak hal lain di ruangan ini hanya kebetulan. Baterai senter terbatas: <b>ketukan sembarangan menguras tenaga</b>.',
       clues: [
-        { id: 'bulu', x: 205, y: 520, r: 46, t: 'Bulu logam hitam', th: 'Bulu ini dari logam, bukan bulu burung. <b>Gagak mesin.</b>' },
-        { id: 'cat', x: 610, y: 330, r: 40, t: 'Cat perunggu di gagang pintu', th: 'Bekas cat perunggu di gagang pintu brankas. Warna yang sama dengan Garuda IKN. <b>Tedsky.</b>' },
-        { id: 'silang', x: 520, y: 210, r: 52, t: 'Tiga goresan silang', th: 'Tiga goresan silang, tanda Armada Bebas&hellip; tapi goresannya <b>rapi dan sama dalam</b>. Dibuat dengan alat, bukan pisau. <b>Fitnah.</b>' },
-        { id: 'emas', x: 830, y: 440, r: 56, t: 'Emas yang tidak disentuh', th: 'Tumpukan emas dan surat berharga ini <b>tidak disentuh sama sekali</b>. Pencurinya tidak butuh uang.' },
-        { id: 'laci', x: 335, y: 395, r: 46, t: 'Laci kecil yang kosong', th: 'Satu laci kecil terbuka dan <b>kosong</b>. Di sebelahnya, foto Nansy, terbalik seperti biasa. Ada yang lebih berharga dari emas.' }
+        { id: 'bulu', x: 207, y: 519, r: 26, t: 'Bulu logam hitam', th: 'Bulu ini dari logam, bukan bulu burung. <b>Gagak mesin.</b>' },
+        { id: 'cat', x: 610, y: 328, r: 20, t: 'Cat perunggu di gagang pintu', th: 'Bekas cat perunggu di gagang pintu brankas. Warna yang sama dengan Garuda IKN. <b>Tedsky.</b>' },
+        { id: 'silang', x: 520, y: 210, r: 34, t: 'Tiga goresan silang', th: 'Tiga goresan silang, tanda Armada Bebas&hellip; tapi goresannya <b>rapi dan sama dalam</b>. Dibuat dengan alat, bukan pisau.' },
+        { id: 'emas', x: 815, y: 445, r: 34, t: 'Emas yang tidak disentuh', th: 'Tumpukan emas dan surat berharga ini <b>tidak disentuh sama sekali</b>. Pencurinya tidak butuh uang.' },
+        { id: 'laci', x: 335, y: 395, r: 24, t: 'Laci kecil yang kosong', th: 'Satu laci kecil terbuka dan <b>kosong</b>. Di sebelahnya, foto Nansy, terbalik seperti biasa. Ada yang lebih berharga dari emas.' }
+      ],
+      decoys: [
+        { x: 150, y: 276, r: 24, th: 'Laci-laci lain terkunci rapat. Debunya tidak terganggu.' },
+        { x: 220, y: 400, r: 24, th: 'Laci deposito biasa, terkunci. Bukan ini.' },
+        { x: 540, y: 565, r: 34, th: 'Koin dari hujan emas semalam. Semua orang sudah melihat ini. Justru itu tujuannya.' },
+        { x: 480, y: 45, r: 34, th: 'Pecahan kubah kaca. Mereka masuk dari atas. Seluruh Joungjava sudah tahu.' },
+        { x: 660, y: 270, r: 26, th: 'Roda pengunci brankas. Tidak ada bekas dicongkel.' },
+        { x: 120, y: 560, r: 26, th: 'Buku besar penjaga malam, terbuka di halaman kemarin. Tulisannya rapi. Tidak ada yang aneh.' },
+        { x: 905, y: 300, r: 22, th: 'Lampu minyak di dinding. Padam, sumbunya masih panjang.' },
+        { x: 905, y: 449, r: 18, th: 'Surat obligasi. Masih bersegel.' }
+      ],
+      deduce: [
+        { q: 'Siapa yang membuat tiga goresan silang di pintu brankas?', opts: [
+          { t: 'Andry Ivankov dan Armada Bebas', why: 'Pisau meninggalkan goresan yang dalamnya tak rata. Tiga goresan ini sama dalam, sama rapi. Bukan tangan pelaut.' },
+          { t: 'Seseorang yang ingin Armada Bebas disalahkan', ok: true, why: 'Goresan buatan alat, di tempat yang paling mudah dilihat. <b>Tanda tangan palsu.</b>' },
+          { t: 'Penjaga malam yang panik', why: 'Buku jaga malam rapi, tak ada tanda panik. Dan penjaga tak membawa cat perunggu.' }
+        ] },
+        { q: 'Apa yang sebenarnya dicari pencurinya?', opts: [
+          { t: 'Emas dan surat berharga', why: 'Emasnya masih bertumpuk dan obligasinya masih bersegel. Yang berhamburan di pasar hanya umpan.' },
+          { t: 'Isi satu laci kecil yang kini kosong', ok: true, why: 'Satu-satunya yang hilang dari ruangan penuh harta. <b>Sesuatu yang lebih berharga dari emas.</b>' },
+          { t: 'Foto Miss Nansy', why: 'Foto itu masih di tempatnya, terbalik seperti biasa. Tak tersentuh.' }
+        ] }
       ]
     },
     bengkel: {
       kicker: 'FreeYork &middot; bengkel besar', title: 'Olah Jejak',
-      intro: 'Bengkel itu gelap kecuali bara di tungku kecil. Arahkan lentera, lalu <b>ketuk benda yang mencurigakan</b>. Ada lima jejak.',
+      intro: 'Bengkel itu gelap kecuali bara di tungku kecil. Ada <b>lima jejak</b> di antara besi tua dan alat kerja. Minyak lentera terbatas: <b>ketukan sembarangan menguras tenaga</b>.',
       clues: [
-        { id: 'sayap', x: 230, y: 300, r: 60, t: 'Rangka di bawah terpal', th: 'Puluhan rangka logam kecil berbentuk <b>sayap</b>, ditutupi terpal.' },
-        { id: 'mata', x: 470, y: 470, r: 46, t: 'Peti mata kaca', th: 'Satu peti penuh <b>mata kaca merah</b>. Ratusan.' },
-        { id: 'pesanan', x: 760, y: 190, r: 46, t: 'Kertas pesanan bercap J.T.', th: '<i>"500 ekor. Dan dua sayap besar untuk kapalku. Dibayar saat kita pulang."</i> Cap: <b>J.T.</b>' },
-        { id: 'jarum', x: 640, y: 405, r: 34, t: 'Cetakan jarum kecil', th: 'Sebuah <b>cetakan jarum</b>, panjangnya sejari. Tassyaaa sendiri tidak tahu untuk apa: "Iiituuu jaaaruuum jaaam."' },
-        { id: 'surat', x: 885, y: 395, r: 40, t: 'Surat di saku celemek', th: '<i>"Mak, aku juru mudi sekarang. Kapal kami punya sayap. Jangan cari aku. — Petrik."</i>' }
+        { id: 'sayap', x: 230, y: 305, r: 36, t: 'Rangka di bawah terpal', th: 'Puluhan rangka logam kecil berbentuk <b>sayap</b>, ditutupi terpal.' },
+        { id: 'mata', x: 470, y: 465, r: 28, t: 'Peti mata kaca', th: 'Satu peti penuh <b>mata kaca merah</b>. Ratusan.' },
+        { id: 'pesanan', x: 762, y: 198, r: 30, t: 'Kertas pesanan bercap J.T.', th: '<i>"500 ekor. Dan dua sayap besar untuk kapalku. Dibayar saat kita pulang."</i> Cap: <b>J.T.</b>' },
+        { id: 'jarum', x: 643, y: 407, r: 18, t: 'Cetakan jarum kecil', th: 'Sebuah <b>cetakan jarum</b>, panjangnya sejari. Tassyaaa sendiri tidak tahu untuk apa: "Iiituuu jaaaruuum jaaam."' },
+        { id: 'surat', x: 885, y: 387, r: 18, t: 'Surat di saku celemek', th: '<i>"Mak, aku juru mudi sekarang. Kapal kami punya sayap. Jangan cari aku. — Petrik."</i>' }
+      ],
+      decoys: [
+        { x: 95, y: 515, r: 34, th: 'Bara tungku kecil. Masih hangat. Seseorang bekerja sampai larut, seperti setiap malam di FreeYork.' },
+        { x: 300, y: 545, r: 32, th: 'Tumpukan rantai baru. Tak terjual sejak perbudakan dihapus.' },
+        { x: 560, y: 175, r: 30, th: 'Rak palu dan penjepit. Semuanya terpakai, semuanya biasa.' },
+        { x: 710, y: 410, r: 16, th: 'Batang besi mentah. Belum ditempa.' },
+        { x: 960, y: 545, r: 26, th: 'Ember air pendingin. Airnya hitam oleh debu arang.' },
+        { x: 885, y: 330, r: 22, th: 'Celemek kulit Tassyaaa. Penuh bekas percikan api.' },
+        { x: 400, y: 380, r: 24, th: 'Landasan tempa. Permukaannya cekung, dipakai tiga generasi.' }
+      ],
+      deduce: [
+        { q: 'Untuk siapa burung-burung itu ditempa?', opts: [
+          { t: 'Dewan Mahkota di em pe\'er de pe\'er', why: 'Dewan memesan jarum jam, kata Tassyaaa. Tapi cap di kertas pesanan bukan cap Dewan.' },
+          { t: 'Jendral Tedsky', ok: true, why: 'Cap <b>J.T.</b>, lima ratus ekor, dan dua sayap besar "untuk kapalku". Dibayar dengan janji.' },
+          { t: 'Armada Bebas', why: 'Armada Bebas tak punya kapal bersayap. Dan Andry tak pernah berjanji "pulang sebagai tuan".' }
+        ] },
+        { q: 'Benda mana di bengkel ini yang paling tidak pada tempatnya?', opts: [
+          { t: 'Peti mata kaca merah', why: 'Mata kaca memang bagian pesanan burung. Mengerikan, tapi sesuai pesanan.' },
+          { t: 'Cetakan jarum kecil di meja Tassyaaa', ok: true, why: 'Jarum sejari di bengkel yang menempa sayap dan lunas kapal. <b>Bukan untuk jam.</b> Untuk apa, kau belum tahu.' },
+          { t: 'Tumpukan rantai baru', why: 'Rantai memang dagangan lama FreeYork. Getir, tapi bukan jejak.' }
+        ] }
       ]
     }
   };
@@ -154,7 +204,10 @@ var MTGames3 = (function () {
     s += '<rect x="880" y="430" width="50" height="38" fill="#efe6d2" stroke="#8f6522" transform="rotate(-6 905 449)"/>';
     // koin berserakan & bulu logam
     for (var k = 0; k < 7; k++) s += '<circle cx="' + (430 + k * 55) + '" cy="' + (560 + (k % 3) * 8) + '" r="7" fill="#d9a441" opacity=".8"/>';
-    s += '<path d="M180 530 q20 -30 55 -24 q-18 6 -30 22 z" fill="#15161a" stroke="#6a7280" stroke-width="1.5"/><path d="M190 527 l38 -18" stroke="#8a929e" stroke-width="1"/>';
+    s += '<path d="M193 528 q12 -18 32 -15 q-11 4 -18 13 z" fill="#15161a" stroke="#4a505a" stroke-width="1"/><path d="M199 526 l22 -11" stroke="#6a727e" stroke-width=".8"/>';
+    // pengecoh: buku besar penjaga, lampu minyak dinding
+    s += '<g transform="rotate(-8 120 560)"><rect x="90" y="545" width="62" height="34" fill="#4a2a1a" stroke="#1a0e08" stroke-width="2"/><rect x="94" y="548" width="26" height="28" fill="#d9cfb8"/><rect x="122" y="548" width="26" height="28" fill="#cfc4aa"/></g>';
+    s += '<path d="M895 286 h20 v6 h-20 z M898 292 q7 22 14 0" fill="#6a5030" stroke="#2a1a0c" stroke-width="2"/><rect x="903" y="272" width="4" height="14" fill="#2a1a0c"/>';
     return '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Ruang brankas Javasche Bank">' + s + '</svg>';
   }
   function sceneBengkel() {
@@ -178,59 +231,150 @@ var MTGames3 = (function () {
     s += '<path d="M860 300 h50 l8 160 h-66 z" fill="#7a5032" stroke="#3a2412" stroke-width="3"/><rect x="866" y="385" width="38" height="26" fill="#5a3a22"/><rect x="872" y="378" width="26" height="18" fill="#efe6d2"/>';
     // tungku kecil berbara
     s += '<rect x="40" y="470" width="110" height="90" fill="#3a2a22"/><rect x="62" y="500" width="66" height="34" fill="#ff7a2a" opacity=".85"/>';
+    // pengecoh: rantai, rak palu, ember, landasan
+    for (var c = 0; c < 9; c++) s += '<ellipse cx="' + (262 + (c % 5) * 18) + '" cy="' + (552 - Math.floor(c / 5) * 12) + '" rx="10" ry="6" fill="none" stroke="#7a7a80" stroke-width="3"/>';
+    s += '<rect x="520" y="150" width="84" height="8" fill="#3a2618"/>';
+    for (var h = 0; h < 4; h++) s += '<rect x="' + (530 + h * 20) + '" y="158" width="4" height="34" fill="#5a4a3a"/><rect x="' + (524 + h * 20) + '" y="190" width="16" height="9" fill="#6a6a70"/>';
+    s += '<path d="M940 525 h40 l-5 40 h-30 z" fill="#4a4a50" stroke="#1a1a1e" stroke-width="2"/><ellipse cx="960" cy="525" rx="20" ry="5" fill="#101012"/>';
+    s += '<path d="M370 370 h60 l-8 14 h-44 z" fill="#3a3a40" stroke="#121214" stroke-width="2"/><rect x="388" y="384" width="24" height="26" fill="#2a2a30"/>';
     return '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Bengkel besar FreeYork">' + s + '</svg>';
   }
   function playJejak(opts, cb) {
     var cfg = JEJAK[opts.variant] || JEJAK.brankas, S = shell(cfg.kicker, cfg.title);
     S.cb = cb;
-    S.body.innerHTML = '<div class="tsg-stage">' + (opts.variant === 'bengkel' ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
+    var warm = opts.variant === 'bengkel', N = cfg.clues.length;
+    S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center;margin:0 0 6px"><span class="tsg-clue">Jejak <b class="jj-n">0</b> / ' + N + '</span>' +
+      '<span class="tsg-bat" title="' + (warm ? 'Minyak lentera' : 'Baterai senter') + '"><i></i></span></div>' +
+      '<div class="tsg-stage">' + (warm ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
       '<div class="tsg-msg">' + cfg.intro + '</div><ul class="tsg-list"></ul>';
     var stage = S.body.querySelector('.tsg-stage'), svg = stage.querySelector('svg'), cv = stage.querySelector('canvas'), ctx = cv.getContext('2d');
-    var msg = S.body.querySelector('.tsg-msg'), list = S.body.querySelector('.tsg-list'), found = {}, nFound = 0, lx = 500, ly = 300, lastFind = Date.now(), hint = null;
-    list.innerHTML = cfg.clues.map(function (c) { return '<li data-id="' + c.id + '"><span class="ck">?</span><span>' + esc(c.t) + '</span></li>'; }).join('');
-    var warm = opts.variant === 'bengkel';
+    var msg = S.body.querySelector('.tsg-msg'), list = S.body.querySelector('.tsg-list'), nEl = S.body.querySelector('.jj-n'), batEl = S.body.querySelector('.tsg-bat i');
+    var found = {}, nFound = 0, lx = 500, ly = 300, lastFind = Date.now(), hint = null, bat = 100, outUntil = 0, outs = 0, misses = 0, seenDecoy = {}, phase = 'search', t0 = Date.now();
+    list.innerHTML = cfg.clues.map(function (c, i) { return '<li data-i="' + i + '"><span class="ck">?</span><span>Jejak ' + (i + 1) + '</span></li>'; }).join('');
+    var slots = [];
     function size() { var r = stage.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); ctx.setTransform(d, 0, 0, d, 0, 0); draw(); }
     function k() { var r = stage.getBoundingClientRect(); return r.width / 1000; }
+    function radius() { var sm = stage.getBoundingClientRect().width < 600 ? 1.3 : 1; return (52 + 43 * Math.max(0, bat) / 100) * sm; }
+    function out() { return Date.now() < outUntil; }
     function hole(x, y, rad, a) {
-      var g = ctx.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, 'rgba(0,0,0,' + a + ')'); g.addColorStop(0.65, 'rgba(0,0,0,' + (a * 0.85) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      var g = ctx.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, 'rgba(0,0,0,' + a + ')'); g.addColorStop(0.55, 'rgba(0,0,0,' + (a * 0.8) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 6.3); ctx.fill();
     }
+    function drawBat() {
+      batEl.style.width = Math.max(0, bat) + '%';
+      batEl.style.background = bat > 45 ? '#e8c878' : bat > 20 ? '#e89a48' : '#e0503a';
+    }
     function draw() {
-      var r = stage.getBoundingClientRect(), K = k();
+      var r = stage.getBoundingClientRect(), K = k(), rad = radius();
       ctx.globalCompositeOperation = 'source-over'; ctx.clearRect(0, 0, r.width, r.height);
-      ctx.fillStyle = warm ? 'rgba(8,4,2,.93)' : 'rgba(4,5,10,.94)'; ctx.fillRect(0, 0, r.width, r.height);
+      ctx.fillStyle = warm ? 'rgba(6,3,1,.995)' : 'rgba(3,4,8,.997)'; ctx.fillRect(0, 0, r.width, r.height);
       ctx.globalCompositeOperation = 'destination-out';
-      hole(lx * K, ly * K, 130 * K, 1);
-      cfg.clues.forEach(function (c) { if (found[c.id]) hole(c.x * K, c.y * K, c.r * 1.3 * K, 0.85); });
-      if (hint) { var hp = 0.4 + 0.4 * Math.abs(Math.sin(Date.now() / 220)); hole(hint.x * K, hint.y * K, hint.r * 1.6 * K, hp); }
+      if (!out()) {
+        var flick = bat < 15 ? 0.55 + 0.45 * Math.abs(Math.sin(Date.now() / 90)) : 1;
+        hole(lx * K, ly * K, rad * K, flick);
+      }
+      cfg.clues.forEach(function (c) { if (found[c.id]) hole(c.x * K, c.y * K, c.r * 1.5 * K, 0.7); });
+      if (hint && !out()) { var hp = 0.18 + 0.18 * Math.abs(Math.sin(Date.now() / 300)); hole(hint.x * K, hint.y * K, hint.R * K, hp); }
       ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = warm ? 'rgba(255,190,110,.5)' : 'rgba(220,235,255,.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(lx * K, ly * K, 128 * K, 0, 6.3); ctx.stroke();
-      cfg.clues.forEach(function (c) { if (!found[c.id]) return; ctx.strokeStyle = 'rgba(150,230,170,.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x * K, c.y * K, c.r * 0.95 * K, 0, 6.3); ctx.stroke(); });
+      if (!out()) { ctx.strokeStyle = warm ? 'rgba(255,190,110,.35)' : 'rgba(220,235,255,.25)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(lx * K, ly * K, (rad - 2) * K, 0, 6.3); ctx.stroke(); }
+      cfg.clues.forEach(function (c) { if (!found[c.id]) return; ctx.strokeStyle = 'rgba(150,230,170,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x * K, c.y * K, (c.r + 6) * K, 0, 6.3); ctx.stroke(); });
+    }
+    function drain(n) {
+      bat -= n; drawBat();
+      if (bat <= 0 && !out()) {
+        bat = 0; outs++; outUntil = Date.now() + 6000; hint = null; au('page');
+        msg.className = 'tsg-msg bad';
+        msg.innerHTML = warm ? '<b>Lentera padam.</b> Minyaknya habis. Kau meraba-raba dalam gelap mencari kaleng minyak&hellip;' : '<b>Senter padam.</b> Baterainya habis. Kau meraba-raba dalam gelap mencari baterai cadangan&hellip;';
+        S.timers.push(setTimeout(function () {
+          bat = 55; drawBat(); lastFind = Date.now();
+          msg.className = 'tsg-msg'; msg.innerHTML = warm ? 'Lentera menyala lagi, tapi minyaknya tinggal setengah. Lebih hati-hati.' : 'Senter menyala lagi dengan baterai cadangan setengah penuh. Lebih hati-hati.';
+          draw();
+        }, 6000));
+      }
     }
     function pt(e) { var r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 1000, y: (e.clientY - r.top) / r.height * 600 }; }
-    stage.addEventListener('pointermove', function (e) { var p = pt(e); lx = p.x; ly = p.y; draw(); });
+    stage.addEventListener('pointermove', function (e) { if (phase !== 'search') return; var p = pt(e); lx = p.x; ly = p.y; draw(); });
     stage.addEventListener('pointerdown', function (e) {
-      var p = pt(e); lx = p.x; ly = p.y;
-      var best = null, bd = 1e9;
-      cfg.clues.forEach(function (c) { if (found[c.id]) return; var d = Math.hypot(c.x - p.x, c.y - p.y); if (d < c.r + 18 && d < bd) { bd = d; best = c; } });
+      if (phase !== 'search' || out()) return;
+      var p = pt(e), touch = e.pointerType === 'touch';
+      var moved = Math.hypot(p.x - lx, p.y - ly);
+      lx = p.x; ly = p.y;
+      // Di layar sentuh, ketukan jauh dari lingkar senter hanya memindahkan senter (tanpa memeriksa).
+      if (touch && moved > radius() * 0.9) { drain(1); draw(); return; }
+      var tol = touch ? 10 : 4, best = null, bd = 1e9;
+      cfg.clues.forEach(function (c) { if (found[c.id]) return; var d = Math.hypot(c.x - p.x, c.y - p.y); if (d < c.r + tol && d < bd) { bd = d; best = c; } });
       if (best) {
-        found[best.id] = 1; nFound++; lastFind = Date.now(); hint = null; au('coin');
-        var li = list.querySelector('[data-id="' + best.id + '"]'); li.classList.add('got'); li.querySelector('.ck').textContent = '✓';
+        found[best.id] = 1; var idx = nFound; nFound++; lastFind = Date.now(); hint = null; au('coin');
+        nEl.textContent = nFound;
+        var li = list.querySelector('[data-i="' + idx + '"]'); li.classList.add('got'); li.querySelector('.ck').textContent = '✓';
         li.querySelector('span:last-child').innerHTML = '<b>' + esc(best.t) + '.</b> ' + best.th;
-        msg.className = 'tsg-msg good'; msg.innerHTML = best.th + ' <span style="opacity:.7">(' + nFound + '/' + cfg.clues.length + ')</span>';
-        if (nFound >= cfg.clues.length) { au('success'); msg.innerHTML = '<b>Lima jejak.</b> ' + (opts.doneLine || 'Gambarnya mulai utuh.'); finishBtn(S, 'Selesai memeriksa', { win: true, kind: 'jejak' }); }
-      } else { au('page'); }
+        msg.className = 'tsg-msg good'; msg.innerHTML = best.th;
+        if (nFound >= N) startDeduce();
+      } else {
+        var dec = null;
+        (cfg.decoys || []).forEach(function (c) { if (!dec && Math.hypot(c.x - p.x, c.y - p.y) < c.r + tol) dec = c; });
+        misses++;
+        if (dec) {
+          var again = seenDecoy[dec.x + ':' + dec.y]; seenDecoy[dec.x + ':' + dec.y] = 1;
+          msg.className = 'tsg-msg'; msg.innerHTML = (again ? '<i>Sudah kau periksa.</i> ' : '') + dec.th;
+          au('page'); drain(again ? 10 : 7);
+        } else {
+          msg.className = 'tsg-msg'; msg.innerHTML = ['Tidak ada apa-apa di situ.', 'Hanya debu dan bayangan.', 'Kosong.', 'Bukan apa-apa.'][misses % 4];
+          au('page'); drain(9);
+        }
+      }
       draw();
     });
-    S.timers.push(setInterval(function () {
-      if (nFound >= cfg.clues.length) { hint = null; draw(); return; }
-      if (!hint && Date.now() - lastFind > 20000) {
-        var rest = cfg.clues.filter(function (c) { return !found[c.id]; }), best = null, bd = 1e9;
-        rest.forEach(function (c) { var d = Math.hypot(c.x - lx, c.y - ly); if (d < bd) { bd = d; best = c; } });
-        hint = best; msg.className = 'tsg-msg'; msg.innerHTML = 'Ada sesuatu yang berkilat di kegelapan&hellip;';
+    function startDeduce() {
+      phase = 'deduce'; hint = null; au('success');
+      var qi = 0, wrong = 0;
+      function ask() {
+        var D = cfg.deduce[qi];
+        msg.className = 'tsg-msg';
+        msg.innerHTML = '<b>Lima jejak.</b> Sekarang rangkai.<br><span class="tsg-clue">Penalaran ' + (qi + 1) + ' / ' + cfg.deduce.length + '</span><br>' + D.q;
+        var row = S.body.querySelector('.jj-ans'); if (row) row.remove();
+        row = document.createElement('div'); row.className = 'tsg-row jj-ans'; row.style.flexDirection = 'column'; row.style.alignItems = 'stretch';
+        row.innerHTML = shuffle(D.opts.map(function (o, i) { return i; })).map(function (i) { return '<button class="btn btn-ghost-ink" type="button" data-o="' + i + '" style="text-align:left;white-space:normal">' + esc(D.opts[i].t) + '</button>'; }).join('');
+        msg.parentNode.insertBefore(row, msg.nextSibling);
+        Array.prototype.forEach.call(row.children, function (b) {
+          b.onclick = function () {
+            var o = D.opts[+b.getAttribute('data-o')];
+            if (!o) return;
+            if (o.ok) {
+              au('coin'); row.remove();
+              msg.className = 'tsg-msg good'; msg.innerHTML = o.why;
+              qi++;
+              if (qi < cfg.deduce.length) { S.timers.push(setTimeout(ask, 2600)); }
+              else {
+                var secs = Math.round((Date.now() - t0) / 1000);
+                msg.innerHTML = o.why + '<br><br>' + (opts.doneLine || 'Gambarnya mulai utuh.') +
+                  ' <span style="opacity:.7">(' + secs + ' detik &middot; ' + misses + ' ketukan meleset' + (outs ? ' &middot; ' + (warm ? 'lentera' : 'senter') + ' padam ' + outs + '&times;' : '') + (wrong ? ' &middot; ' + wrong + ' salah nalar' : '') + ')</span>';
+                var score = Math.max(10, 100 - misses * 3 - outs * 12 - wrong * 10);
+                finishBtn(S, 'Selesai memeriksa', { win: true, kind: 'jejak', score: score });
+              }
+            } else {
+              wrong++; au('page'); b.disabled = true; b.style.opacity = '.45';
+              msg.className = 'tsg-msg bad'; msg.innerHTML = D.q + '<br><i>' + o.why + '</i>';
+            }
+          };
+        });
       }
-      if (hint) draw();
+      S.timers.push(setTimeout(ask, 2200));
+    }
+    S.timers.push(setInterval(function () {
+      if (phase !== 'search') { draw(); return; }
+      if (!out()) drain(0.12);
+      if (!hint && !out() && Date.now() - lastFind > 60000) {
+        var rest = cfg.clues.filter(function (c) { return !found[c.id]; });
+        var c = rest[Math.floor(Math.random() * rest.length)];
+        // tandai area kasar (bukan titik tepat): pusat digeser acak, radius lebar
+        var ang = Math.random() * 6.28, off = 40 + Math.random() * 50;
+        hint = { x: c.x + Math.cos(ang) * off, y: c.y + Math.sin(ang) * off, R: 170 };
+        msg.className = 'tsg-msg'; msg.innerHTML = 'Sesuatu berkilat samar di sudut matamu&hellip; di sekitar sana.';
+      }
+      draw();
     }, 120));
+    drawBat();
     window.addEventListener('resize', size); S.onClose = function () { window.removeEventListener('resize', size); };
     setTimeout(size, 30);
   }
