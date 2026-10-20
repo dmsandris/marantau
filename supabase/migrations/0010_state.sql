@@ -52,7 +52,8 @@ begin
     'barsati', game.bx_state(v_pid),
     'kompas', game.kp_state(v_pid),
     'cocoepan', game.cb_state(v_pid),
-    'tigasilang', game.ts_state(v_pid)
+    'tigasilang', game.ts_state(v_pid),
+    'limatangan', game.lt_state(v_pid)
   );
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru

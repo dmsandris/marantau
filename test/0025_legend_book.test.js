@@ -29,7 +29,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   await H.sql(`select game.item_adjust($1, 'qi_buku_pancing_maudy', 1)`, [pid]);
   let b = await book();
   assert(b.total === 21 && b.found === 0 && b.entries.length === 21, 'buku 21 entri');
-  assert(b.entries.filter(e => e.available).length === 12, '12 legenda bisa ditangkap (10 + Tiram Otoland & Paus Bisu dari Quest 7)');
+  assert(b.entries.filter(e => e.available).length === 13, '13 legenda bisa ditangkap (10 + Tiram Otoland & Paus Bisu dari Quest 7 + Marlin Garam dari Quest 8)');
   assert(b.entries.every((e, i) => e.no === i + 1) && b.entries.every(e => e.name === null), 'urut 1..21, nama tersembunyi');
   const hiu = b.entries.find(e => e.id === 'hiu_garuda');
   assert(hiu.here && hiu.ready && hiu.bait === 'Besi' && hiu.time === 'Siang', 'Hiu Garuda siap di IKN siang dengan besi ' + JSON.stringify(hiu));

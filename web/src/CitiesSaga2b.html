@@ -1,0 +1,226 @@
+<script>
+/* =====================================================================
+ * Kota Saga 2 · Quest 8 "Lima Tangan" (Tide v32): Kepulauan Karang Garam, Pelabuhan Rantai Lama,
+ * Kota Sowtour. Didaftarkan ke MTCities.register; memakai helper MTCities.H yang sama dengan kota lain.
+ * Elemen bergerak (kilau garam, kabut, lonceng tanpa tali, cermin menara, Mata Seribu) memakai dyn
+ * {type:'fn'} dari SceneEngine. Prosedural, tanpa aset eksternal. Hormat pada inst.reduced.
+ * ===================================================================== */
+(function () {
+  if (!window.MTCities || !MTCities.register || !MTCities.H || !window.MTUtil) return;
+  var H = MTCities.H;
+  function lerp(a, b, f) { return a + (b - a) * f; }
+  function glowAt(ctx, x, y, r, col, a) {
+    if (a <= 0.004 || r <= 0.5) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function lt(fn, def) { try { return window.LT && LT[fn] ? LT[fn]() : def; } catch (e) { return def; } }
+
+  /* ======================= KEPULAUAN KARANG GARAM ======================= */
+  function stiltHouse(ctx, x, base, w, h, wall, roof, u) {
+    ctx.strokeStyle = '#6b5236'; ctx.lineWidth = Math.max(1, u * 0.1);
+    for (var p = 0; p < 4; p++) { var px = x + w * (0.08 + p * 0.28); ctx.beginPath(); ctx.moveTo(px, base); ctx.lineTo(px, base - h * 0.45); ctx.stroke(); }
+    var y0 = base - h * 0.45;
+    ctx.fillStyle = '#8a6a44'; ctx.fillRect(x - u * 0.15, y0 - u * 0.12, w + u * 0.3, u * 0.14);
+    ctx.fillStyle = wall; ctx.fillRect(x, y0 - h * 0.4, w, h * 0.4);
+    ctx.fillStyle = 'rgba(40,30,20,.5)'; ctx.fillRect(x + w * 0.38, y0 - h * 0.3, w * 0.22, h * 0.3);
+    ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(x - u * 0.3, y0 - h * 0.4); ctx.lineTo(x + w / 2, y0 - h * 0.78); ctx.lineTo(x + w + u * 0.3, y0 - h * 0.4); ctx.closePath(); ctx.fill();
+    return y0;
+  }
+  function drawKarang(inst, ctx, p, t, dt, d) {
+    // kilau ladang garam & mutiara di siang hari, kabut putih tipis di pagi
+    ctx.globalCompositeOperation = 'lighter';
+    for (var k = 0; k < d.pans.length; k++) {
+      var pn = d.pans[k], s = inst.reduced ? 0.9 : Math.sin(t * 1.1 + pn.ph);
+      if (s < 0.8) continue;
+      glowAt(ctx, pn.x, pn.y, d.u * 0.55, '255,255,250', (s - 0.8) * 1.8 * (1 - p.lights * 0.8));
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // perahu desa dirantai ke tiang: rantai bergoyang sedikit
+    ctx.strokeStyle = 'rgba(70,70,74,.9)'; ctx.lineWidth = Math.max(1, d.u * 0.06);
+    for (var b = 0; b < d.boats.length; b++) {
+      var bt = d.boats[b], sw = inst.reduced ? 0 : Math.sin(t * 1.3 + b) * d.u * 0.08;
+      ctx.beginPath(); ctx.moveTo(bt.px, bt.py); ctx.quadraticCurveTo((bt.px + bt.bx) / 2 + sw, Math.max(bt.py, bt.by) + d.u * 0.3, bt.bx, bt.by); ctx.stroke();
+    }
+    var mist = Math.max(0, 1 - Math.abs((p.frac || 0.3) - 0.12) * 7);
+    if (mist > 0.02) { ctx.fillStyle = 'rgba(240,248,250,' + (0.28 * mist).toFixed(3) + ')'; ctx.fillRect(0, d.q - d.u * 6, inst.W, d.u * 6); }
+  }
+  function karangGaram(B) {
+    var u = B.u, q = B.qTop, ctx = B.ctx, r = B.r;
+    H.hills(B, { c: ['#f2efe6', '#d8d2c0'], h: 0.12, peak: 0.6, trees: 5, kind: 'palm', jag: 0.05 });
+    var hy = B.hillY;
+    // benteng karang yang tumbuh sendiri (lereng putih bergerigi)
+    ctx.fillStyle = '#efe9da';
+    for (var c = 0; c < 9; c++) { var cx = u * (2 + c * 3.1), cb = Math.min(q - u * 2.6, hy(cx) + u * 1.4), ch = u * (1.2 + r() * 1.4); ctx.beginPath(); ctx.moveTo(cx - u * 0.9, cb); for (var j = 0; j <= 6; j++) ctx.lineTo(cx - u * 0.9 + j * u * 0.3, cb - ch * (0.5 + (j % 2) * 0.5) * (1 - Math.abs(j - 3) / 4)); ctx.lineTo(cx + u * 0.9, cb); ctx.closePath(); ctx.fill(); }
+    // ladang garam
+    var pans = [];
+    for (var x = u * 12.5; x < u * 21; x += u * 1.15) {
+      var y0 = Math.min(q - u * 2.4, hy(x) + u * 1.6);
+      ctx.fillStyle = (x / u | 0) % 2 ? '#f7f9fa' : '#e6f0f3'; ctx.fillRect(x, y0, u * 1.0, u * 0.36);
+      ctx.strokeStyle = 'rgba(150,140,110,.6)'; ctx.lineWidth = 0.7; ctx.strokeRect(x, y0, u * 1.0, u * 0.36);
+      pans.push({ x: x + u * 0.5, y: y0 + u * 0.18, ph: r() * 6 });
+    }
+    H.woodQuay(B, 0, u * 29.6);
+    // Lumbung Garam (gudang)
+    var ly = stiltHouse(ctx, u * 0.5, q, u * 3.0, u * 3.2, '#e9e2cc', '#b89a6a', u);
+    H.sign(ctx, u * 0.7, ly - u * 1.2, u * 2.6, u * 0.42, ['LUMBUNG GARAM'], 'plank', { bg: '#f4efe0' });
+    H.hot(B, 'cargo', 'Lumbung Garam', 'warehouse', u * 0.4, q - u * 3.6, u * 3.2, u * 3.6);
+    // Pasar Garam & Mutiara: lapak di dermaga
+    var sc = ['#e9eef2', '#2f8aa0', '#e9eef2', '#c9a35a'];
+    for (var s = 0; s < 4; s++) H.stall(ctx, u * (4.0 + s * 0.85), q + u * 0.02, u * 0.8, u * 1.0, sc[s], '#f4ecd8');
+    H.sign(ctx, u * 4.0, q - u * 1.75, u * 3.1, u * 0.42, ['GARAM & MUTIARA'], 'board', { bg: '#f6efdd', fg: '#1e5a6a' });
+    H.hot(B, 'market', 'Pasar Garam & Mutiara', 'scales', u * 3.9, q - u * 2.6, u * 3.4, u * 2.6);
+    // Balai Desa Tiang (misi)
+    var by = stiltHouse(ctx, u * 7.8, q, u * 3.2, u * 3.6, '#2f8aa0', '#e9e2cc', u);
+    H.sign(ctx, u * 8.1, by - u * 1.25, u * 2.6, u * 0.42, ['BALAI DESA'], 'board', { bg: '#f4f7f8', fg: '#1e4a5a' });
+    H.hot(B, 'tasks', 'Balai Desa Tiang', 'scroll', u * 7.7, q - u * 3.9, u * 3.4, u * 3.9);
+    // Kas Desa (bank) & Pencatat Pasang Surut (pustaka)
+    stiltHouse(ctx, u * 11.5, q, u * 2.0, u * 2.8, '#e6dcc4', '#8a6a3a', u);
+    H.hot(B, 'bank', 'Kas Desa', 'bank', u * 11.4, q - u * 3.0, u * 2.2, u * 3.0);
+    stiltHouse(ctx, u * 13.9, q, u * 2.0, u * 2.6, '#d8ecef', '#6b5236', u);
+    H.hot(B, 'library', 'Pencatat Pasang Surut', 'book', u * 13.8, q - u * 2.8, u * 2.2, u * 2.8);
+    // Dapur Penyelam (lapau)
+    var dy = stiltHouse(ctx, u * 16.4, q, u * 2.8, u * 3.0, '#f2e6c8', '#a8583a', u);
+    H.sign(ctx, u * 16.6, dy - u * 1.05, u * 2.4, u * 0.4, ['DAPUR PENYELAM'], 'plank', { bg: '#d8b47a' });
+    H.hot(B, 'tavern', 'Dapur Penyelam', 'cup', u * 16.3, q - u * 3.2, u * 3.0, u * 3.2);
+    // Galangan kecil (kapal)
+    ctx.fillStyle = '#6b5236'; ctx.fillRect(u * 19.6, q - u * 0.25, u * 3.2, u * 0.2);
+    H.hot(B, 'ship', 'Galangan Karang', 'wrench', u * 19.5, q - u * 2.2, u * 3.4, u * 2.2);
+    // DESA TIANG: rumah Ama Kerang di ujung, di atas air
+    var ay = stiltHouse(ctx, u * 24.6, q + u * 0.6, u * 3.4, u * 4.0, '#f4efe0', '#2f6a7a', u);
+    ctx.fillStyle = '#efe9da'; ctx.beginPath(); ctx.arc(u * 26.3, ay - u * 1.75, u * 0.28, 0, 6.3); ctx.fill(); // kerang di pintu
+    H.hot(B, 'ama', 'Rumah Ama Kerang', 'star', u * 24.4, q - u * 3.6, u * 3.8, u * 4.2);
+    // perahu desa dirantai ke tiang
+    var boats = [];
+    [[22.8, 0.55], [27.6, 0.75], [23.6, 1.1]].forEach(function (b) {
+      var bx = u * b[0], byy = q + u * b[1];
+      ctx.fillStyle = '#2f8aa0'; ctx.beginPath(); ctx.moveTo(bx - u * 0.9, byy); ctx.quadraticCurveTo(bx, byy + u * 0.4, bx + u * 0.9, byy); ctx.lineTo(bx + u * 0.7, byy + u * 0.18); ctx.lineTo(bx - u * 0.7, byy + u * 0.18); ctx.closePath(); ctx.fill();
+      boats.push({ bx: bx - u * 0.8, by: byy, px: bx - u * 1.8, py: q - u * 0.1 });
+    });
+    B.dyn.push({ type: 'fn', fn: drawKarang, pans: pans, boats: boats, u: u, q: q });
+    B.flags.push({ x: u * 9.4, y: q - u * 5.0, h: u * 0.9, col: '#2f8aa0' });
+    B.moored.push({ type: 'jukung', x: B.W * 0.16, y: B.H * 0.86, s: B.H * 0.0026, dir: 1, sail: '#f4efe0' }, { type: 'rowboat', x: B.W * 0.4, y: B.H * 0.9, s: B.H * 0.0024, dir: -1 });
+    B.walk = { style: 'villagers', n: 9, x0: u * 1, x1: u * 23 };
+  }
+
+  /* ======================= PELABUHAN RANTAI LAMA ======================= */
+  function drawRantai(inst, ctx, p, t, dt, d) {
+    // lonceng pelelangan tanpa tali berayun oleh angin; debu beterbangan
+    var a = inst.reduced ? 0.05 : Math.sin(t * 0.9) * 0.18;
+    ctx.save(); ctx.translate(d.bell.x, d.bell.y); ctx.rotate(a);
+    ctx.fillStyle = p.lit('#6a5a3a'); ctx.beginPath(); ctx.moveTo(-d.u * 0.35, d.u * 0.55); ctx.quadraticCurveTo(-d.u * 0.32, 0, 0, 0); ctx.quadraticCurveTo(d.u * 0.32, 0, d.u * 0.35, d.u * 0.55); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // bulu pelikan perak di dinding gudang: berpendar saat malam
+    var lo = p.lights;
+    if (lo > 0.15) {
+      ctx.globalCompositeOperation = 'lighter';
+      for (var i = 0; i < d.feathers.length; i++) { var f = d.feathers[i], fl = inst.reduced ? 1 : 0.7 + 0.3 * Math.sin(t * 2 + f.ph); glowAt(ctx, f.x, f.y, d.u * 0.35, '210,225,255', 0.45 * lo * fl); ctx.fillStyle = 'rgba(235,240,255,' + (0.8 * lo * fl).toFixed(3) + ')'; ctx.fillRect(f.x - 0.6, f.y - d.u * 0.18, 1.2, d.u * 0.36); }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // kabut rendah
+    ctx.fillStyle = 'rgba(200,196,186,' + (0.12 + 0.05 * Math.sin(t * 0.3)).toFixed(3) + ')'; ctx.fillRect(0, d.q - d.u * 3, inst.W, d.u * 3);
+  }
+  function rantaiLama(B) {
+    var u = B.u, q = B.qTop, ctx = B.ctx, r = B.r;
+    H.hills(B, { c: ['#7a7064', '#4a443c'], h: 0.2, peak: 0.45, trees: 3, kind: 'tree', rocky: true, jag: 0.05 });
+    H.stoneQuay(B, 0, u * 29.6, '#5a554e');
+    // tiang-tiang pasung berkarat berderet seperti gigi
+    for (var i = 0; i < 16; i++) { var x = u * (1 + i * 0.8), h = u * (1.4 + r() * 0.5); ctx.fillStyle = i % 3 ? '#4a3a2c' : '#5a4232'; ctx.fillRect(x, q - h, u * 0.22, h); ctx.fillStyle = '#6a5a4a'; ctx.fillRect(x - u * 0.12, q - h * 0.7, u * 0.46, u * 0.12); }
+    // gudang tanpa pintu (dinding bulu pelikan)
+    var gx = u * 14.5, gw = u * 6.0, gh = u * 2.8;
+    H.bld(B, { x: gx, w: gw, base: q, h: gh, roof: 'gable', rh: u * 1.0, wall: '#6a6058', roofCol: '#3a3430' });
+    ctx.fillStyle = '#16120e'; ctx.fillRect(gx + gw * 0.4, q - gh * 0.7, gw * 0.2, gh * 0.7);
+    var feathers = []; for (var f = 0; f < 22; f++) feathers.push({ x: gx + u * 0.3 + r() * (gw * 0.34), y: q - gh * (0.2 + r() * 0.65), ph: r() * 6 });
+    for (var f2 = 0; f2 < 14; f2++) feathers.push({ x: gx + gw * 0.64 + r() * (gw * 0.3), y: q - gh * (0.2 + r() * 0.65), ph: r() * 6 });
+    H.hot(B, 'gudang', 'Dinding Gudang', 'moon', gx, q - gh - u * 1.2, gw, gh + u * 1.2);
+    // menara lonceng pelelangan
+    var bx = u * 11.8; ctx.fillStyle = '#3a342e'; ctx.fillRect(bx - u * 0.12, q - u * 3.6, u * 0.24, u * 3.6); ctx.fillRect(bx - u * 0.7, q - u * 3.6, u * 1.4, u * 0.18);
+    // bengkel rantai kecil: tungku dingin, huruf T dua kali di kusen
+    var kx = u * 23.5, kw = u * 2.6, kh = u * 1.8;
+    H.bld(B, { x: kx, w: kw, base: q, h: kh, roof: 'flat', rh: u * 0.2, wall: '#4a4038', roofCol: '#2a2420' });
+    ctx.fillStyle = '#0e0b09'; ctx.fillRect(kx + kw * 0.32, q - kh * 0.78, kw * 0.36, kh * 0.78);
+    ctx.fillStyle = 'rgba(220,210,190,.7)'; ctx.font = Math.round(u * 0.32) + 'px Georgia'; ctx.fillText('T', kx + kw * 0.22, q - kh * 0.62); ctx.fillText('T', kx + kw * 0.22, q - kh * 0.25);
+    H.chimney(B, kx + kw * 0.8, q - kh - u * 0.1, u * 1.2, u * 0.32);
+    H.hot(B, 'bengkelrantai', 'Bengkel Rantai Kecil', 'eye', kx, q - kh - u * 1.4, kw, kh + u * 1.4);
+    B.dyn.push({ type: 'fn', fn: drawRantai, bell: { x: bx, y: q - u * 3.4 }, feathers: feathers, u: u, q: q });
+    B.noPosters = true; B.walk = null; B.roamers = [];
+  }
+
+  /* ============================ KOTA SOWTOUR ============================ */
+  function tower(ctx, x, base, w, h, u) {
+    ctx.fillStyle = '#8a8478'; ctx.beginPath(); ctx.moveTo(x - w * 0.5, base); ctx.lineTo(x - w * 0.36, base - h); ctx.lineTo(x + w * 0.36, base - h); ctx.lineTo(x + w * 0.5, base); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.moveTo(x + w * 0.1, base); ctx.lineTo(x + w * 0.08, base - h); ctx.lineTo(x + w * 0.36, base - h); ctx.lineTo(x + w * 0.5, base); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#6a6458'; ctx.fillRect(x - w * 0.46, base - h - u * 0.2, w * 0.92, u * 0.24);
+    ctx.fillStyle = '#2a2622'; for (var k = 1; k < 4; k++) ctx.fillRect(x - w * 0.06, base - h * k / 4, w * 0.12, h * 0.07);
+    // sarang pelikan
+    ctx.strokeStyle = '#5a4a32'; ctx.lineWidth = 0.8; for (var n = 0; n < 6; n++) { ctx.beginPath(); ctx.moveTo(x - w * 0.3 + n * w * 0.1, base - h - u * 0.22); ctx.lineTo(x - w * 0.25 + n * w * 0.1, base - h - u * 0.42); ctx.stroke(); }
+    return { x: x, y: base - h - u * 0.75 };
+  }
+  function drawSowtour(inst, ctx, p, t, dt, d) {
+    var lit = lt('towersLit', 0), u = d.u;
+    for (var i = 0; i < d.mirrors.length; i++) {
+      var m = d.mirrors[i], on = i < lit;
+      ctx.fillStyle = on ? '#f4f6ff' : '#2a2620'; ctx.beginPath(); ctx.ellipse(m.x, m.y, u * 0.34, u * 0.5, 0, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#a8a090'; ctx.lineWidth = 1; ctx.stroke();
+      if (on) {
+        var a = 0.5 + 0.3 * (inst.reduced ? 1 : Math.sin(t * 1.6 + i));
+        glowAt(ctx, m.x, m.y, u * (2 + p.lights * 3), '230,240,255', a * (0.4 + p.lights * 0.6));
+        if (p.lights > 0.2) { ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(230,240,255,' + (0.18 * p.lights).toFixed(3) + ')'; ctx.lineWidth = u * 0.5; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(d.top.x, d.top.y); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
+        // pelikan pulang
+        var px = m.x + Math.sin(t * 0.5 + i) * u * 0.2; ctx.fillStyle = '#f2efe6'; ctx.beginPath(); ctx.ellipse(px, m.y - u * 0.75, u * 0.28, u * 0.14, 0, 0, 6.3); ctx.fill(); ctx.fillStyle = '#e8a040'; ctx.fillRect(px + u * 0.22, m.y - u * 0.78, u * 0.3, u * 0.06);
+      }
+    }
+    // Mata Seribu di menara tertinggi
+    if (lt('msAlive', false)) {
+      var tx = d.top.x, ty = d.top.y - u * 0.9, sc = u * 1.6, flap = inst.reduced ? 0.3 : Math.sin(t * 2) * 0.5 + 0.5;
+      ctx.fillStyle = '#08070a';
+      ctx.beginPath(); ctx.ellipse(tx, ty, sc, sc * 0.42, 0, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.arc(tx + sc * 0.95, ty - sc * 0.18, sc * 0.34, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(tx - sc * 0.3, ty - sc * 0.1); ctx.lineTo(tx - sc * 1.1, ty - sc * (0.5 + flap * 1.2)); ctx.lineTo(tx + sc * 0.5, ty - sc * 0.12); ctx.closePath(); ctx.fill();
+      var ex = tx + sc * 1.05, ey = ty - sc * 0.24, sweep = inst.reduced ? 0 : Math.sin(t * 0.7);
+      glowAt(ctx, ex, ey, sc * 0.5, '255,40,30', 0.9);
+      if (p.lights > 0.1) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,40,30,' + (0.08 * p.lights).toFixed(3) + ')'; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + inst.W * 0.25 * sweep - u * 4, d.q); ctx.lineTo(ex + inst.W * 0.25 * sweep + u * 4, d.q); ctx.closePath(); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
+    }
+    // kain hitam di jendela sampai kota bercahaya
+    if (lit < 3) { ctx.fillStyle = 'rgba(10,8,8,.85)'; for (var w = 0; w < d.wins.length; w++) ctx.fillRect(d.wins[w].x, d.wins[w].y, d.wins[w].w, d.wins[w].h); }
+  }
+  function sowtour(B) {
+    var u = B.u, q = B.qTop, ctx = B.ctx, r = B.r;
+    H.hills(B, { c: ['#9a9484', '#5a564c'], h: 0.24, peak: 0.5, trees: 6, kind: 'tree', jag: 0.03,
+      village: { walls: ['#d8d0bc', '#c9c0aa', '#e6dcc4'], roofs: ['#5a4a3a', '#3a3430', '#6b5a4a'], types: ['gable', 'flat', 'hip'], prob: 0.5 } });
+    var hy = B.hillY, mirrors = [];
+    // tiga menara cermin di lereng + menara tertinggi di tengah
+    [[6.2, 3.4], [21.6, 3.8], [26.8, 3.0]].forEach(function (m) { var X = u * m[0], base = Math.min(q - u * 3.2, hy(X) + u * 1.8); mirrors.push(tower(ctx, X, base, u * 1.2, u * m[1], u)); });
+    var TX = u * 14.6, tb = Math.min(q - u * 4, hy(TX) + u * 1.5), top = tower(ctx, TX, tb, u * 1.8, u * 5.2, u);
+    H.hot(B, 'menara', 'Menara Tertinggi', 'sun', TX - u * 1.2, tb - u * 6.2, u * 2.4, u * 6.2);
+    H.stoneQuay(B, 0, u * 29.6, '#8a8478');
+    var wins = [];
+    function house(x, w, h, wall, roof, id, title, icon, label) {
+      H.bld(B, { x: x, w: w, base: q, h: h, roof: 'gable', rh: u * 0.8, wall: wall, roofCol: roof });
+      for (var k = 0; k < 2; k++) wins.push({ x: x + w * (0.18 + k * 0.42), y: q - h * 0.75, w: w * 0.22, h: h * 0.3 });
+      if (label) H.sign(ctx, x + w * 0.1, q - h * 0.98, w * 0.8, u * 0.4, [label], 'board', { bg: '#2a2622', fg: '#e8e0cc', frame: '#5a564c' });
+      H.hot(B, id, title, icon, x, q - h - u * 1.1, w, h + u * 1.1);
+    }
+    house(u * 0.5, u * 2.8, u * 2.2, '#c9c0aa', '#3a3430', 'cargo', 'Gudang Cermin', 'warehouse', 'GUDANG');
+    house(u * 3.6, u * 2.6, u * 2.0, '#e6dcc4', '#5a4a3a', 'market', 'Pasar Porselen', 'scales', 'PASAR');
+    house(u * 7.8, u * 3.0, u * 2.4, '#d8d0bc', '#3a3430', 'tasks', 'Syahbandar Menara', 'scroll', 'SYAHBANDAR');
+    house(u * 10.9, u * 2.0, u * 2.0, '#c9c0aa', '#6b5a4a', 'bank', 'Bank Cermin', 'bank', 'BANK');
+    house(u * 17.0, u * 2.4, u * 2.2, '#e6dcc4', '#3a3430', 'library', 'Arsip Suara', 'book', 'ARSIP');
+    house(u * 19.6, u * 2.5, u * 1.9, '#d8d0bc', '#5a4a3a', 'tavern', 'Kedai Lonceng', 'cup', 'KEDAI');
+    // garasi Om Baayu dengan motor tua di bawah terpal
+    ctx.fillStyle = '#4a4238'; ctx.fillRect(u * 23.0, q - u * 1.3, u * 2.2, u * 1.3);
+    ctx.fillStyle = '#6a6a5a'; ctx.beginPath(); ctx.ellipse(u * 24.1, q - u * 0.35, u * 0.8, u * 0.32, 0, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#c9a441'; ctx.beginPath(); ctx.arc(u * 24.1, q - u * 1.05, u * 0.16, 0, 6.3); ctx.fill(); // lambang roda bersayap
+    H.hot(B, 'ship', 'Galangan Menara', 'wrench', u * 25.6, q - u * 2.0, u * 3.6, u * 2.0);
+    B.dyn.push({ type: 'fn', fn: drawSowtour, mirrors: mirrors, top: top, wins: wins, u: u, q: q });
+    B.flags.push({ x: TX, y: tb - u * 6.0, h: u * 0.9, col: '#e8e0cc' });
+    B.moored.push({ type: 'brig', x: B.W * 0.2, y: B.H * 0.82, s: B.H * 0.0014, dir: 1, flag: '#e8e0cc' });
+    B.walk = { style: 'villagers', n: 8, x0: u * 1, x1: u * 22 };
+  }
+
+  MTCities.register('karang_garam', karangGaram);
+  MTCities.register('rantai_lama', rantaiLama, 'overcast');
+  MTCities.register('sowtour', sowtour, 'overcast');
+})();
+</script>
