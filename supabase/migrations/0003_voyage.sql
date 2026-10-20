@@ -208,6 +208,25 @@ begin
   );
 end $$;
 
+-- Tide v33: kondisi maksimum efektif - satu rumus untuk tampilan, reparasi, dan clamp kondisi.
+-- (Sebelumnya bonus Lambung Baja Regal hanya muncul di ship_json; clamp & reparasi tidak ikut.)
+-- Bonus buku tidak berlaku untuk Black Pearl (lihat game.ship_book_effect).
+create or replace function game.voy_max_cond(p_pid uuid) returns numeric
+language plpgsql stable as $$
+begin
+  return 100 + coalesce((game.voy_effective_stats(p_pid) ->> 'maxConditionBonus')::numeric, 0)
+    + case when game.ship_book_effect(p_pid, 'regal_hull') then 50 else 0 end
+    + case when game.ship_book_effect(p_pid, 'fy_ukir') then 30 else 0 end;
+end $$;
+
+-- Tide v33: pengurangan penurunan kondisi per pelayaran (upgrade + Catatan Angin Tanjung), maks 60%
+create or replace function game.voy_decay_red(p_pid uuid) returns numeric
+language plpgsql stable as $$
+begin
+  return least(60, coalesce((game.voy_effective_stats(p_pid) ->> 'decayReductionPercent')::numeric, 0)
+    + case when game.ship_book_effect(p_pid, 'oto_angin') then 30 else 0 end);
+end $$;
+
 -- nextPurchaseSlot_
 create or replace function game.voy_next_slot(p_state jsonb) returns jsonb
 language plpgsql immutable as $$
@@ -247,8 +266,7 @@ begin
   book_bonus := case when coalesce(game.has_effect(p_pid, 'cargo_bonus_10'), false) then 10 else 0 end;
   e := game.voy_effective_stats(p_pid);
   cargo_bonus := book_bonus + (e ->> 'cargoBonus')::numeric;
-  eff_max := 100 + (e ->> 'maxConditionBonus')::numeric
-    + case when coalesce(game.has_effect(p_pid, 'regal_hull'), false) then 50 else 0 end;
+  eff_max := game.voy_max_cond(p_pid);
   cond := least(coalesce(s.condition, eff_max), eff_max);
   lsum := game.ship_level_sum(e -> 'upgrades');
   tn := case when leg = 'pearl' then 5 else greatest(1, least(5, floor(lsum / 4.0)))::int end;
@@ -269,11 +287,13 @@ begin
     'MaxCannonAmmo', game.cfg_num('CombatBaseAmmo', 3) + (e ->> 'cannonAmmoBonus')::numeric
       + case when coalesce(game.has_effect(p_pid, 'satnislaus_cannon'), false) then 2 else 0 end,
     -- Buku Navigasi Pusaran Ivankov: waktu tempuh -10% (batas tercepat tetap, lihat voy_travel_seconds)
-    'TravelMul', case when coalesce(game.has_effect(p_pid, 'ivankov_nav'), false) then 0.9 else 1 end,
+    -- Tide v33: Hikayat Kincir Tua juga -10% (bertumpuk: 0,81), tidak untuk Black Pearl
+    'TravelMul', case when coalesce(game.has_effect(p_pid, 'ivankov_nav'), false) then 0.9 else 1 end
+      * case when game.ship_book_effect(p_pid, 'oto_kincir') then 0.9 else 1 end,
     'ShipUpgrades', e -> 'upgrades',
     'EffectiveMaxCondition', eff_max,
     'ConditionPct', case when eff_max > 0 then game.voy_round(cond / eff_max * 100) else 100 end,
-    'DecayReductionPercent', e -> 'decayReductionPercent',
+    'DecayReductionPercent', game.voy_decay_red(p_pid),
     'Legend', leg
   );
 end $$;
@@ -296,7 +316,7 @@ declare cur numeric; mx numeric; nxt numeric;
 begin
   select condition into cur from game.ships where player_id = p_pid for update;
   if not found then return null; end if;
-  mx := 100 + (game.voy_effective_stats(p_pid) ->> 'maxConditionBonus')::numeric;
+  mx := game.voy_max_cond(p_pid);
   cur := coalesce(cur, mx);
   nxt := game.voy_round(greatest(0, least(mx, cur + coalesce(p_delta, 0))));
   update game.ships set condition = nxt where player_id = p_pid;
@@ -311,7 +331,7 @@ begin
   select condition_decay_per_sail into frac from game.ships where player_id = p_pid;
   if not found then return 0; end if;
   frac := coalesce(frac, 0.03);
-  return frac * 100 * (1 - (game.voy_effective_stats(p_pid) ->> 'decayReductionPercent')::numeric / 100);
+  return frac * 100 * (1 - game.voy_decay_red(p_pid) / 100);
 end $$;
 
 create or replace function game.voy_damage_threshold(p_pid uuid) returns numeric
@@ -324,11 +344,13 @@ declare s game.ships; mx numeric; cur numeric; missing numeric; rate numeric; co
 begin
   select * into s from game.ships where player_id = p_pid;
   if not found then raise exception 'Kapal tidak ditemukan.'; end if;
-  mx := 100 + (game.voy_effective_stats(p_pid) ->> 'maxConditionBonus')::numeric;
+  mx := game.voy_max_cond(p_pid);
   cur := least(coalesce(s.condition, mx), mx);
   missing := greatest(0, mx - cur);
   select repair_cost_rate into rate from game.cities where city_id = p_city;
   if rate is null or rate = 0 then rate := 1; end if;
+  -- Tide v33: Resep Ramuan Sinshe Tan -25%
+  if game.ship_book_effect(p_pid, 'gd_ramuan') then rate := rate * 0.75; end if;
   cost := game.voy_round(missing * game.cfg_num('ShipRepairBaseCostPerPoint', 15) * rate);
   return jsonb_build_object('currentCondition', game.voy_round(cur), 'maxCondition', mx,
     'missing', game.voy_round(missing), 'cost', cost);
@@ -614,6 +636,10 @@ begin
 
   decay := game.voy_decay_for_voyage(p_pid);
   if decay > 0 then perform game.apply_condition_delta(p_pid, -decay); end if;
+  -- Tide v33: Resep Ramuan Sinshe Tan - tiap merapat kondisi pulih +5% (kota penyembuh sudah memulihkan sendiri)
+  if game.ship_book_effect(p_pid, 'gd_ramuan') and not coalesce(game.heal_city(p_pid, p_target), false) then
+    perform game.apply_condition_delta(p_pid, game.voy_max_cond(p_pid) * 0.05);
+  end if;
 
   begin
     perform game.voy_maybe_roll_city_event(p_target);
@@ -668,7 +694,20 @@ begin
     'enemyHp', max_hp,
     'maxAmmo', max_ammo,
     'ammoRemaining', max_ammo,
+    'randomPirate', true,   -- Tide v33: penanda bajak laut acak (efek Lampion & Rantai)
     'round', 1);
+end $$;
+
+-- Tide v33: Kitab Tungku Dua Puluh Tahun: +1 amunisi, sekali per pertempuran PvE (penanda bljAmmo)
+create or replace function game.voy_enc_book(p_pid uuid, p_enc jsonb) returns jsonb
+language plpgsql stable as $$
+begin
+  if p_enc is null or jsonb_typeof(p_enc) <> 'object' or coalesce((p_enc ->> 'bljAmmo')::boolean, false)
+     or not game.ship_book_effect(p_pid, 'fy_tungku') then
+    return p_enc;
+  end if;
+  return p_enc || jsonb_build_object('bljAmmo', true,
+    'maxAmmo', game.voy_num(p_enc -> 'maxAmmo') + 1, 'ammoRemaining', game.voy_num(p_enc -> 'ammoRemaining') + 1);
 end $$;
 
 -- LocationService.resolveArrivalIfDue (aman dari proses ganda: baris lokasi dikunci & dicek ulang)
@@ -705,7 +744,7 @@ begin
     end if;
   end if;
 
-  enc := game.voy_roll_encounter(p_pid, l.destination_city_id);
+  enc := game.voy_enc_book(p_pid, game.voy_roll_encounter(p_pid, l.destination_city_id));
   if enc is not null then
     update game.player_location set pending_encounter = enc where player_id = p_pid;
     perform game.log(p_pid, 'Sails spotted on the horizon - a pirate vessel closes in!');
@@ -1085,6 +1124,12 @@ begin
   ship := coalesce(game.ship_json(pid), '{}'::jsonb);
   lvl := game.voy_num(enc -> 'enemyLevel')::int;
   is_boss := coalesce(enc ->> 'boss', '') <> '';
+  -- Tide v33: Kitab Tungku Dua Puluh Tahun - hanya pertempuran PvE (Duel Lambung tidak lewat sini).
+  -- +8% peluang tembak kena; +1 amunisi, diberikan sekali per pertempuran (penanda bljAmmo).
+  if game.ship_book_effect(pid, 'fy_tungku') then
+    ship := ship || jsonb_build_object('CannonBonusPercent', game.voy_num(ship -> 'CannonBonusPercent') + 8);
+  end if;
+  enc := game.voy_enc_book(pid, enc);
   if is_boss and v_tactic in ('bribe', 'negotiate') then
     if enc ? 'noTalkMsg' then raise exception '%', enc ->> 'noTalkMsg'; end if;
     raise exception '% tertawa: "Suap? Runding? Aku tak butuh gold-mu!" - bos ini tidak bisa disuap atau diajak berunding.', enc ->> 'enemyName';
@@ -1161,6 +1206,10 @@ begin
 
   if defeated then
     loot := case when is_boss then 0 else game.voy_round(game.cfg_num('CombatLootGoldPerLevel', 200) * lvl * (0.9 + random() * 0.3)) end;
+    -- Tide v33: Lampion yang Tak Dibuang - jarahan bajak laut acak +30%
+    if coalesce((enc ->> 'randomPirate')::boolean, false) and coalesce(game.has_effect(pid, 'gd_lampion'), false) then
+      loot := game.voy_round(loot * 1.3);
+    end if;
     update game.players set gold = gold + loot::bigint where player_id = pid;
     final_msg := (r ->> 'message') || ' Tembakan itu ternyata mematikan - ' || (enc ->> 'enemyName') ||
       ' tenggelam dan kru menjarah ' || loot || ' gold dari puing kapal sebelum berlayar lagi.';
@@ -1174,6 +1223,15 @@ begin
     target := voyage ->> 'originCityId';
     final_msg := coalesce(r ->> 'message', '') || ' Lambung kapalmu jebol di bawah gempuran ' || (enc ->> 'enemyName') ||
       '! Armada sekutu menarikmu keluar dari medan tempur - kapal selamat, tapi harus diperbaiki sebelum kembali bertempur.';
+    final_result := 'sunk';
+  elsif sinking and coalesce((enc ->> 'randomPirate')::boolean, false) and coalesce(game.has_effect(pid, 'fy_rantai'), false) then
+    -- Tide v33: Rantai yang Dilepas - tenggelam melawan bajak laut acak: gold aman, muatan hilang 20%
+    eff_max := game.voy_num(game.ship_json(pid) -> 'EffectiveMaxCondition');
+    perform game.apply_condition_delta(pid, eff_max * 0.25);
+    perform game.voy_lose_cargo(pid, 0.2);
+    target := voyage ->> 'originCityId';
+    final_msg := 'The ship went down under ' || (enc ->> 'enemyName') || '''s assault after ' || coalesce(enc ->> 'round', '1') ||
+      ' rounds of fighting! Rantai yang Dilepas: kru menyelamatkan peti gold dan sebagian besar muatan - hanya seperlima yang hilang ke laut.';
     final_result := 'sunk';
   elsif sinking then
     eff_max := game.voy_num(game.ship_json(pid) -> 'EffectiveMaxCondition');

@@ -1823,7 +1823,7 @@
     }).api_getLibrary();
   }
 
-  var TIER_SPINE = { I: '#2f7a45', II: '#1a4d69', III: '#8c2a1d', IV: '#6a2f8a' };
+  var TIER_SPINE = { I: '#2f7a45', II: '#1a4d69', III: '#8c2a1d', IV: '#6a2f8a', V: '#2b6f78', VI: '#a8741a' };
   function renderLibraryWith_(lib) {
     var html = panelHeader_('book', 'Library', 'Koleksi ' + lib.owned.length + ' buku &middot; stat naik permanen');
     html += npcHtml_('pustakawan', lineLibrary_());
@@ -1853,10 +1853,14 @@
     } else {
       html += '<div class="row-list">' + lib.available.map(function (b) {
         var afford = state.player.gold >= Number(b.Price);
-        return '<div class="card book hover" style="--spine:' + (TIER_SPINE[b.Tier] || '#5a4526') + ';grid-template-columns:12px 1fr auto auto;"><span class="spine"></span>' +
-          '<div><div class="bt">' + esc_(b.Name) + ' ' + tierBadge_(b.Tier) + '</div><div class="be">' + bookEffectSummary(b) + '</div></div>' +
+        // Tide v33: Rak Dalam - buku terkunci sampai dua buku lain di rak yang sama dimiliki
+        var locked = !!b.Locked;
+        return '<div class="card book hover' + (locked ? ' book-locked' : '') + '" style="--spine:' + (TIER_SPINE[b.Tier] || '#5a4526') + ';grid-template-columns:12px 1fr auto auto;"><span class="spine"></span>' +
+          '<div><div class="bt">' + esc_(b.Name) + ' ' + tierBadge_(b.Tier) + '</div><div class="be">' + bookEffectSummary(b) + '</div>' +
+          (locked ? '<div class="be book-lock-note">' + ic('lock') + ' Rak Dalam &mdash; ' + esc_(String(b.Locked).replace(/^.*\(Rak Dalam: /, 'dimiliki ').replace(/\)$/, '')) + ' buku lain di rak ini</div>' : '') + '</div>' +
           '<b class="num" style="font-family:var(--font-title);">' + formatGold(b.Price) + '</b>' +
-          '<button class="btn ' + (afford ? 'btn-gold' : '') + ' lib-action" ' + (afford ? '' : 'disabled') + ' onclick="doBuyBook(\'' + b.BookId + '\')">Beli</button></div>';
+          (locked ? '<button class="btn lib-action" disabled title="' + esc_(b.Locked) + '">' + ic('lock') + '<span class="lk-t"> Terkunci</span></button></div>'
+            : '<button class="btn ' + (afford ? 'btn-gold' : '') + ' lib-action" ' + (afford ? '' : 'disabled') + ' onclick="doBuyBook(\'' + b.BookId + '\')">Beli</button></div>');
       }).join('') + '</div>';
     }
     html += '<p id="libraryMsg" class="msg-err"></p>';
@@ -1866,8 +1870,8 @@
   }
 
   function tierBadge_(tier) {
-    var colorClass = tier === 'V' ? 'tech' : tier === 'IV' ? 'legend' : tier === 'III' ? 'bad' : (tier === 'II' ? 'normal' : 'good');
-    return '<span class="price-badge ' + colorClass + '">Tier ' + esc_(tier) + (tier === 'IV' ? ' &middot; Legenda' : tier === 'V' ? ' &middot; Teknologi' : '') + '</span>';
+    var colorClass = tier === 'VI' ? 'farsea' : tier === 'V' ? 'tech' : tier === 'IV' ? 'legend' : tier === 'III' ? 'bad' : (tier === 'II' ? 'normal' : 'good');
+    return '<span class="price-badge ' + colorClass + '">Tier ' + esc_(tier) + (tier === 'IV' ? ' &middot; Legenda' : tier === 'V' ? ' &middot; Teknologi' : tier === 'VI' ? '<span class="tb-x"> &middot; Laut Jauh</span>' : '') + '</span>';
   }
   function bookEffectSummary(b) {
     var parts = [];
@@ -1876,7 +1880,17 @@
     return parts.join(', ') || '&mdash;';
   }
   function specialEffectLabel(keyword) {
-    var labels = { black_market_discount: 'Harga beli di Market lebih murah (selisih beli -20%)', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)', satnislaus_cannon: '+15% peluang menang & +2 amunisi meriam (Meriam Satnislaus)', ivankov_nav: 'Waktu tempuh -10% (Navigasi Pusaran Ivankov)' };
+    var labels = { black_market_discount: 'Harga beli di Market lebih murah (selisih beli -20%)', cargo_bonus_10: '+10 kapasitas cargo', ship_speed_5: '+5 Speed kapal (rahasia angin Uda Gala)', treasure_decoder_1: 'Bisa membaca peta harta biasa', treasure_decoder_2: 'Bisa membaca peta harta langka', regal_engine: '+10 Speed kapal (mesin uap Marlya)', regal_hull: '+50 kondisi maksimum kapal (baja Regal)', satnislaus_cannon: '+15% peluang menang & +2 amunisi meriam (Meriam Satnislaus)', ivankov_nav: 'Waktu tempuh -10% (Navigasi Pusaran Ivankov)',
+      // Tide v33 - Buku Laut Jauh
+      oto_angin: 'Penurunan kondisi kapal per pelayaran -30%',
+      oto_jaring: 'Jatah mancing maks 30 &amp; pulih tiap 45 detik',
+      oto_kincir: 'Waktu tempuh -10% (bertumpuk dengan buku lain)',
+      gd_ramuan: 'Reparasi -25% di semua kota &amp; kondisi +5% tiap merapat',
+      gd_lampion: 'Jarahan gold dari bajak laut +30%',
+      gd_fajar: 'Misi gubernur: hadiah gold +25% &amp; Standing kota tujuan +2',
+      fy_ukir: '+30 kondisi maksimum kapal',
+      fy_tungku: '+1 amunisi &amp; +8% tembakan kena melawan bajak laut dan bos',
+      fy_rantai: 'Tenggelam melawan bajak laut: gold aman, muatan hanya hilang 20%' };
     return labels[keyword] || keyword;
   }
 
@@ -3282,7 +3296,16 @@
     return pickLine_(['Angin sedang baik. Tentukan tujuanmu, Kapten.', 'Hati-hati ke TooGood &mdash; bajak laut berkeliaran di jalur itu.', 'Catat harga di tiap pelabuhan; itu peta harta pedagang.'], 'sail');
   }
   function lineCargo_() { return pickLine_(['Palka penuh? Titip di sini, ambil kapan saja kamu kembali.', 'Gudang kami kering dan terkunci. Tikus pun tak berani masuk.'], 'cargo'); }
-  function lineLibrary_() { return pickLine_(['Buku adalah layar yang tak pernah robek.', 'Ilmu dagang dari pedagang tua &mdash; stat naik selamanya.', 'Ada peta harta yang hanya bisa dibaca dengan buku yang tepat&hellip;'], 'lib'); }
+  // Tide v33: pustakawan pulau Laut Jauh punya kalimat sendiri
+  var LIB_LINES_CITY = {
+    otoland: ['Angin di sini tak pernah berhenti, Kapten. Juru tulisnya juga tidak.', 'Yang ketiga itu tidak saya jual ke orang yang baru datang.', 'Tiga generasi juru tulis menulis rak ini. Bacalah pelan-pelan.'],
+    gading_island: ['Obat yang baik pahit. Buku yang baik mahal.', 'Yang terakhir itu hanya untuk kapten yang sudah membaca dua lainnya.', 'Kayu kapal juga bisa masuk angin, Kapten. Saya punya resepnya.'],
+    freeyork: ['Nama di dinding itu tidak dijual. Bukunya, boleh.', 'Yang paling mahal itu bukan soal besi. Soal rantai.', 'Tungku itu tak padam dua puluh tahun. Resepnya ada di rak ini.']
+  };
+  function lineLibrary_() {
+    var cid = state && state.city ? state.city.CityId : null;
+    if (cid && LIB_LINES_CITY[cid]) return pickLine_(LIB_LINES_CITY[cid], 'lib_' + cid);
+    return pickLine_(['Buku adalah layar yang tak pernah robek.', 'Ilmu dagang dari pedagang tua &mdash; stat naik selamanya.', 'Ada peta harta yang hanya bisa dibaca dengan buku yang tepat&hellip;'], 'lib'); }
 
   /* ---------- gosip lapau & obrolan warga ---------- */
   var CITY_LORE = {

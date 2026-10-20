@@ -240,8 +240,8 @@ language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me(); r game.mp_fish;
 begin
   r := game.fish_row(v_me.player_id);
-  return jsonb_build_object('left', game.fish_left(v_me.player_id), 'max', game.fish_qmax(),
-    'nextMs', game.fish_next_ms(v_me.player_id), 'regenMs', game.fish_qsec(), 'rod', r.rod, 'rods', game.fish_rods(),
+  return jsonb_build_object('left', game.fish_left(v_me.player_id), 'max', game.fish_qmax_p(v_me.player_id),
+    'nextMs', game.fish_next_ms(v_me.player_id), 'regenMs', game.fish_qsec_p(v_me.player_id), 'rod', r.rod, 'rods', game.fish_rods(),
     'baits', game.fish_baits(), 'night', game.fish_is_night(), 'cityId', game.current_city(v_me.player_id),
     'dawn', game.cb_is_dawn(),
     'found', (select count(*) from game.mp_fish_book b join game.mp_fish_types t on t.id = b.fish_id where b.player_id = v_me.player_id and t.book = 'ikan'),

@@ -765,6 +765,10 @@ select game.expose('api_bankrepay');
 -- ---------------------------------------------------------------------
 -- LIBRARY / BOOKS
 -- ---------------------------------------------------------------------
+-- Tide v33: alasan buku belum boleh dibeli pemain ini (null = boleh). Diisi 0029 (Rak Dalam).
+create or replace function game.book_buy_block(p_pid uuid, p_book text) returns text
+language plpgsql stable as $$ begin return null; end $$;
+
 create or replace function public.api_getLibrary(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me(false); v_city text;
@@ -773,7 +777,8 @@ begin
   return jsonb_build_object(
     'owned', coalesce((select jsonb_agg(game.book_json(c) order by c.sort, c.book_id) from game.book_catalog c
        where exists (select 1 from game.player_books pb where pb.player_id = v_me.player_id and pb.book_id = c.book_id)), '[]'::jsonb),
-    'available', coalesce((select jsonb_agg(game.book_json(c) order by c.sort, c.book_id) from game.book_catalog c
+    'available', coalesce((select jsonb_agg(game.book_json(c) || jsonb_strip_nulls(jsonb_build_object('Locked', game.book_buy_block(v_me.player_id, c.book_id)))
+         order by c.sort, c.book_id) from game.book_catalog c
        where not exists (select 1 from game.player_books pb where pb.player_id = v_me.player_id and pb.book_id = c.book_id)
          and (c.source = 'any' or c.source = v_city)), '[]'::jsonb));
 end $$;
@@ -797,6 +802,7 @@ begin
   if exists (select 1 from game.player_books where player_id = pid and book_id = v_book) then
     raise exception 'Kamu sudah punya buku ini.';
   end if;
+  if game.book_buy_block(pid, v_book) is not null then raise exception '%', game.book_buy_block(pid, v_book); end if;
   price := coalesce(b.price, 0);
   if v_me.gold < price then
     raise exception 'Gold tidak cukup. Butuh %, kamu punya %.', game.eco_num_text(price), v_me.gold;
