@@ -494,6 +494,8 @@ declare
   v_pid   uuid := v_me.player_id;
   m       game.player_missions;
   v_type  text;
+  v_fajar boolean := coalesce(game.has_effect(v_me.player_id, 'gd_fajar'), false);  -- Tide v33: Pintu Sebelum Matahari
+  v_pay   bigint;
   v_cname text;
   v_owned int;
   v_rep   jsonb;
@@ -533,7 +535,8 @@ begin
 
   v_rep := case when jsonb_typeof(v_me.reputation) = 'object' then v_me.reputation else '{}'::jsonb end;
   v_rep := v_rep || jsonb_build_object(m.deliver_to_city_id,
-    coalesce(case when jsonb_typeof(v_rep -> m.deliver_to_city_id) = 'number' then (v_rep ->> m.deliver_to_city_id)::numeric end, 0) + 1);
+    coalesce(case when jsonb_typeof(v_rep -> m.deliver_to_city_id) = 'number' then (v_rep ->> m.deliver_to_city_id)::numeric end, 0)
+      + case when v_fajar then 2 else 1 end);
   -- Titipan: kota pemberi misi juga menaikkan Standing (+1). Tanpa ini, pulau tersembunyi
   -- (Paradiso, Marie Regal) tak pernah naik Standing lewat Titipan, karena kota lain
   -- tidak pernah mengirim titipan ke pulau tersembunyi.
@@ -541,7 +544,9 @@ begin
     v_rep := v_rep || jsonb_build_object(m.city_id,
       coalesce(case when jsonb_typeof(v_rep -> m.city_id) = 'number' then (v_rep ->> m.city_id)::numeric end, 0) + 1);
   end if;
-  update game.players set gold = gold + m.reward, reputation = v_rep where player_id = v_pid;
+  -- Tide v33: bonus dihitung saat dibayar (papan misi tetap sama untuk semua pemain)
+  v_pay := case when v_fajar then round(m.reward * 1.25)::bigint else m.reward end;
+  update game.players set gold = gold + v_pay, reputation = v_rep where player_id = v_pid;
 
   update game.player_missions
      set status = 'completed',
@@ -549,8 +554,9 @@ begin
    where id = m.id;
 
   perform game.log(v_pid, 'Misi selesai di ' || game.mission_city_name(m.deliver_to_city_id) || ': ' || m.qty || ' ' || v_cname ||
-    ' diserahkan, imbalan ' || m.reward || ' gold.');
-  return jsonb_build_object('reward', m.reward, 'cityId', m.deliver_to_city_id, 'type', v_type);
+    ' diserahkan, imbalan ' || v_pay || ' gold.' || case when v_fajar then ' (Pintu Sebelum Matahari +25%)' else '' end);
+  return jsonb_build_object('reward', v_pay, 'cityId', m.deliver_to_city_id, 'type', v_type)
+    || case when v_fajar then jsonb_build_object('baseReward', m.reward, 'bookBonus', v_pay - m.reward) else '{}'::jsonb end;
 end $$;
 select game.expose('api_completemission');
 

@@ -108,11 +108,23 @@ language sql stable as $$ select greatest(1, game.cfg_num('FishMaxCasts', 20)::i
 create or replace function game.fish_qsec() returns bigint
 language sql stable as $$ select greatest(1, game.cfg_num('FishRegenSeconds', 60)::bigint) * 1000 $$;
 
+-- Tide v33: jatah per pemain - Kitab Jaring Tujuh Simpul: maks +10 (20 -> 30), pulih 45 dtk (bukan 60)
+create or replace function game.fish_qmax_p(p_id uuid) returns int
+language plpgsql stable as $$
+begin
+  return game.fish_qmax() + case when coalesce(game.has_effect(p_id, 'oto_jaring'), false) then 10 else 0 end;
+end $$;
+create or replace function game.fish_qsec_p(p_id uuid) returns bigint
+language plpgsql stable as $$
+begin
+  return case when coalesce(game.has_effect(p_id, 'oto_jaring'), false) then greatest(1000, (game.fish_qsec() * 3) / 4) else game.fish_qsec() end;
+end $$;
+
 -- jatah saat ini (sudah termasuk pemulihan)
 create or replace function game.fish_left(p_id uuid) returns int
 language sql stable as $$
-  select case when f.q_left is null or f.q_t is null or f.q_left >= game.fish_qmax() then game.fish_qmax()
-    else least(game.fish_qmax(), f.q_left + floor(greatest(0, game.now_ms() - f.q_t) / game.fish_qsec())::int) end
+  select case when f.q_left is null or f.q_t is null or f.q_left >= game.fish_qmax_p(p_id) then game.fish_qmax_p(p_id)
+    else least(game.fish_qmax_p(p_id), f.q_left + floor(greatest(0, game.now_ms() - f.q_t) / game.fish_qsec_p(p_id))::int) end
   from (select (select q_left from game.mp_fish where player_id = p_id) q_left,
                (select q_t from game.mp_fish where player_id = p_id) q_t) f
 $$;
@@ -120,15 +132,15 @@ $$;
 -- ms sampai +1 berikutnya (0 bila penuh)
 create or replace function game.fish_next_ms(p_id uuid) returns bigint
 language sql stable as $$
-  select case when game.fish_left(p_id) >= game.fish_qmax() then 0
-    else game.fish_qsec() - mod(greatest(0, game.now_ms() - f.q_t), game.fish_qsec()) end
+  select case when game.fish_left(p_id) >= game.fish_qmax_p(p_id) then 0
+    else game.fish_qsec_p(p_id) - mod(greatest(0, game.now_ms() - f.q_t), game.fish_qsec_p(p_id)) end
   from game.mp_fish f where player_id = p_id
 $$;
 
 -- pakai 1 jatah; sisa progres pemulihan tetap dibawa
 create or replace function game.fish_use(p_id uuid) returns int
 language plpgsql as $$
-declare v_now bigint := game.now_ms(); v_max int := game.fish_qmax(); v_sec bigint := game.fish_qsec();
+declare v_now bigint := game.now_ms(); v_max int := game.fish_qmax_p(p_id); v_sec bigint := game.fish_qsec_p(p_id);
   f game.mp_fish; v_left int; v_t bigint; v_gain int;
 begin
   select * into f from game.mp_fish where player_id = p_id for update;
@@ -149,8 +161,8 @@ language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me(); r game.mp_fish;
 begin
   r := game.fish_row(v_me.player_id);
-  return jsonb_build_object('left', game.fish_left(v_me.player_id), 'max', game.fish_qmax(),
-    'nextMs', game.fish_next_ms(v_me.player_id), 'regenMs', game.fish_qsec(), 'rod', r.rod, 'rods', game.fish_rods(),
+  return jsonb_build_object('left', game.fish_left(v_me.player_id), 'max', game.fish_qmax_p(v_me.player_id),
+    'nextMs', game.fish_next_ms(v_me.player_id), 'regenMs', game.fish_qsec_p(v_me.player_id), 'rod', r.rod, 'rods', game.fish_rods(),
     'baits', game.fish_baits(), 'night', game.fish_is_night(), 'cityId', game.current_city(v_me.player_id),
     'found', (select count(*) from game.mp_fish_book where player_id = v_me.player_id),
     'total', (select count(*) from game.mp_fish_types),

@@ -430,11 +430,13 @@ declare s game.ships; mx numeric; cur numeric; missing numeric; rate numeric; co
 begin
   select * into s from game.ships where player_id = p_pid;
   if not found then raise exception 'Kapal tidak ditemukan.'; end if;
-  mx := 100 + (game.voy_effective_stats(p_pid) ->> 'maxConditionBonus')::numeric;
+  mx := game.voy_max_cond(p_pid);
   cur := least(coalesce(s.condition, mx), mx);
   missing := greatest(0, mx - cur);
   select repair_cost_rate into rate from game.cities where city_id = p_city;
   if rate is null or rate = 0 then rate := 1; end if;
+  -- Tide v33: Resep Ramuan Sinshe Tan -25% (tidak untuk Black Pearl)
+  if game.ship_book_effect(p_pid, 'gd_ramuan') then rate := rate * 0.75; end if;
   cost := game.voy_round(missing * game.cfg_num('ShipRepairBaseCostPerPoint', 15) * rate);
   return jsonb_build_object('currentCondition', game.voy_round(cur), 'maxCondition', mx,
     'missing', game.voy_round(missing), 'cost', cost, 'blocked', game.lt_repair_block(p_pid, p_city));

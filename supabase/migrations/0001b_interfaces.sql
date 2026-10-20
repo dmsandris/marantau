@@ -304,3 +304,15 @@ language plpgsql as $$ begin return null; end $$;
 -- Pengali harga pasar per pemain (krisis pasar quest). 1 = normal.
 create or replace function game.quest_price_mul(p_pid uuid, p_city text, p_comm text) returns double precision
 language sql stable as $$ select 1::double precision $$;
+
+-- [Tide v33 · Buku Laut Jauh / 0029] ----------------------------------------
+-- Efek buku yang menyangkut kapal tidak berlaku saat menakhodai Black Pearl (kapal pinjaman),
+-- supaya kalibrasi Quest 8 tidak berubah. Bukan stub: dipakai langsung oleh 0003 dkk.
+create or replace function game.ship_book_effect(p_pid uuid, p_effect text) returns boolean
+language plpgsql stable as $$
+begin
+  return coalesce(game.has_effect(p_pid, p_effect), false) and coalesce(game.ship_legend(p_pid), '') <> 'pearl';
+end $$;
+-- Kota yang memulihkan kapal sendiri saat merapat (diisi 0014/0015/0022)
+create or replace function game.heal_city(p_pid uuid, p_city text) returns boolean
+language sql stable as $$ select false $$;
