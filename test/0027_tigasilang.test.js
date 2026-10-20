@@ -55,7 +55,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const rng = await one(`select dmax from game.voy_dist_range()`);
   const rngOld = await one(`select max(game.voy_map_distance(a.city_id, b.city_id)) dmax from game.cities a join game.cities b on a.city_id < b.city_id
     where not game.spot_city(a.city_id) and not game.spot_city(b.city_id)
-      and a.city_id not in ('gading_island','otoland','empeer_depeer','freeyork') and b.city_id not in ('gading_island','otoland','empeer_depeer','freeyork')`);
+      and not game.voy_far_city(a.city_id) and not game.voy_far_city(b.city_id)`);
   assert(Math.abs(Number(rng.dmax) - Number(rngOld.dmax)) < 1e-9, 'rentang jarak dunia tidak ikut pulau baru');
   const tFy = Number((await one(`select game.voy_travel_seconds(game.voy_map_distance('sunda_empire', 'freeyork'), '{}'::jsonb) t`)).t);
   assert(tFy > 240 && tFy <= 360, 'Sunda -> FreeYork laut terbuka: ' + tFy);
