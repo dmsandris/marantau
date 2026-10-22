@@ -143,8 +143,22 @@
     ctx.fillStyle = 'rgba(220,210,190,.7)'; ctx.font = Math.round(u * 0.32) + 'px Georgia'; ctx.fillText('T', kx + kw * 0.22, q - kh * 0.62); ctx.fillText('T', kx + kw * 0.22, q - kh * 0.25);
     H.chimney(B, kx + kw * 0.8, q - kh - u * 0.1, u * 1.2, u * 0.32);
     H.hot(B, 'bengkelrantai', 'Bengkel Rantai Kecil', 'eye', kx, q - kh - u * 1.4, kw, kh + u * 1.4);
+    // Quest 9 (Tedsky diserahkan ke Dewan Dua Tangan): pelabuhan bebas - pasar, syahbandar, galangan
+    var free = !!(window.DT && DT.rantaiOpen && DT.rantaiOpen());
+    if (free) {
+      ctx.strokeStyle = '#c9b48a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(bx, q - u * 3.4); ctx.lineTo(bx + u * 0.1, q - u * 1.6); ctx.stroke(); // lonceng kini bertali
+      var stall = function (x, w, h, wall, roof, id, title, icon, label) {
+        H.bld(B, { x: x, w: w, base: q, h: h, roof: 'gable', rh: u * 0.7, wall: wall, roofCol: roof });
+        H.sign(ctx, x + w * 0.1, q - h * 0.98, w * 0.8, u * 0.4, [label], 'board', { bg: '#2a2420', fg: '#f0e2c0', frame: '#6a5a4a' });
+        H.hot(B, id, title, icon, x, q - h - u * 1.0, w, h + u * 1.0);
+      };
+      stall(u * 4.0, u * 2.6, u * 1.8, '#8a7a64', '#4a3a2c', 'market', 'Pasar Bebas Rantai Lama', 'scales', 'PASAR');
+      stall(u * 7.2, u * 2.4, u * 1.9, '#7a6c58', '#3a3028', 'tasks', 'Syahbandar Pelabuhan Bebas', 'scroll', 'SYAHBANDAR');
+      stall(u * 26.6, u * 2.6, u * 1.7, '#6a5c4a', '#2a2420', 'ship', 'Galangan Lonceng', 'wrench', 'GALANGAN');
+      B.flags.push({ x: bx, y: q - u * 4.2, h: u * 0.9, col: '#e8c35a' });
+    }
     B.dyn.push({ type: 'fn', fn: drawRantai, bell: { x: bx, y: q - u * 3.4 }, feathers: feathers, u: u, q: q });
-    B.noPosters = true; B.walk = null; B.roamers = [];
+    B.noPosters = true; if (free) B.walk = { style: 'villagers', n: 5, x0: u * 3, x1: u * 22 }; else { B.walk = null; B.roamers = []; }
   }
 
   /* ============================ KOTA SOWTOUR ============================ */
@@ -212,6 +226,12 @@
     ctx.fillStyle = '#4a4238'; ctx.fillRect(u * 23.0, q - u * 1.3, u * 2.2, u * 1.3);
     ctx.fillStyle = '#6a6a5a'; ctx.beginPath(); ctx.ellipse(u * 24.1, q - u * 0.35, u * 0.8, u * 0.32, 0, Math.PI, 0); ctx.fill();
     ctx.fillStyle = '#c9a441'; ctx.beginPath(); ctx.arc(u * 24.1, q - u * 1.05, u * 0.16, 0, 6.3); ctx.fill(); // lambang roda bersayap
+    // Quest 9: Papan Armada di depan garasi Om Baayu
+    if (window.DT && DT.here && state && state.duatangan && (state.duatangan.step || 0) >= 1) {
+      ctx.fillStyle = '#5a4430'; ctx.fillRect(u * 22.5, q - u * 1.9, u * 0.08, u * 1.9);
+      H.sign(ctx, u * 22.0, q - u * 2.4, u * 1.4, u * 0.55, ['ARMADA'], 'board', { bg: '#1a1612', fg: '#f0cf78', frame: '#8a6a30' });
+      H.hot(B, 'armada', 'Papan Armada', 'flag', u * 21.9, q - u * 2.6, u * 3.3, u * 2.6);
+    }
     H.hot(B, 'ship', 'Galangan Menara', 'wrench', u * 25.6, q - u * 2.0, u * 3.6, u * 2.0);
     B.dyn.push({ type: 'fn', fn: drawSowtour, mirrors: mirrors, top: top, wins: wins, u: u, q: q });
     B.flags.push({ x: TX, y: tb - u * 6.0, h: u * 0.9, col: '#e8e0cc' });
@@ -219,6 +239,35 @@
     B.walk = { style: 'villagers', n: 8, x0: u * 1, x1: u * 22 };
   }
 
+  /* ============================ TELUK DUA TANGAN (setelah Quest 9) ============================ */
+  function drawTeluk(inst, ctx, p, t, dt, d) {
+    var u = d.u, pulse = inst.reduced ? 1 : 0.8 + 0.2 * Math.sin(t * 1.3);
+    glowAt(ctx, d.sx, d.sy, u * (3.2 + p.lights * 2), '255,220,140', 0.45 * pulse);
+    glowAt(ctx, d.sx + u * 0.5, d.sy, u * 2.2, '220,230,255', 0.35 * pulse);
+    // lentera kapal-kapal yang berlabuh di sekitar batu
+    for (var i = 0; i < d.lamps.length; i++) { var l = d.lamps[i], f = inst.reduced ? 1 : 0.7 + 0.3 * Math.sin(t * 2 + i); glowAt(ctx, l.x, l.y, u * 0.5, '255,200,120', (0.25 + 0.5 * p.lights) * f); }
+  }
+  function hand(ctx, x, base, s, dir, col) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x - s * 1.2 * dir, base);
+    ctx.quadraticCurveTo(x - s * 1.3 * dir, base - s * 1.6, x - s * 0.4 * dir, base - s * 2.2);
+    for (var k = 0; k < 4; k++) { var fx = x - s * 0.4 * dir + k * s * 0.35 * dir; ctx.lineTo(fx, base - s * (3.4 - Math.abs(k - 1.5) * 0.35)); ctx.lineTo(fx + s * 0.25 * dir, base - s * 2.3); }
+    ctx.quadraticCurveTo(x + s * 1.3 * dir, base - s * 1.4, x + s * 1.2 * dir, base); ctx.closePath(); ctx.fill();
+  }
+  function teluk(B) {
+    var u = B.u, ctx = B.ctx, base = B.shoreY || B.qTop;
+    B.hillY = function () { return base; };
+    hand(ctx, u * 4.5, base, u * 1.6, 1, '#5a5048');
+    hand(ctx, u * 25.5, base, u * 1.6, -1, '#5a5048');
+    var sx = u * 15, sy = base - u * 0.9;
+    ctx.fillStyle = '#6a5e50'; ctx.beginPath(); ctx.ellipse(sx, sy + u * 0.3, u * 2.4, u * 1.0, 0, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#e8c35a'; ctx.beginPath(); ctx.ellipse(sx - u * 0.45, sy - u * 0.05, u * 0.32, u * 0.42, -0.2, 0, 6.3); ctx.fill();
+    ctx.fillStyle = '#dfe6ee'; ctx.beginPath(); ctx.ellipse(sx + u * 0.45, sy - u * 0.05, u * 0.32, u * 0.42, 0.2, 0, 6.3); ctx.fill();
+    var lamps = []; for (var i = 0; i < 6; i++) lamps.push({ x: u * (8 + i * 2.6), y: base + u * (0.6 + (i % 2) * 0.5) });
+    B.dyn.push({ type: 'fn', fn: drawTeluk, sx: sx, sy: sy, lamps: lamps, u: u });
+    B.noLamps = true; B.noPosters = true; B.walk = null; B.roamers = [];
+  }
+
+  MTCities.register('teluk_dua_tangan', teluk);
   MTCities.register('karang_garam', karangGaram);
   MTCities.register('rantai_lama', rantaiLama, 'overcast');
   MTCities.register('sowtour', sowtour, 'overcast');
