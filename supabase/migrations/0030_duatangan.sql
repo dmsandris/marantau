@@ -268,9 +268,15 @@ $$;
 -- ---------------------------------------------------------------------
 -- Hadiah: Peta Dua Tangan (waktu tempuh -20% di rute pulau Saga 2) & Jabat Tangan (+10% harga jual)
 -- ---------------------------------------------------------------------
+-- Tide v35: penyesuaian per rute menerima kapal yang sudah dihitung (lihat lt_route_ship di 0028);
+-- isi penyesuaian identik dengan versi sebelumnya.
 create or replace function game.lt_ship_for_route(p_pid uuid, p_origin text, p_dest text) returns jsonb
+language sql stable as $$
+  select game.lt_route_ship(p_pid, p_origin, p_dest, game.ship_json(p_pid))
+$$;
+create or replace function game.lt_route_ship(p_pid uuid, p_origin text, p_dest text, p_sh jsonb) returns jsonb
 language plpgsql stable as $$
-declare sh jsonb := coalesce(game.ship_json(p_pid), '{}'::jsonb); tm float8;
+declare sh jsonb := coalesce(p_sh, '{}'::jsonb); tm float8;
 begin
   if game.lt_east_route(p_pid, p_origin, p_dest) then sh := sh || '{"LegendEast": true}'::jsonb; end if;
   if (game.voy_far_city(p_origin) or game.voy_far_city(p_dest)) and coalesce(game.ship_legend(p_pid), '') <> 'pearl'
