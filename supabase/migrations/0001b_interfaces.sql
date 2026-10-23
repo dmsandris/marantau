@@ -292,6 +292,10 @@ language plpgsql as $$ begin return null; end $$;
 create or replace function game.lt_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
 
+-- [Saga 2 · Quest 9 "Tempat Dua Tangan Berjabat" / 0030] ---------------------
+create or replace function game.dt_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+
 -- [Saga 2 · Quest 5 "Kompas yang Berputar" / 0023] -----------------------
 -- Status quest Kompas untuk getGameState (null = belum tersedia)
 create or replace function game.kp_state(p_pid uuid) returns jsonb

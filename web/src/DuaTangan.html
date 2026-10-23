@@ -1,0 +1,822 @@
+<style>
+  /* ================= Saga 2 · Quest 9 "Tempat Dua Tangan Berjabat" ================= */
+  .dt-wrap { margin: 10px 0 14px; display: grid; gap: 10px; }
+  .dt-board { display: grid; gap: 8px; }
+  .dt-fleet { border-radius: 14px; padding: 12px 14px; background: linear-gradient(180deg, #17151d, #0b0a0f); color: #ece2cc; border: 1px solid rgba(232,195,90,.35); }
+  .dt-fleet.mine { border-color: rgba(232,195,90,.8); box-shadow: 0 0 0 1px rgba(232,195,90,.25) inset; }
+  .dt-fleet h4 { margin: 0 0 6px; font-family: var(--font-title); letter-spacing: .08em; font-size: .86em; display: flex; justify-content: space-between; gap: 8px; align-items: center; color: #f0cf78; }
+  .dt-fleet h4 span { color: #cfc4ad; font-family: inherit; letter-spacing: 0; font-size: .95em; }
+  .dt-mem { display: grid; grid-template-columns: 38px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px dashed rgba(232,195,90,.18); }
+  .dt-mem:first-of-type { border-top: 0; }
+  .dt-mem .fc { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; background: #2a2630; }
+  .dt-mem .fc svg { width: 100%; height: 100%; display: block; }
+  .dt-mem b { display: block; font-size: .92em; }
+  .dt-mem small { color: #b9ae98; font-size: .78em; }
+  .dt-mem .tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+  .dt-tag { display: inline-flex; gap: 3px; align-items: center; font-size: .7em; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,.08); color: #e8dcc0; border: 1px solid rgba(255,255,255,.12); }
+  .dt-tag .ico { width: 11px; height: 11px; }
+  .dt-tag.vet { background: rgba(200,160,60,.25); border-color: rgba(232,195,90,.6); color: #ffe7a3; }
+  .dt-tag.off { opacity: .45; }
+  .dt-ready { font-size: .76em; padding: 3px 8px; border-radius: 99px; background: rgba(255,255,255,.08); color: #cfc4ad; white-space: nowrap; }
+  .dt-ready.on { background: rgba(60,160,90,.3); color: #bff0c8; }
+  .dt-fleet .qg-actions { margin-top: 10px; }
+  .dt-count { margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(232,195,90,.15); color: #ffe7a3; font-size: .86em; text-align: center; }
+  .dt-short { margin-top: 6px; font-size: .82em; color: #ffb4a0; }
+  .dt-empty { padding: 12px; text-align: center; color: #6b5a3a; font-size: .9em; }
+  .dt-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; }
+  .dt-info .row { padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,.55); border: 1px solid rgba(120,100,60,.25); font-size: .85em; }
+  .dt-info .row b { display: block; font-size: 1.15em; }
+  .dt-hist { display: grid; gap: 4px; }
+  .dt-hist .row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.5); border: 1px solid rgba(120,100,60,.22); font-size: .84em; }
+  .dt-hist .row.win { background: rgba(60,140,80,.12); border-color: rgba(60,140,80,.4); }
+  /* Kunci Dua Jarum versi akhir (lembut) */
+  .dt-key { position: fixed; inset: 0; z-index: 2400; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 40%, #1c1a26, #050408 75%); color: #f0e6d4; opacity: 0; transition: opacity .4s; }
+  .dt-key.on { opacity: 1; }
+  .dt-key .box { width: min(440px, 94vw); display: grid; gap: 10px; justify-items: center; text-align: center; padding: 14px; }
+  .dt-key h3 { margin: 0; font-family: var(--font-display); font-size: 1.3em; color: #f0cf78; }
+  .dt-key svg { width: min(320px, 78vw); height: auto; }
+  .dt-key .msg { min-height: 3.2em; line-height: 1.5; font-size: .95em; }
+  .dt-key .ctrl { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; width: 100%; }
+  .dt-key .ctrl span { font-size: .86em; }
+  .dt-key .btn { min-height: 44px; min-width: 52px; }
+  .dt-key .hold { min-width: 220px; min-height: 52px; user-select: none; -webkit-user-select: none; touch-action: none; }
+  .dt-key .bar { width: 220px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .dt-key .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #cfd6de, #e8c35a); }
+  .dt-shake { animation: dtShake .35s; }
+  @keyframes dtShake { 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+  @media (prefers-reduced-motion: reduce) { .dt-shake { animation: none; } }
+</style>
+<script>
+/* =====================================================================
+ * Saga 2 · QUEST 9 "TEMPAT DUA TANGAN BERJABAT" (klien) - penutup Saga 2
+ * Prolog "Hari Ketiga" (pelabuhan mana pun, 3 hari game setelah Quest 8) -> Kota Sowtour: Papan Armada
+ * (lobi terbuka 2-4 kapten) -> Serbuan Bersama (arena: SerbuanBersama.html / MTSERBU) -> Kartu Hasil ->
+ * penutup pribadi (Petrik, topi, kompas, Kunci Dua Jarum versi akhir, Jabat Tangan Pertama, nasib Tedsky)
+ * -> epilog 14 adegan + kutipan -> credit Saga Kedua (CinemaSaga2c: dt_*).
+ * Server: 0030_duatangan.sql (api_duatangan, api_dtraid). Modul ini MEMBUNGKUS fungsi inti seperti quest lain.
+ * ===================================================================== */
+var DT = (function () {
+  function tassy(t) { try { if (window.TS && TS.tassy) return TS.tassy(t); } catch (e) { } return t; }
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+
+  /* ---------- tokoh ---------- */
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    var L = {}, T = {}, B = {};
+    try { L = window.LT && LT.N ? LT.N() : {}; } catch (e) { L = {}; }
+    try { T = window.TS && TS.N ? TS.N() : {}; } catch (e) { T = {}; }
+    try { B = window.BX && BX.N ? BX.N() : {}; } catch (e) { B = {}; }
+    function pick(o, def, title) { var r = Object.assign({}, o || def); if (title) r.title = title; return r; }
+    NN = {
+      euis: pick(L.euis, { name: 'Teh Euis', ap: apOf('euis', 'saudagar', 1) }, 'Legenda Trust'),
+      zafa: pick(L.zafa, { name: 'zafachmie', ap: apOf('zafa', 'pustakawan', 0), fat: true }, 'Meriam Black Pearl'),
+      coco: pick(L.cocoBare || L.coco, { name: 'coco epan', ap: apOf('joungjava|bankir', 'bankir', 0) }, 'Darah Sang Pembuka Jalur'),
+      marlya: pick(T.marlya, { name: 'Marlya', ap: apOf('marlya-moramora', 'pustakawan', 1) }, 'Darah Sang Penjaga Suara'),
+      tedsky: pick(T.tedsky, { name: 'Jendral Tedsky', ap: apOf('tedsky', 'syahbandar', 0), medals: true }, 'Sayap Patah'),
+      hasiolan: pick(L.hasiolan, { name: 'Hasiolan', ap: apOf('hasiolan-skitraw', 'tukang', 0) }, 'Kemudi Black Pearl'),
+      dwi: Object.assign({}, L.dwi || { name: "dwi de'clown", ap: apOf('dwi', 'lapau', 0) }, { title: 'Pelukis', clown: false }),
+      rimba: pick(L.rimba, { name: 'Bang Rimba', ap: apOf('rimba-armada-bebas', 'bajak', 0) }, 'Armada Bebas'),
+      baayu: pick(L.baayu, { name: 'Om Baayu', ap: apOf('om-baayu-sowtour-motor', 'tukang', 0) }, 'Genderang Kota Sowtour'),
+      petrik: { name: 'Petrik', title: 'Anak Tassyaaa, juru mudi Sayap Patah', ap: apOf('petrik-freeyork-juru', 'tukang', 0, { age: 0.25, head: 'none', facial: 0 }) },
+      tassyaaa: pick(L.tassyaaa || T.tassyaaa, { name: 'Tassyaaa', ap: apOf('tassyaaa-freeyork-tempa', 'tukang', 1, { age: 0.5 }) }, 'Pandai besi FreeYork'),
+      gala: pick(L.gala, { name: 'Uda Gala', ap: apOf('gala', 'tukang', 0) }, 'Galangan Gaul-Wash'),
+      chafik: pick(B.chafik, { name: 'Chafik', ap: apOf('chafik-kecil', 'lapau', 0, { age: 0, head: 'none' }) }, 'Putra kecil Uda Gala'),
+      ama: pick(L.ama, { name: 'Ama Kerang', ap: apOf('ama-kerang-karang-garam', 'gudang', 1, { age: 0.95 }) }, 'Tetua penyelam Karang Garam'),
+      ipo: pick(L.ipo, { name: 'Ipo', ap: apOf('ipo-karang-garam', 'lapau', 1, { age: 0 }) }, 'Cucu Ama Kerang'),
+      upayy: pick(T.upayy, { name: 'Ny. Upayy', ap: apOf('upayy-otoland-kincir', 'lapau', 1, { age: 0.95 }) }, 'Penjaga kincir tua, Otoland'),
+      ocid: pick(T.ocid, { name: 'Paman Ocid', ap: apOf('ocid-kubah-arsip', 'pustakawan', 0, { age: 0.9 }) }, 'Ketua Dewan'),
+      garlyena: pick(T.garlyena, { name: 'Miss Garlyena', ap: apOf('garlyena-dewan-mahkota', 'saudagar', 1) }, 'Dewan Mahkota'),
+      felyx: pick(L.felyx || T.felyx, { name: 'felyx', ap: apOf('felyx-stumpy-gading', 'lapau', 0) }, 'Penjaga Kedai Stumpy'),
+      aly: pick(B.aly, { name: 'alyfindi', ap: apOf('alyfindi-peta', 'saudagar', 1) }, 'Penjara TooGood'),
+      karto: pick(L.karto || T.karto, { name: 'Pak Tua Karto', ap: apOf('karto', 'lapau', 0, { age: 0.95 }) }, 'Peminum Kopi Pahit')
+    };
+    NN.aly.name = 'alyfindi';
+    return NN;
+  }
+  function face(n) {
+    if (n.svg) return n.svg;
+    try { return MTFace.svg(n.ap, { bgColors: ['#33303e', '#0c0b10'], fat: n.fat, clown: n.clown, medals: n.medals }); } catch (e) { return ''; }
+  }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.duatangan) || null; }
+  function step() { var s = st(); return s ? (s.step || 0) : -1; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function uname() { return (state && (state.username || (state.player && state.player.characterName))) || 'x'; }
+  function myName() { return (state && state.player && state.player.characterName) || 'Kapten'; }
+  function inCombat() { return typeof combatSceneOpen !== 'undefined' && combatSceneOpen; }
+  var flowBusy = false;
+  function busyUi() { return flowBusy || inCombat() || !!document.querySelector('.qt-cine, .bx-crd, .bx-credits, .mtg.on, .tsg.on, .dt-key') || (window.MTSERBU && MTSERBU.isOpen && MTSERBU.isOpen()); }
+  var SEEN_MEM = {};
+  function seenKey(k) { return 'dt:' + uname() + ':' + k; }
+  function seen(k) { try { return localStorage.getItem(seenKey(k)) === '1' || !!SEEN_MEM[k]; } catch (e) { return !!SEEN_MEM[k]; } }
+  function markSeen(k) { SEEN_MEM[k] = 1; try { localStorage.setItem(seenKey(k), '1'); } catch (e) { } }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function speech(n, text, extra, title) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(title || n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function narr(kicker, text, extra, icon, cls) {
+    return '<div class="lt-narr ' + (cls || '') + '"><div class="tn-k">' + ic(icon || 'scroll') + esc_(kicker || '') + '</div>' + text + (extra || '') + '</div>';
+  }
+  function actions(btns) { return '<div class="qg-actions">' + btns + '</div>'; }
+  function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
+  function btn(attr, icon, label, gold) { return '<button class="btn' + (gold === false ? ' btn-ghost-ink' : ' btn-gold') + '" data-dt="' + attr + '">' + (icon ? ic(icon) + '&nbsp; ' : '') + label + '</button>'; }
+  var OTHER_WRAPS = '.lt-wrap, .cb-wrap, .kp-wrap, .bx-wrap, .ww-wrap, .qt-wrap, .qg-wrap, .ts-wrap';
+  function insert(html, opts) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    if (c.querySelector('.dt-wrap')) return null;
+    if (opts && opts.quiet) c.querySelectorAll(OTHER_WRAPS).forEach(function (e) { e.remove(); });
+    var anchor = opts && opts.top ? c.querySelector('.ph') : (c.querySelector('.lt-wrap') || c.querySelector('.ts-wrap') || c.querySelector('.qg-wrap') || c.querySelector('.npc') || c.querySelector('.ph'));
+    var wrap = document.createElement('div'); wrap.className = 'dt-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function onAll(w, sel, fn) { if (w) w.querySelectorAll(sel).forEach(function (b) { b.onclick = function () { fn(b); }; }); }
+  function applyUnlocks(r) {
+    if (!r || !state) return;
+    if (r.unlocks) state.unlocks = r.unlocks;
+    if (r.cities && r.cities.length) {
+      try { if (typeof setCachedCities_ === 'function') setCachedCities_(r.citiesVersion, r.cities); } catch (e) { }
+      try { state.cities = typeof visibleCities_ === 'function' ? visibleCities_(r.cities, state) : r.cities; } catch (e) { }
+      if (r.citiesVersion) state.citiesVersion = r.citiesVersion;
+    }
+    if (typeof invalidatePanelCache_ === 'function') invalidatePanelCache_();
+  }
+  function adopt(s) { if (s) s._at = Date.now(); if (state) state.duatangan = s; prevStep = s ? (s.step || 0) : null; }
+  function call(action, arg, ok, b, fail) {
+    if (b) b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      r = r || {};
+      if (r.duatangan !== undefined && state) adopt(r.duatangan);
+      if (r.newGold != null && typeof patchGold_ === 'function') { patchGold_(r.newGold); try { renderSidebar(); } catch (e) { } }
+      if (r.ship && typeof patchShip_ === 'function') { try { patchShip_(r.ship, r.shipVisual); } catch (e) { } }
+      applyUnlocks(r);
+      try { ok(r); } catch (e) { console.warn('[DT]', action, e); }
+    }).withFailureHandler(function (e) {
+      if (b) b.disabled = false;
+      showToast((e && e.message) || String(e), 'error');
+      if (fail) fail(e);
+    }).api_duaTangan(action, arg == null ? '' : String(arg));
+  }
+  function status(cb) {
+    google.script.run.withSuccessHandler(function (r) { if (r && r.duatangan !== undefined && state) { adopt(r.duatangan); if (cb) cb(r.duatangan); } }).withFailureHandler(function () { }).api_duaTangan('status');
+  }
+  // api_dtRaid: argumen dikirim apa adanya (objek perintah, boolean)
+  function raid(args, ok, fail, b) {
+    if (b) b.disabled = true;
+    var run = google.script.run.withSuccessHandler(function (r) {
+      if (b) b.disabled = false;
+      r = r || {};
+      if (r.duatangan !== undefined && state) adopt(r.duatangan);
+      try { ok && ok(r); } catch (e) { console.warn('[DT] raid', e); }
+    }).withFailureHandler(function (e) {
+      if (b) b.disabled = false;
+      if (fail) fail(e); else showToast((e && e.message) || String(e), 'error');
+    });
+    run.api_dtRaid.apply(run, args);
+  }
+  function pages(w, n, list, lastBtns, bind, title) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], who = (pg && pg.n) || n, txt = (pg && pg.t) || pg;
+      var nav = actions(last ? lastBtns : '<button class="btn btn-gold" data-dt="next">Lanjut</button>') + dots(i, list.length);
+      w.innerHTML = pg && pg.narr ? narr(pg.narr, txt, nav, pg.icon, pg.cls) : speech(who, txt, nav, pg && pg.title ? pg.title : (who === n ? title : null));
+      au_('page');
+      var box = document.getElementById('modalBox'); if (box) box.scrollTop = 0;
+      if (!last) on(w, '[data-dt=next]', function () { i++; show(); }); else if (bind) bind(w);
+    }
+    show();
+  }
+  function showModal(html) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function modalWrap(icon, title, sub) { showModal(panelHeader_(icon, title, sub)); return insert('<div></div>', { top: true }); }
+  function close() { if (typeof closeModal === 'function') closeModal(); }
+  function liveWrap(sel) { var ov = document.getElementById('modalOverlay'); return ov && ov.classList.contains('open') ? document.querySelector('#modalContent .dt-wrap' + (sel || '')) : null; }
+
+  /* ---------- sinematik layar penuh (bisa dilewati; auto = slide maju sendiri, untuk di tengah serbuan) ---------- */
+  function cine(kind, slides, cb, auto) {
+    var finished = false;
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    flowBusy = true;
+    var ov = document.createElement('div'); ov.className = 'qt-cine ts-cine';
+    ov.innerHTML = '<canvas></canvas><button class="ts-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind) || stop; } catch (e) { console.warn('[DT] cine', e); }
+    var i = 0, txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.ts-skip'), timer = 0;
+    function show() {
+      txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i]; txt.classList.add('in'); b.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai';
+      if (auto) { clearTimeout(timer); timer = setTimeout(adv, auto); }
+    }
+    function adv() { if (finished) return; if (++i < slides.length) show(); else finish(); }
+    function finish() {
+      if (finished) return; finished = true; clearTimeout(timer);
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      flowBusy = false;
+      if (cb) setTimeout(cb, 60);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    b.onclick = function () { au_('page'); adv(); };
+    skip.onclick = function () { au_('page'); finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1500);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!finished) show(); }, 900);
+  }
+
+  /* ---------- jurnal ---------- */
+  function objective(s) {
+    var k = s.step || 0;
+    if (k === 0) return '<i>"Jangan ikuti saya selama tiga hari."</i> Jarum emas kompasmu masih bergerak.';
+    if (k === 1 && cid() !== 'sowtour') return '<i>"Dua jarum menunjuk ke satu teluk. Black Pearl menunggu di kota menara, tapi satu lambung hitam tidak cukup."</i> Bawa <b>' + (s.needMesiu || 50) + ' Mesiu</b> dan <b>' + (s.needBeras || 100) + ' Beras</b> untuk Perbekalan Armada.';
+    if (k === 1) return '<i>"Kalau kita datang berdua, ia akan tertawa. Kalau kita datang berempat, ia akan berhenti tertawa."</i> Buka <b>Papan Armada</b> di garasi Om Baayu.';
+    if (k === 3) return '<i>Sayap Patah kandas di karang telapak tangan.</i> Dua tangan menunggu di batu.';
+    if (k === 4) return '<i>Batu itu menyala emas dan perak.</i>';
+    if (k >= 5) return '<i>"Kisah ini sudah selesai. Lautnya tidak."</i> Kau boleh kembali ke Teluk Dua Tangan sebagai <b>veteran</b> untuk membantu kapten lain.';
+    return '';
+  }
+  function bekalHtml(b) {
+    if (!b) return '';
+    var hook = { sempurna: 'Sempurna &times;1,8', baik: 'Baik &times;1,4', kasar: 'Kasar &times;1,0' }[b.hook] || 'Kasar &times;1,0';
+    var lane = b.lane >= 200 ? 'Sangat lebar' : b.lane >= 150 ? 'Lebar' : b.lane >= 100 ? 'Sedang' : 'Sempit';
+    function row(icon, t, v, offc) { return '<div class="bk' + (offc ? ' off' : '') + '">' + ic(icon) + '<span>' + t + '</span><em>' + v + '</em></div>'; }
+    return '<div class="lt-bekal"><h5>Bekal Tempur kapalmu</h5>' +
+      row('anchor', 'Pengait Pemecah Rantai (ke Perisai Rantai)', hook) +
+      row('star', 'Kalung Karang ' + (b.beads || 0) + ' butir (jalur aman Arus Pusaran)', lane) +
+      row('compass', b.hasiolan === 'percaya' ? 'Hasiolan memberi isyarat lentera' : 'Kemudi milikmu sendiri', b.hasiolan === 'percaya' ? 'jalur +1 tingkat' : 'kebal tarikan pertama') +
+      row('alert', 'Seruan (Kelemahan Tedsky, sekali per serbuan)', b.cry ? 'Ada' : 'Tidak ada', !b.cry) +
+      row('flag', 'Sekutu Tari Genderang di Pertarungan Terakhir', (b.allies || 0) + '/3', !b.allies) + '</div>';
+  }
+  function histHtml(h) {
+    if (!h || !h.length) return '';
+    return '<div class="dt-hist"><h5 style="margin:6px 0 2px;font-family:var(--font-title);letter-spacing:.1em;font-size:.72em;text-transform:uppercase;color:#6b5a3a">Riwayat Serbuan</h5>' +
+      h.slice().reverse().map(function (c) {
+        return '<div class="row ' + (c.result === 'win' ? 'win' : '') + '"><span>' + (c.result === 'win' ? 'Menang' : 'Gagal') + ' &middot; ' + c.ships + ' kapal &middot; ' + c.rounds + ' giliran</span><button class="btn btn-ghost-ink" data-card="' + esc_(c.id) + '" style="padding:2px 10px;min-height:0">Kartu</button></div>';
+      }).join('') + '</div>';
+  }
+  function journal() {
+    var s = st(); if (!s) return '';
+    var info = '';
+    if ((s.step || 0) >= 1) info = '<div class="dt-info"><div class="row">Armada terbuka di Sowtour<b>' + (s.lobbies || 0) + '</b></div><div class="row">Kapten lain yang bisa ikut, online<b>' + (s.online || 0) + '</b></div>' +
+      ((s.step || 0) < 5 ? '<div class="row">Perbekalan di palka<b>' + (s.mesiu || 0) + ' Mesiu &middot; ' + (s.beras || 0) + ' Beras</b></div>' : '<div class="row">Kemenangan veteran<b>' + (s.vetWins || 0) + '</b></div>') + '</div>';
+    return '<div class="qg-journal lt-journal"><div class="qg-jhead">' + ic('compass') + '<b>Tempat Dua Tangan Berjabat</b><span class="legend-tag">Saga 2 &middot; Penutup</span></div>' +
+      '<p>' + objective(s) + '</p>' + info + ((s.step || 0) >= 1 && (s.step || 0) < 5 ? bekalHtml(s.bekal) : '') + histHtml(s.history) + '</div>';
+  }
+  function showCard(c) {
+    var win = c.result === 'win', w = modalWrap(win ? 'medal' : 'anchor', win ? 'Sayap Patah Tenggelam' : 'Serbuan Gagal', 'Kartu Hasil &middot; ' + c.ships + ' kapal &middot; ' + c.rounds + ' giliran'); if (!w) return;
+    var rows = (c.rows || []).map(function (r) {
+      var tags = (r.vet ? ' &middot; veteran' : '') + (c.first === r.pub ? ' &middot; <b>Tangan Pertama</b>' : '') + (c.petrik === r.pub ? ' &middot; <b>Pemecah Rantai Petrik</b>' : '') + (r.state === 'fled' ? ' &middot; mundur' : r.state === 'sunk' ? ' &middot; tumbang' : '');
+      return '<div class="row' + (win ? ' win' : '') + '"><span><b>' + esc_(r.n) + '</b>' + tags + '</span><span>Lambung ' + Math.round(r.hull || 0) + ' &middot; Perisai ' + Math.round(r.shield || 0) + (r.cry ? ' &middot; Seruan' : '') + (r.boards ? ' &middot; Serbu ' + r.boards : '') + '</span></div>';
+    }).join('');
+    w.innerHTML = '<div class="dt-hist">' + rows + '</div>' + actions(btn('ok', null, 'Tutup', false));
+    on(w, '[data-dt=ok]', close);
+  }
+  function bindHist(w) {
+    onAll(w, '[data-card]', function (b) {
+      var id = b.getAttribute('data-card'), s = st(), c = s && (s.history || []).filter(function (x) { return x.id === id; })[0];
+      if (c) showCard(c);
+    });
+  }
+
+  /* =================================================================
+   * PROLOG - Hari Ketiga
+   * ================================================================= */
+  function prologStart() {
+    if (seen('prolog') && step() > 0) return;
+    markSeen('prolog');
+    if (currentPanel) close();
+    cine('dt_hari', [
+      'Seekor <b>pelikan perak</b>, salah satu yang pulang setelah Mata Seribu jatuh, mendarat di pagar kapalmu.',
+      'Di paruhnya terjepit tabung surat bersegel lilin hijau.'
+    ], function () {
+      var n = N(), w = modalWrap('scroll', 'Surat bersegel hijau', 'Hari Ketiga'); if (!w) return;
+      w.innerHTML = '<div class="lt-letter">"Kapten. Tiga hari sudah lewat. Jarum emas di kompasmu berhenti bergerak tadi malam. Itu artinya sekoci coco sudah sampai di batu.<br><br>' +
+        'Hasiolan sudah membawa Black Pearl dari TooGood, penuh mesiu. Kami menunggu di <b>Kota Sowtour</b>.<br><br>' +
+        'Satu hal lagi. zafachmie melihat Sayap Patah dari menara Janji: kapal itu bukan lagi kapal. Ia benteng terapung. <b>Black Pearl sendirian tidak akan cukup.</b> Kita butuh kapal-kapal lain. Kapten-kapten lain.<br><br>' +
+        'Bawa siapa pun yang pernah berlayar sejauh kita. Dan bawa beras. Banyak beras.<div class="sig">&mdash; E.</div></div>' +
+        actions(btn('kompas', 'compass', 'Buka kompas'));
+      on(w, '[data-dt=kompas]', function () {
+        w.innerHTML = narr('Kompas Dua Jarum', '<p>Kau membuka kompas. Jarum perak menunjuk ke timur. Jarum emas diam, menunjuk ke titik yang sama.</p><p><b>Untuk pertama kalinya, kedua jarum sejajar.</b></p>', '', 'compass', 'night') +
+          actions(btn('go', 'scroll', 'Catat di jurnal'));
+        on(w, '[data-dt=go]', function (b) {
+          call('prolog', '', function () {
+            var w2 = liveWrap(); if (!w2) return;
+            w2.innerHTML = narr('Jurnal', '<p><i>"Dua jarum menunjuk ke satu teluk. Black Pearl menunggu di kota menara, tapi satu lambung hitam tidak cukup. Cari kapten-kapten yang pernah menjemput lima tangan. Bawa 50 Mesiu dan 100 Beras untuk perbekalan armada."</i></p>', '', 'scroll') + journal() + actions(btn('ok', 'anchor', 'Tutup', false));
+            on(w2, '[data-dt=ok]', close);
+            showToast('Quest baru: Tempat Dua Tangan Berjabat', 'success');
+          }, b);
+        });
+      });
+    });
+  }
+
+  /* =================================================================
+   * BABAK 1 - Panggilan Genderang (Kota Sowtour)
+   * ================================================================= */
+  function arriveScene(then) {
+    var n = N(), w = modalWrap('flag', 'Kota Sowtour', 'Panggilan Genderang'); if (!w) return;
+    markSeen('arrive');
+    pages(w, n.zafa, [
+      { narr: 'Kota Sowtour', icon: 'sun', cls: 'tower', t: '<p>Kota Sowtour sekarang bercahaya. Pelikan bersarang di setiap menara. Di dermaga, Black Pearl berlabuh dengan meriam baru di setiap lubangnya. Hasiolan berdiri di kemudi. zafachmie duduk di atas tong mesiu, mengunyah sesuatu.</p>' },
+      '"Kapten! Kau datang sendiri?"',
+      '"Aku sudah melihat kapal itu dari menara. Tedsky merantai tiga kapal tawanan ke lambungnya dan menumpuk rantai sampai setinggi tiang. <b>Kalau kita datang berdua, ia akan tertawa. Kalau kita datang berempat, ia akan berhenti tertawa.</b>"',
+      { n: n.euis, t: '"Buka <b>Papan Armada</b>. Kapten-kapten lain akan datang kalau mendengar genderang."' },
+      { narr: 'Garasi Om Baayu', icon: 'flag', cls: 'tower', t: '<p>Om Baayu menyalakan motor tuanya, lalu memutar gas tiga kali. Knalpotnya bergema di antara menara.</p>' },
+      { n: n.baayu, t: '"Itu panggilanku. Di kota ini, knalpot juga genderang. Kalau ada kapten di laut, mereka akan dengar."' }
+    ], btn('board', 'flag', 'Papan Armada') + btn('ok', null, 'Nanti', false), function (w2) {
+      call('tiba', '', function () { });
+      on(w2, '[data-dt=board]', function () { boardOpen(); });
+      on(w2, '[data-dt=ok]', close);
+    }, 'Meriam Black Pearl');
+  }
+
+  /* ---------- Papan Armada ---------- */
+  var boardTimer = 0, boardRaid = null, lastStatus = null;
+  function memberHtml(m) {
+    var fc = ''; try { fc = m.f && window.MTFace ? MTFace.svg(m.f, { bgColors: ['#33303e', '#0c0b10'] }) : ''; } catch (e) { fc = ''; }
+    var hook = { sempurna: 'Pengait Sempurna', baik: 'Pengait Baik', kasar: 'Pengait Kasar' }[m.hook] || 'Pengait';
+    return '<div class="dt-mem"><div class="fc">' + fc + '</div><div><b>' + esc_(m.n) + (m.lead ? ' <small>&middot; pembuka</small>' : '') + '</b>' +
+      '<small>' + esc_(m.ship || 'Kapal') + (m.tier ? ' &middot; Tier ' + m.tier : '') + (m.cond != null ? ' &middot; ' + Math.round(m.cond) + '%' : '') + '</small>' +
+      '<div class="tags">' + (m.vet ? '<span class="dt-tag vet">' + ic('medal') + 'Veteran</span>' : '') +
+      '<span class="dt-tag">' + ic('anchor') + hook + '</span><span class="dt-tag">' + ic('star') + (m.beads || 0) + ' butir</span>' +
+      '<span class="dt-tag' + (m.cry ? '' : ' off') + '">' + ic('alert') + 'Seruan</span><span class="dt-tag' + (m.allies ? '' : ' off') + '">' + ic('flag') + (m.allies || 0) + ' sekutu</span>' +
+      (m.online === false ? '<span class="dt-tag off">offline</span>' : '') + '</div></div>' +
+      '<span class="dt-ready' + (m.ready ? ' on' : '') + '">' + (m.ready ? 'Siap' : 'Belum siap') + '</span></div>';
+  }
+  function lobbyLine(r) {
+    var n = N(), k = r.members.length, vet = r.members.some(function (m) { return m.vet; });
+    var s = st(), meM = r.members.filter(function (m) { return m.pub === r.me; })[0];
+    if (meM && !meM.vet && !meM.ready && s && ((s.mesiu || 0) < (s.needMesiu || 50) || (s.beras || 0) < (s.needBeras || 100))) return speech(n.zafa, '"Seratus karung beras, Kapten. Awakku makan seperti aku. Joungjava masih buka."');
+    if (vet && Math.random() < 0.5) return speech(n.dwi, '"Ada kapten yang sudah pernah melihat akhirnya. Jangan tanya padanya bagaimana akhirnya. Biar kita lukis sendiri."');
+    if (k <= 1) return speech(n.euis, '"Satu kapal. Kita butuh setidaknya satu lagi. Aku sudah menunggu dua puluh tahun, Kapten. Beberapa jam lagi tidak akan membunuhku."');
+    if (k === 2) return speech(n.zafa, '"Dua kapal. Sulit, tapi aku pernah lebih bodoh dari ini."');
+    if (k === 3) return speech(n.rimba, '"Tiga. Kapten kami selalu bilang tiga sudah cukup untuk sebuah janji."');
+    return speech(n.hasiolan, '"Empat lambung, satu kemudi di depan. Ambo belum pernah memimpin armada sebagus ini, termasuk armada Skitraw."');
+  }
+  function shortText(s) {
+    var a = [];
+    if ((s.mesiu || 0) < (s.needMesiu || 50)) a.push('kurang ' + ((s.needMesiu || 50) - (s.mesiu || 0)) + ' Mesiu');
+    if ((s.beras || 0) < (s.needBeras || 100)) a.push('kurang ' + ((s.needBeras || 100) - (s.beras || 0)) + ' Beras');
+    return a.join(', ');
+  }
+  function renderMine(w, r) {
+    var s = st() || {}, meM = r.members.filter(function (m) { return m.pub === r.me; })[0] || {};
+    var lead = r.leader === r.me, nReady = r.members.filter(function (m) { return m.ready; }).length;
+    var short = !meM.vet && !meM.ready ? shortText(s) : '';
+    var cd = r.departAt ? Math.max(0, Math.ceil((r.departAt - r.t) / 1000)) : 0;
+    var html = '<div class="dt-fleet mine"><h4>Armadamu <span>' + r.members.length + '/4 &middot; ' + nReady + ' siap</span></h4>' +
+      r.members.map(memberHtml).join('') +
+      (cd ? '<div class="dt-count">Empat kapal siap. Angkat sauh otomatis dalam ' + cd + ' detik.</div>' : '') +
+      (!meM.ready && meM.readyBy ? '<div class="dt-short" style="color:#cfc4ad">Tekan Siap sebelum ' + Math.max(0, Math.ceil((meM.readyBy - r.t) / 60000)) + ' menit lagi, atau kau dikeluarkan dari slot.</div>' : '') +
+      (short ? '<div class="dt-short">' + ic('alert') + ' Perbekalan Armada: ' + short + '.</div>' : '') +
+      actions((meM.ready ? btn('unready', null, 'Batal siap', false) : btn('ready', 'check', meM.vet ? 'Siap (veteran tidak menyetor)' : 'Siap &middot; setor 50 Mesiu + 100 Beras')) +
+        (lead ? btn('depart', 'anchor', 'Angkat Sauh' + (nReady < 2 ? ' (butuh 2 siap)' : '')) : '') + btn('leave', null, 'Keluar', false)) + '</div>';
+    return html + lobbyLine(r);
+  }
+  function renderBoard(w, res) {
+    var r = res.raid || null, board = res.board || [];
+    var s = st() || {};
+    var top = '<p class="muted small" style="margin:0">Dermaga Kota Sowtour, di depan garasi Om Baayu. 2&ndash;4 kapten online yang sudah menjemput Lima Tangan. Maksimal 2 veteran, minimal 1 kapten baru.</p>';
+    var body = '';
+    if (r && r.status === 'lobby' && r.mine) {
+      body = renderMine(w, r);
+    } else {
+      body = board.length ? board.map(function (f) {
+        var vets = f.members.filter(function (m) { return m.vet; }).length;
+        return '<div class="dt-fleet"><h4>Armada ' + esc_(f.leader || '') + ' <span>' + f.members.length + '/4' + (vets ? ' &middot; ' + vets + ' veteran' : '') + '</span></h4>' + f.members.map(memberHtml).join('') +
+          actions(f.members.length < 4 ? '<button class="btn btn-gold" data-join="' + esc_(f.id) + '">' + ic('flag') + '&nbsp; Bergabung</button>' : '<span class="muted small">Penuh</span>') + '</div>';
+      }).join('') : '<div class="dt-empty">Belum ada armada yang terbuka. Tabuh genderang, kapten lain akan mendengar.</div>';
+      body += (res.block ? '<div class="dt-short" style="color:#8a3a20">' + esc_(res.block) + '</div>' : actions(btn('open', 'flag', 'Tabuh genderang (buka armada)')));
+      body += '<div class="dt-info" style="margin-top:6px"><div class="row">Kapten lain yang bisa ikut, online<b>' + (s.online || 0) + '</b></div></div>';
+    }
+    w.innerHTML = '<div class="dt-board">' + top + body + '</div>';
+    onAll(w, '[data-join]', function (b) { raid(['join', b.getAttribute('data-join')], function (x) { boardRaid = x.raid && x.raid.id; refreshBoard(); }, null, b); });
+    on(w, '[data-dt=open]', function (b) { raid(['open'], function (x) { boardRaid = x.raid && x.raid.id; au_('achieve'); refreshBoard(); }, null, b); });
+    on(w, '[data-dt=ready]', function (b) {
+      raid(['ready', true], function () {
+        if (!seen('euisSupply') && !(r && r.vet)) { markSeen('euisSupply'); showToast('Teh Euis: "Seratus karung beras untuk satu pagi. Black Pearl memang rakus, tapi hari ini ia memberi makan seluruh armada."', 'info'); }
+        if (typeof refreshCargoQuiet_ === 'function') { try { refreshCargoQuiet_(); } catch (e) { } }
+        refreshBoard();
+      }, null, b);
+    });
+    on(w, '[data-dt=unready]', function (b) { raid(['ready', false], function () { if (typeof refreshCargoQuiet_ === 'function') { try { refreshCargoQuiet_(); } catch (e) { } } refreshBoard(); }, null, b); });
+    on(w, '[data-dt=leave]', function (b) { raid(['leave'], function () { boardRaid = null; if (typeof refreshCargoQuiet_ === 'function') { try { refreshCargoQuiet_(); } catch (e) { } } refreshBoard(); }, null, b); });
+    on(w, '[data-dt=depart]', function (b) { raid(['depart'], function (x) { if (x.raid && x.raid.status === 'active') startRaid(x.raid.id); else refreshBoard(); }, null, b); });
+  }
+  function refreshBoard() {
+    clearTimeout(boardTimer);
+    var w = liveWrap('.dt-boardwrap'); if (!w) return;
+    raid(['board'], function (res) {
+      var w2 = liveWrap('.dt-boardwrap'); if (!w2) return;
+      var id = res.raidId;
+      if (!id) { renderBoard(w2, { board: res.board, block: res.block }); boardTimer = setTimeout(refreshBoard, 4000); return; }
+      raid(['view', id], function (v) {
+        var w3 = liveWrap('.dt-boardwrap'); if (!w3) return;
+        if (v.raid && v.raid.status === 'active') { startRaid(id); return; }
+        renderBoard(w3, { board: res.board, raid: v.raid, block: res.block });
+        boardTimer = setTimeout(refreshBoard, 2000);
+      }, function () { boardTimer = setTimeout(refreshBoard, 4000); });
+    }, function (e) { var w4 = liveWrap('.dt-boardwrap'); if (w4) w4.innerHTML = '<div class="dt-empty">' + esc_((e && e.message) || 'Papan Armada tidak terbaca.') + '</div>'; boardTimer = setTimeout(refreshBoard, 5000); });
+  }
+  function boardOpen() {
+    var s = st(); if (!s) return;
+    if ((s.step || 0) < 1) { showToast('Surat Teh Euis belum sampai padamu, Kapten.', 'info'); return; }
+    if ((s.step || 0) >= 1 && cid() === 'sowtour' && !s.arrived && !seen('arrive')) { arriveScene(); return; }
+    showModal(panelHeader_('flag', 'Papan Armada', 'Kota Sowtour &middot; garasi Om Baayu'));
+    var w = insert('<div class="dt-empty">Membaca Papan Armada&hellip;</div>', { top: true });
+    if (w) w.classList.add('dt-boardwrap');
+    refreshBoard();
+  }
+
+  /* =================================================================
+   * SERBUAN (arena: MTSERBU) - sinematik & suara Tedsky pribadi
+   * ================================================================= */
+  function truthy() { var s = st(); return s && s.truth === 'bohong' ? 'bohong' : 'jujur'; }
+  var CINE = {
+    teluk: function () {
+      return [
+        'Kabut tersibak. Dua karang raksasa berbentuk <b>telapak tangan</b> muncul, seperti dua orang yang hampir berjabat tangan tapi berhenti.',
+        'Di tengah pusaran: <b>Jantung Jalur</b>, batu besar bercetak dua tangan. Tepinya diukir peta jalur dagang dan menara-menara suara seluruh dunia.',
+        '<b>coco epan</b> dan <b>Marlya</b> berdiri di dua sisi batu, tangan mereka dirantai ke cetakan. Batu itu gelap.',
+        '<b>Sayap Patah</b>: lambung perunggu, sayap logam yang patah sebelah diganti rantai. Tiga kapal tawanan dirantai di sisinya sebagai perisai.',
+        '<b>Tedsky:</b> "Kapten-kapten. Kalian datang bergerombol, seperti burung yang takut terbang sendiri. Tiga hari aku menekan tangan mereka ke batu itu. Tiga hari batu itu diam."',
+        truthy() === 'jujur' ? '<b>Tedsky:</b> "Kau satu-satunya yang tidak pernah membohongiku. Jangan mulai sekarang. Pergilah."' : '<b>Tedsky:</b> "Kau pernah membohongiku. Hari ini aku membalasnya dengan jujur: tidak ada yang pulang dari teluk ini."',
+        '<b>coco epan:</b> "Kapten! Saya bilang tiga hari. Bukan berarti boleh datang dengan setengah dunia." &nbsp; <b>Marlya:</b> "Biarkan mereka datang. Untuk sekali ini, biarkan orang lain menjemput kita."'
+      ];
+    },
+    rantai: function () { return ['Rantai-rantai putus berjatuhan ke laut. Tiga kapal tawanan terlepas dan hanyut.', '<b>Bang Rimba:</b> "Rantai terakhir di laut ini. Bagus."']; },
+    paksa: function () {
+      return [
+        'Tedsky melompat ke batu dan menekan tangan coco dan Marlya ke dua cetakan. <b>"Menyalalah! Dua darah sudah di sini! Apa lagi yang kau tunggu?!"</b>',
+        '<b>Batu itu tidak menyala.</b> Retak kecil merambat dari cetakan ke tepi batu.',
+        '<b>coco epan:</b> "Kau tidak mengerti, Jendral. Batu ini dibuat dua orang yang <b>saling memilih</b>. Ia tidak menerima tangan yang dipaksa."',
+        '<b>Marlya:</b> "Kau sendiri yang bilang di pesta topeng. \'Hanya menyala untuk tangan yang rela.\' Kau hafal kalimatnya. Kau tidak pernah mengerti artinya."',
+        'Tedsky kembali ke Sayap Patah, <b>murka</b>.'
+      ];
+    },
+    menang: function () { return ['Sayap logam terakhir patah. Sayap Patah miring, lalu kandas di karang telapak tangan.', 'Tedsky terlempar ke tepi batu. Medali-medalinya berjatuhan satu per satu ke pusaran.']; }
+  };
+  function setFleetGlobals(fleet) {
+    var me = { name: myName(), visual: typeof shipVisual_ === 'function' ? shipVisual_() : null };
+    var list = (fleet || []).filter(function (f) { return f && f.n !== myName(); }).map(function (f) { return { name: f.ship ? f.ship + ' (' + f.n + ')' : f.n, visual: f.visual }; });
+    try { window.DT_FLEET = [me].concat(list).slice(0, 4); } catch (e) { }
+    try { window.DT_CREDIT_NAMES = (fleet || []).map(function (f) { return f.n; }).filter(function (n) { return n && n !== myName(); }); } catch (e) { }
+    try { window.DT_PLAYER_NAME = myName(); } catch (e) { }
+  }
+  function startRaid(id) {
+    clearTimeout(boardTimer);
+    if (!window.MTSERBU || !MTSERBU.open) { showToast('Arena serbuan belum termuat. Muat ulang game.', 'error'); return; }
+    if (MTSERBU.isOpen && MTSERBU.isOpen()) return;
+    if (document.getElementById('modalOverlay') && document.getElementById('modalOverlay').classList.contains('open')) close();
+    MTSERBU.open(id, {
+      cine: function (kind, done) {
+        var k = { teluk: 'dt_teluk', rantai: 'dt_rantai', paksa: 'dt_paksa', menang: 'dt_menang' }[kind];
+        if (!k || !CINE[kind]) { done(); return; }
+        cine(k, CINE[kind](), done, kind === 'menang' ? 0 : 2600);
+      },
+      tedskyLoss: function () { return '"Pulanglah, isi perutmu, kumpulkan kapten-kapten lain. Aku menunggu. Aku sudah menunggu empat puluh tahun."'; },
+      onExit: function (card, view) {
+        status(function (s) {
+          if (typeof loadState === 'function') { try { loadState(); } catch (e) { } }
+          if (card && card.result === 'win') { try { metaMax_('dtwin', 1); } catch (e) { } }
+          if (card && card.result === 'win' && view && view.vet) {
+            try { metaBump_('dtvet', 1); } catch (e) { }
+            showToast('Tangan Penolong: Sayap Patah tenggelam sekali lagi.' + ((card.rows || []).some(function (x) { return x.pub === view.me && x.paid; }) ? ' +' + fmt(100000) + ' gold.' : ''), 'success');
+            return;
+          }
+          if (s && s.step === 3) setTimeout(penutup, 500);
+          else if (card && card.result !== 'win') showToast('Armada bubar di Kota Sowtour. Sayap Patah menunggu serbuan berikutnya.', 'info');
+        });
+      }
+    });
+  }
+
+  /* =================================================================
+   * BABAK 5 - Dua Tangan (pribadi)
+   * ================================================================= */
+  function penutup() {
+    var s = st(); if (!s || s.step !== 3) return;
+    if (currentPanel) close();
+    var n = N(), w = modalWrap('key', 'Dua Tangan', 'Teluk Dua Tangan'); if (!w) return;
+    flowBusy = true;
+    var tempa = s.tempa === 'padamkan' ? 'padamkan' : 'biarkan';
+    var petrik = [
+      { narr: 'Palka Sayap Patah', icon: 'anchor', cls: 'chain', t: '<p>Di palka Sayap Patah yang miring, seorang pemuda berbaju juru mudi duduk dirantai ke tiang. Ia dihukum karena isyarat lenteranya di Titik Buta.</p>' + (s.petrik ? '<p>Kaulah yang pertama menerobos geladak. Awakmu masih terengah di belakangmu.</p>' : '') },
+      { narr: 'Palu Kecil Tempa', icon: 'hammer', cls: 'forge', t: '<p>Kau memecah rantainya dengan <b>Palu Kecil Tempa</b>. Satu ketukan cukup. Rantai ini buatan FreeYork, dan palu itu juga.</p>' }
+    ];
+    if (tempa === 'biarkan') petrik.push({ narr: 'Pesan seorang ibu', icon: 'cup', cls: 'forge', t: '<p>Kau menyampaikan pesan ibunya.</p>' }, { n: n.petrik, t: '"&hellip;Mak masih masak untuk dua orang?"' });
+    else petrik.push({ narr: 'Bungkusan daun pisang', icon: 'cup', cls: 'forge', t: '<p>Kau menyerahkan bungkusan nasi titipan Tassyaaa. Petrik membukanya, memakannya diam-diam, dan menangis tanpa suara.</p>' }, { n: n.petrik, t: '"Masih pakai daun pisang. Mak tidak pernah berubah."' });
+    petrik.push(
+      { narr: 'Topi bowler', icon: 'star', t: '<p>coco epan masih berdiri di batu, tangannya sudah lepas dari rantai. Kau menyerahkan topi bowler-nya.</p>' },
+      { n: n.coco, t: s.cocoAdvice === 'pilihan' ? '"Kapten membiarkan saya memilih. Saya memilih pergi. Dan sekarang saya memilih pulang."' : '"Kapten bilang kita memilih bersama. Saya pergi sendirian dan ternyata tetap dijemput bersama. Mungkin itu yang dimaksud Nansy."' },
+      { narr: 'Kompas di batu', icon: 'compass', cls: 'night', t: '<p>Kau meletakkan <b>Kompas Dua Jarum</b> di lubang kecil di tengah batu. Dua jarum berputar, lalu diam: satu menunjuk ke coco, satu ke Marlya.</p>' },
+      { n: n.marlya, t: '"Leluhurmu menyerahkan keluargaku ke rantai."' }, { n: n.coco, t: '"Ya."' },
+      { n: n.marlya, t: '"Dan aku mengambil takhtamu tanpa bertanya siapa dirimu."' },
+      { n: n.coco, t: '"Ya. Dan saya membiarkanmu, tanpa memberitahumu siapa saya."' },
+      { n: n.marlya, t: '"&hellip;Lalu siapa yang berutang pada siapa?"' },
+      { n: n.coco, t: '"Mungkin sudah waktunya kita berhenti menghitung."' }
+    );
+    pages(w, n.coco, petrik, btn('kunci', 'compass', 'Kunci Dua Jarum'), function (w2) {
+      on(w2, '[data-dt=kunci]', function () { close(); keyGame(function () { jabat(); }); });
+    });
+  }
+  /* Kunci Dua Jarum versi akhir: lembut, tidak bisa gagal */
+  function keyGame(cb) {
+    var REDUCE = false; try { REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { }
+    var ov = document.createElement('div'); ov.className = 'dt-key';
+    var GOAL = [3, 9], a = [7, 5], stage = 0, hold = 0, holdT = 0, done = false, raf = 0;
+    function mod(x) { return ((x % 12) + 12) % 12; }
+    function aligned(i) { return a[i] === GOAL[i]; }
+    function svg() {
+      var cx = 180, cy = 180, near = (aligned(0) ? 1 : 0) + (aligned(1) ? 1 : 0) + (stage === 1 ? hold : 0);
+      var gap = 120 - near * 45;
+      var s = '<svg viewBox="0 0 360 360" aria-hidden="true"><defs><radialGradient id="dtg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#3a3226"/><stop offset="1" stop-color="#14110c"/></radialGradient></defs>' +
+        '<circle cx="180" cy="180" r="170" fill="url(#dtg)" stroke="#8a6a30" stroke-width="4"/>' +
+        '<circle cx="180" cy="180" r="140" fill="none" stroke="rgba(232,195,90,.35)" stroke-width="10"/><circle cx="180" cy="180" r="104" fill="none" stroke="rgba(207,214,222,.35)" stroke-width="10"/>';
+      for (var k = 0; k < 12; k++) { var t = k / 12 * 6.283; s += '<line x1="' + (cx + Math.cos(t) * 150) + '" y1="' + (cy + Math.sin(t) * 150) + '" x2="' + (cx + Math.cos(t) * 160) + '" y2="' + (cy + Math.sin(t) * 160) + '" stroke="#8a6a30" stroke-width="2"/>'; }
+      [[0, 140, '#e8c35a'], [1, 104, '#cfd6de']].forEach(function (r) {
+        var t = a[r[0]] / 12 * 6.283, L = r[1] - 6;
+        s += '<line x1="180" y1="180" x2="' + (cx + Math.cos(t) * L) + '" y2="' + (cy + Math.sin(t) * L) + '" stroke="' + r[2] + '" stroke-width="' + (aligned(r[0]) ? 7 : 5) + '" stroke-linecap="round"/>';
+        var g = GOAL[r[0]] / 12 * 6.283; s += '<circle cx="' + (cx + Math.cos(g) * r[1]) + '" cy="' + (cy + Math.sin(g) * r[1]) + '" r="9" fill="none" stroke="' + r[2] + '" stroke-width="2" opacity=".7"/>';
+      });
+      // dua tangan mendekat (emas dari kiri, perak dari kanan)
+      var y = 300;
+      s += '<g opacity=".95"><path d="M' + (180 - gap - 40) + ' ' + y + ' q20 -18 40 0 v14 h-40z" fill="#e8c35a"/><path d="M' + (180 + gap) + ' ' + y + ' q20 -18 40 0 v14 h-40z" fill="#cfd6de"/></g>';
+      if (gap <= 0) s += '<circle cx="180" cy="' + (y + 2) + '" r="26" fill="rgba(255,230,160,.35)"/>';
+      return s + '<circle cx="180" cy="180" r="12" fill="#c9a441" stroke="#5a3a10" stroke-width="2"/></svg>';
+    }
+    function render(m) {
+      var ctrl = stage === 0 ? '<div class="ctrl"><button class="btn" data-r="0" data-d="-1" aria-label="Putar cincin emas ke kiri">&#9664;</button><span style="color:#e8c35a">Cincin emas (coco)</span><button class="btn" data-r="0" data-d="1" aria-label="Putar cincin emas ke kanan">&#9654;</button></div>' +
+        '<div class="ctrl"><button class="btn" data-r="1" data-d="-1" aria-label="Putar cincin perak ke kiri">&#9664;</button><span style="color:#cfd6de">Cincin perak (Marlya)</span><button class="btn" data-r="1" data-d="1" aria-label="Putar cincin perak ke kanan">&#9654;</button></div>'
+        : '<button class="btn btn-gold hold" data-hold="1">Tahan kedua jarum</button><div class="bar"><i style="width:' + Math.round(hold * 100) + '%"></i></div>';
+      ov.innerHTML = '<div class="box"><h3>Kunci Dua Jarum</h3><div class="lock">' + svg() + '</div><div class="msg">' + (m || (stage === 0 ? 'Sejajarkan cincin-cincin kompas. Setiap jarum yang sejajar membawa dua tangan makin dekat.' : 'Tahan kedua jarum tetap sejajar sampai tangan mereka bertemu.')) + '</div>' + ctrl + '</div>';
+      ov.querySelectorAll('[data-r]').forEach(function (b) {
+        b.onclick = function () {
+          var i = +b.getAttribute('data-r'); a[i] = mod(a[i] + (+b.getAttribute('data-d'))); au_('page');
+          if (aligned(0) && aligned(1)) { stage = 1; au_('coin', { n: 2 }); render('Klik. Dua jarum sejajar. Tangan coco dan Marlya tinggal sejengkal.'); bindHold(); return; }
+          render(aligned(i) ? 'Jarum ' + (i === 0 ? 'emas' : 'perak') + ' sejajar. Dua tangan bergeser mendekat.' : 'Jarum ' + (i === 0 ? 'emas' : 'perak') + ' bergetar pelan.');
+          if (!aligned(i) && !REDUCE) { var l = ov.querySelector('.lock'); if (l) l.classList.add('dt-shake'); }
+        };
+      });
+    }
+    function bindHold() {
+      var b = ov.querySelector('[data-hold]'); if (!b) return;
+      var down = function (e) { if (e) e.preventDefault(); if (done) return; holdT = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); };
+      var up = function () { holdT = 0; };
+      b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up); b.addEventListener('pointerleave', up);
+      b.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') { if (!holdT) down(e); } });
+      b.addEventListener('keyup', up);
+    }
+    function tick(now) {
+      if (done) return;
+      if (holdT) { hold = Math.min(1, hold + (now - holdT) / 2200); holdT = now; } else hold = Math.max(0, hold - 0.004);
+      var l = ov.querySelector('.lock'), bar = ov.querySelector('.bar i');
+      if (l) l.innerHTML = svg(); if (bar) bar.style.width = Math.round(hold * 100) + '%';
+      if (hold >= 1) {
+        done = true; au_('victory');
+        var m = ov.querySelector('.msg'); if (m) m.innerHTML = '<b>Dua tangan bertemu.</b>';
+        setTimeout(function () { ov.classList.remove('on'); setTimeout(function () { ov.remove(); if (cb) cb(); }, 400); }, 1400);
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    document.body.appendChild(ov);
+    render();
+    requestAnimationFrame(function () { ov.classList.add('on'); });
+  }
+  function jabat() {
+    var s = st() || {};
+    setFleetGlobals(s.fleet);
+    cine('dt_jabat', [
+      'Mereka berjabat tangan di atas batu. <b>Batu menyala emas dan perak.</b>',
+      'Cahaya merambat sepanjang ukiran. Jalur dagang dan menara suara seluruh dunia menyala satu per satu: Javasche Bank (satu kaca retak), Black\'s Alley (lukisan Andry), Galangan Gaul-Wash, Stumpy, kincir Otoland, Jam Agung em pe\'er de pe\'er, Dok Legenda FreeYork.',
+      'Di desa tiang Karang Garam, rantai di perahu-perahu terlepas sendiri. Lonceng Pelabuhan Rantai Lama berbunyi pelan tanpa tali. Menara-menara Sowtour menjawab.',
+      'Papan di Marie Regal yang mati sejak lama menyala lagi: <b>"DUA TANGAN, SATU LAUT"</b>.',
+      'Di teluk, kapal-kapal kapten yang tadi bertempur bersamamu berlabuh di sekitar batu. Lentera mereka menyala.'
+    ], function () { tedskyEnd(); });
+  }
+  function tedskyEnd() {
+    var s = st() || {}, n = N(), w = modalWrap('flag', 'Tepi batu', 'Teluk Dua Tangan'); if (!w) { flowBusy = false; return; }
+    pages(w, n.tedsky, [
+      { narr: 'Tepi batu', icon: 'flag', cls: 'chain', t: '<p>Seragam putihnya robek. Medali terakhir jatuh ke pusaran.</p>' },
+      truthy() === 'jujur' ? '"Kau orang jujur terakhir yang kukenal, Kapten. Sayang kau di pihak yang salah. Atau aku."' : '"Kau membohongiku sekali. Aku membohongi dunia dua puluh tahun. Ternyata kita sama-sama kalah oleh orang yang berjabat tangan."',
+      { narr: 'Nasib Jendral Tedsky', icon: 'scales', t: '<p>coco dan Marlya menoleh padamu. Untuk satu hal ini, mereka membiarkanmu yang memutuskan.</p>' }
+    ], '<div class="lt-choice"><button class="a" data-dt="ikn"><b>Pulangkan ke IKN</b><span>Biar ia menyelesaikan sayap Garuda yang dulu ia tinggalkan.' + (s.kuas ? ' Kau masih menyimpan <b>Kuas Perunggu Tedsky</b>.' : '') + ' Pelabuhan Rantai Lama tetap kota hantu.</span></button>' +
+      '<button class="b" data-dt="dewan"><b>Serahkan pada Dewan Dua Tangan</b><span>Ia membangun ulang Pelabuhan Rantai Lama bersama pandai besi FreeYork. Rantai Lama menjadi pelabuhan tetap (pasar &amp; galangan).</span></button></div>', function (w2) {
+      function pickFate(v, b) {
+        call('fate', v, function () {
+          var w3 = liveWrap(); if (!w3) return;
+          var lines = v === 'ikn'
+            ? [{ narr: 'Pulang ke IKN', icon: 'flag', t: '<p>Tedsky kembali mengecat patung Garuda, dan kali ini menyelesaikannya.</p>' }].concat(s.kuas ? [{ narr: 'Kuas Perunggu', icon: 'star', t: '<p>Kau menyerahkan kuas itu. "Anak-anak bilang sayapnya belum selesai."</p><p>Tedsky memegang kuas itu lama.</p>' }] : [])
+            : [{ narr: 'Dewan Dua Tangan', icon: 'scales', t: '<p>coco dan Marlya menghukumnya membangun ulang Pelabuhan Rantai Lama menjadi pelabuhan bebas, bersama pandai besi FreeYork. Ia melebur tiang-tiang pasung menjadi lonceng.</p>' }, { n: n.tassyaaa, t: tassy('"Akhirnya anak tetangga pulang."') }];
+          pages(w3, n.tedsky, lines, btn('epi', 'sun', 'Fajar di teluk'), function (w4) { on(w4, '[data-dt=epi]', function (bb) { tutupThen(bb); }); });
+        }, b);
+      }
+      on(w2, '[data-dt=ikn]', function (b) { pickFate('ikn', b); });
+      on(w2, '[data-dt=dewan]', function (b) { pickFate('dewan', b); });
+    });
+  }
+  function tutupThen(b) {
+    call('tutup', '', function (r) {
+      try { metaMax_('dtsaga', 1); } catch (e) { }
+      var s = st() || {};
+      if (s.firstHand) { try { metaMax_('dtfirst', 1); } catch (e) { } }
+      if (s.fullFleet) { try { metaMax_('dtfull', 1); } catch (e) { } }
+      if (s.duo) { try { metaMax_('dtduo', 1); } catch (e) { } }
+      if (typeof loadState === 'function') { try { loadState(); } catch (e) { } }
+      epilog(r);
+    }, b);
+  }
+
+  /* =================================================================
+   * EPILOG (pribadi) + kutipan + credit
+   * ================================================================= */
+  function epilog(r) {
+    var s = st() || {}, n = N(), w = liveWrap() || modalWrap('sun', 'Epilog', 'Saga Kedua'); if (!w) { flowBusy = false; return; }
+    var L = [];
+    L.push({ narr: 'Fajar di teluk', icon: 'sun', cls: 'sea', t: '<p>Pusaran mereda. Cetakan dua tangan di batu kini berisi cahaya permanen.</p>' });
+    L.push({ narr: 'Dewan Dua Tangan', icon: 'scales', t: '<p>coco dan Marlya mengumumkan Moramora diperintah berdua: dari Kota Sowtour (suara) dan Javasche Bank (jalur dagang).</p>' }, { n: n.coco, t: '"Saya tetap bankir. Raja itu pekerjaan yang terlalu sepi."' });
+    L.push({ narr: 'Adu Gasing', icon: 'star', t: '<p>Marlya menantang coco dan menang. coco tertawa, tawa pertamanya di seluruh saga.</p>' }, { n: n.coco, t: '"Nansy juga selalu menang. Gasing, mahjong, apa saja."' });
+    L.push(s.fate === 'dewan'
+      ? { narr: 'Pelabuhan Rantai Lama', icon: 'anchor', t: '<p>Lonceng pertama dari tiang pasung digantung di menara pelelangan, kali ini dengan tali. Tedsky sendiri yang menariknya.</p>' }
+      : { narr: 'IKN', icon: 'flag', t: '<p>Anak-anak Kamp Pemulung bilang sayap baru Garuda "agak miring, tapi cantik".</p>' });
+    L.push({ narr: 'Kepulauan Karang Garam', icon: 'star', cls: 'sea', t: '<p>Rantai di perahu desa sudah lepas. Ama Kerang mendorong perahu pertama ke laut.</p>' }, { n: n.ipo, t: '"Nek, sekarang aku boleh menyelam sampai teluk?"' }, { n: n.ama, t: '"Sekarang kau yang mengantar orang ke sana. Seperti nenekku dulu."' });
+    L.push({ narr: 'Otoland', icon: 'home', t: '<p>coco mengetuk pintu biru kincir tua.</p>' });
+    if (s.upayy === 'bahagia') L.push({ n: n.upayy, t: '"Kapten itu sudah bilang anakku bahagia. Aku hanya ingin mendengarnya dari mulutmu."' }, { n: n.coco, t: '"Ia bahagia. Saya yang tidak pantas."' });
+    else L.push({ n: n.upayy, t: '"Kau datang juga."' }, { narr: 'Otoland', icon: 'home', t: '<p>coco duduk di bangku kayu dan bercerita sampai matahari terbenam. Yang terdengar hanya angin dan kincir.</p>' });
+    L.push({ narr: 'Joran kecil', icon: 'fish', t: '<p>Kau mengembalikan <b>Joran Kecil Miss Nansy</b>. Ny. Upayy menggantungnya di atas pintu. coco memasang jam tangan buatannya di pergelangan Ny. Upayy.</p>' });
+    L.push({ narr: "Pulau em pe'er de pe'er", icon: 'clock', t: '<p>coco menaiki 999 anak tangga tanpa pengawal protokol, Kunci Jam Agung di rantai jamnya.</p>' });
+    if (s.garlyena === 'bongkar') L.push({ n: n.ocid, t: '"Biar Baginda sendiri yang memutuskan kapan jam itu berjalan lagi."', title: 'Ketua Dewan' });
+    else L.push({ n: n.garlyena, t: '"Selamat datang, Coco."' }, { narr: "Pulau em pe'er de pe'er", icon: 'clock', t: '<p>Paman Ocid menangis diam-diam di belakangnya.</p>' });
+    L.push({ narr: 'Jam Agung', icon: 'clock', cls: 'night', t: '<p>coco membuka panel Jam Agung dan memutar obeng kecil. Setelah dua puluh tahun, jarumnya berjalan lagi. Kali ini bukan semenit, dan bukan karena Tedsky.</p>' });
+    L.push({ narr: 'FreeYork', icon: 'hammer', cls: 'forge', t: '<p>Petrik pulang. Tassyaaa berdiri di dermaga dengan dua piring.</p>' }, { n: n.tassyaaa, t: tassy('"Masuk. Nasinya sudah dingin dua puluh kali."') });
+    if (s.tempa === 'padamkan') L.push({ narr: 'Tungku utama', icon: 'hammer', cls: 'forge', t: '<p>Petrik sendiri menyalakan lagi tungku utama, kali ini untuk lonceng.</p>' });
+    if (s.hookGrade === 'sempurna') L.push({ narr: 'Dok Legenda', icon: 'anchor', cls: 'forge', t: '<p>Pengait yang kau tempa digantung di atas pintu Dok Legenda.</p>' });
+    if (s.hasiolan === 'percaya') L.push({ narr: 'Galangan Gaul-Wash', icon: 'compass', t: '<p>Uda Gala menunggu dengan jubah baru yang belum pernah dipakai siapa pun. Di kerahnya terjahit nama <b>Hasiolan</b>.</p>' }, { n: n.gala, t: '"Jubah sendiri, seperti yang kau minta."' }, { n: n.hasiolan, t: '"&hellip;Ambo tidak tahu jubah sendiri seberat ini, Uda."' });
+    else L.push({ narr: 'Galangan Gaul-Wash', icon: 'compass', t: '<p>Hasiolan kembali menjemur kain di Gaul-Wash, tapi kini setiap pagi ia mengajari anak-anak galangan membaca arus.</p>' }, { n: n.gala, t: '"Kemudi itu dipinta, bukan dicuri. Ia sedang belajar meminta."' }, { narr: 'Galangan Gaul-Wash', icon: 'compass', t: '<p>Di akhir hari, Hasiolan menoleh ke kapalmu dan mengangkat topi.</p>' });
+    L.push({ narr: 'Tiang dermaga TooGood', icon: 'flag', cls: 'night', t: '<p>zafachmie, Marlya, Bang Rimba, dan kau berdiri di depan tiang tua bertanda silang. zafachmie mengukir <b>lingkaran</b> mengelilingi tanda Andry. Bang Rimba menggantung <b>separuh topeng porselen Andry</b> di tiang itu. Bendera Armada Bebas dinaikkan penuh.</p>' },
+      { n: n.zafa, t: '"Kalau salah satu dari kita jatuh, dua yang lain datang. Kami datang, Andry. Terlambat, tapi datang."' },
+      { n: n.rimba, t: '"Kapten kami selalu bilang tiga sudah cukup untuk sebuah janji. Hari ini ternyata butuh lebih banyak. Dan mereka datang."' });
+    L.push({ narr: 'Penjara TooGood', icon: 'key', cls: 'chain', t: '<p>dwi menjenguk alyfindi dan menunjukkan sketsa inti merah yang dilukis di atas kaca, bertanda "A."</p>' },
+      { n: n.aly, t: '"Seekor gagak membawa kanvas ke selku. Di kakinya ada surat: lukis inti itu, dan pintu sel ini akan terbuka. Aku melukisnya. Pintunya tidak pernah terbuka."' },
+      { n: n.dwi, t: '"Ia memakai lukisanmu untuk membungkam dunia. Sama seperti ia memakai lukisanku."' },
+      { n: n.aly, t: '<i>(lama diam)</i> "&hellip;Bawakan aku kanvas kosong. Kali ini aku ingin melukis sesuatu yang tidak perlu disembunyikan."' },
+      { narr: 'Penjara TooGood', icon: 'key', cls: 'chain', t: '<p>dwi meninggalkan satu kanvas kosong di depan jeruji. Di luar, pelikan mengantar surat ke menara penjara.</p>' });
+    L.push({ narr: "Black's Alley", icon: 'star', t: '<p>Kanvas kosong yang dwi bawa kini terisi: empat anak kecil di dermaga menabuh genderang Legenda Trust. Salah satunya bercap di leher, tersenyum. Di sudut bawah, sketsa topi bowler di tanah. Di latar, deretan kapal kecil dengan lentera menyala: <b>kapal-kapal kapten yang datang menjemput</b>.</p><p>Lukisan digantung di Black\'s Alley di samping lukisan Andry. Teh Euis menggenggam tangan dwi lama sekali.</p>' });
+    L.push({ narr: 'Skitraw, dermaga sore', icon: 'flag', t: '<p>Uda Gala pulang. Chafik berlari menyambut membawa bendera tiga tanda silang dari kertas.</p>' },
+      { n: n.chafik, t: '"Abak menang?"' }, { n: n.gala, t: '"Bukan Abak. Sahabat-sahabat Abak." <i>(menunjuk deretan kapal di kejauhan)</i>' });
+    L.push({ narr: 'Stumpy', icon: 'cup', t: '<p>felyx menyeduh empat cangkir. Satu diletakkan di meja kosong dekat jendela, menghadap laut timur. coco epan masuk, mengambil cangkir itu, dan duduk.</p>' },
+      { n: n.felyx, t: '"Untuk empat orang. Saya bilang, kan."' },
+      { narr: 'Stumpy', icon: 'cup', cls: 'sea', t: '<p>Di luar jendela, laut tenang sampai ke cakrawala. Tidak ada kabut, tidak ada sayap hitam. Hanya kapal-kapal dagang yang pulang.</p>' });
+    pages(w, n.coco, L, btn('quote', 'scroll', 'Lanjut'), function (w2) {
+      on(w2, '[data-dt=quote]', function () {
+        w2.innerHTML = '<div class="lt-quote">"Utang darah tidak pernah lunas oleh yang meminjamnya. Ia lunas oleh dua orang yang memutuskan untuk berhenti menagih."<cite>coco epan</cite></div>' + actions(btn('credits', 'star', 'Selesai'));
+        on(w2, '[data-dt=credits]', function () { close(); credits(function () { rewards(r); }); });
+      });
+    });
+  }
+  function credits(done) {
+    var s = st() || {};
+    setFleetGlobals(s.fleet);
+    flowBusy = true;
+    var fin = function () { flowBusy = false; call('credits', '', function () { }); try { metaMax_('dtcredits', 1); } catch (e) { } if (done) done(); };
+    if (typeof window.DT_playCredits === 'function') { try { window.DT_playCredits(fin); return; } catch (e) { console.warn('[DT] credits', e); } }
+    cine('dt_credits', ['Saga Kedua &mdash; Selesai', 'Pencipta: DMSandris'], fin);
+  }
+  function rewards(r) {
+    var s = st() || {}, w = modalWrap('medal', 'Saga Kedua &mdash; Selesai', 'Tempat Dua Tangan Berjabat'); if (!w) return;
+    r = r || {};
+    w.innerHTML = narr('TooGood', '<p>Kau kembali ke kapalmu sendiri di <b>TooGood</b>. Black Pearl kembali dijaga zafachmie. Semua fitur tetap bisa dipakai: dagang, mancing, duel, dan Serbuan Bersama sebagai <b>veteran</b>.</p>', '', 'anchor') +
+      '<div class="qg-reward">' + ic('coin') + '<div><b>' + fmt(s.reward || 750000) + ' gold</b><span>Hadiah Dewan Dua Tangan</span></div></div>' +
+      '<div class="qg-reward">' + ic('book') + '<div><b>Peta Dua Tangan</b><span>+15 Navigation, waktu tempuh rute pulau Saga 2 &minus;20%</span></div></div>' +
+      '<div class="qg-reward">' + ic('star') + '<div><b>Jabat Tangan Perak-Emas</b><span>+10% harga jual di Kota Sowtour, Kepulauan Karang Garam, dan Joungjava' + (r.equipped === false ? ' (pasang di slot artefak kapal)' : '') + '</span></div></div>' +
+      '<div class="qg-reward">' + ic('star') + '<div><b>Kalung Karang &amp; Topi Bowler</b><span>Kenang-kenangan dari coco, tetap di palka</span></div></div>' +
+      '<div class="qg-reward paradiso">' + ic('medal') + '<div><b>Tanda Jasa: Penyambung Dua Tangan &middot; Saga Kedua</b><span>Credit bisa ditonton ulang dari jurnal quest</span></div></div>' +
+      actions(btn('ok', 'anchor', 'Ke dermaga'));
+    on(w, '[data-dt=ok]', close);
+    au_('achieve');
+  }
+
+  /* =================================================================
+   * KAITAN: kedatangan, panel, hotspot, gosip, NPC
+   * ================================================================= */
+  function here() {
+    var s = st(); if (!s || !docked()) return null;
+    var k = s.step || 0, c = cid();
+    if (k === 0 && s.ready) return { icon: 'scroll', t: 'Seekor pelikan perak', d: 'Tabung surat bersegel hijau di paruhnya.', fn: prologStart, l: 'Baca' };
+    if (k >= 1 && k !== 3 && k !== 4 && c === 'sowtour') return { icon: 'flag', t: 'Papan Armada', d: k >= 5 ? 'Bantu kapten lain menyerbu Teluk Dua Tangan (veteran).' : 'Kumpulkan 2&ndash;4 kapten untuk menyerbu Teluk Dua Tangan.', fn: boardOpen, l: 'Buka', panel: 'tasks' };
+    if (k === 3) return { icon: 'key', t: 'Dua tangan menunggu', d: 'Sayap Patah kandas. Batu itu menunggu tanganmu.', fn: penutup, l: 'Ke batu' };
+    return null;
+  }
+  function callout(icon, t, d, act, label) {
+    return '<div class="qg-callout"><div class="qg-callout-ico">' + ic(icon) + '</div><div><b>' + t + '</b><br><span class="muted small">' + d + '</span></div>' +
+      (act ? '<button class="btn btn-gold" data-dt="' + act + '">' + esc_(label || 'Lihat') + '</button>' : '<span></span>') + '</div>';
+  }
+  function decorTasks() {
+    var s = st(); if (!s || !docked()) return;
+    var h = here(), html = '';
+    if (h) html += callout(h.icon, h.t, h.d, 'here', h.l);
+    if ((s.step || 0) >= 1) html += journal();
+    if ((s.step || 0) >= 5 && s.credits) html += actions(btn('recred', 'star', 'Tonton ulang credit Saga Kedua', false));
+    if (!html) return;
+    var w = insert(html, { quiet: !!h && (s.step || 0) < 5 });
+    if (!w) return;
+    if (h) on(w, '[data-dt=here]', function () { h.fn(); });
+    on(w, '[data-dt=recred]', function () { close(); credits(); });
+    bindHist(w);
+  }
+  wrap_('setModal_', function () { if (currentPanel === 'tasks') try { decorTasks(); } catch (e) { console.warn('[DT]', e); } });
+
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      var s = st();
+      if (panel === 'armada' && cid() === 'sowtour') { if (s && (s.step || 0) >= 1) { boardOpen(); return; } showToast('Om Baayu: "Motor ini genderang kota. Belum waktunya ditabuh."', 'info'); return; }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  // notifikasi kotak masuk & chat
+  wrap_('handleInbox_', null, function (it) {
+    if (!it) return;
+    if (it.type === 'raid_open') showToast('Genderang di Sowtour: ' + it.from + ' membuka armada ke Teluk Dua Tangan.', 'info');
+    if (it.type === 'raid_start') { showToast('Armada ' + it.from + ' mengangkat sauh!', 'success'); setTimeout(function () { startRaid(it.raidId); }, 300); }
+  });
+  // sapaan di dermaga (dipasang setelah LT, jadi jalan lebih dulu)
+  var origNpcToast = window.showNpcToast_;
+  if (typeof origNpcToast === 'function') window.showNpcToast_ = function (role, text) {
+    var c = cid(), s = st();
+    if (c === 'rantai_lama' && s && s.fate === 'dewan') { showToast(pickLine_(['Lonceng pelelangan berdentang, kali ini dengan tali. Selamat datang di pelabuhan bebas, Kapten.', 'Pandai besi FreeYork melebur tiang pasung terakhir di dermaga.'], 'dtrl'), 'info'); return; }
+    if (c === 'teluk_dua_tangan') { showToast('Tak ada dermaga. Hanya cahaya emas dan perak dari batu di tengah teluk.', 'info'); return; }
+    if (c === 'sowtour' && role === 'syahbandar' && s && (s.step || 0) >= 1 && (s.step || 0) < 5) text = 'Black Pearl menunggu di dermaga, Kapten. Om Baayu menyalakan motornya setiap ada kapten yang datang.';
+    return origNpcToast.call(this, role, text);
+  };
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments), s = st();
+      if (!s || !out || !out.length) return out;
+      var pool = (s.step || 0) >= 5 ? ['Di benua, pelikan mengantar surat lagi. Kali ini isinya pesanan kopi.', 'Kata orang, jam di em pe\'er de pe\'er berdetak lagi. Bukan semenit. Sungguhan.', 'Papan di Marie Regal menyala: DUA TANGAN, SATU LAUT.']
+        : (s.step || 0) >= 1 ? ['Kapal hitam di Sowtour menunggu kapten-kapten lain. Katanya mereka butuh banyak beras.', 'Ada yang mendengar knalpot motor dari Kota Sowtour sampai ke laut.'] : null;
+      if (pool && Math.random() < 0.5) out[Math.floor(Math.random() * out.length)] = pool[Math.floor(Math.random() * pool.length)];
+      return out;
+    };
+  }
+
+  /* ---------- kedatangan & transisi ---------- */
+  var prevStep = null, raidCheckAt = 0;
+  function scenes() {
+    var s = st(); if (!s || !docked() || busyUi()) return;
+    var k = s.step || 0, c = cid();
+    if (k >= 5) { try { metaMax_('dtsaga', 1); } catch (e) { } }
+    // serbuan yang masih berjalan (mis. setelah muat ulang / putus koneksi): kembali ke arena
+    if (s.raidId && Date.now() - raidCheckAt > 5000) {
+      raidCheckAt = Date.now();
+      raid(['view', s.raidId], function (v) { if (v.raid && v.raid.status === 'active' && !busyUi()) startRaid(v.raid.id); }, function () { });
+    }
+    if (k === 0 && s.ready && !seen('prolog')) { prologStart(); return; }
+    if (k >= 1 && k < 5 && c === 'sowtour' && !s.arrived && !seen('arrive')) { arriveScene(); return; }
+    if (k === 3 && !seen('penutup:' + s.raidWon)) { markSeen('penutup:' + s.raidWon); penutup(); return; }
+    if (k === 4) { var w = modalWrap('sun', 'Fajar di teluk', 'Teluk Dua Tangan'); if (w) { w.innerHTML = narr('Teluk Dua Tangan', '<p>Batu itu masih menyala emas dan perak.</p>', actions(btn('epi', 'sun', 'Lanjutkan'))); on(w, '[data-dt=epi]', function (b) { tutupThen(b); }); } return; }
+  }
+  wrap_('applyFreshState_', function () {
+    var s = st();
+    if (s) s._at = Date.now();
+    prevStep = s ? (s.step || 0) : null;
+    if (!s) return;
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !st()) return;
+      if (busyUi() || (document.getElementById('modalOverlay') && document.getElementById('modalOverlay').classList.contains('open'))) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { scenes(); } catch (e) { console.warn('[DT] scenes', e); }
+    }, 2200);
+  });
+
+  /* ---------- Tanda Jasa ---------- */
+  if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+    { id: 'dt_penyambung', t: 3, ic: 'key', n: 'Penyambung Dua Tangan', d: 'Tamatkan Tempat Dua Tangan Berjabat.', g: function (m) { return [m.c.dtsaga || 0, 1]; } },
+    { id: 'dt_saga2', t: 3, ic: 'star', n: 'Saga Kedua', d: 'Tonton credit Saga Kedua sampai selesai.', g: function (m) { return [m.c.dtcredits || 0, 1]; } },
+    { id: 'dt_first', t: 3, ic: 'flag', n: 'Tangan Pertama', d: 'Jadi kontributor terbesar di Serbuan Bersama yang menang.', g: function (m) { return [m.c.dtfirst || 0, 1]; } },
+    { id: 'dt_full', t: 2, ic: 'users', n: 'Armada Penuh', d: 'Menang Serbuan Bersama dengan empat kapal.', g: function (m) { return [m.c.dtfull || 0, 1]; } },
+    { id: 'dt_duo', t: 3, ic: 'ship', n: 'Dua Lambung', d: 'Rahasia: menang Serbuan Bersama hanya berdua.', g: function (m) { return [m.c.dtduo || 0, 1]; } },
+    { id: 'dt_helper1', t: 1, ic: 'medal', n: 'Tangan Penolong', d: 'Menang Serbuan Bersama sebagai veteran.', g: function (m) { return [m.c.dtvet || 0, 1]; } },
+    { id: 'dt_helper5', t: 2, ic: 'medal', n: 'Tangan Penolong II', d: 'Menang Serbuan Bersama sebagai veteran 5 kali.', g: function (m) { return [m.c.dtvet || 0, 5]; } },
+    { id: 'dt_helper20', t: 3, ic: 'medal', n: 'Tangan Penolong III', d: 'Menang Serbuan Bersama sebagai veteran 20 kali.', g: function (m) { return [m.c.dtvet || 0, 20]; } }
+  );
+
+  return {
+    N: N, journal: journal, scenes: scenes, here: here, startRaid: startRaid, boardOpen: boardOpen,
+    rantaiOpen: function () { var s = st(); return !!(s && s.fate === 'dewan'); },
+    done: function () { var s = st(); return !!(s && s.step >= 5); },
+    _prolog: prologStart, _penutup: penutup, _key: keyGame, _epilog: epilog, _credits: credits, _rewards: rewards, _arrive: arriveScene
+  };
+})();
+</script>
