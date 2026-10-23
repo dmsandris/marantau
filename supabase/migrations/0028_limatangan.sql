@@ -328,10 +328,16 @@ begin
   return greatest(1, round(base_t * f))::int;
 end $$;
 
+-- Tide v35: penyesuaian per rute dipisah dari ship_json supaya daftar tujuan (api_getSailOptions)
+-- cukup menghitung kapal SEKALI, bukan sekali per pulau. Isi penyesuaian tidak berubah.
+create or replace function game.lt_route_ship(p_pid uuid, p_origin text, p_dest text, p_sh jsonb) returns jsonb
+language sql stable as $$
+  select coalesce(p_sh, '{}'::jsonb)
+      || case when game.lt_east_route(p_pid, p_origin, p_dest) then '{"LegendEast": true}'::jsonb else '{}'::jsonb end
+$$;
 create or replace function game.lt_ship_for_route(p_pid uuid, p_origin text, p_dest text) returns jsonb
 language sql stable as $$
-  select coalesce(game.ship_json(p_pid), '{}'::jsonb)
-      || case when game.lt_east_route(p_pid, p_origin, p_dest) then '{"LegendEast": true}'::jsonb else '{}'::jsonb end
+  select game.lt_route_ship(p_pid, p_origin, p_dest, game.ship_json(p_pid))
 $$;
 
 -- api_setSail (isi identik dengan 0003, kecuali kapal per rute untuk waktu tempuh)
@@ -386,26 +392,29 @@ select game.expose('api_setsail');
 
 create or replace function public.api_getSailOptions(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
-declare v_me game.players := game.me(); l game.player_location; out jsonb;
+declare v_me game.players := game.me(); l game.player_location; out jsonb; v_sh jsonb;
 begin
   select * into l from game.player_location where player_id = v_me.player_id;
   if not found then raise exception 'Data lokasi pemain tidak ditemukan.'; end if;
   if not exists (select 1 from game.cities where city_id = l.city_id) then
     raise exception 'Kota asal tidak dikenali: %', l.city_id;
   end if;
+  -- Tide v35: kapal dihitung sekali; penyesuaian per rute & waktu tempuh sekali per pulau
+  v_sh := game.ship_json(v_me.player_id);
   select coalesce(jsonb_agg(jsonb_build_object(
       'cityId', c.city_id,
       'name', c.name,
       'distance', round((floor(d.dist * 10 + 0.5) / 10)::numeric, 1),
-      'etaSeconds', game.voy_travel_seconds(d.dist, sh.ship),
-      'etaMinutes', round(game.voy_travel_seconds(d.dist, sh.ship) / 60.0, 2),
+      'etaSeconds', t.secs,
+      'etaMinutes', round(t.secs / 60.0, 2),
       'ransum', game.lt_east_route(v_me.player_id, l.city_id, c.city_id),
       'eventLabel', ev ->> 'label',
       'eventType', ev ->> 'eventType') order by c.sort, c.city_id), '[]'::jsonb)
     into out
     from game.cities c
     cross join lateral (select game.voy_map_distance(l.city_id, c.city_id) as dist) d
-    cross join lateral (select game.lt_ship_for_route(v_me.player_id, l.city_id, c.city_id) as ship) sh
+    cross join lateral (select game.lt_route_ship(v_me.player_id, l.city_id, c.city_id, v_sh) as ship) sh
+    cross join lateral (select game.voy_travel_seconds(d.dist, sh.ship) as secs offset 0) t
     cross join lateral (select game.city_event(c.city_id) as ev) e
    where c.city_id <> l.city_id and game.city_open(v_me.player_id, c.city_id);
   return out;

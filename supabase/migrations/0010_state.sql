@@ -92,6 +92,26 @@ declare
   v jsonb; k text; fn text;
   parts text[][];
 begin
+  -- Tide v35 (hemat RAM/CPU): jalur cepat = panggilan langsung (rencana query tersimpan, tanpa SQL dinamis)
+  -- dalam SATU sub-transaksi. Bila ada bagian yang gagal, semuanya dibatalkan lalu jatuh ke jalur lama
+  -- di bawah (tiap bagian terisolasi, error per bagian) -> hasil untuk klien identik.
+  begin
+    o := o || jsonb_build_object('cargoState', public.api_getcargostate(jsonb_build_array(v_city)));
+    -- bundle hanya memakai 'affordable' (isi sama dengan api_getShipUpgrades -> 'affordable', tanpa membangun katalog lengkap)
+    o := o || jsonb_build_object('upgrades', jsonb_build_object('affordable',
+      game.voy_affordable(v_me.player_id, (select p.gold from game.players p where p.player_id = v_me.player_id))));
+    o := o || jsonb_build_object('items', public.api_getitems('[]'::jsonb));
+    if not v_transit then
+      o := o || jsonb_build_object('market', public.api_getmarket(jsonb_build_array(v_city)));
+      o := o || jsonb_build_object('library', public.api_getlibrary('[]'::jsonb));
+      o := o || jsonb_build_object('missionBoard', public.api_getmissionboard(jsonb_build_array(v_city)));
+      o := o || jsonb_build_object('sailOptions', public.api_getsailoptions('[]'::jsonb));
+      o := o || jsonb_build_object('repairQuote', public.api_getrepairquote(jsonb_build_array(v_city)));
+    end if;
+    return o;
+  exception when others then
+    o := jsonb_build_object('cityId', v_city);
+  end;
   parts := array[
     array['cargoState', 'api_getcargostate', v_city],
     array['upgrades', 'api_getshipupgrades', ''],
