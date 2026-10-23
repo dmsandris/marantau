@@ -116,6 +116,8 @@ create table if not exists game.market (
   updated_at    timestamptz not null default now(),
   primary key (city_id, commodity_id)
 );
+-- Tide v36: index untuk foreign key commodity (saran Supabase advisor; aman diulang)
+create index if not exists market_commodity_idx on game.market (commodity_id);
 -- Ekonomi v2 (0018): atribut barang & stok pasar
 alter table game.commodities add column if not exists grp text not null default 'pangan';
 alter table game.commodities add column if not exists tier text not null default 'common';

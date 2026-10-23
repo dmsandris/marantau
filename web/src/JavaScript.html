@@ -175,8 +175,15 @@
     }, { once: true });
 
     // Poll voyage ringan selama berlayar (api_pollVoyage, bukan state penuh).
+    // Tide v36 (hemat beban server): sebelum ETA server tidak mengubah apa pun (bajak laut, belokan quest
+    // & kedatangan baru dihitung DI detik tiba), dan progres kapal sudah dihitung lokal tiap detik.
+    // Jadi di tengah laut cukup 1 cek tiap 30 detik (jaga-jaga); 8 detik terakhir & saat dicegat tetap
+    // tiap 6 detik, dan detik kedatangan tetap ditembak tepat oleh schedulePreciseArrival_.
     setInterval(function () {
-      if (bootDone && state && state.voyage && state.voyage.inTransit) pollVoyage_();
+      if (!bootDone || !state || !state.voyage || !state.voyage.inTransit || document.hidden) return;
+      var v = state.voyage;
+      if (!v.encounterPending && voyLeftMs_() > 8000 && Date.now() - voyLastPoll_ < 30000) return;
+      pollVoyage_();
     }, 6000);
     // Jam hari-game di HUD + progres lokal voyage card (interpolasi antar poll).
     setInterval(function () { updateClockHud_(); tickVoyageCard_(); }, 1000);
@@ -185,24 +192,47 @@
   // Nomor urut perubahan voyage lokal: respons server yang diminta SEBELUM kapten berlayar
   // (poll/loadState yang "balapan" dengan api_setSail) dibuang supaya kapal tidak kembali ke pulau.
   var voySeq = 0;
+  var voyLastPoll_ = 0, voyBusy_ = false, voyAgain_ = false, voyRetry_ = 0;
+  /** Sisa waktu pelayaran (ms) menurut data server terakhir; Infinity bila tidak berlayar. */
+  function voyLeftMs_() {
+    var v = state && state.voyage;
+    if (!v || !v.inTransit) return Infinity;
+    return (v.etaSeconds || 0) * 1000 - (Date.now() - (v._at || Date.now()));
+  }
   function pollVoyage_() {
     if (txPending || (state && state.voyage && state.voyage._optimistic)) return;
+    // Satu permintaan sekaligus: panggilan yang datang saat masih menunggu dijalankan begitu selesai
+    // (tidak menumpuk antrean di server saat sedang lambat).
+    if (voyBusy_) { voyAgain_ = true; return; }
+    voyBusy_ = true; voyLastPoll_ = Date.now();
     var seq = voySeq;
+    function next_() { voyBusy_ = false; if (voyAgain_) { voyAgain_ = false; pollVoyage_(); } }
     google.script.run
       .withSuccessHandler(function (res) {
-        if (!state || !res || !res.voyage) return;
-        if (seq !== voySeq || txPending || (state.voyage && state.voyage._optimistic)) return;
+        voyRetry_ = 0;
+        if (!state || !res || !res.voyage) { next_(); return; }
+        if (seq !== voySeq || txPending || (state.voyage && state.voyage._optimistic)) { next_(); return; }
         var wasInTransit = !!(state.voyage && state.voyage.inTransit);
         state.voyage = res.voyage;
         state.voyage._at = Date.now();
-        if (wasInTransit && !res.voyage.inTransit) { arriveSmooth_(); return; }
+        if (wasInTransit && !res.voyage.inTransit) { voyAgain_ = false; voyBusy_ = false; arriveSmooth_(); return; }
         schedulePreciseArrival_();
+        next_();
         if (combatSceneOpen) return;
         renderScene();
         if (currentPanel === 'setsail') openPanel(currentPanel);
       })
       .withFailureHandler(function (err) {
-        console.error('[Marantau] pollVoyage_ gagal (diam-diam, coba lagi poll berikutnya):', err);
+        console.error('[Marantau] pollVoyage_ gagal:', err);
+        next_();
+        // Gagal di sekitar detik kedatangan (server sedang sibuk) -> coba lagi cepat, jangan menunggu
+        // interval berikutnya. Ini yang dulu membuat kapal "tertahan lalu tiba-tiba sampai".
+        var v = state && state.voyage;
+        if (v && v.inTransit && !v.encounterPending && voyLeftMs_() < 3000 && voyRetry_ < 6) {
+          voyRetry_++;
+          clearTimeout(arrivalTimer);
+          arrivalTimer = setTimeout(pollVoyage_, 800 + voyRetry_ * 400);
+        }
       })
       .api_pollVoyage();
   }
@@ -365,14 +395,18 @@
       google.script.run.withSuccessHandler(function (d) { panelCache['cargo:' + cid] = d; updateHoldFromCargo_(d); }).withFailureHandler(function () {}).api_getCargoState(cid);
     }, 900);
   }
-  var arrivalTimer = null;
+  var arrivalTimer = null, voyDueTries_ = 0;
   /** Poll TEPAT saat ETA habis (bukan menunggu interval 6 detik) - kedatangan terasa instan. */
   function schedulePreciseArrival_() {
     clearTimeout(arrivalTimer);
     var v = state && state.voyage;
-    if (!v || !v.inTransit || v.encounterPending) return;
+    if (!v || !v.inTransit || v.encounterPending) { voyDueTries_ = 0; return; }
     var ms = (v.etaSeconds || 0) * 1000 - (Date.now() - (v._at || Date.now())) + 700;
-    if (ms > 5600) return;
+    if (ms > 5600) { voyDueTries_ = 0; return; }
+    // Server bilang "sudah waktunya" tapi kapal belum tiba (mis. ditahan mini-game quest seperti
+    // Jaring Angin): 2 cek pertama tetap cepat, sesudahnya tiap 2,5 detik saja supaya tidak
+    // membanjiri server selama pemain bermain. Quest memanggil pollVoyage_ sendiri saat selesai.
+    if ((v.etaSeconds || 0) <= 0) { voyDueTries_++; if (voyDueTries_ > 2) ms = 2500; } else voyDueTries_ = 0;
     arrivalTimer = setTimeout(pollVoyage_, Math.max(250, ms));
   }
 
@@ -4632,7 +4666,7 @@
   function faceOf_(p, arch) { var ap = p && p.f ? MTFace.sanitize(p.f) : MTFace.defaults((p && p.n) || 'x', arch || (p && p.a) || 'adventurer'); return MTFace.svg(ap, { arch: arch || (p && p.a), bgColors: ARCH_COL_[arch || (p && p.a)] || ['#3a5a7a', '#14202c'] }); }
   function startMp_() {
     if (MPc.on) {
-      if (state && state.city && state.city.CityId !== MPc.lastCity) { MPc.chat.c = []; MPc.since.c = 0; MPc.primed.c = false; MPc.lastCity = state.city.CityId; MPc._rk = ''; renderChat_(); updUnread_(); }
+      if (state && state.city && state.city.CityId !== MPc.lastCity) { MPc.chat.c = []; MPc.since.c = 0; MPc.primed.c = false; MPc.lastCity = state.city.CityId; MPc._rk = ''; renderChat_(); updUnread_(); if (!MPc.busy) mpSchedule_(800); }
       rtSync_();
       return;
     }
@@ -4644,10 +4678,14 @@
   function stopMp_() { MPc.on = false; clearTimeout(MPc.timer); rtSync_(); }
   function mpInterval_() {
     if (MPc.invite || MPc.duelId) return 2500;
-    // Realtime aktif -> pulse hanya cadangan (kehadiran & jaga-jaga pesan terlewat)
-    if (rtLive_()) return document.hidden ? 30000 : 8000;
-    if (document.hidden) return 15000;
-    return state && state.voyage && state.voyage.inTransit ? 6000 : 4000;
+    var sea = !!(state && state.voyage && state.voyage.inTransit);
+    // Realtime aktif -> pulse hanya cadangan (kehadiran & jaga-jaga pesan terlewat); chat, undangan
+    // & duel tetap masuk SEKETIKA lewat "bel" Realtime (rtBell_).
+    // Tide v36: tab tersembunyi 45 dtk (tetap < jendela "online" server 2 menit -> pemain tetap
+    // terlihat online), di laut 20 dtk (kapal lain di pelabuhan memang tidak tampil saat berlayar).
+    if (rtLive_()) return document.hidden ? 45000 : (sea ? 20000 : 12000);
+    if (document.hidden) return 30000;
+    return sea ? 6000 : 4000;
   }
   function mpSchedule_(ms) { clearTimeout(MPc.timer); MPc.timer = setTimeout(mpPulse_, ms == null ? mpInterval_() : ms); }
   function mpPulse_() {
