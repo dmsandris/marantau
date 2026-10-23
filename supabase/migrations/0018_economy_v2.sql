@@ -222,9 +222,14 @@ returns double precision language sql stable as $$
 $$;
 
 -- Perbarui stok satu kota (dipanggil saat pasar dibuka)
+-- Tide v35 (hemat RAM/IO): baris hanya ditulis ulang bila siklus pasar berganti atau sudah
+-- lewat MarketRefreshMinSec detik (bawaan 30). Di dalam satu siklus stok meluruh eksponensial,
+-- jadi menulis lebih jarang memberi stok yang SAMA persis. Baris yang sedang dikunci transaksi
+-- lain (beli/jual) dilewati, tidak ditunggu. Harga yang tampil dihitung dari proyeksi saat dibaca.
 create or replace function game.mkt_refresh(p_city text) returns void
 language plpgsql as $$
 declare v_cyc bigint := game.mkt_cycle_index(); v_tags jsonb := game.mkt_cycle_tags(p_city, game.mkt_cycle_index());
+  v_min interval := make_interval(secs => game.cfg_num('MarketRefreshMinSec', 30)::double precision);
 begin
   update game.market m
      set stock = game.mkt_project(m.stock, m.at, m.cyc, m.role, c.tier, c.ref, c.id, v_tags, v_cyc),
@@ -232,7 +237,12 @@ begin
          current_price = greatest(1, round(game.mkt_mid2(c.base, c.ref, c.elast,
            game.mkt_project(m.stock, m.at, m.cyc, m.role, c.tier, c.ref, c.id, v_tags, v_cyc), m.role, c.tier)))::int
     from game.commodities c
-   where c.id = m.commodity_id and m.city_id = p_city and c.active;
+   where c.id = m.commodity_id and m.city_id = p_city and c.active
+     and (m.city_id, m.commodity_id) in (
+       select x.city_id, x.commodity_id from game.market x
+        where x.city_id = p_city
+          and (x.cyc is distinct from v_cyc or x.at is null or x.at < now() - v_min)
+        for update skip locked);
 end $$;
 
 -- Kunci & perbarui satu baris pasar, kembalikan stok sekarang
@@ -338,7 +348,9 @@ begin
   if not exists (select 1 from game.cities where city_id = v_city) then raise exception 'Kota tidak dikenal.'; end if;
   perform game.mkt_refresh(v_city);
   cyc := game.mkt_cycle_index(); tags := game.mkt_cycle_tags(v_city, cyc);
-  for r in select m.commodity_id, m.role, m.stock, c.* from game.market m join game.commodities c on c.id = m.commodity_id
+  -- stok dibaca sebagai proyeksi saat ini (tepat walau baris belum ditulis ulang oleh mkt_refresh)
+  for r in select m.commodity_id, m.role, game.mkt_project(m.stock, m.at, m.cyc, m.role, c.tier, c.ref, c.id, tags, game.mkt_cycle_index()) as stock, c.*
+             from game.market m join game.commodities c on c.id = m.commodity_id
             where m.city_id = v_city and c.active order by c.sort, c.id loop
     select * into mu from game.eco2_muls(pid, v_city, r.commodity_id);
     base_ev := r.base * mu.ev_mul;
