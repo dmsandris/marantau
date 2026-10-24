@@ -299,6 +299,31 @@ const bot = require('./raidbot');
   ok(r.status === 'done' && r.result === 'loss', 'semua mundur = kalah');
   ok((await step(C)) === 1 && (await dt(C, ['status'])).duatangan.tries >= 1, 'percobaan tercatat');
 
+  // --- v36b: lobi basi tidak menahan kapten di dermaga ----------------------------------
+  const LE = await grad('lobi_echo', 'Kapten Gema', GOOD);
+  const LF = await grad('lobi_fox', 'Kapten Rubah', GOOD);
+  for (const u of [LE, LF]) await dt(u, ['prolog']);
+  const home = async u => H.sql(`update game.player_location set city_id = 'sowtour', destination_city_id = null, depart_at = null, arrive_at = null, pending_encounter = null where player_id = $1`, [u.pid]);
+  // (a) sendirian & sudah Siap: berlayar = keluar otomatis, setoran kembali, lobi bubar
+  const em0 = await qty(LE, 'mesiu'), eb0 = await qty(LE, 'beras');
+  r = (await raid(LE, ['open'])).raid; const solo = r.id;
+  await raid(LE, ['ready', true]);
+  ok((await qty(LE, 'mesiu')) === em0 - 50, 'setoran dipotong (lobi sendirian)');
+  await LE.c.call('api_setSail', ['karang_garam']);
+  ok((await qty(LE, 'mesiu')) === em0 && (await qty(LE, 'beras')) === eb0, 'sendirian berlayar: setoran kembali');
+  ok((await one(`select status from game.mp_raids where id = $1`, [solo])).status === 'cancelled', 'lobi sendirian bubar saat berlayar');
+  ok((await one(`select game.dt_raid_of($1) v`, [LE.pid])).v === null, 'tidak tercatat di armada mana pun');
+  await home(LE);
+  // (b) berdua, kawan sudah offline: lobi dibersihkan dulu, lalu boleh berlayar
+  r = (await raid(LE, ['open'])).raid; await raid(LF, ['join', r.id]);
+  await raid(LE, ['ready', true]); await raid(LF, ['ready', true]);
+  await H.expectError(() => LE.c.call('api_setSail', ['karang_garam']), /Papan Armada/);
+  const fm0 = await qty(LF, 'mesiu');
+  await H.sql(`update game.mp_presence set ts = now() - interval '3 minutes' where player_id = $1`, [LF.pid]);
+  await LE.c.call('api_setSail', ['karang_garam']);
+  ok((await qty(LF, 'mesiu')) === fm0 + 50, 'kawan offline dikeluarkan, setorannya kembali');
+  ok((await one(`select status from game.mp_raids where id = $1`, [r.id])).status === 'cancelled', 'lobi basi bubar');
+
   console.log('0030_duatangan OK');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
