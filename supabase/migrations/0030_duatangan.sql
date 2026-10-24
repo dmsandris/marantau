@@ -468,7 +468,8 @@ end $$;
 -- ---------------------------------------------------------------------
 create or replace function game.mp_sail_guard(p_pid uuid) returns void
 language plpgsql as $$
-declare v_slot text; d game.mp_duels; v_raid text; v_st text;
+declare v_slot text; d game.mp_duels; v_raid text; r game.mp_raids; v_n int; m game.mp_raid_members; o game.mp_presence;
+  t bigint := game.dt_now();
 begin
   v_slot := game.mp_slot(p_pid);
   if v_slot is not null then
@@ -477,10 +478,29 @@ begin
     if d.status = 'active' then raise exception 'Selesaikan duelmu dulu sebelum berlayar.'; end if;
   end if;
   v_raid := game.dt_raid_of(p_pid);
-  if v_raid is not null then
-    select status into v_st from game.mp_raids where id = v_raid;
-    if v_st = 'lobby' then raise exception 'Kau masih tercatat di Papan Armada. Keluar dari armada dulu sebelum berlayar.'; end if;
-    if v_st = 'active' then raise exception 'Armadamu sedang menyerbu Teluk Dua Tangan.'; end if;
+  if v_raid is null then return; end if;
+  select * into r from game.mp_raids where id = v_raid for update;
+  if r.status = 'lobby' then
+    -- v36b: bersihkan dulu kapten LAIN yang basi (offline / tidak siap 5 menit / sudah pergi), baru putuskan.
+    -- (Pemain ini sendiri sudah ditandai berlayar oleh api_setSail, jadi tidak boleh ikut aturan dt_tick.)
+    for m in select * from game.mp_raid_members where raid_id = r.id and player_id <> p_pid loop
+      select * into o from game.mp_presence where player_id = m.player_id;
+      if (not m.ready and t - m.joined_ms > game.dt_k('ready_ms')) or not game.mp_online(o)
+         or game.current_city(m.player_id) is distinct from 'sowtour' or game.in_transit(m.player_id) then
+        r := game.dt_lobby_leave(r, m.player_id);
+      end if;
+    end loop;
+    perform game.dt_save(r);
+    if r.status = 'lobby' then
+      select count(*) into v_n from game.mp_raid_members where raid_id = r.id;
+      if v_n > 1 then
+        raise exception 'Kau masih tercatat di Papan Armada. Keluar dari armada dulu sebelum berlayar.';
+      end if;
+      -- sendirian di lobi: tidak ada armada yang ditinggal; keluar otomatis (setoran kembali) lalu berlayar
+      r := game.dt_lobby_leave(r, p_pid); perform game.dt_save(r);
+    end if;
+  elsif r.status = 'active' then
+    raise exception 'Armadamu sedang menyerbu Teluk Dua Tangan.';
   end if;
 end $$;
 
