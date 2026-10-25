@@ -56,7 +56,8 @@ begin
     'limatangan', game.lt_state(v_pid),
     'duatangan', game.dt_state(v_pid),
     'harian', game.harian_state(v_pid),
-    'gotong', game.gotong_state(v_pid)
+    'gotong', game.gotong_state(v_pid),
+    'pacu', game.pacu_state(v_pid)
   );
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru

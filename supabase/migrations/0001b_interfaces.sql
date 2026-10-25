@@ -344,3 +344,6 @@ create or replace function game.harian_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
 create or replace function game.gotong_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Tide v37 · Pacu Dagang / 0033] status lomba akhir pekan (null = tertutup)
+create or replace function game.pacu_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
