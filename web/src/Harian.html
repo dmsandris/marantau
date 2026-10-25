@@ -1,0 +1,316 @@
+<style>
+  /* ================= Tide v37 · Pesanan Harian & Keping Rantau ================= */
+  .hr-gate[hidden] { display: none !important; }
+  #menuList .btn .hr-dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: #e8c35a; box-shadow: 0 0 0 2px rgba(40,24,10,.55); display: none; }
+  #menuList .btn.hr-has .hr-dot { display: block; }
+  .res.keping .ri { color: #e8c35a; }
+  .res.keping .kp-bar { position: absolute; left: 10px; right: 10px; bottom: 2px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; display: none; }
+  .res.keping.has-incar .kp-bar { display: block; }
+  .res.keping .kp-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #b8923a, #f0cf78); transition: width .6s; }
+  .res.keping.bump .rv { animation: hrBump .7s; }
+  .res.pesanan.lunas .rv { color: #bff0c8; }
+  .res.pesanan.ready .ri { animation: hrPulse 1.6s infinite; }
+  @keyframes hrBump { 30% { transform: scale(1.25); color: #ffe7a3; } }
+  @keyframes hrPulse { 50% { opacity: .45; } }
+
+  .hr-wrap { display: grid; gap: 12px; margin: 6px 0 12px; }
+  .hr-npc { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(255,250,236,.78), rgba(244,232,206,.7)); border: 1px solid rgba(120,90,40,.28); }
+  .hr-npc .fc { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px rgba(184,146,58,.55); }
+  .hr-npc .fc svg { width: 100%; height: 100%; display: block; }
+  .hr-npc b { font-family: var(--font-title); letter-spacing: .04em; color: #4a3218; }
+  .hr-npc b span { font-family: inherit; font-weight: 400; color: #8a6a3a; font-size: .85em; letter-spacing: 0; }
+  .hr-npc p { margin: 3px 0 0; font-style: italic; color: #3b2a16; line-height: 1.45; }
+  .hr-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .hr-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: .78em; background: rgba(60,40,15,.08); border: 1px solid rgba(120,90,40,.25); color: #4a3218; }
+  .hr-pill .ico { width: 13px; height: 13px; }
+  .hr-pill.gol { background: linear-gradient(180deg, #2a3c4e, #1a2633); color: #e8dcc0; border-color: rgba(232,195,90,.5); }
+  .hr-pill.time { margin-left: auto; }
+  .hr-task { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: center; padding: 11px 12px; border-radius: 14px; background: rgba(255,255,255,.62); border: 1px solid rgba(120,100,60,.26); position: relative; overflow: hidden; }
+  .hr-task .tier { display: grid; place-items: center; text-align: center; font-family: var(--font-title); font-size: .6em; letter-spacing: .05em; text-transform: uppercase; color: #6b5a3a; }
+  .hr-task .tier .ico { width: 26px; height: 26px; margin-bottom: 2px; }
+  .hr-task.t1 .tier { color: #3f7a4a; } .hr-task.t2 .tier { color: #2f6a8f; } .hr-task.t3 .tier { color: #9a3a22; }
+  .hr-task h4 { margin: 0 0 6px; font-size: .95em; color: #2e2010; line-height: 1.35; }
+  .hr-bar { height: 8px; border-radius: 99px; background: rgba(60,40,15,.12); overflow: hidden; }
+  .hr-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #b8923a, #e8c35a); transition: width .5s; }
+  .hr-task .prog { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: .76em; color: #6b5a3a; }
+  .hr-task .rw { display: grid; gap: 4px; justify-items: end; font-size: .8em; color: #4a3218; white-space: nowrap; }
+  .hr-task .rw span { display: inline-flex; align-items: center; gap: 4px; }
+  .hr-task .rw .ico { width: 13px; height: 13px; }
+  .hr-task .rw .kp { color: #8a5a10; } .hr-task .rw .kp .ico { color: #b8923a; }
+  .hr-task .rw .btn { padding: 3px 10px; min-height: 0; font-size: .95em; }
+  .hr-task.done { background: rgba(232,245,226,.75); border-color: rgba(60,140,80,.38); }
+  .hr-task.done h4 { color: #3a5a3a; text-decoration: line-through; text-decoration-color: rgba(60,120,60,.45); }
+  .hr-task.done .hr-bar i { background: linear-gradient(90deg, #4f9a5a, #8fd09a); }
+  .hr-seal { position: absolute; right: 122px; top: 50%; width: 46px; height: 46px; margin-top: -23px; border-radius: 50%; display: grid; place-items: center; transform: rotate(-14deg);
+    background: radial-gradient(circle at 35% 30%, #d9534a, #8a1d18 70%); color: #ffe7d0; font-family: var(--font-title); font-size: .58em; letter-spacing: .05em; box-shadow: 0 2px 6px rgba(80,10,10,.35); animation: hrSeal .45s cubic-bezier(.2,1.6,.4,1); }
+  .hr-seal::after { content: ''; position: absolute; inset: 4px; border-radius: 50%; border: 1px dashed rgba(255,220,200,.5); }
+  @keyframes hrSeal { from { transform: rotate(-30deg) scale(2.2); opacity: 0; } }
+  .hr-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .hr-sum .box { padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.5); border: 1px dashed rgba(120,100,60,.35); font-size: .84em; color: #4a3218; }
+  .hr-sum .box.on { border-style: solid; background: rgba(232,245,226,.7); border-color: rgba(60,140,80,.4); }
+  .hr-sum .box b { display: block; font-size: 1.05em; color: #2e2010; }
+  .hr-cal { padding: 12px; border-radius: 14px; background: linear-gradient(180deg, #2a2218, #17120c); color: #ece2cc; border: 1px solid rgba(232,195,90,.35); }
+  .hr-cal h5 { margin: 0 0 8px; font-family: var(--font-title); letter-spacing: .1em; font-size: .74em; text-transform: uppercase; color: #f0cf78; display: flex; justify-content: space-between; gap: 8px; }
+  .hr-cal h5 span { font-family: inherit; letter-spacing: 0; text-transform: none; color: #cfc4ad; font-size: 1.05em; }
+  .hr-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .hr-day { position: relative; display: grid; justify-items: center; gap: 3px; padding: 6px 2px 5px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); font-size: .66em; color: #b9ae98; }
+  .hr-day .fc { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; filter: grayscale(.85) brightness(.75); }
+  .hr-day .fc svg { width: 100%; height: 100%; display: block; }
+  .hr-day.filled .fc { filter: none; }
+  .hr-day.filled::after { content: ''; position: absolute; top: 3px; right: 4px; width: 13px; height: 13px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d9534a, #8a1d18 70%); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  .hr-day.today { border-color: rgba(232,195,90,.8); box-shadow: 0 0 0 1px rgba(232,195,90,.35) inset; color: #ffe7a3; }
+  .hr-day.peti .fc { box-shadow: 0 0 0 2px rgba(232,195,90,.7); }
+  .hr-day .chest { position: absolute; bottom: 18px; right: 2px; width: 16px; height: 16px; color: #f0cf78; }
+  .hr-cal .foot { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 9px; font-size: .78em; color: #cfc4ad; }
+  .hr-cal .foot .ico { width: 13px; height: 13px; vertical-align: -2px; color: #f0cf78; }
+  .hr-cal .foot b { color: #ffe7a3; }
+  /* Peti Rantau */
+  .hr-peti { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, rgba(40,28,10,.85), rgba(5,4,2,.92)); opacity: 0; transition: opacity .35s; }
+  .hr-peti.on { opacity: 1; }
+  .hr-peti .box { width: min(380px, 92vw); text-align: center; display: grid; gap: 10px; justify-items: center; color: #f0e6d4; }
+  .hr-peti .chest { width: 120px; height: 120px; color: #f0cf78; filter: drop-shadow(0 0 18px rgba(240,207,120,.6)); animation: hrChest 1.1s ease-out; }
+  .hr-peti h3 { margin: 0; font-family: var(--font-display); color: #f0cf78; font-size: 1.4em; }
+  .hr-peti .item { padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,.08); border: 1px solid rgba(240,207,120,.45); }
+  @keyframes hrChest { 0% { transform: scale(.4) rotate(-12deg); opacity: 0; } 60% { transform: scale(1.12) rotate(4deg); opacity: 1; } 80% { transform: scale(.96); } }
+  @media (max-width: 560px) {
+    .hr-task { grid-template-columns: 34px 1fr; }
+    .hr-task .tier span { display: none; }
+    .hr-task .rw { grid-column: 1 / -1; grid-auto-flow: column; justify-content: space-between; align-items: center; }
+    .hr-task .tier .ico { width: 22px; height: 22px; }
+    .hr-seal { right: 10px; top: 14px; margin-top: 0; width: 40px; height: 40px; }
+    .hr-npc { grid-template-columns: 52px 1fr; } .hr-npc .fc { width: 52px; height: 52px; }
+    .hr-day .fc { width: 28px; height: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .hr-seal, .hr-peti .chest, .res.pesanan.ready .ri { animation: none; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v37 · Pesanan Harian + Keping Rantau (HUD) + gerbang fitur
+ * Server: supabase/migrations/0032_harian_kedai.sql (api_harian, key 'harian' & 'gotong' di getGameState).
+ * Kabar tugas selesai datang lewat inbox (type 'harian') - dari aksi apa pun (jual, berlayar, mancing...).
+ * ===================================================================== */
+var HR = (function () {
+  /* ---------- tujuh tokoh (Senin..Minggu) ---------- */
+  var TOKOH = [
+    { name: 'Uda Gala', title: 'Galangan Gaul-Wash, Skitraw', ap: { fem: 0, skin: 2, hair: 0, hairStyle: 1, facial: 4, head: 'arch', eyes: 1, seed: 424242, role: 'tukang', age: 0.55 },
+      open: 'Sanak! Pekan baru, kapal baru dicuci. Ambo titip tiga urusan, jangan sampai rendangnya dingin.', done: 'Rancak bana!', sapu: 'Satu galangan bersorak untuakmu, Kapten!' },
+    { name: 'Pak Tua Karto', title: 'Warung Pantai, Joungjava', ap: { fem: 0, skin: 3, hair: 4, hairStyle: 5, facial: 2, head: 'arch', eyes: 0, seed: 1717, role: 'lapau', age: 0.95 },
+      open: 'Kopiku pahit, pesananku tidak. Kerjakan pelan-pelan, Nak.', done: 'Hm. Lumayan.', sapu: 'Duduk sini. Kopi ini gratis untukmu.' },
+    { name: 'Nenek Ulin', title: 'Mercusuar Kayu, Bjorneo', ap: { fem: 1, skin: 3, hair: 4, hairStyle: 0, facial: 0, head: 'arch', eyes: 2, seed: 2929, role: 'pustakawan', age: 0.95 },
+      open: 'Apa yang ringan di kertas tapi berat di kaki? Daftar tugas. Ini punyamu.', done: 'Satu teka-teki terjawab.', sapu: 'Kau lebih tajam dari jangkar, Nak.' },
+    { name: 'Daeng Sore', title: "Black's Alley, siang", ap: { fem: 0, skin: 3, hair: 0, hairStyle: 0, facial: 1, head: 'none', eyes: 1, seed: 51515, role: 'lapau', age: 0.6 },
+      open: 'Matahari masih tinggi, Kapten. Masih sempat tiga pekerjaan sebelum lampu dinyalakan.', done: 'Mantap, Daeng tuang satu untukmu nanti.', sapu: "Black's Alley bersulang untukmu malam ini." },
+    { name: 'Teh Euis', title: 'Benteng Kapten, TooGood', ap: { fem: 1, skin: 1, hair: 0, hairStyle: 0, facial: 0, head: 'none', eyes: 2, seed: 31313, role: 'saudagar', age: 0.35 },
+      open: 'Ieu catetanna. Jangan sampai ada yang lupa, nya.', done: 'Hatur nuhun.', sapu: 'Kunci-kunci tua ini pun ikut bangga.' },
+    { name: "dwi de'clown", title: "Black's Alley, malam", clown: true, ap: { fem: 0, skin: 2, hair: 2, hairStyle: 3, facial: 0, head: 'none', eyes: 0, seed: 70707, role: 'lapau', age: 0.4 },
+      open: 'Lukisanku butuh warna. Bawakan aku cerita dari laut, tiga saja.', done: 'Satu sapuan kuas lagi!', sapu: 'Kau baru saja jadi lukisan terbaikku minggu ini.' },
+    { name: 'coco epan', title: 'Javasche Bank, Joungjava', coco: true,
+      open: 'Pembukuan yang rapi dimulai dari tiga baris ini, Kapten.', done: 'Tercatat.', sapu: 'Uang lama jarang terkesan. Hari ini aku terkesan.' }
+  ];
+  var HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+  var TIER = [null, { n: 'Mudah', ic: 'anchor' }, { n: 'Sedang', ic: 'compass' }, { n: 'Tantangan', ic: 'flag' }];
+  var FACE = {};
+  function tokoh(i) { return TOKOH[((i || 1) - 1 + 7) % 7]; }
+  function face(i, bg) {
+    var k = (i || 1) + '|' + (bg || ''); if (FACE[k]) return FACE[k];
+    var t = tokoh(i), ap = t.ap;
+    if (t.coco) { try { ap = (window.DT && DT.N && DT.N().coco && DT.N().coco.ap) || MTFace.npc('joungjava|bankir', 'bankir', 0); } catch (e) { ap = MTFace.npc('joungjava|bankir', 'bankir', 0); } }
+    try { FACE[k] = MTFace.svg(ap, { bgColors: bg || ['#7a6440', '#2a1e12'], clown: !!t.clown }); } catch (e) { FACE[k] = ''; }
+    return FACE[k];
+  }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.harian) || null; }
+  function open(k) { var s = st(); return !!(s && s.open && (k === 'any' ? (s.open.harian || s.open.kedai || s.open.gotong) : s.open[k])); }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function fmtShort(n) { n = Number(n) || 0; return n >= 1e6 ? (Math.round(n / 1e5) / 10).toString().replace('.', ',') + ' jt' : n >= 1e4 ? Math.round(n / 1e3) + ' rb' : fmt(n); }
+  function label(t) { return esc_(t.l || '').replace('{n}', '<b>' + fmt(t.n) + '</b>'); }
+  function doneCount(s) { return ((s && s.tasks) || []).filter(function (t) { return t.done; }).length; }
+  function timeLeft(ms) { ms = Math.max(0, ms || 0); var h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000); return (h ? h + ' jam ' : '') + m + ' menit'; }
+  var syncedAt = 0;
+  function resetMs() { var s = st(); return s && s.resetInMs != null ? s.resetInMs - (Date.now() - (s._at || syncedAt || Date.now())) : 0; }
+
+  /* ---------- gerbang menu & HUD ---------- */
+  function applyGates() {
+    document.querySelectorAll('.hr-gate[data-gate]').forEach(function (el) { el.hidden = !open(el.getAttribute('data-gate')); });
+    var s = st();
+    if (!s) return;
+    var kv = document.getElementById('ledgerKeping'); if (kv) kv.textContent = fmt(s.keping || 0);
+    var rk = document.getElementById('resKeping');
+    if (rk) {
+      var inc = s.incaran && s.incaranPrice ? Math.min(100, Math.round((s.keping || 0) / s.incaranPrice * 100)) : null;
+      rk.classList.toggle('has-incar', inc != null);
+      var bar = rk.querySelector('.kp-bar i'); if (bar) bar.style.width = (inc || 0) + '%';
+      rk.title = 'Keping Rantau: ' + fmt(s.keping || 0) + (inc != null ? ' · Incaran: ' + s.incaranName + ' ' + fmt(s.keping || 0) + '/' + fmt(s.incaranPrice) : '') + ' - ketuk untuk Kedai Rantau';
+    }
+    if (s.open && s.open.harian && s.tasks) {
+      var n = doneCount(s), hp = document.getElementById('hudPesanan'), rp = document.getElementById('resPesanan');
+      if (hp) hp.textContent = n + '/' + s.tasks.length;
+      if (rp) { rp.classList.toggle('lunas', !!s.lunas); rp.classList.toggle('ready', n < s.tasks.length && !s.lunas); }
+      var mb = document.querySelector('#menuList .btn[data-panel=pesanan]'); if (mb) mb.classList.toggle('hr-has', !s.lunas);
+    }
+  }
+  function bumpKeping() { var rk = document.getElementById('resKeping'); if (!rk) return; rk.classList.remove('bump'); void rk.offsetWidth; rk.classList.add('bump'); }
+  function adopt(h) {
+    if (!state) return;
+    if (h) h._at = Date.now();
+    state.harian = h || null;
+    syncedAt = Date.now();
+    applyGates();
+    if (currentPanel === 'pesanan') renderPanel();
+    if (window.KD && KD.onHarian) try { KD.onHarian(); } catch (e) { }
+  }
+  var refreshT = 0;
+  function refresh(cb) {
+    clearTimeout(refreshT);
+    refreshT = setTimeout(function () {
+      google.script.run.withSuccessHandler(function (r) { if (r && r.harian !== undefined) adopt(r.harian); if (cb) cb(); }).withFailureHandler(function () { }).api_harian('status');
+    }, 250);
+  }
+
+  /* ---------- panel Pesanan ---------- */
+  function taskHtml(t, i, s) {
+    var pct = Math.max(0, Math.min(100, (t.p || 0) / (t.goal || 1) * 100)), money = t.c === 'S1' || t.c === 'T1';
+    var canSwap = !t.done && !(t.p > 0) && !(t.s) && (s.rerollLeft || 0) > 0;
+    var prog = money ? fmt(Math.max(0, t.s || 0)) + ' / ' + fmt(t.goal) + ' gold' : (t.goal > 1 ? (t.p || 0) + ' / ' + t.goal : (t.done ? 'Selesai' : 'Belum'));
+    return '<div class="hr-task t' + t.t + (t.done ? ' done' : '') + '">' +
+      '<div class="tier" title="' + TIER[t.t].n + '">' + ic(TIER[t.t].ic) + '<span>' + TIER[t.t].n + '</span></div>' +
+      '<div><h4>' + label(t) + '</h4><div class="hr-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div><div class="prog"><span>' + prog + '</span>' + (money && (t.s || 0) < 0 ? '<span style="color:#9a3a22">rugi mengurangi</span>' : '') + '</div></div>' +
+      '<div class="rw"><span>' + ic('coin') + '+' + fmtShort(t.gold) + ' gold</span><span class="kp">' + ic('keping') + '+' + t.kp + ' keping</span>' +
+        (canSwap ? '<button class="btn btn-ghost-ink" data-hr-swap="' + i + '" title="Ganti dengan tugas lain di tingkat yang sama">' + ic('reload') + ' Tukar</button>' : '') + '</div>' +
+      (t.done ? '<div class="hr-seal">BERES</div>' : '') +
+    '</div>';
+  }
+  function calHtml(s) {
+    var k = s.streak || {}, filled = k.filled || 0, today = s.npc || 1, html = '';
+    // kotak ke-n kalender = hari streak ke-n; wajah = tokoh hari pekan itu
+    var startDow = ((today - 1) - (k.today ? filled - 1 : filled) + 70) % 7;
+    for (var d = 0; d < 7; d++) {
+      var dow = (startDow + d) % 7 + 1, isFilled = d < filled, isToday = d === (k.today ? filled - 1 : filled);
+      html += '<div class="hr-day' + (isFilled ? ' filled' : '') + (isToday ? ' today' : '') + (d === 6 ? ' peti' : '') + '">' +
+        '<div class="fc">' + face(dow, ['#3a3226', '#14100a']) + '</div>' + HARI[dow - 1].slice(0, 3) + (d === 6 ? '<span class="chest">' + ic('chest') + '</span>' : '') + '</div>';
+    }
+    var foot = '<span>' + ic('fire') + ' Streak <b>' + (k.cur || 0) + '</b> hari</span><span>' + ic('trophy') + ' Rekor <b>' + (k.best || 0) + '</b></span>' +
+      '<span>' + ic('anchor') + ' Tali Tambat: ' + (k.tambatReady ? '<b>siap</b>' : 'terpakai pekan ini') + (k.extra ? ' &middot; cadangan <b>' + k.extra + '</b>' : '') + '</span>';
+    if (k.pending) foot += '<span style="color:#ffb4a0">' + ic('alert') + ' Kemarin bolong - Lunasi hari ini supaya Tali Tambat menjaga streak.</span>';
+    return '<div class="hr-cal"><h5>Kalender Tujuh Tokoh<span>Hari 1&ndash;6: +' + (s.streakKp || 5) + ' keping &middot; Hari 7: Peti Rantau</span></h5><div class="hr-days">' + html + '</div><div class="foot">' + foot + '</div></div>';
+  }
+  function renderPanel() {
+    var s = st();
+    if (!s || !s.open || !s.open.harian) { setModal_(panelHeader_('journal', 'Pesanan Harian', '') + '<div class="empty-state">' + ic('lock') + 'Pesanan Harian belum dibuka.</div>'); return; }
+    var t = tokoh(s.npc), n = doneCount(s), box = document.getElementById('modalBox');
+    if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); }
+    var html = panelHeader_('journal', 'Pesanan Harian', HARI[(s.npc || 1) - 1] + ' &middot; ' + esc_(t.name)) +
+      '<div class="hr-wrap">' +
+      '<div class="hr-npc"><div class="fc">' + face(s.npc) + '</div><div><b>' + esc_(t.name) + ' <span>&middot; ' + esc_(t.title) + '</span></b><p>&ldquo;' + esc_(s.sapu ? t.sapu : t.open) + '&rdquo;</p></div></div>' +
+      '<div class="hr-meta"><span class="hr-pill gol">' + ic('ship') + 'Golongan ' + esc_(s.golName || '') + '</span>' +
+        '<span class="hr-pill">' + ic('keping') + fmt(s.keping || 0) + ' keping</span>' +
+        '<span class="hr-pill">' + ic('reload') + 'Tukar tersisa ' + (s.rerollLeft || 0) + '</span>' +
+        '<span class="hr-pill time" id="hrClock">' + ic('hourglass') + 'Lembar baru dalam ' + timeLeft(resetMs()) + ' (00:00 WIB)</span></div>' +
+      (s.tasks || []).map(function (x, i) { return taskHtml(x, i, s); }).join('') +
+      '<div class="hr-sum"><div class="box' + (s.lunas ? ' on' : '') + '"><b>' + (s.lunas ? 'Lunas' : 'Lunas: ' + n + '/2') + '</b>Selesaikan 2 tugas untuk menjaga streak.</div>' +
+        '<div class="box' + (s.sapu ? ' on' : '') + '"><b>' + (s.sapu ? 'Sapu Bersih!' : 'Sapu Bersih: ' + n + '/3') + '</b>Ketiganya selesai: +' + (s.sapuKp || 10) + ' keping.</div></div>' +
+      calHtml(s) +
+      '</div>';
+    setModal_(html);
+    var c = document.getElementById('modalContent');
+    c.querySelectorAll('[data-hr-swap]').forEach(function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        google.script.run.withSuccessHandler(function (r) { au_('page'); adopt(r.harian); showToast(tokoh(st().npc).name + ': "Baiklah, yang ini saja."', 'info'); })
+          .withFailureHandler(function (e) { b.disabled = false; showToast((e && e.message) || String(e), 'error'); }).api_harian('tukar', Number(b.getAttribute('data-hr-swap')));
+      };
+    });
+  }
+  setInterval(function () {
+    var el = document.getElementById('hrClock'); if (el && currentPanel === 'pesanan') el.innerHTML = ic('hourglass') + 'Lembar baru dalam ' + timeLeft(resetMs()) + ' (00:00 WIB)';
+    // lewat tengah malam WIB: ambil lembar baru
+    var s = st(); if (s && s.open && s.open.harian && resetMs() <= 0 && Date.now() - syncedAt > 20000) refresh();
+  }, 20000);
+
+  /* ---------- Peti Rantau ---------- */
+  function petiShow(p, streak) {
+    var ov = document.createElement('div'); ov.className = 'hr-peti';
+    ov.innerHTML = '<div class="box"><div class="chest">' + ic('chest') + '</div><h3>Peti Rantau</h3><p>Tujuh hari, tujuh tokoh. Kalendermu penuh.</p>' +
+      '<div class="item"><b>' + esc_(p.name || 'Hadiah') + '</b><br><span class="muted small">+' + ((streak && streak.kp) || 30) + ' keping &middot; tersimpan di Kedai Rantau</span></div>' +
+      '<button class="btn btn-gold">Terima</button></div>';
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.classList.add('on'); });
+    au_('achieve');
+    ov.querySelector('.btn').onclick = function () { ov.classList.remove('on'); setTimeout(function () { ov.remove(); }, 380); };
+  }
+
+  /* ---------- kabar dari server (inbox) ---------- */
+  function onInbox(it) {
+    if (!it || it.type !== 'harian') return;
+    var t = tokoh(it.npc), gold = 0;
+    (it.done || []).forEach(function (d, k) {
+      gold += Number(d.gold) || 0;
+      setTimeout(function () { showToast(t.name + ': "' + t.done + '" ' + String(d.l || '').replace('{n}', fmt(d.n)) + ' (+' + fmt(d.gold) + ' gold, +' + d.kp + ' keping)', 'success'); au_('coin', { n: 3 }); }, k * 900);
+    });
+    if (gold && state && state.player && typeof patchGold_ === 'function') patchGold_((state.player.gold || 0) + gold);
+    if (state && state.harian && it.keping != null) { state.harian.keping = it.keping; applyGates(); bumpKeping(); }
+    var delay = (it.done || []).length * 900;
+    if (it.lunas && it.streak) setTimeout(function () {
+      var k = it.streak;
+      showToast(k.how === 'tambat' ? 'Tali Tambat menjaga streakmu. Hari ke-' + k.cur + '!' : k.how === 'cadangan' ? 'Tali Tambat Cadangan Teh Euis terpakai. Streak hari ke-' + k.cur + '!' : 'Lunas! Streak hari ke-' + k.cur + ' (+' + k.kp + ' keping)', 'success');
+      if (k.pos === 7 && k.peti) petiShow(k.peti, k);
+      try { metaMax_('hrbest', k.best || k.cur || 0); } catch (e) { }
+    }, delay);
+    if (it.sapu) setTimeout(function () { showToast(t.name + ': "' + t.sapu + '" Sapu Bersih +10 keping', 'success'); au_('achieve'); }, delay + 700);
+    refresh();
+  }
+  wrap_('handleInbox_', null, function (it) { try { onInbox(it); } catch (e) { console.warn('[HR] inbox', e); } });
+
+  /* ---------- panel, tombol pintas, state ---------- */
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (panel === 'pesanan') {
+        if (!open('harian')) { showToast('Pesanan Harian belum dibuka.', 'info'); return; }
+        var r = origOpen.apply(this, arguments);
+        renderPanel(); refresh();
+        return r;
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey || !state) return;
+    if (typeof combatSceneOpen !== 'undefined' && combatSceneOpen) return;
+    if (typeof duelOpen_ === 'function' && duelOpen_()) return;
+    var k = (e.key || '').toLowerCase();
+    if (k === 'y' && open('harian')) { e.preventDefault(); if (currentPanel === 'pesanan') closeModal(); else openPanel('pesanan'); }
+    else if (k === 'r' && open('kedai')) { e.preventDefault(); if (currentPanel === 'kedai') closeModal(); else openPanel('kedai'); }
+  });
+  // ringkasan di panel Tasks (Governor's Estate)
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks' || !open('harian')) return;
+    var s = st(), c = document.getElementById('modalContent'); if (!s || !c || c.querySelector('.hr-callout')) return;
+    var n = doneCount(s), t = tokoh(s.npc), ph = c.querySelector('.ph');
+    var d = document.createElement('div'); d.className = 'qg-callout hr-callout';
+    d.innerHTML = '<div class="qg-callout-ico">' + ic('journal') + '</div><div><b>Pesanan Harian ' + n + '/' + ((s.tasks || []).length || 3) + '</b><br><span class="muted small">' + esc_(t.name) + (s.lunas ? ' &middot; Lunas hari ini' : ' menitipkan tiga urusan.') + '</span></div><button class="btn btn-gold">Buka</button>';
+    d.querySelector('.btn').onclick = function () { openPanel('pesanan'); };
+    if (ph && ph.parentNode) ph.parentNode.insertBefore(d, ph.nextSibling);
+  });
+  wrap_('applyFreshState_', function () {
+    var s = st(); if (s) s._at = Date.now(); syncedAt = Date.now();
+    applyGates();
+    if (s) { try { metaMax_('hrgol', s.gol || 1); if (s.streak) metaMax_('hrbest', s.streak.best || 0); } catch (e) { } }
+    if (currentPanel === 'pesanan') renderPanel();
+  });
+  // tahap Restorasi IKN untuk scene kota (SceneEngine membaca lewat fungsi global ini)
+  window.mtRestorasi_ = function () { var g = state && state.gotong; return g && g.ikn ? g.ikn.stage || 0 : 0; };
+
+  /* ---------- Tanda Jasa ---------- */
+  if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+    { id: 'hr_pekan', t: 1, ic: 'journal', n: 'Pekan Penuh', d: 'Jaga streak Pesanan Harian 7 hari.', g: function (m) { return [m.c.hrbest || 0, 7]; } },
+    { id: 'hr_bulan', t: 3, ic: 'journal', n: 'Bulan Rantau', d: 'Jaga streak Pesanan Harian 30 hari.', g: function (m) { return [m.c.hrbest || 0, 30]; } },
+    { id: 'hr_geladak', t: 1, ic: 'ship', n: 'Naik Geladak', d: 'Naik golongan: dari Jukung ke Pinisi.', g: function (m) { return [Math.max(0, (m.c.hrgol || 1) - 1), 1]; } },
+    { id: 'hr_galiung', t: 2, ic: 'ship', n: 'Kapal Galiung', d: 'Naik golongan sampai Galiung (Saga Kedua).', g: function (m) { return [Math.max(0, (m.c.hrgol || 1) - 2), 1]; } }
+  );
+
+  return { st: st, open: open, refresh: refresh, adopt: adopt, applyGates: applyGates, face: face, tokoh: tokoh, fmtShort: fmtShort, renderPanel: renderPanel, bumpKeping: bumpKeping };
+})();
+</script>

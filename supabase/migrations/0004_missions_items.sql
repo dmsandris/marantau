@@ -555,6 +555,7 @@ begin
 
   perform game.log(v_pid, 'Misi selesai di ' || game.mission_city_name(m.deliver_to_city_id) || ': ' || m.qty || ' ' || v_cname ||
     ' diserahkan, imbalan ' || v_pay || ' gold.' || case when v_fajar then ' (Pintu Sebelum Matahari +25%)' else '' end);
+  perform game.hr_hook(v_pid, 'mission', 1, jsonb_build_object('type', v_type, 'city', m.deliver_to_city_id));   -- v37
   return jsonb_build_object('reward', v_pay, 'cityId', m.deliver_to_city_id, 'type', v_type)
     || case when v_fajar then jsonb_build_object('baseReward', m.reward, 'bookBonus', v_pay - m.reward) else '{}'::jsonb end;
 end $$;
@@ -808,6 +809,7 @@ begin
 
   -- Peta HABIS terpakai apapun hasilnya
   perform game.item_adjust(v_pid, v_item, -1);
+  perform game.hr_hook(v_pid, 'dig', 1, jsonb_build_object('outcome', v_out));   -- v37
 
   if v_gold <> 0 then
     v_newgold := greatest(0, v_me.gold + v_gold);

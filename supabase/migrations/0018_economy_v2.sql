@@ -408,7 +408,9 @@ begin
   update game.players set gold = gold - total where player_id = pid;
   perform game.adjust_inventory(pid, v_comm, v_qty::int);
   perform game.inv_add_cost(pid, v_comm, v_qty::int, total);
+  update game.inventory set src_city = v_city where player_id = pid and item_id = v_comm;   -- v37: asal beli (Pesanan T2)
   update game.market set stock = stock - v_qty where city_id = v_city and commodity_id = v_comm;
+  perform game.hr_hook(pid, 'buy', total, jsonb_build_object('city', v_city, 'comm', v_comm, 'qty', v_qty, 'role', v_role));
 
   perform game.log(pid, 'Bought ' || v_qty || ' unit' || case when v_qty > 1 then 's' else '' end || ' of ' ||
     c.name || ' for ' || total || ' gold.');
@@ -421,7 +423,7 @@ select game.expose('api_buy');
 create or replace function public.api_sell(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_city text := game.arg(a, 0); v_comm text := game.arg(a, 1); v_qty bigint := game.arg_int(a, 2);
-  v_me game.players; pid uuid; c game.commodities; mu record; s numeric; revenue bigint; have int; v_role text; v_avg numeric;
+  v_me game.players; pid uuid; c game.commodities; mu record; s numeric; revenue bigint; have int; v_role text; v_avg numeric; v_src text;
 begin
   if v_qty is null or v_qty <= 0 then raise exception 'Jumlah jual tidak valid.'; end if;
   v_me := game.me(true); pid := v_me.player_id;
@@ -437,12 +439,16 @@ begin
   select role into v_role from game.market where city_id = v_city and commodity_id = v_comm;
   revenue := game.eco2_sell_value((c.base * mu.ev_mul)::numeric, c.ref, c.elast, s, v_qty, mu.sell_mul, v_role, c.tier);
   v_avg := game.inv_avg_cost(pid, v_comm);
+  select src_city into v_src from game.inventory where player_id = pid and item_id = v_comm;
 
   perform game.adjust_inventory(pid, v_comm, (-v_qty)::int);
   update game.market set stock = stock + v_qty where city_id = v_city and commodity_id = v_comm;
   update game.players set gold = gold + revenue where player_id = pid;
   perform game.log(pid, 'Sold ' || v_qty || ' unit' || case when v_qty > 1 then 's' else '' end || ' of ' ||
     c.name || ' for ' || revenue || ' gold.');
+  -- v37: Pesanan Harian / Pacu Dagang (untung dihitung dengan lantai modal di hr_event)
+  perform game.hr_hook(pid, 'sell', revenue, jsonb_build_object('city', v_city, 'comm', v_comm, 'grp', c.grp, 'qty', v_qty,
+    'base', c.base, 'avg', v_avg, 'src', v_src));
   return jsonb_build_object('totalRevenue', revenue,
     'costBasis', case when v_avg is not null then round(v_avg * v_qty) end,
     'profit', case when v_avg is not null then revenue - round(v_avg * v_qty) end,

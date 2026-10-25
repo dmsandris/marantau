@@ -270,6 +270,7 @@ begin
   perform game.fish_use(v_id);
   insert into game.mp_daily as x (player_id, kind, game_day, n) values (v_id, 'fish', game.mp_day(), 1)
   on conflict (player_id, kind, game_day) do update set n = x.n + 1;
+  perform game.hr_hook(v_id, 'fish', 1, jsonb_build_object('fish', f.id, 'night', f.tod = 'night'));   -- v37
   v_luck := game.mp_jsnum(game.stats_json(v_id) ->> 'Luck', 0);
   v_avg := (f.kg_min + f.kg_max) / 2;
   v_gold := greatest(1, game.mp_jsround(f.v * power(greatest(fr.kg, 0.01) / v_avg, 0.6) * (1 + v_luck / 200)

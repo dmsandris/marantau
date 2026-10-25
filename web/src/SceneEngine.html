@@ -64,6 +64,7 @@ var MTUtil = (function () {
 var MTIcon = (function () {
   var P = {
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+    keping: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6.6" stroke-dasharray="2 2.2"/><rect x="9.6" y="9.6" width="4.8" height="4.8"/>',   /* Tide v37: Keping Rantau (kepeng berlubang) */
     scroll: '<path d="M5 5a2 2 0 0 1 2-2h11a2 2 0 0 1 0 4H7"/><path d="M7 5v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7"/><path d="M11 11h5M11 15h5"/>',
     book: '<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 1h13v-3"/><path d="M9 7h6M9 10h4"/>',
     ship: '<path d="M2.5 16.5l2.2 3.5h14.6l2.2-3.5z"/><path d="M12 2.5v14"/><path d="M12 4l6.5 9.5H12"/><path d="M12 6.5l-5.5 7H12"/>',
@@ -483,6 +484,7 @@ var MTShip = (function () {
    *      furl(0..1), roll, damage(0..1), lanterns(0..1), reflect(bool), lit(fn) }
    */
   var lastK = 1;
+  var KDH = {};   // Tide v37: kait gambar rupa Kedai Rantau { sail(ctx,id,g), after(ctx,o,g) } - diisi KedaiRupa.html
   // Titik pada garis lis emas (wale), t 0..1 dari buritan ke haluan
   function waleY(u) { return (1 - u) * (1 - u) * -17 + 2 * (1 - u) * u * -3 + u * u * -12; }
   function waleX(u) { return (1 - u) * (1 - u) * -62 + 2 * (1 - u) * u * -8 + u * u * 60; }
@@ -517,7 +519,8 @@ var MTShip = (function () {
       masts: sp >= 2 ? 3 : 2, studding: sp >= 3 ? 2 : (sp >= 1 ? 1 : 0), sailStripe: sp >= 4 ? (L.flag || '#9b2d20') : null, streamers: sp >= 5,
       sizeK: [1, 1.05, 1.1, 1.15, 1.2, 1.26][cg], hatch: cg >= 2, wale2: cg >= 3, boom: cg >= 4,
       bands: cd >= 1, copper: cd >= 2, planks: cd >= 3, rivets: cd >= 4, gilded: cd >= 5,
-      ports: [3, 4, 5, 6, 7, 7][cn], muzzles: cn >= 3, railGuns: cn >= 4, chaser: cn >= 5
+      ports: [3, 4, 5, 6, 7, 7][cn], muzzles: cn >= 3, railGuns: cn >= 4, chaser: cn >= 5,
+      kd: v.kd || null   // Tide v37: rupa Kedai Rantau (digambar KedaiRupa.html lewat MTShip.kdHooks)
     };
   }
 
@@ -673,6 +676,12 @@ var MTShip = (function () {
           ctx.save(); ctx.clip();
           ctx.fillStyle = L(o.sailStripe, 0.85);
           ctx.fillRect(mx - hl - 6, yt + (ybb - yt) * 0.58, hl + hr + 12, (ybb - yt) * 0.16);
+          ctx.restore();
+        }
+        // Tide v37: motif layar dari Kedai Rantau
+        if (o.kd && o.kd.layar && KDH.sail && !o.reflect) {
+          ctx.save(); ctx.clip();
+          try { KDH.sail(ctx, o.kd.layar, { mx: mx, hl: hl, hr: hr, yt: yt, yb: ybb, t: t, L: L, sail: sail, trim: trim, flag: flag, s: s }); } catch (e) { }
           ctx.restore();
         }
         // bayangan lengkung + garis jahitan
@@ -985,6 +994,8 @@ var MTShip = (function () {
       ctx.fillStyle = 'rgba(255,220,150,' + o.lanterns + ')';
       ctx.beginPath(); ctx.arc(-63, -45, 1.6, 0, 6.3); ctx.fill();
     }
+    // Tide v37: haluan, panji, penghuni, aura dari Kedai Rantau
+    if (o.kd && KDH.after) { try { KDH.after(ctx, o, { M: M, t: t, L: L, deckY: deckY, trim: trim, sail: sail, flag: flag, hull: hull, s: s, dir: dir }); } catch (e) { } }
     ctx.restore();
   }
 
@@ -1086,7 +1097,7 @@ var MTShip = (function () {
     ctx.restore();
   }
 
-  return { draw: draw, foam: foam, jukung: jukung, fromVisual: fromVisual, pearlOpts: pearlOpts, stage: stage, FLAG_SHAPES: FLAG_SHAPES, drawEmblem: drawEmblem };
+  return { draw: draw, foam: foam, jukung: jukung, fromVisual: fromVisual, pearlOpts: pearlOpts, stage: stage, FLAG_SHAPES: FLAG_SHAPES, drawEmblem: drawEmblem, kdHooks: KDH };
 })();
 
 /* =============================== MTScene =============================== */
@@ -1098,7 +1109,9 @@ var MTBXW = (function () {
   var U = MTUtil, F = { key: null, img: null, ok: false };
   function state() {
     var w = null; try { w = typeof bxWorld_ === 'function' ? bxWorld_() : null; } catch (e) { w = null; }
-    w = w || {}; return { garuda: w.garuda || 'normal', posters: w.posters || null, face: w.face || null };
+    w = w || {};
+    var rs = 0; try { rs = typeof mtRestorasi_ === 'function' ? (mtRestorasi_() | 0) : 0; } catch (e) { rs = 0; }   // Tide v37: tahap Restorasi IKN (0..5)
+    return { garuda: w.garuda || 'normal', posters: w.posters || null, face: w.face || null, rs: rs };
   }
   /** Gambar wajah kapten (SVG MTFace -> Image). null sampai termuat. */
   function faceImg(ap, bg) {
@@ -1115,7 +1128,7 @@ var MTBXW = (function () {
     }
     return F.ok ? F.img : null;
   }
-  function key() { var s = state(); return s.garuda + '|' + (s.posters || '-') + (s.posters === 'wanted' ? '|' + (faceImg(s.face) ? F.key : 'x') : ''); }
+  function key() { var s = state(); return s.garuda + '|' + (s.posters || '-') + (s.posters === 'wanted' ? '|' + (faceImg(s.face) ? F.key : 'x') : '') + '|rs' + s.rs; }
   /** Poster kecil di dinding. (x,y) pojok kiri atas, w lebar (px). kind 'wanted' | 'crew'. */
   function poster(ctx, x, y, w, kind, img, tilt) {
     var h = w * 1.32, big = w >= 15;
@@ -5099,13 +5112,20 @@ var MTCities = (function () {
     // cakar mencengkeram pita
     ctx.fillStyle = '#8a8676'; ctx.fillRect(-18, -20, 36, 5);
     ctx.fillStyle = dark; ctx.fillRect(-6, -24, 3, 5); ctx.fillRect(3, -24, 3, 5);
-    // lumut, sulur, retakan
-    ctx.fillStyle = moss;
-    [[-30, -70, 6], [26, -76, 5], [-10, -36, 4], [12, -50, 5], [-40, -60, 4], [38, -64, 4], [0, -16, 5]].forEach(function (m) { ctx.beginPath(); ctx.arc(m[0], m[1], m[2], 0, 6.3); ctx.fill(); });
-    ctx.strokeStyle = 'rgba(50,90,40,.85)'; ctx.lineWidth = 0.9;
-    [[-34, -78], [-20, -84], [28, -82], [40, -70], [8, -58]].forEach(function (v) { ctx.beginPath(); ctx.moveTo(v[0], v[1]); ctx.quadraticCurveTo(v[0] + 2, v[1] + 12, v[0] - 1, v[1] + 24); ctx.stroke(); });
-    ctx.strokeStyle = 'rgba(30,30,25,.6)'; ctx.lineWidth = 0.7;
-    ctx.beginPath(); ctx.moveTo(-4, -62); ctx.lineTo(-7, -52); ctx.lineTo(-3, -44); ctx.moveTo(22, -70); ctx.lineTo(26, -62); ctx.stroke();
+    // lumut, sulur, retakan (Tide v37: hilang setelah Restorasi IKN tahap 2 "Garuda Bersih")
+    if ((MTBXW.state().rs | 0) >= 2) {
+      // batu dicuci bersih: kilau di tepi sayap & dada, tali pita baru di cakar
+      ctx.strokeStyle = 'rgba(255,250,230,.55)'; ctx.lineWidth = 0.8;
+      [[-26, -86, -12, -66], [24, -88, 12, -66], [-8, -52, 6, -52]].forEach(function (v) { ctx.beginPath(); ctx.moveTo(v[0], v[1]); ctx.lineTo(v[2], v[3]); ctx.stroke(); });
+      ctx.fillStyle = '#b3261e'; ctx.fillRect(-18, -19, 36, 2.2); ctx.fillStyle = '#f1ede4'; ctx.fillRect(-18, -16.8, 36, 1.8);
+    } else {
+      ctx.fillStyle = moss;
+      [[-30, -70, 6], [26, -76, 5], [-10, -36, 4], [12, -50, 5], [-40, -60, 4], [38, -64, 4], [0, -16, 5]].forEach(function (m) { ctx.beginPath(); ctx.arc(m[0], m[1], m[2], 0, 6.3); ctx.fill(); });
+      ctx.strokeStyle = 'rgba(50,90,40,.85)'; ctx.lineWidth = 0.9;
+      [[-34, -78], [-20, -84], [28, -82], [40, -70], [8, -58]].forEach(function (v) { ctx.beginPath(); ctx.moveTo(v[0], v[1]); ctx.quadraticCurveTo(v[0] + 2, v[1] + 12, v[0] - 1, v[1] + 24); ctx.stroke(); });
+      ctx.strokeStyle = 'rgba(30,30,25,.6)'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(-4, -62); ctx.lineTo(-7, -52); ctx.lineTo(-3, -44); ctx.moveTo(22, -70); ctx.lineTo(26, -62); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -5715,15 +5735,25 @@ var MTCities = (function () {
     garuda(B, u * 8, gb, B.H * 0.32);
     var gS = B.H * 0.0032, gst = MTBXW.state().garuda;
     if (gst === 'broken') B.smokes.push({ x: u * 8 + 3 * gS, y: gb - 5 * gS, rate: 0.05 });
-    if (gst === 'repaired') B.dyn.push({ type: 'bxglint', x: u * 8 + 6 * gS, y: gb - 108 * gS, w: 48 * gS, h: 58 * gS });
+    var rs = MTBXW.state().rs | 0;   // Tide v37: tahap Restorasi IKN (Gotong Royong seluruh server)
+    if (gst === 'repaired' || (rs >= 2 && gst !== 'broken')) B.dyn.push({ type: 'bxglint', x: u * 8 + 6 * gS, y: gb - 108 * gS, w: 48 * gS, h: 58 * gS });
     hot(B, 'tasks', 'Monumen Restorasi', 'scroll', u * 2.5, gb - B.H * 0.3, u * 11, B.H * 0.3);
     // menara runtuh dengan papan
     var tx = u * 22.5, tb = Math.min(sy - u * 2, B.hillY(u * 23.5) + u * 1.6);
     ctx.fillStyle = '#8c9088'; ctx.fillRect(tx, tb - u * 4, u * 2.2, u * 4);
     ctx.fillStyle = 'rgba(70,110,50,.85)'; for (var v = 0; v < 8; v++) { ctx.beginPath(); ctx.arc(tx + r() * u * 2.2, tb - r() * u * 4, u * 0.3, 0, 6.3); ctx.fill(); }
-    sign(ctx, tx - u * 1.3, tb - u * 6, u * 4.8, u * 1.6, ['KOTA PORT IKN', 'SISA JAYA, KINI RUNTUH'], 'board', { bg: '#f1ede4', fg: '#2a2a2a', frame: '#4a4a44', sub: true, subFg: '#b3261e' });
+    sign(ctx, tx - u * 1.3, tb - u * 6, u * 4.8, u * 1.6, ['KOTA PORT IKN', rs >= 5 ? 'CAHAYANYA SAMPAI KE LAUT' : rs >= 1 ? 'SEDANG DIPULIHKAN' : 'SISA JAYA, KINI RUNTUH'], 'board', { bg: '#f1ede4', fg: '#2a2a2a', frame: rs >= 1 ? '#b8923a' : '#4a4a44', sub: true, subFg: rs >= 1 ? '#1f6a40' : '#b3261e' });
     stoneQuay(B, 0, u * 29.5, '#8c8a82');
-    ctx.fillStyle = 'rgba(40,40,36,.9)'; for (var hole = 0; hole < 5; hole++) ctx.fillRect(u * (3 + hole * 5.3), q + u * 0.1, u * (0.6 + r()), u * 0.4);
+    if (rs >= 3) {
+      // tahap 3 "Dermaga Baru": geladak kayu ulin menutup lubang dermaga
+      ctx.fillStyle = '#6e4a2c'; ctx.fillRect(0, q - u * 0.02, u * 29.5, u * 0.5);
+      ctx.strokeStyle = 'rgba(40,24,12,.55)'; ctx.lineWidth = Math.max(0.6, u * 0.04);
+      for (var pk = 0; pk < 29.5; pk += 0.7) { ctx.beginPath(); ctx.moveTo(u * pk, q); ctx.lineTo(u * pk, q + u * 0.48); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(255,220,160,.18)'; ctx.fillRect(0, q - u * 0.02, u * 29.5, u * 0.08);
+      ctx.fillStyle = '#4a3020'; for (var bl = 1; bl < 29; bl += 3.4) ctx.fillRect(u * bl, q - u * 0.45, u * 0.22, u * 0.45);   // tonggak tambat
+    } else {
+      ctx.fillStyle = 'rgba(40,40,36,.9)'; for (var hole = 0; hole < 5; hole++) ctx.fillRect(u * (3 + hole * 5.3), q + u * 0.1, u * (0.6 + r()), u * 0.4);
+    }
     tank(ctx, u * 1.6, q, u * 0.05);
     ctx.fillStyle = '#9a9690'; ctx.fillRect(u * 11.8, sy - u * 2.8, u * 3, u * 2.2);
     ctx.save(); ctx.font = '700 ' + (u * 0.55).toFixed(1) + 'px "Pirata One", Georgia, serif'; ctx.fillStyle = '#b3261e'; ctx.textAlign = 'center'; ctx.rotate(-0.05); ctx.fillText('IKN MERDEKA', u * 13.3, sy - u * 1.6); ctx.restore();
@@ -5731,7 +5761,8 @@ var MTCities = (function () {
     hot(B, 'cargo', 'Kontainer', 'warehouse', u * 13.4, q - u * 2.3, u * 6, u * 2.3);
     tent(ctx, u * 19.6, q, u * 2.2, u * 1.5, '#2f5a7a'); tent(ctx, u * 21.9, q, u * 2, u * 1.3, '#c9642a');
     hot(B, 'market', 'Pasar Darurat', 'scales', u * 19.5, q - u * 2.6, u * 4.4, u * 2.6);
-    sign(ctx, u * 20.1, q - u * 2.3, u * 2.6, u * 0.55, ['RESTORASI'], 'board', { bg: '#f1ede4', fg: '#b3261e' });
+    if (rs >= 1) sign(ctx, u * 19.7, q - u * 2.45, u * 3.4, u * 0.7, ['RESTORASI IKN'], 'board', { bg: '#1f5a3a', fg: '#f0cf78', frame: '#b8923a' });   // tahap 1: papan baru, tidak lapuk lagi
+    else sign(ctx, u * 20.1, q - u * 2.3, u * 2.6, u * 0.55, ['RESTORASI'], 'board', { bg: '#f1ede4', fg: '#b3261e' });
     tent(ctx, u * 24.1, q, u * 1.8, u * 1.2, '#6b5a3a');
     B.dyn.push({ type: 'campfire', x: u * 25, y: q - u * 0.05, u: u, noPeople: true });
     hot(B, 'tavern', 'Kamp Pemulung', 'cup', u * 24, q - u * 2.2, u * 2.2, u * 2.2);
@@ -5741,8 +5772,59 @@ var MTCities = (function () {
     hot(B, 'bank', 'Bank Runtuh', 'bank', u * 26.4, q - u * 3, u * 3.2, u * 3);
     ctx.strokeStyle = '#7a4a2a'; ctx.lineWidth = Math.max(1.5, u * 0.14);
     ctx.beginPath(); ctx.moveTo(u * 17.5, sy - u * 2.8); ctx.lineTo(u * 17.5, sy - u * 6.4); ctx.lineTo(u * 21, sy - u * 5.6); ctx.stroke();
-    hot(B, 'ship', 'Dok Karat', 'wrench', u * 16.8, sy - u * 6.6, u * 4.4, u * 3.6);
+    hot(B, 'ship', rs >= 3 ? 'Dermaga Ulin' : 'Dok Karat', 'wrench', u * 16.8, sy - u * 6.6, u * 4.4, u * 3.6);
     B.flags.push({ x: u * 27.8, y: q - u * 4, h: u * 1, col: '#b23a2a' });
+    if (rs >= 4) {
+      // tahap 4 "Lampu Jalan": tiang lampu di sepanjang dermaga, menyala saat gelap
+      var LX = [4.2, 9.6, 15.4, 21.2, 26.2], lamps = [];
+      LX.forEach(function (lx) {
+        var x = u * lx, top = q - u * 2.3;
+        ctx.fillStyle = '#2e3230'; ctx.fillRect(x - u * 0.06, top, u * 0.12, u * 2.3);
+        ctx.fillRect(x - u * 0.28, q - u * 0.12, u * 0.56, u * 0.12);
+        ctx.beginPath(); ctx.moveTo(x - u * 0.24, top); ctx.lineTo(x + u * 0.24, top); ctx.lineTo(x + u * 0.16, top - u * 0.36); ctx.lineTo(x - u * 0.16, top - u * 0.36); ctx.closePath(); ctx.fill();
+        lamps.push({ x: x, y: top - u * 0.18 });
+      });
+      B.dyn.push({ type: 'fn', u: u, lamps: lamps, fn: function (inst2, c2, pp, tt, dt2, d) {
+        var on = Math.max(0, Math.min(1, (pp.lights || 0) * 1.4));
+        d.lamps.forEach(function (L2, k) {
+          var fk = 0.9 + Math.sin(tt * 7 + k * 1.7) * 0.05;
+          c2.fillStyle = on > 0.05 ? 'rgba(255,226,150,' + (0.55 + 0.45 * on).toFixed(3) + ')' : 'rgba(210,200,170,.8)';
+          c2.fillRect(L2.x - d.u * 0.13, L2.y - d.u * 0.12, d.u * 0.26, d.u * 0.24);
+          if (on > 0.05) {
+            c2.globalCompositeOperation = 'lighter';
+            var g = c2.createRadialGradient(L2.x, L2.y, 0, L2.x, L2.y, d.u * 2.2 * fk);
+            g.addColorStop(0, 'rgba(255,214,140,' + (0.42 * on).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,170,80,0)');
+            c2.fillStyle = g; c2.fillRect(L2.x - d.u * 2.3, L2.y - d.u * 2.3, d.u * 4.6, d.u * 4.6);
+            c2.globalCompositeOperation = 'source-over';
+          }
+        });
+      } });
+    }
+    if (rs >= 5) {
+      // tahap 5 "Menara Cahaya": lampu di puncak menara runtuh, sorotnya menyapu laut di malam hari + Festival Restorasi
+      var bx = tx + u * 1.1, by = tb - u * 6.4;
+      ctx.fillStyle = '#5a5e58'; ctx.fillRect(bx - u * 0.5, by, u * 1, u * 0.5);
+      ctx.fillStyle = '#b8923a'; ctx.fillRect(bx - u * 0.38, by - u * 0.6, u * 0.76, u * 0.6);
+      ctx.fillStyle = '#2e3230'; ctx.beginPath(); ctx.moveTo(bx - u * 0.5, by - u * 0.6); ctx.lineTo(bx, by - u * 1.1); ctx.lineTo(bx + u * 0.5, by - u * 0.6); ctx.closePath(); ctx.fill();
+      B.dyn.push({ type: 'fn', u: u, x: bx, y: by - u * 0.3, fn: function (inst2, c2, pp, tt, dt2, d) {
+        var on = Math.max(0, Math.min(1, (pp.lights || 0) * 1.5));
+        c2.fillStyle = 'rgba(255,240,190,' + (0.5 + 0.5 * on).toFixed(3) + ')'; c2.fillRect(d.x - d.u * 0.28, d.y - d.u * 0.22, d.u * 0.56, d.u * 0.44);
+        if (on < 0.05) return;
+        var a = Math.sin(tt * 0.35) * 0.9 + Math.PI, len = d.u * 40, wd = 0.07;
+        c2.save(); c2.globalCompositeOperation = 'lighter';
+        var g = c2.createLinearGradient(d.x, d.y, d.x + Math.cos(a) * len, d.y + Math.sin(a) * len * 0.25);
+        g.addColorStop(0, 'rgba(255,236,170,' + (0.38 * on).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,236,170,0)');
+        c2.fillStyle = g; c2.beginPath(); c2.moveTo(d.x, d.y);
+        c2.lineTo(d.x + Math.cos(a - wd) * len, d.y + Math.sin(a - wd) * len * 0.25);
+        c2.lineTo(d.x + Math.cos(a + wd) * len, d.y + Math.sin(a + wd) * len * 0.25);
+        c2.closePath(); c2.fill();
+        var h2 = c2.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.u * 2.6);
+        h2.addColorStop(0, 'rgba(255,240,190,' + (0.6 * on).toFixed(3) + ')'); h2.addColorStop(1, 'rgba(255,200,120,0)');
+        c2.fillStyle = h2; c2.fillRect(d.x - d.u * 2.6, d.y - d.u * 2.6, d.u * 5.2, d.u * 5.2);
+        c2.restore();
+      } });
+      B.dyn.push({ type: 'fireworks', x0: u * 4, x1: u * 26, y0: B.hy * 0.2, y1: B.hy * 0.55, gap: 3, gapR: 6 });
+    }
     B.moored.push({ type: 'freighter', x: B.W * 0.18, y: B.H * 0.74, s: B.H * 0.0022, dir: 1 }, { type: 'freighter', x: B.W * 0.42, y: B.H * 0.92, s: B.H * 0.0028, dir: -1 }, { type: 'rowboat', x: B.W * 0.5, y: B.H * 0.72, s: B.H * 0.0022, dir: 1 });
     B.roamers = [];
     B.walk = { style: 'scavengers', n: 5, x0: u * 12, x1: u * 25 };

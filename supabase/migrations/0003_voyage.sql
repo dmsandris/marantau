@@ -628,6 +628,7 @@ begin
      set city_id = p_target, arrived_game_day = game.game_day(), destination_city_id = null,
          depart_at = null, arrive_at = null, pending_encounter = null
    where player_id = p_pid;
+  perform game.hr_hook(p_pid, 'arrive', 1, jsonb_build_object('city', p_target));   -- v37
 
   gd := coalesce((ev ->> 'goldDelta')::bigint, 0);
   if gd <> 0 then
@@ -744,7 +745,7 @@ begin
     end if;
   end if;
 
-  enc := game.voy_enc_book(p_pid, game.voy_roll_encounter(p_pid, l.destination_city_id));
+  enc := game.kd_enc(p_pid, game.voy_enc_book(p_pid, game.voy_roll_encounter(p_pid, l.destination_city_id)));   -- v37: jasa Pengawal
   if enc is not null then
     update game.player_location set pending_encounter = enc where player_id = p_pid;
     perform game.log(p_pid, 'Sails spotted on the horizon - a pirate vessel closes in!');
@@ -1271,6 +1272,7 @@ begin
   -- Menang: peluang peta harta (peluang + pemberian item ditangani kontrak game.treasure_drop)
   elsif final_result = 'won' then
     perform game.quest_combat_won(pid);
+    perform game.hr_hook(pid, 'combat_win', 1, jsonb_build_object('level', lvl));   -- v37
     drop_res := game.treasure_drop(pid, lvl);
     if drop_res is not null and jsonb_typeof(drop_res) = 'object' then
       drop_name := coalesce(drop_res ->> 'name', drop_res ->> 'Name');
@@ -1339,7 +1341,8 @@ begin
     'up', jsonb_build_object('speed', game.voy_abs_step(u -> 'speed'), 'cargo', game.voy_abs_step(u -> 'cargo'),
       'condition', game.voy_abs_step(u -> 'condition'), 'cannons', game.voy_abs_step(u -> 'cannons')),
     'name', coalesce(v_name, 'The Wandering Gull'),
-    'legend', game.ship_legend(p_pid));
+    'legend', game.ship_legend(p_pid),
+    'kd', game.kd_visual(p_pid));   -- v37: rupa Kedai Rantau
 end $$;
 
 -- Simpan tampilan kapal (gratis) + nama kapal. a = [look, shipName]
