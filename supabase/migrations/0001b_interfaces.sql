@@ -333,12 +333,9 @@ language plpgsql as $$ begin return p_enc; end $$;
 -- Pengali waktu tempuh dari jasa (Pembaca Arus). Dipanggil sekali per api_setSail (boleh memakai jatah jasa).
 create or replace function game.kd_sail_mul(p_pid uuid) returns double precision
 language plpgsql as $$ begin return 1; end $$;
--- Pengali biaya reparasi per kota dari Gotong Royong (Restorasi IKN: 15 jt... lihat 0032).
+-- Pengali biaya reparasi per kota dari Gotong Royong (Restorasi IKN, lihat 0032).
 create or replace function game.gr_repair_mul(p_city text) returns numeric
 language sql stable as $$ select 1::numeric $$;
--- Kapal yang merapat di kota proyek Gotong Royong yang sudah selesai (IKN) sembuh gratis. Dipanggil saat tiba.
-create or replace function game.gr_dock_heal(p_pid uuid, p_city text) returns void
-language plpgsql as $$ begin return; end $$;
 -- Rupa kapal dari Kedai Rantau (ikut ship_visual -> mp_presence.s). null = tidak ada.
 create or replace function game.kd_visual(p_pid uuid) returns jsonb
 language sql stable as $$ select null::jsonb $$;

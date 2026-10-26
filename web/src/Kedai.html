@@ -286,7 +286,7 @@ var KD = (function () {
   function gotongHtml() {
     var g = gotong;
     if (!g) return '<div class="dt-empty">Membaca catatan Monumen Restorasi&hellip;</div>';
-    var goal = g.goal || 1, pct = Math.min(100, g.total / goal * 100), me = g.me || {}, K = g.kategori || [1000000, 2500000], MX = g.max || 15000000, mk = me.kat || 0;
+    var goal = g.goal || 1, pct = Math.min(100, g.total / goal * 100), me = g.me || {}, K = g.kategori || [3000000, 15000000], MX = g.max || 0, mk = me.kat || 0;
     var short = function (n) { return HR.fmtShort(n); };
     var marks = (g.stages || []).map(function (s) { return '<div class="gr-mark' + (g.stage >= s.n ? ' done' : '') + '" style="left:' + (s.cum / goal * 100).toFixed(2) + '%">' + short(s.cum) + '</div>'; }).join('');
     var stages = (g.stages || []).map(function (s) {
@@ -297,25 +297,25 @@ var KD = (function () {
         (t.garudaNo ? '<span class="kt">Penjaga Garuda #' + t.garudaNo + '</span>' : t.kat ? '<span class="kt">Kategori ' + t.kat + '</span>' : '') + '</span><b>' + fmt(t.total) + '</b></div>';
     }).join('') || '<div class="muted small">Belum ada penyumbang. Jadilah yang pertama.</div>';
     var kats = '<div class="gr-kat">' +
-      '<div class="gr-k' + (mk === 1 ? ' on' : '') + '">' + (mk >= 1 ? '<span class="yes">' + ic('check') + '</span>' : '') + '<h5>Kategori 1</h5><span class="rg">' + fmt(g.min || 1000) + ' &ndash; di bawah ' + short(K[0]) + '</span>' +
+      '<div class="gr-k' + (mk === 1 ? ' on' : '') + '">' + (mk >= 1 ? '<span class="yes">' + ic('check') + '</span>' : '') + '<h5>Kategori 1</h5><span class="rg">' + fmt(g.min || 1000) + ' &ndash; ' + short(K[0]) + '</span>' +
         '<span>Tanda Jasa <b>Tangan Gotong Royong</b> dan namamu di Prasasti Restorasi.</span></div>' +
-      '<div class="gr-k' + (mk === 2 ? ' on' : '') + '">' + (mk >= 2 ? '<span class="yes">' + ic('check') + '</span>' : '') + '<h5>Kategori 2</h5><span class="rg">' + short(K[0]) + ' &ndash; di bawah ' + short(K[1]) + '</span>' +
+      '<div class="gr-k' + (mk === 2 ? ' on' : '') + '">' + (mk >= 2 ? '<span class="yes">' + ic('check') + '</span>' : '') + '<h5>Kategori 2</h5><span class="rg">di atas ' + short(K[0]) + ' &ndash; ' + short(K[1]) + '</span>' +
         '<span>Rupa <b>Lentera IKN</b> (lentera teal-emas di buritan) + Tanda Jasa <b>Tiang Restorasi</b>.</span></div>' +
-      '<div class="gr-k k3' + (mk === 3 ? ' on' : '') + '">' + (mk >= 3 ? '<span class="yes" style="color:#9fe0a8">' + ic('check') + '</span>' : '') + '<h5>Kategori 3</h5><span class="rg">' + short(K[1]) + ' &ndash; ' + short(MX) + '</span>' +
+      '<div class="gr-k k3' + (mk === 3 ? ' on' : '') + '">' + (mk >= 3 ? '<span class="yes" style="color:#9fe0a8">' + ic('check') + '</span>' : '') + '<h5>Kategori 3</h5><span class="rg">di atas ' + short(K[1]) + (MX ? ' &ndash; ' + short(MX) : '') + '</span>' +
         '<canvas data-gr-cv="1"></canvas><span class="lim">TERBATAS &middot; ' + (g.garuda || 0) + ' PENJAGA</span>' +
         '<span><b style="color:#ffe7a3">Sayap Garuda</b> emas bernomor membentang di atas kapalmu, terlihat semua kapten, + Tanda Jasa <b>Penjaga Garuda</b>. Hanya dibagikan selama Restorasi berjalan. Setelah IKN pulih, tidak akan pernah dibuat lagi.</span></div>' +
       '</div>';
-    var nextK = mk < 2 ? K[0] : mk < 3 ? K[1] : 0, left = Math.max(0, MX - (me.total || 0));
+    var nextK = mk < 2 ? K[0] : mk < 3 ? K[1] : 0, left = MX ? Math.max(0, MX - (me.total || 0)) : Infinity;
     var mine = '<div class="gr-mine"><span>Sumbanganmu: <b>' + fmt(me.total || 0) + '</b> gold' + (me.keping ? ' (termasuk ' + fmt(me.keping) + ' keping)' : '') +
       (me.rank ? ' &middot; peringkat ' + me.rank : '') + (me.garudaNo ? ' &middot; <b>Penjaga Garuda #' + me.garudaNo + '</b>' : mk ? ' &middot; Kategori ' + mk : '') + '</span>' +
-      (nextK && !g.done ? '<div class="bar"><i style="width:' + Math.min(100, (me.total || 0) / nextK * 100).toFixed(1) + '%"></i></div><span class="muted small">Kurang ' + fmt(nextK - (me.total || 0)) + ' gold ke Kategori ' + (mk < 2 ? 2 : 3) + '.</span>' : '') +
-      (!g.done ? '<span class="muted small">Batas per kapten ' + short(MX) + ' &middot; sisa jatahmu ' + fmt(left) + ' gold.</span>' : '') + '</div>';
-    var form = g.done ? '<div class="kd-buff">' + ic('star') + ' Restorasi IKN selesai. Menara Cahaya menyala sampai ke tengah laut. <b>Setiap kapal yang merapat di IKN diperbaiki gratis</b>, selamanya.</div><div class="gr-form">' + mine + '</div>' :
+      (nextK && !g.done ? '<div class="bar"><i style="width:' + Math.min(100, (me.total || 0) / nextK * 100).toFixed(1) + '%"></i></div><span class="muted small">Kurang ' + fmt(nextK + 1 - (me.total || 0)) + ' gold ke Kategori ' + (mk < 2 ? 2 : 3) + '.</span>' : '') +
+      (!g.done && MX ? '<span class="muted small">Batas per kapten ' + short(MX) + ' &middot; sisa jatahmu ' + fmt(left) + ' gold.</span>' : '') + '</div>';
+    var form = g.done ? '<div class="kd-buff">' + ic('star') + ' Restorasi IKN selesai. Menara Cahaya menyala sampai ke tengah laut. <b>Kapal yang merapat di IKN pulih perlahan</b>, seperti di Paradiso.</div><div class="gr-form">' + mine + '</div>' :
       '<div class="gr-form"><b>Sumbang ke kolam Restorasi</b>' + (g.here ? '' : '<span class="muted small">' + ic('anchor') + ' Sumbangan diterima di Monumen Restorasi, <b>IKN</b>. Merapatlah ke sana.</span>') +
       '<div class="in"><label>Gold (punyamu ' + fmt(g.gold || 0) + ')<input id="grGold" type="number" min="0" step="1000" inputmode="numeric" value="0"></label>' +
       '<label>Keping (1 keping = ' + fmt(g.rate) + ' gold)<input id="grKp" type="number" min="0" step="1" inputmode="numeric" value="0"></label></div>' +
       '<div class="quick"><button data-gr="100000">100 rb</button><button data-gr="1000000">1 jt</button><button data-gr="2500000">2,5 jt</button><button data-gr="5000000">5 jt</button>' +
-      (left > 0 ? '<button data-gr="' + Math.min(left, g.gold || 0) + '">Maks</button>' : '') + '</div>' +
+      (left > 0 ? '<button data-gr="' + Math.min(left, g.gold || 0) + '">Semua gold</button>' : '') + '</div>' +
       '<button class="btn btn-gold" id="grSend"' + (g.here && left > 0 ? '' : ' disabled') + '>' + ic('gift') + ' Sumbang</button>' + mine + '</div>';
     return '<div class="gr-card"><h4>Restorasi IKN<span>' + g.donors + ' penyumbang</span></h4>' +
       '<div class="gr-track"><i style="width:' + pct.toFixed(2) + '%"></i>' + marks + '</div>' +
@@ -427,7 +427,7 @@ var KD = (function () {
     var c = document.getElementById('modalContent'); if (!c || c.querySelector('.gr-callout')) return;
     var g = state.gotong && state.gotong.ikn, ph = c.querySelector('.ph');
     var d = document.createElement('div'); d.className = 'qg-callout gr-callout';
-    d.innerHTML = '<div class="qg-callout-ico">' + ic('users') + '</div><div><b>Monumen Restorasi</b><br><span class="muted small">' + (g && g.done ? 'Restorasi selesai. Kapalmu diperbaiki gratis di sini.' : 'Kolam Restorasi IKN ' + fmt((g && g.total) || 0) + ' / ' + fmt((g && g.goal) || 100000000) + ' gold') + '</span></div><button class="btn btn-gold">' + (g && g.done ? 'Lihat' : 'Sumbang') + '</button>';
+    d.innerHTML = '<div class="qg-callout-ico">' + ic('users') + '</div><div><b>Monumen Restorasi</b><br><span class="muted small">' + (g && g.done ? 'Restorasi selesai. Kapalmu pulih perlahan selama merapat di sini.' : 'Kolam Restorasi IKN ' + fmt((g && g.total) || 0) + ' / ' + fmt((g && g.goal) || 100000000) + ' gold') + '</span></div><button class="btn btn-gold">' + (g && g.done ? 'Lihat' : 'Sumbang') + '</button>';
     d.querySelector('.btn').onclick = function () { openTab('gotong'); };
     if (ph && ph.parentNode) ph.parentNode.insertBefore(d, ph.nextSibling);
   });
@@ -441,9 +441,7 @@ var KD = (function () {
     { id: 'gr_garuda', t: 3, ic: 'star', n: 'Penjaga Garuda', d: 'Kategori 3 penyumbang Restorasi IKN. Terbatas.', g: function (m) { return [m.c.grkat || 0, 3]; } }
   );
   wrap_('applyFreshState_', function () { var g = state && state.gotong && state.gotong.ikn; if (g && g.kat) { try { metaMax_('grgive', 1); metaMax_('grkat', g.kat); } catch (e) { } } });
-  wrap_('handleInbox_', null, function (it) {
-    if (it && it.type === 'gr_sembuh') { showToast('Tukang Dermaga Ulin IKN memperbaiki kapalmu tanpa bayar. Terima kasih atas Restorasi, Kapten.', 'success'); au_('coin', { n: 2 }); }
-  });
+
   wrap_('applyFreshState_', function () { if (currentPanel === 'kedai' && data) { data.keping = (hs() && hs().keping) || data.keping; } });
 
   return {

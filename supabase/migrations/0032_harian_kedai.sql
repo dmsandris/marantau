@@ -29,7 +29,7 @@ insert into game.config(key, value) values
   ('KedaiPriceMul', '1'), ('HarianClockOffset', '0'), ('PacuFloorRatio', '0.6'),
   ('HarianGoldJukung', '1000,2500,5000'), ('HarianGoldPinisi', '5000,15000,30000'), ('HarianGoldGaliung', '20000,50000,100000'),
   ('HarianKeping', '5,10,20'), ('HarianSapuKeping', '10'), ('HarianStreakKeping', '5'), ('HarianPetiKeping', '30'),
-  ('GotongKepingRate', '1000'), ('GotongKategori', '1000000,2500000'), ('GotongMaxPerKapten', '15000000'), ('GotongMinDonasi', '1000')
+  ('GotongKepingRate', '1000'), ('GotongKategori', '3000000,15000000'), ('GotongMaxPerKapten', '0'), ('GotongMinDonasi', '1000')
 on conflict (key) do nothing;
 
 -- ---------------------------------------------------------------------
@@ -811,7 +811,7 @@ insert into game.gr_projects(id, name, city_id, stages) values ('ikn', 'Restoras
   {"n":2,"name":"Garuda Bersih","need":10000000,"desc":"Lumut di monumen Garuda perunggu dibersihkan."},
   {"n":3,"name":"Dermaga Ulin","need":20000000,"desc":"Dok Karat menjadi dermaga kayu ulin. Reparasi di IKN -20%."},
   {"n":4,"name":"Lampu Jalan","need":25000000,"desc":"Lampu-lampu IKN menyala lagi di malam hari."},
-  {"n":5,"name":"Menara Cahaya","need":40000000,"desc":"Lampunya terlihat sampai ke tengah laut. Festival Restorasi sepekan. Kapal yang merapat di IKN sembuh gratis, selamanya."}
+  {"n":5,"name":"Menara Cahaya","need":40000000,"desc":"Lampunya terlihat sampai ke tengah laut. Festival Restorasi sepekan. Kapal yang merapat di IKN pulih perlahan, seperti di Paradiso."}
 ]'::jsonb)
 on conflict (id) do update set name = excluded.name, city_id = excluded.city_id, stages = excluded.stages;
 
@@ -839,38 +839,43 @@ $$;
 create or replace function game.gr_stage(p_project text) returns int
 language sql stable as $$ select coalesce((select stage from game.gr_projects where id = p_project), 0) $$;
 create or replace function game.gr_repair_mul(p_city text) returns numeric
-language sql stable as $$ select case when p_city <> 'ikn' then 1 when game.gr_stage('ikn') >= 5 then 0 when game.gr_stage('ikn') >= 3 then 0.8 else 1 end::numeric $$;
+language sql stable as $$ select case when p_city = 'ikn' and game.gr_stage('ikn') >= 3 then 0.8 else 1 end::numeric $$;
 
--- kategori penyumbang dari total pribadi (0 = belum menyumbang)
+-- kategori penyumbang dari total pribadi (0 = belum menyumbang). 1: s.d. 3 jt, 2: di atas 3 jt s.d. 15 jt, 3: di atas 15 jt
 create or replace function game.gr_kategori(p_total bigint) returns int
 language sql stable as $$
   select case when coalesce(p_total, 0) <= 0 then 0
-    when p_total >= coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 2), '')::bigint, 2500000) then 3
-    when p_total >= coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 1), '')::bigint, 1000000) then 2
+    when p_total > coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 2), '')::bigint, 15000000) then 3
+    when p_total > coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 1), '')::bigint, 3000000) then 2
     else 1 end
 $$;
 
--- Restorasi selesai: kapal yang merapat di IKN sembuh gratis (dipanggil saat tiba, dan saat selesai untuk yang sedang merapat)
-create or replace function game.gr_dock_heal(p_pid uuid, p_city text) returns void
-language plpgsql as $$
-declare mx numeric; cur numeric;
-begin
-  if p_city is distinct from 'ikn' or not exists (select 1 from game.gr_projects where id = 'ikn' and done_at is not null) then return; end if;
-  mx := (game.voy_repair_quote(p_pid, p_city) ->> 'maxCondition')::numeric;
-  select condition into cur from game.ships where player_id = p_pid;
-  if mx is null or cur is null or cur >= mx then return; end if;
-  update game.ships set condition = mx where player_id = p_pid;
-  perform game.log(p_pid, 'Tukang Dermaga Ulin IKN memperbaiki kapalmu tanpa bayar. Terima kasih atas Restorasi, Kapten.');
-  perform game.mp_push_inbox(p_pid, jsonb_build_object('type', 'gr_sembuh'));
-exception when others then raise warning 'gr_dock_heal: %', sqlerrm;
-end $$;
+-- Restorasi selesai: IKN menjadi kota pemulih seperti Paradiso & TooGood merdeka (+1 kondisi / 5 detik saat merapat).
+-- Salinan heal_city 0022 + IKN. Bila heal_city diubah di migrasi lain, ikutkan baris IKN.
+create or replace function game.heal_city(p_pid uuid, p_city text) returns boolean
+language sql stable as $$
+  select p_city = 'paradiso' or (p_city = 'toogood' and game.toogood_freed(p_pid))
+      or (p_city = 'pusaran' and game.bx_step(p_pid) between 7 and 15)
+      or (p_city = 'ikn' and exists (select 1 from game.gr_projects where id = 'ikn' and done_at is not null))
+$$;
+
+-- Bendera dunia (internal, tidak dikirim ke klien). saga3 = dipicu diam-diam saat Restorasi IKN selesai.
+create table if not exists game.world_flags (
+  key   text primary key,
+  value jsonb not null default '{}'::jsonb,
+  at    timestamptz not null default now()
+);
+alter table game.world_flags enable row level security;
+create or replace function game.world_flag(p_key text) returns boolean
+language sql stable as $$ select exists (select 1 from game.world_flags where key = p_key) $$;
 
 create or replace function game.gotong_state(p_pid uuid) returns jsonb
 language plpgsql as $$
 declare g game.gr_projects;
 begin
-  if not game.fitur_on(p_pid, 'GotongOpen') then return null; end if;
   select * into g from game.gr_projects where id = 'ikn';
+  -- setelah selesai, kota IKN yang pulih (tampilan & pemulihan kapal) berlaku untuk semua kapten
+  if not game.fitur_on(p_pid, 'GotongOpen') and g.done_at is null then return null; end if;
   return jsonb_build_object('ikn', jsonb_build_object('stage', g.stage, 'total', g.total, 'done', g.done_at is not null,
     'goal', (select sum((e ->> 'need')::bigint) from jsonb_array_elements(g.stages) e),
     'kat', game.gr_kategori((select total from game.gr_donations where project_id = 'ikn' and player_id = p_pid))));
@@ -904,9 +909,9 @@ begin
     'goal', (select sum((e ->> 'need')::bigint) from jsonb_array_elements(g.stages) e),
     'rate', game.cfg_num('GotongKepingRate', 1000), 'min', game.cfg_num('GotongMinDonasi', 1000),
     'kategori', jsonb_build_array(
-      coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 1), '')::bigint, 1000000),
-      coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 2), '')::bigint, 2500000)),
-    'max', game.cfg_num('GotongMaxPerKapten', 15000000)::bigint,
+      coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 1), '')::bigint, 3000000),
+      coalesce(nullif(split_part(game.cfg('GotongKategori'), ',', 2), '')::bigint, 15000000)),
+    'max', game.cfg_num('GotongMaxPerKapten', 0)::bigint,
     'done', g.done_at is not null,
     'garuda', (select count(*) from game.gr_donations where project_id = p_project and garuda_no is not null),
     'donors', (select count(*) from game.gr_donations where project_id = p_project),
@@ -925,7 +930,7 @@ language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me(true); v_pid uuid := v_me.player_id; v_act text := coalesce(game.arg(a, 0), 'status');
   v_gold bigint := greatest(0, coalesce(game.arg_int(a, 1), 0)); v_kp bigint := greatest(0, coalesce(game.arg_int(a, 2), 0));
   g game.gr_projects; v_val bigint; v_old int; v_new int; d game.gr_donations; v_rate numeric := game.cfg_num('GotongKepingRate', 1000);
-  v_lentera boolean := false; v_name text; st jsonb; k int; v_max bigint := game.cfg_num('GotongMaxPerKapten', 15000000)::bigint;
+  v_lentera boolean := false; v_name text; st jsonb; k int; v_max bigint := game.cfg_num('GotongMaxPerKapten', 0)::bigint;
   v_kat0 int; v_kat1 int; v_gno int; v_cum bigint;
 begin
   if v_me.archetype = '' then raise exception 'Buat karakter dulu.'; end if;
@@ -942,7 +947,7 @@ begin
   if g.done_at is not null then raise exception 'Restorasi IKN sudah selesai. Terima kasih, Kapten!'; end if;
   if v_gold > v_me.gold then raise exception 'Gold tidak cukup. Kamu punya %.', v_me.gold; end if;
   select * into d from game.gr_donations where project_id = 'ikn' and player_id = v_pid for update;
-  if coalesce(d.total, 0) + v_val > v_max then
+  if v_max > 0 and coalesce(d.total, 0) + v_val > v_max then
     raise exception 'Batas sumbangan per kapten % gold. Sisa jatahmu % gold.', to_char(v_max, 'FM999G999G999'), to_char(greatest(0, v_max - coalesce(d.total, 0)), 'FM999G999G999');
   end if;
   if v_gold > 0 then update game.players set gold = gold - v_gold where player_id = v_pid; end if;
@@ -983,9 +988,9 @@ begin
         insert into game.city_events(city_id, event_type, label, message, price_pct, reward_pct, expires_game_day)
         values ('ikn', 'festival', 'Festival Restorasi', 'Menara Cahaya IKN menyala lagi. Seluruh Mare Nusantara datang berpesta.', 0, 25,
           game.game_day() + greatest(1, ceil(7 * 24 * 60 / game.cfg_num('GameDayLengthRealMinutes', 180)))::int);
-        -- semua kapal yang sedang merapat di IKN langsung sembuh
-        perform game.gr_dock_heal(l.player_id, 'ikn') from game.player_location l
-          where l.city_id = 'ikn' and l.destination_city_id is null;
+        -- pemicu Saga 3 (diam-diam: tanpa chat, inbox, atau data ke klien)
+        insert into game.world_flags(key, value) values ('saga3', jsonb_build_object('trigger', 'ikn', 'by', v_pid))
+        on conflict (key) do nothing;
       end if;
     end loop;
   elsif v_val >= 1000000 then

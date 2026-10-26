@@ -629,7 +629,6 @@ begin
          depart_at = null, arrive_at = null, pending_encounter = null
    where player_id = p_pid;
   perform game.hr_hook(p_pid, 'arrive', 1, jsonb_build_object('city', p_target));   -- v37
-  begin perform game.gr_dock_heal(p_pid, p_target); exception when others then raise warning 'gr_dock_heal: %', sqlerrm; end;   -- v37
 
   gd := coalesce((ev ->> 'goldDelta')::bigint, 0);
   if gd <> 0 then
