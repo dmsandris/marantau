@@ -212,24 +212,49 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await H.sql(`update game.players set gold = 6000000, keping = 600 where player_id = $1`, [A.id]);
   await H.expectError(() => A.call('api_gotong', ['sumbang', 500, 0]), /minimal/);
   await H.expectError(() => A.call('api_gotong', ['sumbang', 9000000, 0]), /tidak cukup/);
-  let gr = await A.call('api_gotong', ['sumbang', 4000000, 500]);
-  ok(gr.gotong.total === 4500000 && gr.gotong.stage === 0 && gr.lentera && await keping(A) === 100, 'keping dihitung 1.000 gold; Lentera IKN untuk penyumbang besar');
-  ok(Number((await one(`select game.kd_qty($1, 'aura_lentera_ikn') q`, [A.id])).q) === 1, 'Lentera IKN masuk Kedai');
-  gr = await A.call('api_gotong', ['sumbang', 600000, 0]);
-  ok(gr.stageUp && gr.gotong.stage === 1 && gr.gotong.goal === 100000000, 'tahap 1 (5 juta) selesai, total target 100 juta');
-  const chat = await one(`select msg from game.mp_chat where channel = 'g' order by id desc limit 1`);
-  ok(/Restorasi IKN tahap 1 selesai/.test(chat.msg.tx), 'pengumuman chat dunia');
-  ok((await A.call('api_getGameState', [null])).gotong.ikn.stage === 1, 'tahap terlihat di state');
+  // kategori 1 (< 1 jt): belum ada rupa
+  let gr = await A.call('api_gotong', ['sumbang', 400000, 500]);
+  ok(gr.gotong.total === 900000 && gr.kat === 1 && !gr.lentera && await keping(A) === 100 && gr.gotong.me.kat === 1, 'keping dihitung 1.000 gold; kategori 1 ' + JSON.stringify([gr.gotong.total, gr.kat, gr.lentera]));
+  // kategori 2 (>= 1 jt): Lentera IKN
+  gr = await A.call('api_gotong', ['sumbang', 100000, 0]);
+  ok(gr.kat === 2 && gr.katUp && gr.lentera && Number((await one(`select game.kd_qty($1, 'aura_lentera_ikn') q`, [A.id])).q) === 1, 'kategori 2: Lentera IKN');
+  // kategori 3 (>= 2,5 jt): Sayap Garuda bernomor + pengumuman
+  gr = await A.call('api_gotong', ['sumbang', 1500000, 0]);
+  ok(gr.kat === 3 && gr.garudaNo === 1 && gr.gotong.me.garudaNo === 1 && gr.gotong.garuda === 1 && Number((await one(`select game.kd_qty($1, 'lambang_garuda') q`, [A.id])).q) === 1, 'kategori 3: Sayap Garuda #1');
+  ok((await H.sql(`select msg from game.mp_chat where channel = 'g' order by id desc limit 3`)).some(r => /Penjaga Garuda #1/.test(r.msg.tx)), 'pengumuman Penjaga Garuda');
+  let chat;
+  await H.expectError(() => A.call('api_kedai', ['beli', 'lambang_garuda']), /tidak dijual/);
+  rr = await A.call('api_kedai', ['pasang', 'lambang_garuda']);
+  ok((await one(`select game.kd_visual($1) v`, [A.id])).v.lambang === 'lambang_garuda', 'Sayap Garuda terpasang (slot lambang)');
+  // batas 15 jt per kapten
+  await H.sql(`update game.players set gold = 20000000 where player_id = $1`, [A.id]);
+  await H.expectError(() => A.call('api_gotong', ['sumbang', 12600000, 0]), /Batas sumbangan per kapten/);
+  gr = await A.call('api_gotong', ['sumbang', 2500000, 0]);
+  ok(gr.stageUp && gr.gotong.stage === 1 && gr.gotong.goal === 100000000 && gr.gotong.total === 5000000 && !gr.katUp && gr.garudaNo === null, 'kolam 5 juta: papan baru, total target 100 juta');
+  chat = await one(`select msg from game.mp_chat where channel = 'g' order by id desc limit 1`);
+  ok(/mencapai 5 juta gold: Papan Baru/.test(chat.msg.tx), 'pengumuman chat dunia ' + chat.msg.tx);
+  const gs2 = (await A.call('api_getGameState', [null])).gotong.ikn;
+  ok(gs2.stage === 1 && gs2.kat === 3 && gs2.done === false, 'kolam & kategori terlihat di state');
   ok(Number((await one(`select game.gr_repair_mul('ikn') m`)).m) === 1, 'diskon reparasi belum aktif');
   await H.sql(`update game.gr_projects set total = 35000000, stage = 3 where id = 'ikn'`);
-  ok(Number((await one(`select game.gr_repair_mul('ikn') m`)).m) === 0.8, 'tahap 3: reparasi IKN -20%');
+  ok(Number((await one(`select game.gr_repair_mul('ikn') m`)).m) === 0.8, '35 juta: reparasi IKN -20%');
+  // B merapat di IKN dengan kapal rusak saat Restorasi selesai -> sembuh
+  const Bk = await mk('gr_bravo', 'Kapten Bravo Ikn');
+  await H.sql(`update game.player_location set city_id = 'ikn', destination_city_id = null, arrive_at = null where player_id = $1`, [Bk.id]);
+  await H.sql(`update game.ships set condition = 30 where player_id = $1`, [Bk.id]);
   await H.sql(`update game.gr_projects set total = 99999000, stage = 4 where id = 'ikn'`);
-  await H.sql(`update game.players set gold = 10000 where player_id = $1`, [A.id]);
   gr = await A.call('api_gotong', ['sumbang', 2000, 0]);
-  ok(gr.gotong.stage === 5, 'tahap 5 selesai');
+  ok(gr.gotong.stage === 5 && gr.gotong.done, '100 juta: Restorasi selesai');
   const fest = await one(`select * from game.city_events where city_id = 'ikn' and event_type = 'festival'`);
   ok(fest && fest.label === 'Festival Restorasi', 'Festival Restorasi dimulai');
+  ok(Number((await one(`select condition from game.ships where player_id = $1`, [Bk.id])).condition) > 30, 'kapal yang sedang merapat di IKN sembuh');
+  ok(Number((await one(`select game.gr_repair_mul('ikn') m`)).m) === 0, 'reparasi di IKN gratis');
   await H.expectError(() => A.call('api_gotong', ['sumbang', 2000, 0]), /sudah selesai/);
+  // tiba di IKN dengan kapal rusak -> sembuh otomatis
+  await H.sql(`update game.ships set condition = 25 where player_id = $1`, [Bk.id]);
+  await H.sql(`select game.voy_complete_arrival($1, 'ikn', null)`, [Bk.id]);
+  ok(Number((await one(`select condition from game.ships where player_id = $1`, [Bk.id])).condition) > 25, 'tiba di IKN: kapal sembuh');
+  ok((await one(`select count(*)::int n from game.mp_inbox where player_id = $1 and item ->> 'type' = 'gr_sembuh'`, [Bk.id])).n >= 1, 'kabar inbox sembuh');
 
   // --- kait aman: error di Pesanan tidak menggagalkan jual ---------------------------------
   await H.sql(`update game.hr_sheets set tasks = '[{"c":"S1","goal":"x"}]'::jsonb where player_id = $1 and day = game.hr_today()`, [A.id]);

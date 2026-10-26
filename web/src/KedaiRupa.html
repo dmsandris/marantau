@@ -254,15 +254,86 @@
     }
   };
 
+  /* ---------------- lambang (eksklusif) ---------------- */
+  var LAMBANG = {
+    lambang_garuda: function (ctx, o, g) {
+      // Sayap Garuda: lambang emas tembus cahaya di atas tiang, sayap mengepak pelan, ekor mengipas, serbuk emas turun
+      if (o.reflect) return;
+      var M = g.M, top = 0, cx = 0;
+      M.forEach(function (m) { top = Math.min(top, m.top); cx += m.x; });
+      cx /= M.length; var cy = top - 46 + Math.sin(g.t * 1.1) * 1.5;
+      var nt = Math.max(0, o.lanterns || 0), al = 0.62 + 0.25 * nt, flap = Math.sin(g.t * 1.6) * 0.09;
+      ctx.save();
+      ctx.translate(cx, cy); ctx.scale(1.55, 1.55); ctx.translate(-cx, -cy);   // lambang besar: terlihat dari jauh
+      ctx.globalCompositeOperation = 'lighter';
+      var hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 58);
+      hg.addColorStop(0, 'rgba(255,214,110,' + (0.28 + 0.2 * nt).toFixed(3) + ')'); hg.addColorStop(0.55, 'rgba(255,170,60,' + (0.1 + 0.08 * nt).toFixed(3) + ')'); hg.addColorStop(1, 'rgba(255,150,40,0)');
+      ctx.fillStyle = hg; ctx.fillRect(cx - 60, cy - 60, 120, 120);
+      // sinar di belakang lambang
+      for (var r = 0; r < 12; r++) {
+        var ra = r / 12 * 6.283 + g.t * 0.15;
+        ctx.strokeStyle = 'rgba(255,220,140,' + (0.08 + 0.05 * Math.sin(g.t * 2 + r)).toFixed(3) + ')'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(ra) * 10, cy + Math.sin(ra) * 10); ctx.lineTo(cx + Math.cos(ra) * 36, cy + Math.sin(ra) * 36); ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      function feather(x0, y0, ang, len, w, c1, c2) {
+        var dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
+        var gr = ctx.createLinearGradient(x0, y0, x0 + dx * len, y0 + dy * len);
+        gr.addColorStop(0, c1); gr.addColorStop(1, c2);
+        ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.moveTo(x0 + nx * w, y0 + ny * w);
+        ctx.quadraticCurveTo(x0 + dx * len * 0.6 + nx * w * 1.1, y0 + dy * len * 0.6 + ny * w * 1.1, x0 + dx * len, y0 + dy * len);
+        ctx.quadraticCurveTo(x0 + dx * len * 0.6 - nx * w * 0.9, y0 + dy * len * 0.6 - ny * w * 0.9, x0 - nx * w, y0 - ny * w);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(120,70,10,' + (0.45 * al).toFixed(3) + ')'; ctx.lineWidth = 0.3; ctx.stroke();
+      }
+      var gold = 'rgba(255,226,140,' + al.toFixed(3) + ')', deep = 'rgba(214,150,40,' + (al * 0.85).toFixed(3) + ')', tip = 'rgba(255,246,210,' + (al * 0.9).toFixed(3) + ')';
+      // dua sayap: bulu terbang panjang di bawah, bulu tutup pendek di atas
+      [-1, 1].forEach(function (sg) {
+        for (var i = 0; i < 9; i++) {
+          var f = i / 8, bx = cx + sg * (5 + f * 16), by = cy - 2 - f * 5;
+          var ang = sg > 0 ? (-0.15 - f * 0.95 - flap) : (Math.PI + 0.15 + f * 0.95 + flap);
+          feather(bx, by, ang, 34 - f * 12, 2.6 - f * 0.6, deep, tip);
+        }
+        for (var j = 0; j < 6; j++) {
+          var fj = j / 5, bx2 = cx + sg * (4 + fj * 11), by2 = cy - 3 - fj * 4;
+          var ang2 = sg > 0 ? (-0.35 - fj * 0.8 - flap * 0.7) : (Math.PI + 0.35 + fj * 0.8 + flap * 0.7);
+          feather(bx2, by2, ang2, 16 - fj * 4, 2.2, deep, gold);
+        }
+      });
+      // ekor mengipas
+      for (var k = 0; k < 7; k++) { var ta = Math.PI / 2 + (k - 3) * 0.17 + Math.sin(g.t * 1.3) * 0.03; feather(cx, cy + 6, ta, 18 - Math.abs(k - 3) * 1.5, 2, deep, tip); }
+      // tubuh & perisai dada
+      ctx.fillStyle = deep; ctx.beginPath(); ctx.ellipse(cx, cy + 2, 5.2, 8.5, 0, 0, 6.3); ctx.fill();
+      ctx.fillStyle = gold; ctx.beginPath(); ctx.moveTo(cx - 4, cy - 1); ctx.lineTo(cx + 4, cy - 1); ctx.lineTo(cx + 4, cy + 4); ctx.quadraticCurveTo(cx, cy + 9, cx - 4, cy + 4); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,70,10,' + (0.6 * al).toFixed(3) + ')'; ctx.lineWidth = 0.35; ctx.stroke();
+      ctx.fillStyle = 'rgba(200,40,40,' + (0.75 * al).toFixed(3) + ')'; ctx.fillRect(cx - 4, cy - 1, 8, 2.2);
+      // leher & kepala menoleh ke haluan, jambul
+      ctx.fillStyle = gold; ctx.beginPath(); ctx.ellipse(cx + 1.5, cy - 9, 2.6, 4, 0.3, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 3, cy - 13.5, 3.1, 0, 6.3); ctx.fill();
+      for (var c = 0; c < 4; c++) feather(cx + 1.5, cy - 15, -Math.PI / 2 - 0.9 - c * 0.22, 6 - c * 0.6, 0.9, deep, tip);
+      ctx.fillStyle = 'rgba(214,150,40,' + al.toFixed(3) + ')'; ctx.beginPath(); ctx.moveTo(cx + 5.6, cy - 14.5); ctx.lineTo(cx + 9, cy - 13); ctx.lineTo(cx + 5.6, cy - 12.2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(60,20,0,' + al.toFixed(3) + ')'; ctx.beginPath(); ctx.arc(cx + 4, cy - 14, 0.55, 0, 6.3); ctx.fill();
+      // serbuk emas turun dari ujung sayap
+      ctx.globalCompositeOperation = 'lighter';
+      for (var p = 0; p < 14; p++) {
+        var ph = (g.t * 0.22 + p / 14) % 1, side = p % 2 ? 1 : -1, px = cx + side * (26 + (p * 7) % 22) + Math.sin(g.t + p) * 2, py = cy - 18 + ph * 70;
+        ctx.fillStyle = 'rgba(255,230,150,' + ((1 - ph) * (0.55 + 0.4 * nt)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(px, py, 0.8 + (p % 3) * 0.25, 0, 6.3); ctx.fill();
+      }
+      ctx.restore();
+    }
+  };
+
   H.after = function (ctx, o, g) {
     var kd = o.kd || {};
     if (kd.aura && AURA[kd.aura]) AURA[kd.aura](ctx, o, g);
     if (o.reflect) return;
+    if (kd.lambang && LAMBANG[kd.lambang]) LAMBANG[kd.lambang](ctx, o, g);
     if (kd.panji && PANJI[kd.panji]) PANJI[kd.panji](ctx, o, g);
     if (kd.haluan && HALUAN[kd.haluan]) HALUAN[kd.haluan](ctx, o, g);
     if (kd.penghuni && PENGHUNI[kd.penghuni]) PENGHUNI[kd.penghuni](ctx, o, g);
   };
   // daftar rupa yang sudah punya gambar (Kedai menandai rupa lain "segera hadir")
-  window.MTKD_RUPA = { layar: Object.keys(SAIL), panji: Object.keys(PANJI), haluan: Object.keys(HALUAN), penghuni: Object.keys(PENGHUNI), aura: Object.keys(AURA) };
+  window.MTKD_RUPA = { layar: Object.keys(SAIL), panji: Object.keys(PANJI), haluan: Object.keys(HALUAN), penghuni: Object.keys(PENGHUNI), aura: Object.keys(AURA), lambang: Object.keys(LAMBANG) };
 })();
 </script>
