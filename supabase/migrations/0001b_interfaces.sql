@@ -13,6 +13,7 @@
 -- Tide v21: modal rata-rata (lihat 0020)
 alter table game.inventory add column if not exists cost numeric;
 alter table game.warehouse add column if not exists cost numeric;
+alter table game.inventory add column if not exists src_city text;   -- v37: kota pembelian terakhir (Pesanan Harian)
 
 -- Ubah jumlah barang; pengurangan memotong modal secara proporsional.
 create or replace function game.adjust_inventory(p_pid uuid, p_item text, p_delta int) returns int
@@ -320,3 +321,34 @@ end $$;
 -- Kota yang memulihkan kapal sendiri saat merapat (diisi 0014/0015/0022)
 create or replace function game.heal_city(p_pid uuid, p_city text) returns boolean
 language sql stable as $$ select false $$;
+
+-- [Tide v37 · Pesanan Harian, Kedai Rantau, Gotong Royong / 0032] -------------
+-- Satu pintu kejadian untuk Pesanan Harian (dan nanti skor Pacu Dagang).
+-- kind: sell | buy | arrive | mission | combat_win | fish | repair | dig | bursa. Tidak boleh menggagalkan aksi inti.
+create or replace function game.hr_hook(p_pid uuid, p_kind text, p_amount numeric, p_ctx jsonb) returns void
+language plpgsql as $$ begin null; end $$;
+-- Jasa Kedai pada pertempuran bajak laut (Pengawal Daeng Sore). Mengembalikan encounter (boleh diubah).
+create or replace function game.kd_enc(p_pid uuid, p_enc jsonb) returns jsonb
+language plpgsql as $$ begin return p_enc; end $$;
+-- Pengali waktu tempuh dari jasa (Pembaca Arus). Dipanggil sekali per api_setSail (boleh memakai jatah jasa).
+create or replace function game.kd_sail_mul(p_pid uuid) returns double precision
+language plpgsql as $$ begin return 1; end $$;
+-- Pengali biaya reparasi per kota dari Gotong Royong (Restorasi IKN, lihat 0032).
+create or replace function game.gr_repair_mul(p_city text) returns numeric
+language sql stable as $$ select 1::numeric $$;
+-- Rupa kapal dari Kedai Rantau (ikut ship_visual -> mp_presence.s). null = tidak ada.
+create or replace function game.kd_visual(p_pid uuid) returns jsonb
+language sql stable as $$ select null::jsonb $$;
+-- Status untuk getGameState (null = fitur tertutup untuk pemain ini)
+create or replace function game.harian_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+create or replace function game.gotong_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+-- [Tide v37 · Pacu Dagang / 0033] status lomba akhir pekan (null = tertutup)
+-- Kisah Lapau (0035): status bab untuk getGameState, dan apakah bab sudah tamat (syarat rupa eksklusif)
+create or replace function game.kisah_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+create or replace function game.kisah_done(p_pid uuid, p_kisah text) returns boolean
+language plpgsql stable as $$ begin return false; end $$;
+create or replace function game.pacu_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;

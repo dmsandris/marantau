@@ -946,6 +946,9 @@ begin
   update game.players set gold = gold + v_total where player_id = o.seller_id;   -- dikreditkan walau penjual berlayar
   perform game.adjust_inventory(v_id, o.commodity_id, v_qty::int);
   perform game.inv_add_cost(v_id, o.commodity_id, v_qty::int, v_total);
+  update game.inventory set src_city = o.city_id where player_id = v_id and item_id = o.commodity_id;   -- v37
+  perform game.hr_hook(v_id, 'bursa', v_total, jsonb_build_object('role', 'buyer', 'city', o.city_id));
+  perform game.hr_hook(o.seller_id, 'bursa', v_total, jsonb_build_object('role', 'seller', 'city', o.city_id));
   v_left := o.qty - v_qty;
   update game.mp_orders set qty = v_left, status = case when v_left <= 0 then 'filled' else status end where order_id = o.order_id;
   v_name := game.commodity_name(o.commodity_id);

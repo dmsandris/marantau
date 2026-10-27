@@ -369,6 +369,7 @@ begin
 
   dist := game.voy_map_distance(l.city_id, v_dest);
   secs := game.voy_travel_seconds(dist, game.lt_ship_for_route(v_me.player_id, l.city_id, v_dest));
+  secs := greatest(1, round(secs * game.kd_sail_mul(v_me.player_id)))::int;   -- v37: jasa Pembaca Arus
   t_depart := now();
   t_arrive := t_depart + make_interval(secs => secs);
 
@@ -446,6 +447,7 @@ begin
   if rate is null or rate = 0 then rate := 1; end if;
   -- Tide v33: Resep Ramuan Sinshe Tan -25% (tidak untuk Black Pearl)
   if game.ship_book_effect(p_pid, 'gd_ramuan') then rate := rate * 0.75; end if;
+  rate := rate * game.gr_repair_mul(p_city);   -- v37: Restorasi IKN tahap 3
   cost := game.voy_round(missing * game.cfg_num('ShipRepairBaseCostPerPoint', 15) * rate);
   return jsonb_build_object('currentCondition', game.voy_round(cur), 'maxCondition', mx,
     'missing', game.voy_round(missing), 'cost', cost, 'blocked', game.lt_repair_block(p_pid, p_city));
@@ -472,6 +474,7 @@ begin
   end if;
   update game.ships set condition = mx where player_id = v_me.player_id;
   update game.players set gold = v_me.gold - cost where player_id = v_me.player_id;
+  perform game.hr_hook(v_me.player_id, 'repair', cost, jsonb_build_object('city', v_city));   -- v37
   perform game.log(v_me.player_id, 'Repaired the ship at ' || game.city_name(v_city) ||
     ' for ' || cost || ' gold (Condition restored to ' || mx || ').');
   return jsonb_build_object('success', true, 'newCondition', mx, 'goldSpent', cost, 'newGold', v_me.gold - cost);

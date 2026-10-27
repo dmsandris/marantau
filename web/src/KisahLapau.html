@@ -1,0 +1,449 @@
+<style>
+  /* ================= Tide v37 · Fase 4 · Kisah Lapau ================= */
+  .ks-wrap { display: grid; gap: 10px; }
+  .ks-hero { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid rgba(140,255,200,.3); background: #06110d; }
+  .ks-hero canvas { display: block; width: 100%; height: 200px; }
+  .ks-hero .cap { position: absolute; left: 14px; bottom: 12px; right: 14px; color: #e4fff3; text-shadow: 0 2px 6px rgba(0,0,0,.9); pointer-events: none; }
+  .ks-hero .cap small { display: block; font-family: var(--font-title); letter-spacing: .18em; font-size: .68em; color: #8fffd0; text-transform: uppercase; }
+  .ks-hero .cap b { font-family: 'Pirata One', var(--font-display), serif; font-size: 1.7em; font-weight: 400; letter-spacing: .03em; }
+  .ks-book2 { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: linear-gradient(90deg, rgba(60,40,20,.12), rgba(255,255,255,.55)); border: 1px solid rgba(120,100,60,.28); }
+  .ks-book2.on { background: linear-gradient(90deg, #0d221b, #163a2e); border-color: rgba(140,255,200,.45); color: #e4fff3; }
+  .ks-book2.on h5 { color: #bfffe0; } .ks-book2.on p { color: #cfe9dc; }
+  .ks-book2 .cv { width: 44px; height: 58px; border-radius: 4px 8px 8px 4px; background: linear-gradient(90deg, #13362b, #2a6b55); box-shadow: inset 4px 0 0 rgba(0,0,0,.35), 0 0 12px rgba(120,255,190,.25); display: grid; place-items: center; color: #b8ffde; font-family: var(--font-title); font-size: .8em; }
+  .ks-book2:not(.on) .cv { background: linear-gradient(90deg, #5a2a18, #8a4a28); color: #f0cf78; box-shadow: inset 4px 0 0 rgba(0,0,0,.3); }
+  .ks-book2 h5 { margin: 0; color: #2e2010; font-size: .95em; } .ks-book2 p { margin: 2px 0 0; font-size: .82em; color: #4a3218; line-height: 1.4; }
+  .ks-book2 .soon { font-size: .72em; padding: 2px 9px; border-radius: 99px; background: rgba(40,30,15,.75); color: #ffe7a3; white-space: nowrap; }
+  .ks-steps { display: grid; gap: 5px; padding: 10px 12px; border-radius: 12px; background: rgba(10,30,24,.92); color: #d9f5e8; border: 1px solid rgba(140,255,200,.3); font-size: .84em; }
+  .ks-steps .st { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; opacity: .5; }
+  .ks-steps .st.done { opacity: .75; } .ks-steps .st.now { opacity: 1; }
+  .ks-steps .st i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-family: var(--font-title); font-size: .8em; background: rgba(140,255,200,.15); color: #9fffd0; }
+  .ks-steps .st.done i { background: #6fe0a8; color: #06231a; }
+  .ks-steps .st.now i { box-shadow: 0 0 0 2px rgba(140,255,200,.7); }
+  .ks-steps .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .ks-bell { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 1500; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 99px; border: 1px solid rgba(140,255,200,.7); background: radial-gradient(circle at 30% 30%, #1d4a3c, #071712); color: #c9ffe6; font-family: var(--font-title); letter-spacing: .06em; cursor: pointer; box-shadow: 0 0 24px rgba(110,255,190,.35); animation: ksBell 2.4s ease-in-out infinite; }
+  .ks-bell[disabled] { opacity: .55; cursor: default; animation: none; }
+  .ks-bell .ico { width: 18px; height: 18px; }
+  @keyframes ksBell { 0%, 100% { box-shadow: 0 0 18px rgba(110,255,190,.3); } 50% { box-shadow: 0 0 34px rgba(110,255,190,.65); } }
+  .ks-riddle { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,.62); border: 1px solid rgba(120,100,60,.3); }
+  .ks-riddle q { font-style: italic; color: #2e2010; line-height: 1.5; }
+  .ks-riddle .row { display: flex; gap: 6px; } .ks-riddle input { flex: 1; min-height: 38px; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(120,90,40,.4); background: #fffaf0; font-size: 1em; }
+  /* sinematik */
+  .ks-cine { position: fixed; inset: 0; z-index: 2700; background: #000; opacity: 0; transition: opacity .6s; }
+  .ks-cine.on { opacity: 1; }
+  .ks-cine canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .ks-cine .bars { position: absolute; left: 0; right: 0; height: 7vh; background: #000; z-index: 2; } .ks-cine .bars.t { top: 0; } .ks-cine .bars.b { bottom: 0; }
+  .ks-cine .say { position: absolute; left: 50%; bottom: calc(7vh + 18px); transform: translateX(-50%); width: min(760px, 92vw); display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 14px; background: linear-gradient(180deg, rgba(6,20,16,.82), rgba(3,10,8,.9)); border: 1px solid rgba(140,255,200,.35); color: #e6fff4; z-index: 3; opacity: 0; transition: opacity .5s; }
+  .ks-cine .say.on { opacity: 1; }
+  .ks-cine .say .fc { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px rgba(140,255,200,.5); background: #10261e; }
+  .ks-cine .say .fc svg { width: 100%; height: 100%; display: block; }
+  .ks-cine .say b { display: block; font-family: var(--font-title); letter-spacing: .06em; font-size: .82em; color: #8fffd0; }
+  .ks-cine .say p { margin: 3px 0 0; font-size: 1.02em; line-height: 1.5; min-height: 3em; font-family: var(--font-body, Georgia), serif; }
+  .ks-cine .title { position: absolute; left: 0; right: 0; top: 36%; text-align: center; z-index: 3; color: #dffff0; font-family: 'Pirata One', var(--font-display), serif; font-size: clamp(30px, 6vw, 64px); letter-spacing: .04em; text-shadow: 0 0 22px rgba(110,255,190,.55); opacity: 0; transition: opacity 1.2s; pointer-events: none; }
+  .ks-cine .title small { display: block; font-family: var(--font-title); font-size: .26em; letter-spacing: .4em; color: #8fffd0; margin-bottom: 8px; }
+  .ks-cine .title.on { opacity: 1; }
+  .ks-cine .ctl { position: absolute; top: calc(7vh + 10px); right: 14px; z-index: 4; display: flex; gap: 6px; }
+  .ks-cine .ctl button { background: rgba(0,0,0,.45); color: #e6fff4; border: 1px solid rgba(255,255,255,.25); border-radius: 99px; padding: 5px 12px; cursor: pointer; font-size: .82em; }
+  .ks-cine .next { position: absolute; right: calc(50% - min(380px, 46vw) + 14px); bottom: calc(7vh + 26px); z-index: 4; color: #8fffd0; font-size: .8em; opacity: 0; transition: opacity .4s; pointer-events: none; }
+  .ks-cine .next.on { opacity: .85; animation: ksBlink 1.2s infinite; }
+  @keyframes ksBlink { 50% { opacity: .3; } }
+  @media (max-width: 760px) { .ks-bell { bottom: 200px; } }
+  @media (max-width: 560px) { .ks-cine .say { grid-template-columns: 48px 1fr; } .ks-cine .say .fc { width: 48px; height: 48px; } .ks-cine .say p { font-size: .92em; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v37 · Fase 4 · Kisah Lapau Bab 1 "Kapal Tanpa Awak" (kapal hantu alniu siarfi)
+ * Server: 0035_kisah_set.sql (api_kisah, key 'kisah' di getGameState, inbox type 'kisah').
+ * ===================================================================== */
+var KS = (function () {
+  var U = window.MTUtil, SHIP = 'alniu siarfi';
+  var GHOST_KD = { lambung: 'lambung_karam', layar: 'layar_koyak', aura: 'aura_arwah', jejak: 'jejak_kabut', sakti: ['kapal_hantu'] };
+  function st() { return (state && state.kisah) || null; }
+  function ch() { var s = st(); return s && s.chapters ? s.chapters[0] : null; }
+  function face(i) { return window.HR ? HR.face(i, ['#10261e', '#04100b']) : ''; }
+  function rnd(n) { var x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); }
+  function call(fn, args, ok, b) {
+    if (b) b.disabled = true;
+    var run = google.script.run.withSuccessHandler(function (r) {
+      if (b) b.disabled = false; r = r || {};
+      if (r.kisah && state) { state.kisah = r.kisah; }
+      if (r.keping != null && window.HR && HR.st()) { HR.st().keping = r.keping; try { HR.bumpKeping && HR.bumpKeping(); } catch (e) { } }
+      try { ok && ok(r); } catch (e) { console.warn('[KS]', e); }
+      applyBell();
+    }).withFailureHandler(function (e) { if (b) b.disabled = false; showToast((e && e.message) || String(e), 'error'); });
+    run[fn].apply(run, args);
+  }
+
+  /* ====================== lukisan adegan ====================== */
+  function lit(p) { return p.lit || function (h, a) { return a == null ? h : U.css(U.hex(h), a); }; }
+  function ghostOpts(t, p, alpha) {
+    var o = MTShip.fromVisual({ look: { hull: '#5d6b62', trim: '#8fa79a', sail: '#9aa89c', flag: '#2a3a33' }, up: { masts: 3 }, name: SHIP, kd: GHOST_KD });
+    o.dir = -1; o.t = t; o.lanterns = 1; o.lit = lit(p); o.moving = 0.6; o.furl = 0; o.roll = Math.sin(t * 0.8) * 0.02;
+    o.masts = 3; o.hull = '#5d6b62'; o.sail = '#9aa89c'; o.flag = '#1d2a25';
+    return o;
+  }
+  function playerOpts(t, p, kd) {
+    var v = (state && state.shipVisual) || { look: {}, up: {} };
+    var o = MTShip.fromVisual({ look: v.look, up: v.up, name: v.name, kd: kd || v.kd });
+    o.dir = 1; o.t = t; o.lanterns = p.lights; o.lit = lit(p); o.furl = 0; o.moving = 0.8; o.roll = Math.sin(t * 1.1) * 0.03;
+    return o;
+  }
+  function fog(ctx, W, H, y0, t, a, rgb) {
+    for (var i = 0; i < 14; i++) {
+      var x = ((rnd(i) * W * 1.4 + t * (12 + rnd(i + 3) * 18)) % (W * 1.4)) - W * 0.2, y = y0 + (rnd(i + 7) - 0.5) * H * 0.18, r = H * (0.14 + rnd(i + 9) * 0.16);
+      var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(' + (rgb || '205,225,220') + ',' + (a * 0.55).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + (rgb || '205,225,220') + ',0)');
+      ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  }
+  function rain(ctx, W, H, t, n, a) {
+    ctx.strokeStyle = 'rgba(190,210,235,' + a + ')'; ctx.lineWidth = 1;
+    for (var i = 0; i < n; i++) { var x = (rnd(i) * W * 1.3 + t * 120) % (W * 1.3) - W * 0.15, y = (rnd(i + 2) * H + t * 900 * (0.8 + rnd(i + 5) * 0.4)) % H; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 18); ctx.stroke(); }
+  }
+  function boltFx(ctx, x0, y0, x1, y1, seed, a) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    [[7, 0.3], [2, 1]].forEach(function (s) {
+      ctx.strokeStyle = 'rgba(200,225,255,' + (a * s[1]).toFixed(3) + ')'; ctx.lineWidth = s[0];
+      ctx.beginPath(); ctx.moveTo(x0, y0); for (var i = 1; i < 10; i++) ctx.lineTo(x0 + (x1 - x0) * i / 10 + (rnd(seed + i) - 0.5) * 40, y0 + (y1 - y0) * i / 10); ctx.lineTo(x1, y1); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  function moon(ctx, x, y, r, a) {
+    var g = ctx.createRadialGradient(x, y, r * 0.2, x, y, r * 4); g.addColorStop(0, 'rgba(220,255,240,' + (0.35 * a) + ')'); g.addColorStop(1, 'rgba(220,255,240,0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r * 4, y - r * 4, r * 8, r * 8);
+    ctx.fillStyle = 'rgba(240,255,248,' + a + ')'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+    ctx.fillStyle = 'rgba(190,215,205,' + (0.4 * a) + ')'; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.2, r * 0.2, 0, 6.3); ctx.arc(x + r * 0.25, y + r * 0.3, r * 0.14, 0, 6.3); ctx.fill();
+  }
+  function shipSc(W, H, k) { return Math.min(W * 0.0024, H * 0.0034) * (k || 1); }
+  function gadang(ctx, x, yb, w, h, col) {
+    // rumah gadang: badan + atap bergonjong melengkung (siluet)
+    var yt = yb - h * 0.45, rh = h * 0.55;
+    ctx.fillStyle = col; ctx.fillRect(x + w * 0.06, yt, w * 0.88, yb - yt);
+    ctx.beginPath(); ctx.moveTo(x - w * 0.04, yt + 2);
+    ctx.quadraticCurveTo(x + w * 0.04, yt - rh * 0.35, x - w * 0.02, yt - rh);          // gonjong kiri
+    ctx.quadraticCurveTo(x + w * 0.2, yt - rh * 0.55, x + w * 0.5, yt - rh * 0.45);      // pelana
+    ctx.quadraticCurveTo(x + w * 0.8, yt - rh * 0.55, x + w * 1.02, yt - rh);            // gonjong kanan
+    ctx.quadraticCurveTo(x + w * 0.96, yt - rh * 0.35, x + w * 1.04, yt + 2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + w * 0.3, yt - rh * 0.4); ctx.quadraticCurveTo(x + w * 0.42, yt - rh * 0.7, x + w * 0.38, yt - rh * 1.05); ctx.quadraticCurveTo(x + w * 0.5, yt - rh * 0.72, x + w * 0.62, yt - rh * 1.05); ctx.quadraticCurveTo(x + w * 0.58, yt - rh * 0.7, x + w * 0.7, yt - rh * 0.4); ctx.closePath(); ctx.fill();
+    return yt;
+  }
+  function dock(ctx, W, H, hy, lights) {
+    // dermaga Skitraw: deretan rumah gadang (RM Padang, Galangan Gaul-Wash), lampu dermaga, papan neon
+    var c1 = '#0a0d12', c2 = '#11161d';
+    gadang(ctx, -W * 0.02, hy - 4, W * 0.14, H * 0.3, c2);
+    var yt = gadang(ctx, W * 0.11, hy - 4, W * 0.17, H * 0.38, c1);
+    gadang(ctx, W * 0.27, hy - 4, W * 0.11, H * 0.24, c2);
+    // jendela berlampu
+    var wl = lights > 0 ? 1 : 0.35;
+    for (var w = 0; w < 4; w++) { ctx.fillStyle = 'rgba(255,196,110,' + (0.75 * wl * (0.7 + 0.3 * Math.sin(w * 7))) + ')'; ctx.fillRect(W * 0.135 + w * W * 0.032, yt + H * 0.05, W * 0.014, H * 0.035); }
+    ctx.fillStyle = 'rgba(255,196,110,' + (0.55 * wl) + ')'; ctx.fillRect(W * 0.02, hy - H * 0.1, W * 0.012, H * 0.03); ctx.fillRect(W * 0.31, hy - H * 0.08, W * 0.012, H * 0.03);
+    // dermaga kayu
+    ctx.fillStyle = '#1a140e'; ctx.fillRect(0, hy - 6, W * 0.44, 9);
+    for (var p = 0; p < 9; p++) ctx.fillRect(W * 0.01 + p * W * 0.05, hy, 5, H * 0.09);
+    // lampu dermaga
+    for (var l = 0; l < 3; l++) {
+      var lx = W * 0.12 + l * W * 0.13, ly = hy - H * 0.09;
+      ctx.fillStyle = '#0d0a08'; ctx.fillRect(lx - 1.5, ly, 3, H * 0.09);
+      var lg = ctx.createRadialGradient(lx, ly, 0, lx, ly, H * 0.06); lg.addColorStop(0, 'rgba(255,200,120,' + (0.55 * wl) + ')'); lg.addColorStop(1, 'rgba(255,200,120,0)');
+      ctx.fillStyle = lg; ctx.fillRect(lx - H * 0.06, ly - H * 0.06, H * 0.12, H * 0.12);
+      ctx.fillStyle = 'rgba(255,225,170,' + wl + ')'; ctx.beginPath(); ctx.arc(lx, ly, 2.5, 0, 6.3); ctx.fill();
+    }
+    // papan neon Gaul-Wash
+    var fl = lights > 0 ? (Math.random() < 0.06 ? 0.2 : 0.85 + 0.15 * Math.sin(Date.now() / 90)) : 0.15;
+    ctx.save(); ctx.font = '700 ' + Math.round(H * 0.04) + 'px "Pirata One", Georgia, serif'; ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(255,90,170,' + fl + ')'; ctx.shadowBlur = 22; ctx.fillStyle = 'rgba(255,150,205,' + (0.25 + 0.75 * fl) + ')';
+    ctx.fillText('GAUL-WASH', W * 0.195, yt - H * 0.2); ctx.restore();
+  }
+  function bellWaves(ctx, x, y, t, a, s) {
+    ctx.strokeStyle = 'rgba(170,255,215,' + a + ')'; ctx.lineWidth = 1.4;
+    for (var w = 0; w < 4; w++) { var r = ((t * 60 + w * 30) % 120) * (s || 1); ctx.globalAlpha = Math.max(0, 1 - r / (120 * (s || 1))); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  function bellIcon(ctx, x, y, r, glow) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r * 4); g.addColorStop(0, 'rgba(140,255,200,' + (0.5 * glow) + ')'); g.addColorStop(1, 'rgba(140,255,200,0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r * 4, y - r * 4, r * 8, r * 8); ctx.restore();
+    var bg = ctx.createLinearGradient(x - r, 0, x + r, 0); bg.addColorStop(0, '#7a5a1a'); bg.addColorStop(0.5, '#f0cf78'); bg.addColorStop(1, '#7a5a1a');
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(x - r, y + r * 0.9); ctx.quadraticCurveTo(x - r, y - r, x, y - r * 1.1); ctx.quadraticCurveTo(x + r, y - r, x + r, y + r * 0.9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5a3a10'; ctx.fillRect(x - r * 1.1, y + r * 0.8, r * 2.2, r * 0.25); ctx.beginPath(); ctx.arc(x, y + r * 1.15, r * 0.22, 0, 6.3); ctx.fill();
+  }
+
+  var SCENES = {
+    cerita: [
+      { d: 9, who: 1, name: 'Uda Gala', text: 'Malam itu badai paling besar yang pernah ambo lihat, Kapten. Hari pertama Gaul-Wash buka. Hujan seperti dicurahkan dari langit.',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.9, 'storm'), hy = H * 0.6; MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 1, drift: 30 });
+          dock(ctx, W, H, hy, 1);
+          var ph = t % 4.3; if (ph < 0.18) { ctx.fillStyle = 'rgba(220,235,255,' + (0.35 * (1 - ph / 0.18)) + ')'; ctx.fillRect(0, 0, W, H); boltFx(ctx, W * 0.7, 0, W * 0.62, hy, Math.floor(t / 4.3) * 9, 1 - ph / 0.18); if (ph < 0.02 && window.MTAudio) try { MTAudio.thunder(0); } catch (e) { } }
+          rain(ctx, W, H, t, 220, 0.4);
+        } },
+      { d: 10, who: 1, name: 'Uda Gala', text: 'Lalu sebuah kapal merapat sendiri. Tak ada satu awak pun. Loncengnya berbunyi... padahal tak ada yang menyentuh.',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.92, 'storm'), hy = H * 0.6; MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.8, drift: 26 });
+          fog(ctx, W, H, hy - H * 0.05, t, 0.9);
+          var k = Math.min(1, t / 6), x = U.lerp(W * 1.15, W * 0.62, 1 - Math.pow(1 - k, 3)), y = hy + H * 0.16, sc = shipSc(W, H, 1.1);
+          ctx.save(); ctx.globalAlpha = 0.55 + 0.35 * k; MTShip.draw(ctx, x, y, sc, ghostOpts(t, p)); ctx.restore();
+          bellWaves(ctx, x + 10 * sc, y - 60 * sc, t, 0.5, sc * 2);
+          if (Math.floor(t * 0.7) !== Math.floor((t - 0.016) * 0.7) && window.MTAudio) try { MTAudio.sfx('bell'); } catch (e) { }
+          dock(ctx, W, H, hy, 1); fog(ctx, W, H, hy + H * 0.12, t * 1.3, 0.6); rain(ctx, W, H, t, 140, 0.3);
+        } },
+      { d: 10, who: 1, name: 'Uda Gala', text: 'Ambo cuci kapal itu semalaman. Teritipnya, lumutnya, layarnya yang koyak. Di papan buritan tertulis namanya: ' + SHIP + '.',
+        draw: function (ctx, W, H, t) {
+          var f = 0.95 + Math.min(1, t / 10) * 0.12, p = MTSky.palette(f, null), hy = H * 0.6; MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.3, drift: 10 });
+          var x = W * 0.58, y = hy + H * 0.16, sc = shipSc(W, H, 1.15), o = ghostOpts(t, p); o.furl = 1;
+          MTShip.draw(ctx, x, y, sc, o);
+          dock(ctx, W, H, hy, 0.3);
+          // Uda Gala menyikat lambung (siluet) + gelembung sabun
+          var gx = x - 40 * sc, gy = y - 6 * sc, sw = Math.sin(t * 5) * 6;
+          ctx.fillStyle = '#0d0a08'; ctx.beginPath(); ctx.arc(gx, gy - 46, 7, 0, 6.3); ctx.fill(); ctx.fillRect(gx - 7, gy - 40, 14, 28); ctx.fillRect(gx - 6, gy - 12, 5, 16); ctx.fillRect(gx + 1, gy - 12, 5, 16);
+          ctx.strokeStyle = '#0d0a08'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(gx + 5, gy - 34); ctx.lineTo(gx + 22 + sw, gy - 26); ctx.stroke();
+          ctx.fillStyle = '#c99a4a'; ctx.fillRect(gx + 20 + sw, gy - 30, 10, 6);
+          for (var b = 0; b < 18; b++) { var ph = (t * 0.4 + rnd(b)) % 1, bx = gx + 26 + rnd(b + 4) * 70, by = gy - 20 - ph * 90, r = 2 + rnd(b + 7) * 5; ctx.strokeStyle = 'rgba(230,250,255,' + (0.7 * (1 - ph)) + ')'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(bx, by, r, 0, 6.3); ctx.stroke(); }
+          // papan nama
+          ctx.save(); ctx.font = 'italic ' + Math.round(H * 0.026) + 'px Georgia, serif'; ctx.fillStyle = 'rgba(200,255,230,0.9)'; ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(120,255,190,.9)'; ctx.shadowBlur = 12;
+          ctx.fillText(SHIP, x + 58 * sc, y - 4 * sc); ctx.restore();
+        } },
+      { d: 11, who: 1, name: 'Uda Gala', text: 'Saat fajar, kapal itu lenyap. Yang tertinggal hanya selembar log yang robek. "Kalau kau berlayar malam dan kabut turun, jangan takut. Ia hanya ingin pulang."',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.015, null), hy = H * 0.6; MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.2, drift: 8 });
+          fog(ctx, W, H, hy, t * 0.6, 0.8, '240,230,220'); dock(ctx, W, H, hy, 0);
+          var k = Math.min(1, t / 7), px = W * 0.55 + Math.sin(t * 1.4) * W * 0.06, py = H * 0.15 + k * H * 0.5, rot = Math.sin(t * 1.8) * 0.5;
+          ctx.save(); ctx.translate(px, py); ctx.rotate(rot); var s = H * 0.09;
+          ctx.fillStyle = '#e8dcbc'; ctx.beginPath(); ctx.moveTo(-s, -s * 0.7); ctx.lineTo(s * 0.9, -s * 0.75); ctx.lineTo(s * 0.7, -s * 0.2); ctx.lineTo(s, s * 0.1); ctx.lineTo(s * 0.8, s * 0.7); ctx.lineTo(-s, s * 0.7); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(90,70,40,.6)'; ctx.lineWidth = 1; for (var l = 0; l < 6; l++) { ctx.beginPath(); ctx.moveTo(-s * 0.85, -s * 0.5 + l * s * 0.2); ctx.lineTo(s * 0.55 - rnd(l) * s * 0.4, -s * 0.5 + l * s * 0.2); ctx.stroke(); }
+          ctx.restore();
+        } }
+    ],
+    kabut: [
+      { d: 9, who: 0, name: 'Kabut turun', text: 'Saat kapalmu mendekat ke pelabuhan, kabut dingin turun begitu tebal. Lalu terdengar lonceng... dan sebuah kapal pucat berlayar sejajar denganmu.',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.86, null), hy = H * 0.58; MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.3, drift: 12 });
+          var sc = shipSc(W, H, 0.95), k = Math.min(1, t / 5);
+          ctx.save(); ctx.globalAlpha = 0.25 + 0.5 * k; var go = ghostOpts(t, p); go.dir = 1; MTShip.draw(ctx, W * 0.66, hy + H * 0.08, sc * 0.8, go); ctx.restore();
+          fog(ctx, W, H, hy + H * 0.04, t, 0.7);
+          MTShip.draw(ctx, W * 0.32, hy + H * 0.22, sc, playerOpts(t, p));
+          fog(ctx, W, H, hy + H * 0.24, t * 1.4, 0.5);
+          bellWaves(ctx, W * 0.66, hy - H * 0.06, t, 0.45, 2);
+          if (Math.floor(t * 0.6) !== Math.floor((t - 0.016) * 0.6) && window.MTAudio) try { MTAudio.sfx('bell'); } catch (e) { }
+        } },
+      { d: 8, who: 0, name: 'Lonceng Kabut', text: 'Kapal itu lenyap ke dalam kabut. Yang tersisa hanya lonceng kecil yang mengapung, masih berdentang pelan. Nenek Ulin di Bjorneo mungkin tahu artinya.',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.88, null), hy = H * 0.55; MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.2, drift: 8 });
+          fog(ctx, W, H, hy + H * 0.06, t, 0.55);
+          var bx = W * 0.5, by = hy + H * 0.2 + Math.sin(t * 1.6) * 6, r = H * 0.04;
+          ctx.strokeStyle = 'rgba(170,255,215,.35)'; ctx.lineWidth = 1.2; for (var w = 0; w < 3; w++) { var rr = ((t * 40 + w * 40) % 120); ctx.globalAlpha = 1 - rr / 120; ctx.beginPath(); ctx.ellipse(bx, by + r, rr * 1.6, rr * 0.35, 0, 0, 6.3); ctx.stroke(); } ctx.globalAlpha = 1;
+          ctx.save(); ctx.translate(bx, by); ctx.rotate(Math.sin(t * 2) * 0.15); bellIcon(ctx, 0, 0, r, 0.6 + 0.4 * Math.sin(t * 3)); ctx.restore();
+        } }
+    ],
+    pulang: [
+      { d: 8, who: 0, name: 'Laut lepas, malam', text: 'Kau membunyikan Lonceng Kabut. Dentangnya merambat jauh di atas air yang tenang...',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.88, null), hy = H * 0.56; MTSky.paintSky(ctx, W, hy, p, t, true); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.15, drift: 6 });
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          for (var mi = 0; mi < 26; mi++) { var my = hy + 6 + mi * (H - hy) / 26, mw = W * (0.012 + mi * 0.0016) * (0.7 + 0.3 * Math.sin(t * 2 + mi)); ctx.fillStyle = 'rgba(220,255,240,' + (0.22 * (1 - mi / 26)).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(W * 0.5 + Math.sin(t + mi) * 3, my, mw, 1.4, 0, 0, 6.3); ctx.fill(); }
+          ctx.restore();
+          var sc = shipSc(W, H, 1); MTShip.draw(ctx, W * 0.3, hy + H * 0.22, sc, playerOpts(t, p));
+          bellWaves(ctx, W * 0.3, hy + H * 0.05, t, 0.6, 3.2);
+          if (Math.floor(t * 0.5) !== Math.floor((t - 0.016) * 0.5) && window.MTAudio) try { MTAudio.sfx('bell'); } catch (e) { }
+        } },
+      { d: 10, who: 0, name: SHIP, text: 'Dari balik kabut, ' + SHIP + ' muncul. Di dek, bayangan awaknya berdiri berjajar... lalu satu per satu menundukkan kepala. Memberi hormat.',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.88, null), hy = H * 0.56; MTSky.paintSky(ctx, W, hy, p, t, true); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.15, drift: 6 });
+          var sc = shipSc(W, H, 1.05), k = Math.min(1, t / 4), gx = U.lerp(W * 1.1, W * 0.7, 1 - Math.pow(1 - k, 3)), gy = hy + H * 0.17;
+          fog(ctx, W, H, hy + H * 0.05, t, 0.6);
+          ctx.save(); ctx.globalAlpha = 0.85; MTShip.draw(ctx, gx, gy, sc, ghostOpts(t, p)); ctx.restore();
+          // awak bayangan memberi hormat
+          var bow = Math.max(0, Math.min(1, (t - 4.5) / 1.5));
+          for (var c = 0; c < 6; c++) {
+            var cx = gx + (-44 + c * 16) * sc * -1, cy = gy - 26 * sc, d = Math.max(0, Math.min(1, bow * 1.6 - c * 0.12));
+            ctx.save(); ctx.translate(cx, cy); ctx.fillStyle = 'rgba(30,70,58,0.85)';
+            ctx.fillRect(-3 * sc, -14 * sc, 6 * sc, 14 * sc); ctx.rotate(-d * 0.5); ctx.beginPath(); ctx.arc(0, -17 * sc, 3 * sc, 0, 6.3); ctx.fill();
+            ctx.fillStyle = 'rgba(170,255,220,0.9)'; ctx.fillRect(1 * sc, -18 * sc, 1.2 * sc, 0.8 * sc); ctx.restore();
+          }
+          MTShip.draw(ctx, W * 0.3, hy + H * 0.22, shipSc(W, H, 1), playerOpts(t, p));
+          fog(ctx, W, H, hy + H * 0.25, t * 1.2, 0.35);
+        } },
+      { d: 10, who: 0, name: 'Pulang', text: 'Kapal itu larut menjadi kabut. Kabut itu berputar, lalu meresap ke layarmu. Dentang terakhir terdengar seperti ucapan terima kasih. ' + SHIP + ' sudah pulang.',
+        draw: function (ctx, W, H, t) {
+          var p = MTSky.palette(0.9, null), hy = H * 0.56; MTSky.paintSky(ctx, W, hy, p, t, true); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.15, drift: 6 });
+          var sc = shipSc(W, H, 1.05), dis = Math.min(1, t / 6), gx = W * 0.7, gy = hy + H * 0.17;
+          ctx.save(); ctx.globalAlpha = Math.max(0, 0.85 * (1 - dis)); MTShip.draw(ctx, gx, gy, sc, ghostOpts(t, p)); ctx.restore();
+          // partikel kabut mengalir ke layar kapal pemain
+          var tx = W * 0.3, ty = hy + H * 0.22 - 70 * shipSc(W, H, 1);
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          for (var i = 0; i < 90; i++) {
+            var ph = (t * 0.25 + rnd(i)) % 1, u = Math.min(1, ph * (0.4 + dis)), sx = gx + (rnd(i + 3) - 0.5) * 140 * sc, sy = gy - rnd(i + 5) * 120 * sc;
+            var x = U.lerp(sx, tx + (rnd(i + 7) - 0.5) * 60 * sc, u) + Math.sin(u * 6 + i) * 20 * (1 - u), y = U.lerp(sy, ty + (rnd(i + 9) - 0.5) * 50 * sc, u) - Math.sin(u * Math.PI) * 60;
+            var g = ctx.createRadialGradient(x, y, 0, x, y, 6); g.addColorStop(0, 'rgba(160,255,210,' + (0.55 * Math.sin(u * Math.PI) * dis + 0.1) + ')'); g.addColorStop(1, 'rgba(160,255,210,0)');
+            ctx.fillStyle = g; ctx.fillRect(x - 6, y - 6, 12, 12);
+          }
+          ctx.restore();
+          var kd = Object.assign({}, (state && state.shipVisual && state.shipVisual.kd) || {}); if (t > 6) kd.layar = 'layar_koyak';
+          MTShip.draw(ctx, W * 0.3, hy + H * 0.22, shipSc(W, H, 1), playerOpts(t, p, kd));
+          if (t > 6) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; var gg = ctx.createRadialGradient(tx, ty, 0, tx, ty, 120 * shipSc(W, H, 1)); gg.addColorStop(0, 'rgba(140,255,200,' + (0.35 * Math.max(0, 1 - (t - 6) / 4)) + ')'); gg.addColorStop(1, 'rgba(140,255,200,0)'); ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+        } }
+    ]
+  };
+  var TITLES = { cerita: ['Kisah Lapau · Bab 1', 'Kapal Tanpa Awak'], kabut: ['Kapal Tanpa Awak', 'Kabut Turun'], pulang: ['Kapal Tanpa Awak', 'Pulang'] };
+
+  /* ====================== pemutar sinematik ====================== */
+  function play(kind, done) {
+    var list = SCENES[kind]; if (!list) { if (done) done(); return; }
+    var ov = document.createElement('div'); ov.className = 'ks-cine';
+    ov.innerHTML = '<canvas></canvas><div class="bars t"></div><div class="bars b"></div><div class="title"><small>' + TITLES[kind][0] + '</small>' + TITLES[kind][1] + '</div>' +
+      '<div class="say"><div class="fc"></div><div><b></b><p></p></div></div><div class="next">klik untuk lanjut &#9656;</div><div class="ctl"><button data-k="skip">Lewati</button></div>';
+    document.body.appendChild(ov);
+    var cv = ov.querySelector('canvas'), ctx = cv.getContext('2d'), say = ov.querySelector('.say'), ttl = ov.querySelector('.title'), nx = ov.querySelector('.next');
+    var idx = -1, t0 = 0, raf = 0, typed = 0, full = '', closed = false, intro = true, t00 = performance.now();
+    requestAnimationFrame(function () { ov.classList.add('on'); ttl.classList.add('on'); });
+    try { if (window.MTAudio) MTAudio.sfx('page'); } catch (e) { }
+    function size() { var dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    size(); window.addEventListener('resize', size);
+    function go(i) {
+      idx = i; if (idx >= list.length) return close();
+      var sc = list[idx]; t0 = performance.now(); typed = 0; full = sc.text;
+      say.classList.add('on'); say.querySelector('.fc').innerHTML = sc.who ? face(sc.who) : '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#0b211a"/><path d="M22 40 Q22 22 32 20 Q42 22 42 40 Z" fill="#b8923a"/><rect x="20" y="40" width="24" height="4" fill="#7a5a1a"/><circle cx="32" cy="47" r="3" fill="#7a5a1a"/></svg>';
+      say.querySelector('b').textContent = sc.name; say.querySelector('p').textContent = ''; nx.classList.remove('on');
+    }
+    function frame(now) {
+      if (closed) return;
+      var W = innerWidth, H = innerHeight;
+      if (intro) {
+        var it = (now - t00) / 1000; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+        if (it > 2.6) { intro = false; ttl.classList.remove('on'); go(0); }
+      } else {
+        var sc = list[idx], t = (now - t0) / 1000;
+        try { sc.draw(ctx, W, H, t); } catch (e) { console.warn('[KS] scene', e); }
+        var fi = Math.min(1, t / 0.8); if (fi < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - fi) + ')'; ctx.fillRect(0, 0, W, H); }
+        var n = Math.min(full.length, Math.floor(t * 38)); if (n !== typed) { typed = n; say.querySelector('p').textContent = full.slice(0, n); }
+        if (n >= full.length) nx.classList.add('on');
+        if (t > sc.d) go(idx + 1);
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    function close() {
+      if (closed) return; closed = true; cancelAnimationFrame(raf); window.removeEventListener('resize', size);
+      ov.classList.remove('on'); setTimeout(function () { ov.remove(); }, 600); if (done) done();
+    }
+    ov.addEventListener('click', function (e) {
+      if (e.target.getAttribute('data-k') === 'skip') { close(); return; }
+      if (intro) { intro = false; ttl.classList.remove('on'); go(0); return; }
+      if (typed < full.length) { t0 -= 60000; typed = full.length; say.querySelector('p').textContent = full; } else go(idx + 1);
+    });
+  }
+
+  /* ====================== panel Kisah (di Kedai) ====================== */
+  var hero = { raf: 0 };
+  function steps(c) {
+    var S = ['Dengar cerita Uda Gala di Lapau Skitraw', 'Merapat di pelabuhan saat malam', 'Jawab teka-teki Nenek Ulin di Bjorneo', 'Bunyikan Lonceng Kabut di laut malam'];
+    return '<div class="ks-steps">' + S.map(function (x, i) { var n = i + 1, cls = c.step > n ? 'done' : c.step === n ? 'now' : ''; return '<div class="st ' + cls + '"><i>' + (c.step > n ? '&#10003;' : n) + '</i><span>' + x + (c.step === n && c.task ? '<br><small style="opacity:.8">' + esc_(c.task) + '</small>' : '') + '</span></div>'; }).join('') +
+      '<div class="acts">' + (c.step > 1 ? '<button class="btn btn-ghost-ink" data-ks="ulang-cerita">' + ic('book') + ' Putar ulang cerita</button>' : '') + (c.done ? '<button class="btn btn-ghost-ink" data-ks="ulang-pulang">' + ic('eye') + ' Putar ulang akhir</button>' : '') + '</div></div>';
+  }
+  function html() {
+    var s = st(); if (!s) return '<div class="dt-empty">Kisah Lapau belum dibuka.</div>';
+    var c = ch(), price = (s.price && s.price.kapal_tanpa_awak) || 1250, rows = '';
+    rows += '<div class="ks-hero"><canvas id="ksHero"></canvas><div class="cap"><small>Kisah Lapau &middot; Bab 1 &middot; Uda Gala</small><b>Kapal Tanpa Awak</b></div></div>';
+    rows += '<div class="ks-book2 on"><div class="cv">I</div><div><h5>Kapal Tanpa Awak</h5><p>' + esc_(c.blurb) + '</p><p style="margin-top:4px;color:#9fffd0">Hadiah: Layar Koyak gratis, Set Kapal Hantu terbuka di Kedai (khusus pembaca), Tanda Jasa <i>Yang Memulangkan</i>.</p></div>' +
+      (c.owned ? (c.done ? '<span class="soon" style="background:#1f6b4c;color:#dfffee">Tamat</span>' : '<span class="soon" style="background:#14382c;color:#bfffe0">Langkah ' + c.step + '/4</span>') :
+        '<button class="btn btn-gold" data-ks="beli">' + ic('keping') + ' ' + fmt(price) + '</button>') + '</div>';
+    if (c.owned) rows += steps(c);
+    s.chapters.slice(1).forEach(function (b) { rows += '<div class="ks-book2"><div class="cv">' + ['', 'I', 'II', 'III', 'IV', 'V'][b.bab] + '</div><div><h5>' + esc_(b.title) + '</h5><p>' + esc_(b.blurb) + '</p></div><span class="soon">Segera</span></div>'; });
+    return '<div class="ks-wrap">' + rows + '<p class="muted small">Satu bab baru terbit setiap empat pekan. Bab dibeli sekali, milikmu selamanya.</p></div>';
+  }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function heroLoop() {
+    cancelAnimationFrame(hero.raf); var t0 = performance.now();
+    function f(now) {
+      var cv = document.getElementById('ksHero'); if (!cv) { hero.raf = 0; return; }
+      var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = r.width, H = r.height;
+      if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+      var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var t = (now - t0) / 1000, p = MTSky.palette(0.88, null), hy = H * 0.55;
+      MTSky.paintSky(ctx, W, hy, p, t, true); MTSky.paintSea(ctx, W, H, hy, p, t, { rough: 0.2, drift: 8 });
+      fog(ctx, W, H, hy, t, 0.6);
+      var sc = Math.min(W * 0.0034, H * 0.0062); ctx.save(); ctx.globalAlpha = 0.8 + 0.15 * Math.sin(t); MTShip.draw(ctx, W * 0.45 + Math.sin(t * 0.2) * 20, hy + H * 0.3, sc, ghostOpts(t, p)); ctx.restore();
+      fog(ctx, W, H, hy + H * 0.3, t * 1.3, 0.5);
+      hero.raf = requestAnimationFrame(f);
+    }
+    hero.raf = requestAnimationFrame(f);
+  }
+  function bind(body) {
+    if (!body) return;
+    if (document.getElementById('ksHero')) heroLoop();
+    body.querySelectorAll('[data-ks]').forEach(function (b) {
+      b.onclick = function () {
+        var a = b.getAttribute('data-ks');
+        if (a === 'beli') call('api_kisah', ['beli', 'kapal_tanpa_awak'], function (r) { au_('achieve'); showToast('Bab "Kapal Tanpa Awak" milikmu. Uda Gala menunggumu di Lapau Bopet Bassamo, Skitraw.', 'success'); if (r.kedai && window.KD && KD._data) { } if (window.KD && KD.refresh) KD.refresh(); else if (typeof openPanel === 'function') openPanel('kedai'); }, b);
+        else if (a === 'ulang-cerita') play('cerita');
+        else if (a === 'ulang-pulang') play('pulang');
+      };
+    });
+  }
+
+  /* ====================== Lapau: Skitraw (Uda Gala) & Bjorneo (Nenek Ulin) ====================== */
+  wrap_('setModal_', function () {
+    var c = ch(); if (!c || !c.owned || c.done || currentPanel !== 'tavern' || !state.city) return;
+    if (state.voyage && state.voyage.inTransit) return;
+    var m = document.getElementById('modalContent'); if (!m || m.querySelector('.ks-call')) return;
+    var cid = state.city.CityId, ph = m.querySelector('.ph'), d = document.createElement('div');
+    if (c.step === 1 && cid === 'skitraw') {
+      d.className = 'qg-callout ks-call';
+      d.innerHTML = '<div class="qg-callout-ico" style="overflow:hidden;padding:0">' + face(1) + '</div><div><b>Uda Gala melambai dari meja pojok</b><br><span class="muted small">"Duduklah, Kapten. Ambo punya cerita tentang kapal tanpa awak."</span></div><button class="btn btn-gold">Dengarkan</button>';
+      d.querySelector('.btn').onclick = function (e) {
+        call('api_kisah', ['dengar'], function () { if (typeof closeModal === 'function') closeModal(); play('cerita', function () { showToast('Langkah berikutnya: merapatlah di pelabuhan mana pun saat malam.', 'info'); }); }, e.currentTarget);
+      };
+    } else if (c.step === 3 && cid === 'bjorneo') {
+      d.className = 'ks-riddle ks-call';
+      d.innerHTML = '<div style="display:flex;gap:10px;align-items:center"><div style="width:52px;height:52px;border-radius:50%;overflow:hidden;flex:none">' + face(3) + '</div><div><b>Nenek Ulin</b><br><span class="muted small">Penjaga mercusuar Bjorneo, menatap Lonceng Kabut di tanganmu.</span></div></div>' +
+        '<q>Aku dicari setiap kapal yang hilang, ditunggu setiap dermaga yang sepi. Aku bukan tempat, bukan pula benda, tapi semua pelaut menginginkanku. Apakah aku?</q>' +
+        '<div class="row"><input id="ksAns" placeholder="Jawabanmu..." maxlength="24"><button class="btn btn-gold" id="ksSend">Jawab</button></div><span class="muted small" id="ksMsg">' + (c.waitMs > 0 ? 'Nenek Ulin masih menyeruput tehnya.' : '') + '</span>';
+      d.querySelector('#ksSend').onclick = function (e) {
+        var v = (document.getElementById('ksAns') || {}).value || '';
+        call('api_kisah', ['jawab', v], function (r) {
+          if (r.benar) { au_('achieve'); showToast('Nenek Ulin: "Pulang. Bunyikan lonceng itu di laut malam, Nak, dan biarkan ia pulang."', 'success'); if (typeof closeModal === 'function') closeModal(); }
+          else { au_('error'); var mm = document.getElementById('ksMsg'); if (mm) mm.textContent = 'Nenek Ulin menggeleng pelan. "Pikirkan lagi, Nak." Coba lagi 20 detik lagi.'; }
+        }, e.currentTarget);
+      };
+    } else return;
+    if (ph && ph.parentNode) ph.parentNode.insertBefore(d, ph.nextSibling);
+  });
+
+  /* ====================== Lonceng di laut malam ====================== */
+  var bellEl = null;
+  function applyBell() {
+    var c = ch(), s = st(), show = !!(c && c.owned && !c.done && c.step === 4 && state && state.voyage && state.voyage.inTransit);
+    if (!show) { if (bellEl) { bellEl.remove(); bellEl = null; } return; }
+    if (!bellEl) { bellEl = document.createElement('button'); bellEl.className = 'ks-bell'; document.body.appendChild(bellEl); bellEl.onclick = ring; }
+    var night = s && s.night;
+    bellEl.disabled = !night;
+    bellEl.innerHTML = ic('bell') + (night ? ' Bunyikan Lonceng Kabut' : ' Lonceng Kabut &middot; tunggu malam');
+  }
+  function ring() {
+    call('api_kisah', ['lonceng'], function () {
+      if (bellEl) { bellEl.remove(); bellEl = null; }
+      play('pulang', function () {
+        au_('achieve'); try { metaMax_('ksdone', 1); } catch (e) { }
+        showToast('Kisah "Kapal Tanpa Awak" tamat. Layar Koyak milikmu, dan Set Kapal Hantu kini terbuka di Kedai Rantau.', 'success');
+        if (typeof loadState === 'function') setTimeout(loadState, 400);
+      });
+    }, bellEl);
+  }
+  setInterval(function () { if (st()) { var c = ch(); if (c && c.step === 4 && !c.done) google.script.run.withSuccessHandler(function (r) { if (r && r.kisah && state) { state.kisah = r.kisah; applyBell(); } }).withFailureHandler(function () { }).api_kisah('status'); } }, 60000);
+
+  wrap_('handleInbox_', null, function (it) {
+    if (!it || it.type !== 'kisah') return;
+    if (it.ev === 'kabut') {
+      var go = function () { play('kabut', function () { showToast('Kau mendapat Lonceng Kabut. Bawa ke Nenek Ulin di Bjorneo.', 'success'); }); };
+      var tries = 0; (function wait() { if (typeof combatSceneOpen !== 'undefined' && combatSceneOpen && tries++ < 60) return setTimeout(wait, 1500); setTimeout(go, 1200); })();
+      if (state && state.kisah && state.kisah.chapters) state.kisah.chapters[0].step = 3;
+    }
+  });
+  wrap_('applyFreshState_', function () { applyBell(); var c = ch(); if (c && c.done) { try { metaMax_('ksdone', 1); } catch (e) { } } });
+
+  if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+    { id: 'ks_pulang', t: 3, ic: 'bell', n: 'Yang Memulangkan', d: 'Tamatkan Kisah Lapau "Kapal Tanpa Awak".', g: function (m) { return [m.c.ksdone || 0, 1]; } }
+  );
+
+  return { html: html, bind: bind, play: play, applyBell: applyBell, st: st };
+})();
+</script>

@@ -1,0 +1,566 @@
+<style>
+  /* ================= Tide v37 · Kedai Rantau & Gotong Royong ================= */
+  .kd-wrap { display: grid; gap: 12px; margin: 6px 0 12px; }
+  .kd-intro { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: linear-gradient(180deg, #2a2218, #17120c); color: #ece2cc; border: 1px solid rgba(232,195,90,.35); }
+  .kd-intro .fc { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px rgba(232,195,90,.55); }
+  .kd-intro .fc svg { width: 100%; height: 100%; display: block; }
+  .kd-intro b { color: #f0cf78; font-family: var(--font-title); letter-spacing: .04em; }
+  .kd-intro p { margin: 2px 0 0; font-style: italic; font-size: .9em; line-height: 1.4; color: #e8dcc0; }
+  .kd-bal { text-align: right; font-family: var(--font-title); color: #ffe7a3; font-size: 1.25em; white-space: nowrap; }
+  .kd-bal .ico { width: 20px; height: 20px; vertical-align: -4px; color: #e8c35a; }
+  .kd-bal small { display: block; font-family: inherit; font-size: .55em; color: #cfc4ad; letter-spacing: .06em; text-transform: uppercase; }
+  .kd-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .kd-tabs button { flex: 1 1 auto; min-height: 38px; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(120,90,40,.3); background: rgba(255,255,255,.5); color: #4a3218; font-family: var(--font-title); letter-spacing: .05em; font-size: .82em; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+  .kd-tabs button .ico { width: 15px; height: 15px; }
+  .kd-tabs button.on { background: linear-gradient(180deg, #3a2c18, #1f170c); color: #ffe7a3; border-color: rgba(232,195,90,.65); }
+  .kd-hero { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid rgba(120,90,40,.35); background: #0d1a26; }
+  .kd-hero canvas { display: block; width: 100%; height: 210px; }
+  .kd-hero .cap { position: absolute; left: 10px; bottom: 8px; right: 10px; display: flex; justify-content: space-between; align-items: end; gap: 8px; pointer-events: none; }
+  .kd-hero .cap b { color: #fff6dc; text-shadow: 0 1px 3px rgba(0,0,0,.8); font-family: var(--font-title); letter-spacing: .04em; }
+  .kd-hero .cap span { display: block; font-size: .78em; color: #e8dcc0; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  .kd-hero .tog { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
+  .kd-hero .tog button { min-height: 30px; padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(255,255,255,.3); background: rgba(10,10,14,.55); color: #f0e6d4; font-size: .76em; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+  .kd-hero .tog button .ico { width: 13px; height: 13px; }
+  .kd-hero .tog button.on { background: rgba(232,195,90,.85); color: #241808; }
+  .kd-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .kd-chips button { padding: 3px 11px; min-height: 30px; border-radius: 99px; border: 1px solid rgba(120,90,40,.3); background: rgba(255,255,255,.45); color: #4a3218; font-size: .78em; cursor: pointer; }
+  .kd-chips button.on { background: #4a3218; color: #ffe7a3; }
+  .kd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 9px; }
+  .kd-card { position: relative; display: grid; gap: 6px; padding: 9px; border-radius: 13px; background: rgba(255,255,255,.62); border: 1.5px solid rgba(120,100,60,.28); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .kd-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(60,40,10,.14); }
+  .kd-card.sel { box-shadow: 0 0 0 2px rgba(232,195,90,.9); }
+  .kd-card.r-biasa { border-color: rgba(150,120,80,.45); }
+  .kd-card.r-langka { border-color: rgba(120,150,180,.8); background: linear-gradient(180deg, rgba(235,244,252,.75), rgba(255,255,255,.6)); }
+  .kd-card.r-agung { border-color: rgba(140,90,170,.8); background: linear-gradient(180deg, rgba(244,234,252,.8), rgba(255,255,255,.6)); }
+  .kd-card.r-legenda { border-color: rgba(212,168,60,.95); background: linear-gradient(180deg, rgba(255,246,220,.9), rgba(255,255,255,.6)); }
+  .kd-card canvas { width: 100%; height: 86px; border-radius: 9px; display: block; background: #12324a; }
+  .kd-card h5 { margin: 0; font-size: .86em; color: #2e2010; line-height: 1.25; }
+  .kd-card .rar { font-size: .64em; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-title); color: #8a6a3a; }
+  .kd-card.r-langka .rar { color: #3f6a8f; } .kd-card.r-agung .rar { color: #6a3f8a; } .kd-card.r-legenda .rar { color: #a5761a; }
+  .kd-card .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: .8em; }
+  .kd-card .price { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-title); color: #4a3218; }
+  .kd-card .price .ico { width: 14px; height: 14px; color: #b8923a; }
+  .kd-card .price.short { color: #9a3a22; }
+  .kd-card .tag { position: absolute; top: 14px; left: 14px; padding: 1px 7px; border-radius: 99px; font-size: .64em; background: rgba(20,14,6,.72); color: #ffe7a3; }
+  .kd-card .tag.on { background: rgba(40,110,60,.88); color: #e6ffe9; }
+  .kd-card .star { position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; color: #f0cf78; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+  .kd-detail { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.6); border: 1px solid rgba(120,100,60,.28); }
+  .kd-detail p { margin: 2px 0 0; font-size: .85em; color: #4a3218; line-height: 1.4; }
+  .kd-detail .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .kd-detail .acts .btn { min-height: 36px; }
+  .kd-card .tag.et { background: rgba(160,40,30,.9); color: #ffe7d0; }
+  .kd-card .setb { position: absolute; top: 72px; left: 14px; padding: 1px 7px; border-radius: 99px; font-size: .6em; letter-spacing: .06em; font-family: var(--font-title); }
+  .setb.s-api_gunung, .kd-set.s-api_gunung .hd b { background: linear-gradient(90deg, #7a1a08, #c2410c); color: #ffe4c4; }
+  .setb.s-naga_samudra, .kd-set.s-naga_samudra .hd b { background: linear-gradient(90deg, #0f4c4a, #2a8a80); color: #dffaf3; }
+  .setb.s-kapal_hantu, .kd-set.s-kapal_hantu .hd b { background: linear-gradient(90deg, #0b2a22, #2f6e57); color: #bfffe0; box-shadow: 0 0 8px rgba(110,255,190,.35); }
+  .setb.s-badai_petir, .kd-set.s-badai_petir .hd b { background: linear-gradient(90deg, #1b2a3c, #3f6a96); color: #e2f0ff; }
+  .setb.s-mutiara_paradiso, .kd-set.s-mutiara_paradiso .hd b { background: linear-gradient(90deg, #d9718f, #f2b46a); color: #fff7ee; }
+  .kd-set.s-kapal_hantu { background: linear-gradient(180deg, rgba(214,246,232,.85), rgba(255,255,255,.6)); border-color: rgba(47,110,87,.45); }
+  .kd-set.s-badai_petir { background: linear-gradient(180deg, rgba(220,232,246,.9), rgba(255,255,255,.6)); border-color: rgba(63,106,150,.45); }
+  .kd-set.s-mutiara_paradiso { background: linear-gradient(180deg, rgba(255,232,238,.9), rgba(255,255,255,.6)); border-color: rgba(217,113,143,.45); }
+  .kd-set { display: grid; gap: 8px; padding: 10px 12px; border-radius: 13px; border: 1px solid rgba(120,100,60,.3); background: rgba(255,255,255,.6); font-size: .84em; color: #3b2a16; }
+  .kd-set.s-api_gunung { background: linear-gradient(180deg, rgba(255,232,214,.85), rgba(255,255,255,.6)); border-color: rgba(194,65,12,.45); }
+  .kd-set.s-naga_samudra { background: linear-gradient(180deg, rgba(214,246,240,.85), rgba(255,255,255,.6)); border-color: rgba(42,138,128,.45); }
+  .kd-set .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .kd-set .hd b { padding: 2px 10px; border-radius: 99px; font-family: var(--font-title); letter-spacing: .04em; }
+  .kd-set .its { display: flex; flex-wrap: wrap; gap: 5px; }
+  .kd-set .its button { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 9px; border-radius: 9px; border: 1px dashed rgba(120,90,40,.45); background: rgba(255,255,255,.6); font-size: .9em; color: #4a3218; cursor: pointer; }
+  .kd-set .its button small { font-size: .78em; color: #8a6a3a; }
+  .kd-set .its button .ico { width: 12px; height: 12px; color: #3f7a4a; }
+  .kd-set .its button.own { border-style: solid; }
+  .kd-set .its button.on { background: rgba(60,140,80,.16); border-color: rgba(60,140,80,.6); }
+  .kd-set .its button.cur { box-shadow: 0 0 0 2px rgba(232,195,90,.9); }
+  .kd-set p { margin: 0; line-height: 1.4; }
+  .kd-set .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .kd-etalase, .kd-lemari { display: grid; gap: 7px; padding: 10px 12px; border-radius: 13px; background: linear-gradient(180deg, #2a2218, #17120c); color: #ece2cc; border: 1px solid rgba(232,195,90,.35); }
+  .kd-etalase .hd, .kd-lemari .hd { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: .84em; }
+  .kd-etalase .hd b, .kd-lemari .hd b { color: #f0cf78; font-family: var(--font-title); letter-spacing: .04em; display: inline-flex; gap: 5px; align-items: center; }
+  .kd-etalase .hd span, .kd-lemari .hd span { color: #cfc4ad; }
+  .kd-etalase .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .kd-etalase .row button { display: grid; gap: 2px; text-align: left; padding: 7px 9px; border-radius: 10px; border: 1px solid rgba(232,195,90,.35); background: rgba(255,255,255,.06); color: #f3e9d2; cursor: pointer; font-size: .8em; }
+  .kd-etalase .row button span { color: #ffe7a3; font-family: var(--font-title); display: inline-flex; gap: 3px; align-items: center; }
+  .kd-etalase .row button span .ico { width: 12px; height: 12px; }
+  .kd-etalase s { opacity: .55; }
+  .kd-lemari .lm { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; background: rgba(255,255,255,.06); }
+  .kd-lemari .no { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(240,207,120,.2); color: #f0cf78; font-family: var(--font-title); }
+  .kd-lemari b { font-size: .88em; color: #f3e9d2; } .kd-lemari small { display: block; font-size: .74em; color: #cfc4ad; }
+  .kd-lemari .b { display: flex; gap: 4px; } .kd-lemari .b .btn { min-height: 30px; padding: 2px 10px; font-size: .78em; }
+  @media (max-width: 560px) { .kd-etalase .row { grid-template-columns: 1fr; } .kd-lemari .lm { grid-template-columns: 26px 1fr; } .kd-lemari .b { grid-column: 1 / -1; justify-content: flex-end; } }
+  .kd-bars { height: 6px; border-radius: 99px; background: rgba(60,40,15,.12); overflow: hidden; margin-top: 6px; }
+  .kd-bars i { display: block; height: 100%; background: linear-gradient(90deg, #b8923a, #f0cf78); }
+  /* jasa */
+  .kd-jasa { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 13px; background: rgba(255,255,255,.62); border: 1px solid rgba(120,100,60,.26); }
+  .kd-jasa .fc { width: 46px; height: 46px; border-radius: 50%; overflow: hidden; background: #2a2218; display: grid; place-items: center; color: #f0cf78; }
+  .kd-jasa .fc svg { width: 100%; height: 100%; display: block; }
+  .kd-jasa .fc .ico { width: 24px; height: 24px; }
+  .kd-jasa h5 { margin: 0; font-size: .92em; color: #2e2010; }
+  .kd-jasa h5 small { font-weight: 400; color: #8a6a3a; }
+  .kd-jasa p { margin: 2px 0 0; font-size: .82em; color: #4a3218; line-height: 1.35; }
+  .kd-jasa .acts { display: grid; gap: 5px; justify-items: end; }
+  .kd-jasa .acts .btn { min-height: 32px; padding: 3px 12px; }
+  .kd-jasa .own { font-size: .74em; color: #3f7a4a; }
+  .kd-buff { padding: 8px 12px; border-radius: 12px; background: rgba(60,140,80,.14); border: 1px solid rgba(60,140,80,.4); color: #2e4a30; font-size: .86em; }
+  .kd-taksir { display: grid; gap: 6px; }
+  .kd-taksir .row { padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,.6); border: 1px solid rgba(120,100,60,.25); font-size: .84em; }
+  .kd-taksir .row b { color: #2e2010; }
+  /* gotong royong */
+  .gr-card { padding: 12px 14px; border-radius: 14px; background: linear-gradient(180deg, #1d2b24, #0f1813); color: #e4efe6; border: 1px solid rgba(160,200,160,.3); }
+  .gr-card h4 { margin: 0; font-family: var(--font-title); letter-spacing: .06em; color: #f0cf78; display: flex; justify-content: space-between; gap: 8px; }
+  .gr-card h4 span { font-family: inherit; letter-spacing: 0; color: #cfe2d2; font-size: .8em; }
+  .gr-track { position: relative; height: 16px; margin: 30px 4px 26px; border-radius: 99px; background: rgba(255,255,255,.1); }
+  .gr-track > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: linear-gradient(90deg, #6aa86f, #f0cf78); }
+  .gr-mark { position: absolute; top: -26px; transform: translateX(-50%); text-align: center; font-size: .66em; color: #cfe2d2; white-space: nowrap; }
+  .gr-mark::after { content: ''; display: block; width: 2px; height: 34px; margin: 2px auto 0; background: rgba(255,255,255,.25); }
+  .gr-mark.done { color: #f0cf78; }
+  .gr-mark.done::after { background: #f0cf78; }
+  .gr-stages { display: grid; gap: 5px; }
+  .gr-stage { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 9px; background: rgba(255,255,255,.05); font-size: .82em; }
+  .gr-stage .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.1); font-family: var(--font-title); }
+  .gr-stage.done .n { background: #f0cf78; color: #1d1608; }
+  .gr-stage.now { box-shadow: 0 0 0 1px rgba(240,207,120,.6) inset; }
+  .gr-stage small { color: #b8cdbb; }
+  .gr-form { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(255,255,255,.6); border: 1px solid rgba(120,100,60,.28); }
+  .gr-form .in { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gr-form label { display: grid; gap: 3px; font-size: .78em; color: #4a3218; }
+  .gr-form input { min-height: 38px; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(120,90,40,.4); background: #fffaf0; font-size: 1em; }
+  .gr-form .quick { display: flex; flex-wrap: wrap; gap: 5px; }
+  .gr-form .quick button { padding: 3px 10px; min-height: 30px; border-radius: 99px; border: 1px solid rgba(120,90,40,.35); background: rgba(255,255,255,.7); font-size: .78em; cursor: pointer; }
+  .gr-top { display: grid; gap: 3px; }
+  .gr-top .row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 10px; border-radius: 8px; background: rgba(255,255,255,.5); font-size: .82em; }
+  .gr-top .row.me { background: rgba(232,195,90,.25); }
+  .gr-top .row .kt { font-size: .78em; color: #8a6a3a; margin-left: 6px; }
+  .gr-kat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-items: start; }
+  .gr-k { position: relative; display: grid; gap: 4px; align-content: start; padding: 10px; border-radius: 13px; background: rgba(255,255,255,.55); border: 1px solid rgba(120,100,60,.28); font-size: .8em; color: #4a3218; }
+  .gr-k h5 { margin: 0; font-family: var(--font-title); letter-spacing: .05em; color: #2e2010; font-size: 1.02em; }
+  .gr-k .rg { font-family: var(--font-title); color: #8a6a3a; font-size: .9em; }
+  .gr-k.on { border-color: #b8923a; box-shadow: 0 0 0 1px #b8923a inset; background: rgba(255,240,200,.75); }
+  .gr-k .yes { position: absolute; top: 8px; right: 9px; color: #3f7a4a; font-size: .9em; }
+  .gr-k.k3 { background: linear-gradient(160deg, #2a1d0e, #120c05); color: #e9dcc0; border-color: rgba(232,195,90,.55); }
+  .gr-k.k3 h5 { color: #ffe7a3; } .gr-k.k3 .rg { color: #f0cf78; }
+  .gr-k.k3.on { box-shadow: 0 0 0 1px #f0cf78 inset, 0 0 18px rgba(240,207,120,.35); }
+  .gr-k canvas { width: 100%; height: 150px; border-radius: 9px; display: block; }
+  .gr-k .lim { display: inline-block; padding: 1px 8px; border-radius: 99px; background: #7a1a18; color: #ffe7d0; font-size: .82em; letter-spacing: .06em; justify-self: start; }
+  .gr-mine { display: grid; gap: 4px; font-size: .84em; color: #3b2a16; }
+  .gr-mine .bar { height: 8px; border-radius: 99px; background: rgba(60,40,15,.14); overflow: hidden; }
+  .gr-mine .bar i { display: block; height: 100%; background: linear-gradient(90deg, #6aa86f, #f0cf78); }
+  @media (max-width: 720px) { .gr-kat { grid-template-columns: 1fr; } }
+  /* kisah */
+  .ks-list { display: grid; gap: 8px; }
+  .ks-book { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: linear-gradient(90deg, rgba(60,40,20,.12), rgba(255,255,255,.5)); border: 1px solid rgba(120,100,60,.28); }
+  .ks-book .cv { width: 40px; height: 54px; border-radius: 4px 7px 7px 4px; background: linear-gradient(90deg, #5a2a18, #8a4a28); box-shadow: inset 4px 0 0 rgba(0,0,0,.3); display: grid; place-items: center; color: #f0cf78; }
+  .ks-book .cv .ico { width: 18px; height: 18px; }
+  .ks-book h5 { margin: 0; color: #2e2010; } .ks-book p { margin: 2px 0 0; font-size: .82em; color: #4a3218; }
+  .ks-book .soon { font-size: .72em; padding: 2px 9px; border-radius: 99px; background: rgba(40,30,15,.75); color: #ffe7a3; white-space: nowrap; }
+  @media (max-width: 560px) {
+    .kd-intro { grid-template-columns: 44px 1fr; } .kd-intro .fc { width: 44px; height: 44px; } .kd-bal { grid-column: 1 / -1; text-align: left; }
+    .kd-grid { grid-template-columns: repeat(2, 1fr); }
+    .kd-detail { grid-template-columns: 1fr; } .kd-detail .acts { justify-content: flex-start; }
+    .kd-jasa { grid-template-columns: 40px 1fr; } .kd-jasa .acts { grid-column: 1 / -1; grid-auto-flow: column; justify-content: end; }
+    .gr-form .in { grid-template-columns: 1fr; }
+    .kd-hero canvas { height: 170px; }
+  }
+</style>
+<script>
+/* =====================================================================
+ * Tide v37 · Kedai Rantau (rak Rupa, Jasa, Gotong Royong, Kisah)
+ * Server: api_kedai, api_gotong (0032_harian_kedai.sql). Gambar rupa: KedaiRupa.html.
+ * ===================================================================== */
+var KD = (function () {
+  var heroFull = false, data = null, gotong = null, tab = 'rupa', slotF = 'semua', sel = null, night = false, raf = 0, taksir = null, trial = null;
+  var SLOTS = [['semua', 'Semua'], ['set', 'Set'], ['layar', 'Layar'], ['lambung', 'Lambung'], ['haluan', 'Haluan'], ['panji', 'Panji'], ['jejak', 'Jejak'], ['meriam', 'Meriam'], ['kedatangan', 'Kedatangan'], ['aura', 'Aura'], ['penghuni', 'Penghuni'], ['bentuk', 'Bentuk'], ['lambang', 'Lambang']];
+  var SET_NAME = { api_gunung: 'Api Gunung', naga_samudra: 'Naga Samudra', kapal_hantu: 'Kapal Hantu', badai_petir: 'Badai Petir', mutiara_paradiso: 'Mutiara Paradiso' };
+  var rupa = null;   // api_rupa: etalase, lemari, sets
+  var SLOT_NAME = { layar: 'Layar', panji: 'Panji', haluan: 'Haluan', penghuni: 'Penghuni', aura: 'Aura', lambang: 'Lambang', bentuk: 'Bentuk Kapal', lambung: 'Lambung', jejak: 'Jejak', meriam: 'Meriam', kedatangan: 'Kedatangan' };
+  var RAR = { biasa: 'Biasa', langka: 'Langka', agung: 'Agung', legenda: 'Legenda' };
+  var JASA_ICON = { jasa_kupon: 'wrench', jasa_jala: 'fish', jasa_tukar: 'reload', jasa_tambat: 'anchor', jasa_taksir: 'scales', jasa_pengawal: 'shield', jasa_arus: 'wind' };
+  var JASA_FACE = { 'Uda Gala': 1, 'Pak Tua Karto': 2, 'Nenek Ulin': 3, 'Daeng Sore': 4, 'Teh Euis': 5, "dwi de'clown": 6 };
+  var EXCL = { panji_tujuh: 'Hadiah Peti Rantau (Kalender Tujuh Tokoh)', aura_lentera_ikn: 'Hadiah penyumbang Restorasi IKN kategori 2', lambang_garuda: 'Hadiah terbatas penyumbang Restorasi IKN kategori 3' };
+  var COCO = ['Uang lama tidak suka keributan, Kapten. Tapi keping yang dibelanjakan dengan rapi? Itu musik.', 'Kapal yang dirawat dengan cinta berlayar lebih tenang. Atau setidaknya terlihat begitu.', 'Gold bisa dicari di pasar. Keping hanya bisa dikumpulkan dengan kesabaran.'];
+
+  function hs() { return window.HR ? HR.st() : null; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function item(id) { return data && data.items.filter(function (x) { return x.id === id; })[0]; }
+  function keping() { return data ? data.keping : ((hs() && hs().keping) || 0); }
+  function call(fn, args, ok, b) {
+    if (b) b.disabled = true;
+    var run = google.script.run.withSuccessHandler(function (r) {
+      if (b) b.disabled = false;
+      r = r || {};
+      if (r.kedai) data = r.kedai;
+      if (r.rupa) rupa = r.rupa;
+      if (r.gotong) gotong = r.gotong;
+      if (r.harian !== undefined && window.HR) HR.adopt(r.harian);
+      if (r.newGold != null && typeof patchGold_ === 'function') patchGold_(r.newGold);
+      if (r.shipVisual && typeof patchShip_ === 'function' && state) { stopTrial(true); patchShip_(state.ship, r.shipVisual); }
+      if (r.ship && typeof patchShip_ === 'function') patchShip_(r.ship, state && state.shipVisual);
+      try { ok && ok(r); } catch (e) { console.warn('[KD]', e); }
+    }).withFailureHandler(function (e) { if (b) b.disabled = false; showToast((e && e.message) || String(e), 'error'); });
+    run[fn].apply(run, args);
+  }
+
+  /* ---------- gambar kapal pratinjau ---------- */
+  function saktiOf(kd) {
+    var out = [];
+    Object.keys(SET_NAME).forEach(function (sid) {
+      var its = data ? data.items.filter(function (x) { return x.set === sid; }) : [];
+      if (its.length && its.every(function (x) { return kd[x.slot] === x.id; })) out.push(sid);
+    });
+    return out;
+  }
+  function kdWith(id, full) {
+    var base = Object.assign({}, (state && state.shipVisual && state.shipVisual.kd) || {}), it = id && item(id);
+    delete base.sakti;
+    if (it && it.slot) base[it.slot] = it.id;
+    if (full && it && it.set && data) data.items.forEach(function (x) { if (x.set === it.set) base[x.slot] = x.id; });
+    var sk = saktiOf(base); if (sk.length) base.sakti = sk;
+    return base;
+  }
+  function setItems(sid) { return data ? data.items.filter(function (x) { return x.set === sid; }) : []; }
+  function isEtalase(id) { return !!(rupa && rupa.etalase && rupa.etalase.ids.indexOf(id) >= 0); }
+  function basePrice(id) { return rupa && rupa.etalase && rupa.etalase.base && rupa.etalase.base[id]; }
+  function shipOpts(kd) {
+    var v = (state && state.shipVisual) || { look: {}, up: {} };
+    var o = MTShip.fromVisual({ look: v.look, up: v.up, name: v.name, kd: kd });
+    return o;
+  }
+  function paint(cv, kd, t, isNight, big) {
+    if (!cv || !window.MTShip) return;
+    var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(10, r.width), H = Math.max(10, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var pal = MTSky.palette(isNight ? 0.86 : 0.3, null), hy = H * (big ? 0.62 : 0.6);
+    MTSky.paintSky(ctx, W, hy, pal, t, null);
+    MTSky.paintSea(ctx, W, H, hy, pal, t, { rough: 0.6, drift: 14 });
+    var o = shipOpts(kd); o.dir = 1; o.t = t; o.lanterns = pal.lights; o.lit = pal.lit; o.roll = Math.sin(t * 1.1) * 0.03;
+    o.moving = 1;   // pratinjau: kapal seolah berlayar (jejak terlihat)
+    if (kd && (kd.kedatangan || (kd.sakti && kd.sakti.indexOf('naga_samudra') >= 0))) { var ap = (t * 0.22) % 1.35; o.arrive = ap < 1 ? ap : null; }
+    var sc = Math.min(W * (big ? 0.0042 : 0.0058), H * (big ? 0.0062 : 0.0066)) / Math.max(1, (o.sizeK || 1) * 0.92);
+    if (kd && kd.lambang) sc *= 0.5;   // Sayap Garuda melayang di atas tiang: beri ruang
+    var x = W * (big ? 0.56 : 0.58), y = H * 0.86 + Math.sin(t * 1.3) * (big ? 2 : 1);
+    if (big) { ctx.save(); ctx.globalAlpha = 0.18; var ro = Object.assign({}, o, { reflect: true, roll: -o.roll }); MTShip.draw(ctx, x, y + 5 * sc, sc, ro); ctx.restore(); }
+    MTShip.draw(ctx, x, y, sc, o);
+    MTShip.foam(ctx, x, y, sc, 1, t, 0.5, 1);
+  }
+  function startGaruda() {
+    cancelAnimationFrame(raf);
+    var t0 = performance.now();
+    function frame(ts) {
+      var cv = document.querySelector('[data-gr-cv]');
+      if (!cv || currentPanel !== 'kedai' || tab !== 'gotong') { raf = 0; return; }
+      var kd = Object.assign({}, (state && state.shipVisual && state.shipVisual.kd) || {}, { lambang: 'lambang_garuda' });
+      try { paint(cv, kd, (ts - t0) / 1000, true, false); } catch (e) { }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  function startHero() {
+    cancelAnimationFrame(raf);
+    var t0 = performance.now();
+    function frame(ts) {
+      var cv = document.getElementById('kdHero');
+      if (!cv || currentPanel !== 'kedai') { raf = 0; return; }
+      raf = requestAnimationFrame(frame);
+      paint(cv, kdWith(sel, heroFull), (ts - t0) / 1000, night, true);
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  /* ---------- Cermin Dermaga: coba 60 detik, hanya terlihat sendiri ---------- */
+  function stopTrial(silent) {
+    if (!trial) return;
+    clearTimeout(trial.tm);
+    if (state && trial.saved) { state.shipVisual = trial.saved; if (typeof patchShip_ === 'function') patchShip_(state.ship, trial.saved); }
+    trial = null;
+    if (!silent) showToast('Cermin Dermaga selesai. Kapal kembali ke rupa aslinya.', 'info');
+  }
+  function tryOn(id, full) {
+    var it = item(id); if (!it || !state || !state.shipVisual) return;
+    var saved = trial ? trial.saved : JSON.parse(JSON.stringify(state.shipVisual));
+    if (trial) clearTimeout(trial.tm);
+    var v = JSON.parse(JSON.stringify(saved)); v.kd = Object.assign({}, v.kd || {}); delete v.kd.sakti; v.kd[it.slot] = it.id;
+    if (full && it.set) setItems(it.set).forEach(function (x) { v.kd[x.slot] = x.id; });
+    var sk = saktiOf(v.kd); if (sk.length) v.kd.sakti = sk;
+    state.shipVisual = v;
+    if (typeof patchShip_ === 'function') patchShip_(state.ship, v);
+    trial = { saved: saved, tm: setTimeout(function () { stopTrial(false); }, 60000) };
+    showToast('Cermin Dermaga: ' + (full && it.set ? 'Set ' + SET_NAME[it.set] + ' lengkap + Kesaktian' : it.name) + ' dipasang 60 detik. Hanya kamu yang melihatnya.', 'info');
+    if (typeof closeModal === 'function') closeModal();
+  }
+
+  /* ---------- render ---------- */
+  function header() {
+    var tl = [['rupa', 'ship', 'Rupa'], ['jasa', 'handshake', 'Jasa'], ['gotong', 'users', 'Gotong Royong'], ['kisah', 'book', 'Kisah']];
+    var cocoFace = window.HR ? HR.face(7, ['#3a3226', '#14100a']) : '';
+    return panelHeader_('keping', 'Kedai Rantau', 'coco epan &middot; Javasche Bank') +
+      '<div class="kd-wrap"><div class="kd-intro"><div class="fc">' + cocoFace + '</div><div><b>coco epan</b><p>&ldquo;' + esc_(COCO[(new Date().getDate()) % COCO.length]) + '&rdquo;</p></div>' +
+      '<div class="kd-bal">' + ic('keping') + ' ' + fmt(keping()) + '<small>Keping Rantau</small></div></div>' +
+      '<div class="kd-tabs">' + tl.map(function (x) { return '<button data-kd-tab="' + x[0] + '" class="' + (tab === x[0] ? 'on' : '') + '">' + ic(x[1]) + x[2] + '</button>'; }).join('') + '</div>' +
+      '<div id="kdBody"></div></div>';
+  }
+  function setBox(it, eq) {
+    if (!it || !it.set) return '';
+    var its = setItems(it.set), own = its.filter(function (x) { return x.qty > 0; }).length, on = its.filter(function (x) { return eq[x.slot] === x.id; }).length;
+    var st = rupa && rupa.sets ? rupa.sets.filter(function (z) { return z.id === it.set; })[0] : null;
+    var total = its.reduce(function (a, x) { return a + (x.qty > 0 ? 0 : x.price); }, 0);
+    return '<div class="kd-set s-' + it.set + '"><div class="hd"><b>Set ' + SET_NAME[it.set] + '</b><span>' + own + '/5 dimiliki &middot; ' + on + '/5 terpasang</span></div>' +
+      '<div class="its">' + its.map(function (x) { return '<button data-kd-sel="' + x.id + '" class="' + (x.qty > 0 ? 'own' : '') + (eq[x.slot] === x.id ? ' on' : '') + (x.id === it.id ? ' cur' : '') + '">' + (x.qty > 0 ? ic('check') : '') + esc_(x.name) + '<small>' + esc_(SLOT_NAME[x.slot]) + '</small></button>'; }).join('') + '</div>' +
+      '<p><b>Kesaktian Set</b> (lima terpasang): ' + esc_((st && st.info) || '') + '</p>' +
+      '<div class="acts"><button class="btn btn-ghost-ink" data-kd-full="1">' + ic('eye') + (heroFull ? ' Lihat satu barang' : ' Pratinjau set lengkap') + '</button>' +
+      '<button class="btn btn-ghost-ink" data-kd="cobaset">' + ic('anchor') + ' Cermin Dermaga: set lengkap</button>' +
+      (own === 5 && on < 5 ? '<button class="btn btn-gold" data-kd="pasangset">' + ic('check') + ' Pasang kelimanya</button>' : '') +
+      (own < 5 ? '<span class="muted small">Sisa ' + fmt(total) + ' keping untuk melengkapi set.</span>' : '') + '</div></div>';
+  }
+  function etalaseHtml() {
+    if (!rupa || !rupa.etalase || !rupa.etalase.ids.length) return '';
+    var left = rupa.etalase.msLeft - (Date.now() - (rupa._at || Date.now())), d = Math.floor(left / 86400000), h = Math.floor(left % 86400000 / 3600000);
+    return '<div class="kd-etalase"><div class="hd"><b>' + ic('star') + ' Etalase Pekan &middot; diskon ' + Math.round(rupa.etalase.diskon * 100) + '%</b><span>Ganti Senin 08:00 WIB &middot; sisa ' + (d ? d + ' hari ' : '') + h + ' jam</span></div><div class="row">' +
+      rupa.etalase.ids.map(function (id) { var x = item(id); if (!x) return ''; return '<button data-kd-sel="' + id + '"><b>' + esc_(x.name) + '</b><span>' + (x.qty > 0 ? 'Milikmu' : '<s>' + fmt(basePrice(id) || x.price) + '</s> ' + ic('keping') + fmt(x.price)) + '</span></button>'; }).join('') + '</div></div>';
+  }
+  function lemariHtml() {
+    if (!rupa) return '';
+    var L = rupa.lemari || [], n = rupa.slots || 3, rows = '';
+    for (var i = 1; i <= n; i++) {
+      var l = L.filter(function (z) { return z.n === i; })[0], cnt = l ? Object.keys(l.equipped || {}).length : 0;
+      rows += '<div class="lm"><span class="no">' + i + '</span><div><b>' + (l ? esc_(l.name) : 'Laci kosong') + '</b><small>' + (l ? cnt + ' rupa' + ((l.sakti || []).length ? ' &middot; Kesaktian ' + l.sakti.map(function (s) { return SET_NAME[s]; }).join(', ') : '') : 'Simpan susunan rupa kapalmu sekarang') + '</small></div>' +
+        '<div class="b">' + (l ? '<button class="btn btn-gold" data-lm="pakai" data-n="' + i + '">Pakai</button>' : '') + '<button class="btn btn-ghost-ink" data-lm="simpan" data-n="' + i + '">' + (l ? 'Timpa' : 'Simpan') + '</button>' + (l ? '<button class="btn btn-ghost-ink" data-lm="hapus" data-n="' + i + '">' + ic('x') + '</button>' : '') + '</div></div>';
+    }
+    return '<div class="kd-lemari"><div class="hd"><b>' + ic('crate') + ' Lemari Rupa</b><span>Ganti tampilan kapal dengan sekali klik</span></div>' + rows + '</div>';
+  }
+  function rupaHtml() {
+    var eq = (data && data.equipped) || {}, list = (data ? data.items : []).filter(function (x) { return x.rak === 'rupa' && (slotF === 'semua' || (slotF === 'set' ? !!x.set : x.slot === slotF)); });
+    if (!sel || !item(sel)) sel = (list[0] || {}).id || null;
+    var it = item(sel), owned = it && it.qty > 0, on = it && eq[it.slot] === it.id, short = it && !owned && it.price > keping();
+    var incar = data && data.incaran === (it && it.id);
+    var acts = '';
+    if (it) {
+      if (owned) acts += on ? '<button class="btn btn-ghost-ink" data-kd="lepas">' + ic('x') + ' Lepas</button>' : '<button class="btn btn-gold" data-kd="pasang">' + ic('check') + ' Pasang</button>';
+      else if (it.exclusive) acts += '<span class="hr-pill">' + ic('lock') + esc_(EXCL[it.id] || 'Hadiah khusus') + '</span>';
+      else if (it.locked) acts += '<span class="hr-pill">' + ic('lock') + 'Tamatkan Kisah Lapau &ldquo;' + esc_((it.req && it.req.kisahName) || 'Kapal Tanpa Awak') + '&rdquo;</span><button class="btn btn-ghost-ink" data-kd-tab="kisah">' + ic('book') + ' Rak Kisah</button>';
+      else acts += '<button class="btn btn-gold" data-kd="beli"' + (short ? ' disabled' : '') + '>' + ic('keping') + ' Beli ' + (isEtalase(it.id) && basePrice(it.id) ? '<s style="opacity:.6">' + fmt(basePrice(it.id)) + '</s> ' : '') + fmt(it.price) + '</button>' +
+        '<button class="btn btn-ghost-ink" data-kd="incar">' + ic('star') + (incar ? ' Batal incar' : ' Incar') + '</button>';
+      if (!owned || !on) acts += '<button class="btn btn-ghost-ink" data-kd="coba" title="Pasang 60 detik di pelabuhan, hanya kamu yang melihat">' + ic('eye') + ' Cermin Dermaga</button>';
+    }
+    var prog = it && !owned && !it.exclusive && !it.locked ? '<div class="kd-bars"><i style="width:' + Math.min(100, Math.round(keping() / Math.max(1, it.price) * 100)) + '%"></i></div><span class="muted small">' + fmt(keping()) + ' / ' + fmt(it.price) + ' keping' + (short ? ' &middot; kurang ' + fmt(it.price - keping()) : '') + '</span>' : '';
+    return '<div class="kd-hero"><canvas id="kdHero"></canvas><div class="tog"><button data-kd-night="0" class="' + (night ? '' : 'on') + '">' + ic('sun') + 'Siang</button><button data-kd-night="1" class="' + (night ? 'on' : '') + '">' + ic('moon') + 'Malam</button></div>' +
+      '<div class="cap"><div><b>' + esc_(it ? it.name : 'Kapalmu') + '</b><span>' + (it ? esc_(SLOT_NAME[it.slot] || '') + ' &middot; ' + RAR[it.rarity] : '') + '</span></div></div></div>' +
+      (it ? '<div class="kd-detail"><div><b>' + esc_(it.name) + '</b><p>' + esc_(it.info || '') + '</p>' + prog + '</div><div class="acts">' + acts + '</div></div>' : '') +
+      setBox(it, eq) + etalaseHtml() + '<div class="kd-chips">' + SLOTS.map(function (s) { return '<button data-kd-slot="' + s[0] + '" class="' + (slotF === s[0] ? 'on' : '') + '">' + s[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="kd-grid">' + list.map(function (x) {
+        var o = x.qty > 0, e = eq[x.slot] === x.id;
+        return '<div class="kd-card r-' + x.rarity + (x.id === sel ? ' sel' : '') + '" data-kd-sel="' + x.id + '"><canvas data-kd-cv="' + x.id + '"></canvas>' +
+          (e ? '<span class="tag on">Terpasang</span>' : o ? '<span class="tag">Dimiliki</span>' : isEtalase(x.id) ? '<span class="tag et">Etalase &minus;' + Math.round(rupa.etalase.diskon * 100) + '%</span>' : '') + (data.incaran === x.id ? '<span class="star">' + ic('star') + '</span>' : '') +
+          (x.set ? '<span class="setb s-' + x.set + '">' + SET_NAME[x.set] + '</span>' : '') +
+          '<span class="rar">' + RAR[x.rarity] + ' &middot; ' + esc_(SLOT_NAME[x.slot] || '') + '</span><h5>' + esc_(x.name) + '</h5>' +
+          '<div class="row">' + (o ? '<span class="muted small">Milikmu</span>' : x.exclusive ? '<span class="muted small">Hadiah</span>' : x.locked ? '<span class="muted small">' + ic('lock') + ' Khusus pembaca</span>' : '<span class="price' + (x.price > keping() ? ' short' : '') + '">' + ic('keping') + fmt(x.price) + '</span>') + '</div></div>';
+      }).join('') + '</div>' +
+      lemariHtml() +
+      '<p class="muted small">Warna lambung, layar, dan bendera tetap gratis di menu Ship. Kedai menjual rupa yang tidak ada di sana. Set Badai Petir, Kapal Hantu, dan Mutiara Paradiso menyusul.</p>';
+  }
+  function jasaHtml() {
+    var b = (data && data.buffs) || {}, buff = '';
+    if (b.arus) buff += '<div class="kd-buff">' + ic('wind') + ' Pembaca Arus aktif: <b>' + b.arus + '</b> pelayaran lagi 15% lebih cepat.</div>';
+    if (b.pengawal) buff += '<div class="kd-buff">' + ic('shield') + ' Pengawal Daeng aktif: <b>' + b.pengawal + '</b> pencegatan bajak laut lagi.</div>';
+    if (data && data.tambatExtra) buff += '<div class="kd-buff">' + ic('anchor') + ' Tali Tambat Cadangan tersimpan: <b>' + data.tambatExtra + '</b></div>';
+    var rows = (data ? data.items : []).filter(function (x) { return x.rak === 'jasa'; }).map(function (x) {
+      var fi = JASA_FACE[x.tokoh], fc = fi && window.HR ? HR.face(fi, ['#3a3226', '#14100a']) : ic(JASA_ICON[x.id] || 'gift');
+      return '<div class="kd-jasa"><div class="fc">' + fc + '</div><div><h5>' + esc_(x.name) + (x.tokoh ? ' <small>&middot; ' + esc_(x.tokoh) + '</small>' : '') + '</h5><p>' + esc_(x.info || '') + '</p>' +
+        (x.qty > 0 ? '<span class="own">' + ic('check') + ' Tersimpan ' + x.qty + '</span>' : '') + '</div>' +
+        '<div class="acts"><button class="btn btn-ghost-ink" data-kd-buy="' + x.id + '"' + (x.price > keping() ? ' disabled' : '') + '>Beli ' + ic('keping') + ' ' + fmt(x.price) + '</button>' +
+        (x.qty > 0 ? '<button class="btn btn-gold" data-kd-use="' + x.id + '">Pakai</button>' : '') + '</div></div>';
+    }).join('');
+    var tk = taksir ? '<div class="kd-taksir"><b>Pak Tua Karto menaksir isi palkamu:</b>' + taksir.map(function (t) {
+      return '<div class="row"><b>' + esc_(t.name) + '</b> &times;' + t.qty + (t.avg ? ' &middot; modal ' + fmt(t.avg) + '/unit' : '') + '<br>' +
+        (t.best || []).map(function (c, i) { return (i ? ' &middot; ' : '') + esc_(c.cityName) + ' <b>' + fmt(c.price) + '</b>'; }).join('') + '</div>';
+    }).join('') + '<span class="muted small">Dari catatan harga terakhir tiap pasar. Harga bisa sudah bergerak.</span></div>' : '';
+    return buff + tk + rows + '<p class="muted small">Satu jasa berdurasi (Pembaca Arus atau Pengawal) aktif dalam satu waktu. Jasa yang dibeli tersimpan sampai dipakai.</p>';
+  }
+  function gotongHtml() {
+    var g = gotong;
+    if (!g) return '<div class="dt-empty">Membaca catatan Monumen Restorasi&hellip;</div>';
+    var goal = g.goal || 1, pct = Math.min(100, g.total / goal * 100), me = g.me || {}, K = g.kategori || [3000000, 15000000], MX = g.max || 0, mk = me.kat || 0;
+    var short = function (n) { return HR.fmtShort(n); };
+    var marks = (g.stages || []).map(function (s) { return '<div class="gr-mark' + (g.stage >= s.n ? ' done' : '') + '" style="left:' + (s.cum / goal * 100).toFixed(2) + '%">' + short(s.cum) + '</div>'; }).join('');
+    var stages = (g.stages || []).map(function (s) {
+      return '<div class="gr-stage' + (g.stage >= s.n ? ' done' : '') + (g.stage + 1 === s.n ? ' now' : '') + '"><span class="n">' + (g.stage >= s.n ? '&#10003;' : '') + '</span><div><b>' + esc_(s.name) + '</b><br><small>' + esc_(s.desc || '') + '</small></div><small>' + short(s.cum) + '</small></div>';
+    }).join('');
+    var top = (g.top || []).map(function (t, i) {
+      return '<div class="row' + (me.rank === i + 1 ? ' me' : '') + '"><span>' + (i + 1) + '. ' + esc_(t.name) +
+        (t.garudaNo ? '<span class="kt">Penjaga Garuda #' + t.garudaNo + '</span>' : t.kat ? '<span class="kt">Kategori ' + t.kat + '</span>' : '') + '</span><b>' + fmt(t.total) + '</b></div>';
+    }).join('') || '<div class="muted small">Belum ada penyumbang. Jadilah yang pertama.</div>';
+    var kats = '<div class="gr-kat">' +
+      '<div class="gr-k' + (mk === 1 ? ' on' : '') + '">' + (mk >= 1 ? '<span class="yes">' + ic('check') + '</span>' : '') + '<h5>Kategori 1</h5><span class="rg">' + fmt(g.min || 1000) + ' &ndash; ' + short(K[0]) + '</span>' +
+        '<span>Tanda Jasa <b>Tangan Gotong Royong</b> dan namamu di Prasasti Restorasi.</span></div>' +
+      '<div class="gr-k' + (mk === 2 ? ' on' : '') + '">' + (mk >= 2 ? '<span class="yes">' + ic('check') + '</span>' : '') + '<h5>Kategori 2</h5><span class="rg">di atas ' + short(K[0]) + ' &ndash; ' + short(K[1]) + '</span>' +
+        '<span>Rupa <b>Lentera IKN</b> (lentera teal-emas di buritan) + Tanda Jasa <b>Tiang Restorasi</b>.</span></div>' +
+      '<div class="gr-k k3' + (mk === 3 ? ' on' : '') + '">' + (mk >= 3 ? '<span class="yes" style="color:#9fe0a8">' + ic('check') + '</span>' : '') + '<h5>Kategori 3</h5><span class="rg">di atas ' + short(K[1]) + (MX ? ' &ndash; ' + short(MX) : '') + '</span>' +
+        '<canvas data-gr-cv="1"></canvas><span class="lim">TERBATAS &middot; ' + (g.garuda || 0) + ' PENJAGA</span>' +
+        '<span><b style="color:#ffe7a3">Sayap Garuda</b> emas bernomor membentang di atas kapalmu, terlihat semua kapten, + Tanda Jasa <b>Penjaga Garuda</b>. Hanya dibagikan selama Restorasi berjalan. Setelah IKN pulih, tidak akan pernah dibuat lagi.</span></div>' +
+      '</div>';
+    var nextK = mk < 2 ? K[0] : mk < 3 ? K[1] : 0, left = MX ? Math.max(0, MX - (me.total || 0)) : Infinity;
+    var mine = '<div class="gr-mine"><span>Sumbanganmu: <b>' + fmt(me.total || 0) + '</b> gold' + (me.keping ? ' (termasuk ' + fmt(me.keping) + ' keping)' : '') +
+      (me.rank ? ' &middot; peringkat ' + me.rank : '') + (me.garudaNo ? ' &middot; <b>Penjaga Garuda #' + me.garudaNo + '</b>' : mk ? ' &middot; Kategori ' + mk : '') + '</span>' +
+      (nextK && !g.done ? '<div class="bar"><i style="width:' + Math.min(100, (me.total || 0) / nextK * 100).toFixed(1) + '%"></i></div><span class="muted small">Kurang ' + fmt(nextK + 1 - (me.total || 0)) + ' gold ke Kategori ' + (mk < 2 ? 2 : 3) + '.</span>' : '') +
+      (!g.done && MX ? '<span class="muted small">Batas per kapten ' + short(MX) + ' &middot; sisa jatahmu ' + fmt(left) + ' gold.</span>' : '') + '</div>';
+    var form = g.done ? '<div class="kd-buff">' + ic('star') + ' Restorasi IKN selesai. Menara Cahaya menyala sampai ke tengah laut. <b>Kapal yang merapat di IKN pulih perlahan</b>, seperti di Paradiso.</div><div class="gr-form">' + mine + '</div>' :
+      '<div class="gr-form"><b>Sumbang ke kolam Restorasi</b>' + (g.here ? '' : '<span class="muted small">' + ic('anchor') + ' Sumbangan diterima di Monumen Restorasi, <b>IKN</b>. Merapatlah ke sana.</span>') +
+      '<div class="in"><label>Gold (punyamu ' + fmt(g.gold || 0) + ')<input id="grGold" type="number" min="0" step="1000" inputmode="numeric" value="0"></label>' +
+      '<label>Keping (1 keping = ' + fmt(g.rate) + ' gold)<input id="grKp" type="number" min="0" step="1" inputmode="numeric" value="0"></label></div>' +
+      '<div class="quick"><button data-gr="100000">100 rb</button><button data-gr="1000000">1 jt</button><button data-gr="2500000">2,5 jt</button><button data-gr="5000000">5 jt</button>' +
+      (left > 0 ? '<button data-gr="' + Math.min(left, g.gold || 0) + '">Semua gold</button>' : '') + '</div>' +
+      '<button class="btn btn-gold" id="grSend"' + (g.here && left > 0 ? '' : ' disabled') + '>' + ic('gift') + ' Sumbang</button>' + mine + '</div>';
+    return '<div class="gr-card"><h4>Restorasi IKN<span>' + g.donors + ' penyumbang</span></h4>' +
+      '<div class="gr-track"><i style="width:' + pct.toFixed(2) + '%"></i>' + marks + '</div>' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;font-size:.86em;margin-bottom:6px"><span><b style="color:#f0cf78">' + fmt(g.total) + '</b> / ' + fmt(goal) + ' gold</span><span>' + (g.done ? 'Selesai' : 'Kolam bersama') + '</span></div>' +
+      '<p style="margin:0 0 8px;font-size:.8em;color:#cfe2d2">Semua sumbangan masuk satu kolam. Begitu total kolam melewati angka di bawah, kota IKN langsung berubah untuk semua kapten.</p>' +
+      '<div class="gr-stages">' + stages + '</div></div>' + form +
+      '<div class="gr-form"><b>Kategori Penyumbang</b><span class="muted small">Dihitung dari total sumbangan pribadimu (gold + keping).</span>' + kats + '</div>' +
+      '<div class="gr-form"><b>Prasasti Restorasi &middot; 10 penyumbang terbesar</b><div class="gr-top">' + top + '</div></div>';
+  }
+  function kisahHtml() {
+    if (window.KS) return KS.html();
+    var B = [['Kapal Tanpa Awak', 'Uda Gala bercerita tentang kapal hantu pertama yang dicucinya di tahun badai besar.'], ['Malam Sebelum Chafik Lahir', 'Uda Gala muda berlayar pulang untuk menggendong putra kecilnya.'],
+      ['Kedai Kopi di Pulau Sudyrman', 'Masa muda coco epan sebelum menjadi bankir.'], ['Surat untuk Andry', 'zafachmie menulis surat untuk Andry Ivankov. Pelikan membawa balasan yang tak bisa dibaca.'],
+      ['Tujuh Pulau, Delapan Nama', 'Teka-teki angka tujuh di Pustaka: ada pulau yang tidak pernah tercatat.']];
+    return '<div class="ks-list">' + B.map(function (b) { return '<div class="ks-book"><div class="cv">' + ic('book') + '</div><div><h5>' + esc_(b[0]) + '</h5><p>' + esc_(b[1]) + '</p></div><span class="soon">Segera</span></div>'; }).join('') +
+      '</div><p class="muted small">Bab Kisah Lapau dibuka satu per satu. Simpan kepingmu.</p>';
+  }
+  function bodyHtml() { return tab === 'rupa' ? rupaHtml() : tab === 'jasa' ? jasaHtml() : tab === 'gotong' ? gotongHtml() : kisahHtml(); }
+  function paintCards() {
+    var t = 1.3;
+    document.querySelectorAll('#kdBody [data-kd-cv]').forEach(function (cv) {
+      var id = cv.getAttribute('data-kd-cv'), it = item(id), nt = it && /lampion|lentera/.test(id);
+      paint(cv, kdWith(id), t, nt, false);
+    });
+  }
+  function bind() {
+    var c = document.getElementById('modalContent'); if (!c) return;
+    c.querySelectorAll('[data-kd-tab]').forEach(function (b) { b.onclick = function () { tab = b.getAttribute('data-kd-tab'); taksir = null; au_('page'); render(); if (tab === 'gotong') loadGotong(); }; });
+    var body = document.getElementById('kdBody'); if (!body) return;
+    body.querySelectorAll('[data-kd-slot]').forEach(function (b) { b.onclick = function () { slotF = b.getAttribute('data-kd-slot'); sel = null; render(); }; });
+    body.querySelectorAll('[data-kd-sel]').forEach(function (b) { b.onclick = function () { sel = b.getAttribute('data-kd-sel'); au_('page'); render(); var h = document.querySelector('.kd-hero'); if (h) try { h.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { } }; });
+    body.querySelectorAll('[data-kd-night]').forEach(function (b) { b.onclick = function () { night = b.getAttribute('data-kd-night') === '1'; render(); }; });
+    body.querySelectorAll('[data-kd]').forEach(function (b) {
+      b.onclick = function () {
+        var a = b.getAttribute('data-kd'), it = item(sel); if (!it) return;
+        if (a === 'beli') call('api_kedai', ['beli', it.id], function () { au_('achieve'); try { metaMax_('kdrupa', 1); } catch (e) { } showToast('coco epan: "Pilihan yang baik." ' + it.name + ' milikmu.', 'success'); render(); }, b);
+        else if (a === 'pasang') call('api_kedai', ['pasang', it.id], function () { au_('coin', { n: 2 }); showToast(it.name + ' terpasang. Kapten lain bisa melihatnya.', 'success'); render(); }, b);
+        else if (a === 'lepas') call('api_kedai', ['lepas', it.slot], function () { render(); }, b);
+        else if (a === 'incar') call('api_kedai', ['incar', data.incaran === it.id ? '' : it.id], function () { render(); }, b);
+        else if (a === 'coba') tryOn(it.id);
+        else if (a === 'cobaset') tryOn(it.id, true);
+        else if (a === 'pasangset') {
+          var its = setItems(it.set), i = 0;
+          (function next() { if (i >= its.length) { au_('achieve'); showToast('Set ' + SET_NAME[it.set] + ' terpasang. Kesaktian Set bangkit!', 'success'); loadRupa(); return; } call('api_kedai', ['pasang', its[i++].id], next, b); })();
+        }
+      };
+    });
+    body.querySelectorAll('[data-kd-full]').forEach(function (b) { b.onclick = function () { heroFull = !heroFull; render(); }; });
+    body.querySelectorAll('[data-lm]').forEach(function (b) {
+      b.onclick = function () {
+        var a = b.getAttribute('data-lm'), n = Number(b.getAttribute('data-n')), nm = '';
+        if (a === 'simpan') { nm = window.prompt('Nama susunan rupa (maks 24 huruf):', 'Susunan ' + n); if (nm === null) return; }
+        call('api_rupa', [a, n, nm], function (r) {
+          if (a === 'pakai') { au_('coin', { n: 2 }); showToast('Lemari Rupa: susunan ' + n + ' dipakai.' + (r.skip ? ' ' + r.skip + ' rupa dilewati (belum dimiliki).' : ''), 'success'); }
+          else if (a === 'simpan') showToast('Susunan rupa tersimpan di laci ' + n + '.', 'success');
+          render();
+        }, b);
+      };
+    });
+    body.querySelectorAll('[data-kd-buy]').forEach(function (b) { b.onclick = function () { var id = b.getAttribute('data-kd-buy'); call('api_kedai', ['beli', id], function () { au_('coin', { n: 2 }); showToast((item(id) || {}).name + ' tersimpan. Pakai kapan saja.', 'success'); render(); }, b); }; });
+    body.querySelectorAll('[data-kd-use]').forEach(function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-kd-use');
+        call('api_kedai', ['pakai', id], function (r) { au_('achieve'); if (r.taksir) taksir = r.taksir; if (r.msg) showToast(r.msg, 'success'); render(); }, b);
+      };
+    });
+    body.querySelectorAll('[data-gr]').forEach(function (b) { b.onclick = function () { var i = document.getElementById('grGold'); if (i) i.value = b.getAttribute('data-gr'); }; });
+    var send = document.getElementById('grSend');
+    if (send) send.onclick = function () {
+      var gv = Math.max(0, Math.floor(Number((document.getElementById('grGold') || {}).value) || 0)), kv = Math.max(0, Math.floor(Number((document.getElementById('grKp') || {}).value) || 0));
+      if (!gv && !kv) { showToast('Isi jumlah gold atau keping.', 'error'); return; }
+      call('api_gotong', ['sumbang', gv, kv], function (r) {
+        au_('achieve'); try { metaMax_('grgive', 1); metaMax_('grkat', r.kat || 1); } catch (e) { }
+        var st = r.gotong && r.gotong.stages && r.gotong.stages[r.stage - 1];
+        if (r.stageUp) showToast('Kolam Restorasi melewati ' + HR.fmtShort(st ? st.cum : 0) + ': ' + (st ? st.name : '') + '! Lihat perubahan di kota IKN.', 'success');
+        else showToast('Monumen Restorasi mencatat namamu. Terima kasih, Kapten.', 'success');
+        if (r.garudaNo) setTimeout(function () { showToast('Kamu Penjaga Garuda #' + r.garudaNo + '! Sayap Garuda menunggu di Kedai Rantau, rak Rupa, slot Lambang.', 'success'); }, 900);
+        else if (r.lentera) setTimeout(function () { showToast('Kategori 2: kamu mendapat rupa Lentera IKN. Pasang di Kedai Rantau, rak Rupa.', 'success'); }, 900);
+        if (state && r.gotong) { state.gotong = { ikn: { stage: r.gotong.stage, total: r.gotong.total, goal: r.gotong.goal, done: r.gotong.done, kat: r.kat } }; }
+        if (r.garudaNo || r.lentera) load();
+        render();
+      }, send);
+    };
+  }
+  function render() {
+    if (currentPanel !== 'kedai') return;
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-mid'); box.classList.add('size-wide'); }
+    var scroll = box ? box.scrollTop : 0;
+    setModal_(header());
+    var body = document.getElementById('kdBody');
+    if (body) body.innerHTML = data ? bodyHtml() : '<div class="dt-empty">Membuka Kedai&hellip;</div>';
+    if (box) box.scrollTop = scroll;
+    bind();
+    if (data && tab === 'rupa') { paintCards(); startHero(); } else if (tab === 'gotong') startGaruda(); else cancelAnimationFrame(raf);
+    if (tab === 'kisah' && window.KS) KS.bind(body);
+  }
+  function load() {
+    call('api_kedai', ['daftar'], function () {
+      try { if (data.items.some(function (x) { return x.rak === 'rupa' && x.qty > 0 && !x.exclusive; })) metaMax_('kdrupa', 1); } catch (e) { }
+      render(); if (tab === 'gotong') loadGotong();
+      loadRupa();
+    });
+  }
+  function loadRupa() { call('api_rupa', ['status'], function (r) { if (rupa) rupa._at = Date.now(); try { (rupa.sets || []).forEach(function (z) { if (z.complete) metaMax_('kdsakti', 1); }); } catch (e) { } if (tab === 'rupa') render(); }); }
+  function loadGotong() {
+    if (!(window.HR && HR.open('gotong'))) { gotong = null; var b = document.getElementById('kdBody'); if (b && tab === 'gotong') b.innerHTML = '<div class="dt-empty">Gotong Royong belum dibuka.</div>'; return; }
+    call('api_gotong', ['status'], function () { if (tab === 'gotong') render(); });
+  }
+  function openTab(t) { tab = t || tab; if (typeof openPanel === 'function') openPanel('kedai'); }
+
+  /* ---------- panel & kaitan ---------- */
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (panel === 'kedai') {
+        if (!(window.HR && (HR.open('kedai') || HR.open('gotong')))) { showToast('Kedai Rantau belum dibuka.', 'info'); return; }
+        if (!HR.open('kedai')) tab = 'gotong';
+        var r = origOpen.apply(this, arguments);
+        render();
+        if (HR.open('kedai')) load(); else loadGotong();
+        return r;
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  // Monumen Restorasi (panel Tasks di IKN)
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks' || !(window.HR && HR.open('gotong')) || !state || !state.city || state.city.CityId !== 'ikn') return;
+    if (state.voyage && state.voyage.inTransit) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.gr-callout')) return;
+    var g = state.gotong && state.gotong.ikn, ph = c.querySelector('.ph');
+    var d = document.createElement('div'); d.className = 'qg-callout gr-callout';
+    d.innerHTML = '<div class="qg-callout-ico">' + ic('users') + '</div><div><b>Monumen Restorasi</b><br><span class="muted small">' + (g && g.done ? 'Restorasi selesai. Kapalmu pulih perlahan selama merapat di sini.' : 'Kolam Restorasi IKN ' + fmt((g && g.total) || 0) + ' / ' + fmt((g && g.goal) || 100000000) + ' gold') + '</span></div><button class="btn btn-gold">' + (g && g.done ? 'Lihat' : 'Sumbang') + '</button>';
+    d.querySelector('.btn').onclick = function () { openTab('gotong'); };
+    if (ph && ph.parentNode) ph.parentNode.insertBefore(d, ph.nextSibling);
+  });
+  wrap_('closeModal', function () { cancelAnimationFrame(raf); raf = 0; });
+
+  /* ---------- Tanda Jasa ---------- */
+  if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+    { id: 'kd_first', t: 1, ic: 'keping', n: 'Pelanggan coco', d: 'Beli rupa pertama di Kedai Rantau.', g: function (m) { return [m.c.kdrupa || 0, 1]; } },
+    { id: 'gr_tangan', t: 1, ic: 'users', n: 'Tangan Gotong Royong', d: 'Menyumbang untuk Restorasi IKN (kategori 1).', g: function (m) { return [m.c.grgive || 0, 1]; } },
+    { id: 'kd_sakti', t: 3, ic: 'star', n: 'Kesaktian Bangkit', d: 'Pasang satu set rupa lengkap (lima barang).', g: function (m) { return [m.c.kdsakti || 0, 1]; } },
+    { id: 'gr_tiang', t: 2, ic: 'users', n: 'Tiang Restorasi', d: 'Kategori 2 penyumbang Restorasi IKN.', g: function (m) { return [m.c.grkat || 0, 2]; } },
+    { id: 'gr_garuda', t: 3, ic: 'star', n: 'Penjaga Garuda', d: 'Kategori 3 penyumbang Restorasi IKN. Terbatas.', g: function (m) { return [m.c.grkat || 0, 3]; } }
+  );
+  wrap_('applyFreshState_', function () { var g = state && state.gotong && state.gotong.ikn; if (g && g.kat) { try { metaMax_('grgive', 1); metaMax_('grkat', g.kat); } catch (e) { } } });
+
+  wrap_('applyFreshState_', function () { if (currentPanel === 'kedai' && data) { data.keping = (hs() && hs().keping) || data.keping; } });
+
+  return {
+    open: openTab, refresh: function () { load(); },
+    onHarian: function () { if (data && hs()) data.keping = hs().keping; var bal = document.querySelector('.kd-bal'); if (bal && currentPanel === 'kedai') bal.innerHTML = ic('keping') + ' ' + fmt(keping()) + '<small>Keping Rantau</small>'; },
+    _data: function () { return data; }, _stopTrial: stopTrial
+  };
+})();
+</script>
