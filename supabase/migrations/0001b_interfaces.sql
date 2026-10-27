@@ -345,5 +345,10 @@ language plpgsql as $$ begin return null; end $$;
 create or replace function game.gotong_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
 -- [Tide v37 · Pacu Dagang / 0033] status lomba akhir pekan (null = tertutup)
+-- Kisah Lapau (0035): status bab untuk getGameState, dan apakah bab sudah tamat (syarat rupa eksklusif)
+create or replace function game.kisah_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+create or replace function game.kisah_done(p_pid uuid, p_kisah text) returns boolean
+language plpgsql stable as $$ begin return false; end $$;
 create or replace function game.pacu_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;

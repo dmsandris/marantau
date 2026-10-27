@@ -52,6 +52,12 @@
   .kd-card .setb { position: absolute; top: 72px; left: 14px; padding: 1px 7px; border-radius: 99px; font-size: .6em; letter-spacing: .06em; font-family: var(--font-title); }
   .setb.s-api_gunung, .kd-set.s-api_gunung .hd b { background: linear-gradient(90deg, #7a1a08, #c2410c); color: #ffe4c4; }
   .setb.s-naga_samudra, .kd-set.s-naga_samudra .hd b { background: linear-gradient(90deg, #0f4c4a, #2a8a80); color: #dffaf3; }
+  .setb.s-kapal_hantu, .kd-set.s-kapal_hantu .hd b { background: linear-gradient(90deg, #0b2a22, #2f6e57); color: #bfffe0; box-shadow: 0 0 8px rgba(110,255,190,.35); }
+  .setb.s-badai_petir, .kd-set.s-badai_petir .hd b { background: linear-gradient(90deg, #1b2a3c, #3f6a96); color: #e2f0ff; }
+  .setb.s-mutiara_paradiso, .kd-set.s-mutiara_paradiso .hd b { background: linear-gradient(90deg, #d9718f, #f2b46a); color: #fff7ee; }
+  .kd-set.s-kapal_hantu { background: linear-gradient(180deg, rgba(214,246,232,.85), rgba(255,255,255,.6)); border-color: rgba(47,110,87,.45); }
+  .kd-set.s-badai_petir { background: linear-gradient(180deg, rgba(220,232,246,.9), rgba(255,255,255,.6)); border-color: rgba(63,106,150,.45); }
+  .kd-set.s-mutiara_paradiso { background: linear-gradient(180deg, rgba(255,232,238,.9), rgba(255,255,255,.6)); border-color: rgba(217,113,143,.45); }
   .kd-set { display: grid; gap: 8px; padding: 10px 12px; border-radius: 13px; border: 1px solid rgba(120,100,60,.3); background: rgba(255,255,255,.6); font-size: .84em; color: #3b2a16; }
   .kd-set.s-api_gunung { background: linear-gradient(180deg, rgba(255,232,214,.85), rgba(255,255,255,.6)); border-color: rgba(194,65,12,.45); }
   .kd-set.s-naga_samudra { background: linear-gradient(180deg, rgba(214,246,240,.85), rgba(255,255,255,.6)); border-color: rgba(42,138,128,.45); }
@@ -161,10 +167,10 @@
  * ===================================================================== */
 var KD = (function () {
   var heroFull = false, data = null, gotong = null, tab = 'rupa', slotF = 'semua', sel = null, night = false, raf = 0, taksir = null, trial = null;
-  var SLOTS = [['semua', 'Semua'], ['set', 'Set'], ['layar', 'Layar'], ['lambung', 'Lambung'], ['haluan', 'Haluan'], ['panji', 'Panji'], ['jejak', 'Jejak'], ['meriam', 'Meriam'], ['kedatangan', 'Kedatangan'], ['aura', 'Aura'], ['penghuni', 'Penghuni'], ['lambang', 'Lambang']];
-  var SET_NAME = { api_gunung: 'Api Gunung', naga_samudra: 'Naga Samudra' };
+  var SLOTS = [['semua', 'Semua'], ['set', 'Set'], ['layar', 'Layar'], ['lambung', 'Lambung'], ['haluan', 'Haluan'], ['panji', 'Panji'], ['jejak', 'Jejak'], ['meriam', 'Meriam'], ['kedatangan', 'Kedatangan'], ['aura', 'Aura'], ['penghuni', 'Penghuni'], ['bentuk', 'Bentuk'], ['lambang', 'Lambang']];
+  var SET_NAME = { api_gunung: 'Api Gunung', naga_samudra: 'Naga Samudra', kapal_hantu: 'Kapal Hantu', badai_petir: 'Badai Petir', mutiara_paradiso: 'Mutiara Paradiso' };
   var rupa = null;   // api_rupa: etalase, lemari, sets
-  var SLOT_NAME = { layar: 'Layar', panji: 'Panji', haluan: 'Haluan', penghuni: 'Penghuni', aura: 'Aura', lambang: 'Lambang', lambung: 'Lambung', jejak: 'Jejak', meriam: 'Meriam', kedatangan: 'Kedatangan' };
+  var SLOT_NAME = { layar: 'Layar', panji: 'Panji', haluan: 'Haluan', penghuni: 'Penghuni', aura: 'Aura', lambang: 'Lambang', bentuk: 'Bentuk Kapal', lambung: 'Lambung', jejak: 'Jejak', meriam: 'Meriam', kedatangan: 'Kedatangan' };
   var RAR = { biasa: 'Biasa', langka: 'Langka', agung: 'Agung', legenda: 'Legenda' };
   var JASA_ICON = { jasa_kupon: 'wrench', jasa_jala: 'fish', jasa_tukar: 'reload', jasa_tambat: 'anchor', jasa_taksir: 'scales', jasa_pengawal: 'shield', jasa_arus: 'wind' };
   var JASA_FACE = { 'Uda Gala': 1, 'Pak Tua Karto': 2, 'Nenek Ulin': 3, 'Daeng Sore': 4, 'Teh Euis': 5, "dwi de'clown": 6 };
@@ -329,11 +335,12 @@ var KD = (function () {
     if (it) {
       if (owned) acts += on ? '<button class="btn btn-ghost-ink" data-kd="lepas">' + ic('x') + ' Lepas</button>' : '<button class="btn btn-gold" data-kd="pasang">' + ic('check') + ' Pasang</button>';
       else if (it.exclusive) acts += '<span class="hr-pill">' + ic('lock') + esc_(EXCL[it.id] || 'Hadiah khusus') + '</span>';
+      else if (it.locked) acts += '<span class="hr-pill">' + ic('lock') + 'Tamatkan Kisah Lapau &ldquo;' + esc_((it.req && it.req.kisahName) || 'Kapal Tanpa Awak') + '&rdquo;</span><button class="btn btn-ghost-ink" data-kd-tab="kisah">' + ic('book') + ' Rak Kisah</button>';
       else acts += '<button class="btn btn-gold" data-kd="beli"' + (short ? ' disabled' : '') + '>' + ic('keping') + ' Beli ' + (isEtalase(it.id) && basePrice(it.id) ? '<s style="opacity:.6">' + fmt(basePrice(it.id)) + '</s> ' : '') + fmt(it.price) + '</button>' +
         '<button class="btn btn-ghost-ink" data-kd="incar">' + ic('star') + (incar ? ' Batal incar' : ' Incar') + '</button>';
       if (!owned || !on) acts += '<button class="btn btn-ghost-ink" data-kd="coba" title="Pasang 60 detik di pelabuhan, hanya kamu yang melihat">' + ic('eye') + ' Cermin Dermaga</button>';
     }
-    var prog = it && !owned && !it.exclusive ? '<div class="kd-bars"><i style="width:' + Math.min(100, Math.round(keping() / Math.max(1, it.price) * 100)) + '%"></i></div><span class="muted small">' + fmt(keping()) + ' / ' + fmt(it.price) + ' keping' + (short ? ' &middot; kurang ' + fmt(it.price - keping()) : '') + '</span>' : '';
+    var prog = it && !owned && !it.exclusive && !it.locked ? '<div class="kd-bars"><i style="width:' + Math.min(100, Math.round(keping() / Math.max(1, it.price) * 100)) + '%"></i></div><span class="muted small">' + fmt(keping()) + ' / ' + fmt(it.price) + ' keping' + (short ? ' &middot; kurang ' + fmt(it.price - keping()) : '') + '</span>' : '';
     return '<div class="kd-hero"><canvas id="kdHero"></canvas><div class="tog"><button data-kd-night="0" class="' + (night ? '' : 'on') + '">' + ic('sun') + 'Siang</button><button data-kd-night="1" class="' + (night ? 'on' : '') + '">' + ic('moon') + 'Malam</button></div>' +
       '<div class="cap"><div><b>' + esc_(it ? it.name : 'Kapalmu') + '</b><span>' + (it ? esc_(SLOT_NAME[it.slot] || '') + ' &middot; ' + RAR[it.rarity] : '') + '</span></div></div></div>' +
       (it ? '<div class="kd-detail"><div><b>' + esc_(it.name) + '</b><p>' + esc_(it.info || '') + '</p>' + prog + '</div><div class="acts">' + acts + '</div></div>' : '') +
@@ -344,7 +351,7 @@ var KD = (function () {
           (e ? '<span class="tag on">Terpasang</span>' : o ? '<span class="tag">Dimiliki</span>' : isEtalase(x.id) ? '<span class="tag et">Etalase &minus;' + Math.round(rupa.etalase.diskon * 100) + '%</span>' : '') + (data.incaran === x.id ? '<span class="star">' + ic('star') + '</span>' : '') +
           (x.set ? '<span class="setb s-' + x.set + '">' + SET_NAME[x.set] + '</span>' : '') +
           '<span class="rar">' + RAR[x.rarity] + ' &middot; ' + esc_(SLOT_NAME[x.slot] || '') + '</span><h5>' + esc_(x.name) + '</h5>' +
-          '<div class="row">' + (o ? '<span class="muted small">Milikmu</span>' : x.exclusive ? '<span class="muted small">Hadiah</span>' : '<span class="price' + (x.price > keping() ? ' short' : '') + '">' + ic('keping') + fmt(x.price) + '</span>') + '</div></div>';
+          '<div class="row">' + (o ? '<span class="muted small">Milikmu</span>' : x.exclusive ? '<span class="muted small">Hadiah</span>' : x.locked ? '<span class="muted small">' + ic('lock') + ' Khusus pembaca</span>' : '<span class="price' + (x.price > keping() ? ' short' : '') + '">' + ic('keping') + fmt(x.price) + '</span>') + '</div></div>';
       }).join('') + '</div>' +
       lemariHtml() +
       '<p class="muted small">Warna lambung, layar, dan bendera tetap gratis di menu Ship. Kedai menjual rupa yang tidak ada di sana. Set Badai Petir, Kapal Hantu, dan Mutiara Paradiso menyusul.</p>';
@@ -410,6 +417,7 @@ var KD = (function () {
       '<div class="gr-form"><b>Prasasti Restorasi &middot; 10 penyumbang terbesar</b><div class="gr-top">' + top + '</div></div>';
   }
   function kisahHtml() {
+    if (window.KS) return KS.html();
     var B = [['Kapal Tanpa Awak', 'Uda Gala bercerita tentang kapal hantu pertama yang dicucinya di tahun badai besar.'], ['Malam Sebelum Chafik Lahir', 'Uda Gala muda berlayar pulang untuk menggendong putra kecilnya.'],
       ['Kedai Kopi di Pulau Sudyrman', 'Masa muda coco epan sebelum menjadi bankir.'], ['Surat untuk Andry', 'zafachmie menulis surat untuk Andry Ivankov. Pelikan membawa balasan yang tak bisa dibaca.'],
       ['Tujuh Pulau, Delapan Nama', 'Teka-teki angka tujuh di Pustaka: ada pulau yang tidak pernah tercatat.']];
@@ -493,6 +501,7 @@ var KD = (function () {
     if (box) box.scrollTop = scroll;
     bind();
     if (data && tab === 'rupa') { paintCards(); startHero(); } else if (tab === 'gotong') startGaruda(); else cancelAnimationFrame(raf);
+    if (tab === 'kisah' && window.KS) KS.bind(body);
   }
   function load() {
     call('api_kedai', ['daftar'], function () {
@@ -549,7 +558,7 @@ var KD = (function () {
   wrap_('applyFreshState_', function () { if (currentPanel === 'kedai' && data) { data.keping = (hs() && hs().keping) || data.keping; } });
 
   return {
-    open: openTab,
+    open: openTab, refresh: function () { load(); },
     onHarian: function () { if (data && hs()) data.keping = hs().keping; var bal = document.querySelector('.kd-bal'); if (bal && currentPanel === 'kedai') bal.innerHTML = ic('keping') + ' ' + fmt(keping()) + '<small>Keping Rantau</small>'; },
     _data: function () { return data; }, _stopTrial: stopTrial
   };

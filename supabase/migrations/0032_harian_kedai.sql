@@ -380,6 +380,11 @@ create or replace function game.kd_price(p_id text) returns int
 language sql stable as $$
   select greatest(0, round(coalesce(i.price_admin, i.price) * game.cfg_num('KedaiPriceMul', 1)))::int from game.kd_items i where i.id = p_id
 $$;
+-- syarat beli (req): {"kisah": "<id bab>"} = bab Kisah Lapau sudah tamat
+create or replace function game.kd_req_ok(p_pid uuid, p_id text) returns boolean
+language sql stable as $$
+  select coalesce((select case when i.req ? 'kisah' then game.kisah_done(p_pid, i.req ->> 'kisah') else true end from game.kd_items i where i.id = p_id), true)
+$$;
 create or replace function game.kd_qty(p_pid uuid, p_id text) returns int
 language sql stable as $$ select coalesce((select qty from game.kd_owned where player_id = p_pid and item_id = p_id), 0) $$;
 create or replace function game.kd_grant(p_pid uuid, p_id text, p_qty int, p_src text) returns void
@@ -678,6 +683,7 @@ begin
     'equipped', coalesce(l.equipped, '{}'::jsonb), 'incaran', l.incaran,
     'items', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'rak', i.rak, 'slot', i.slot, 'set', i.set_id, 'name', i.name,
         'rarity', i.rarity, 'price', game.kd_price(i.id), 'info', i.info, 'tokoh', i.tokoh, 'exclusive', i.exclusive,
+        'req', i.req, 'locked', not game.kd_req_ok(p_pid, i.id),
         'qty', game.kd_qty(p_pid, i.id)) order by i.sort, i.id)
       from game.kd_items i where i.active), '[]'::jsonb),
     'buffs', coalesce((select jsonb_object_agg(kind, uses_left) from game.kd_buffs where player_id = p_pid), '{}'::jsonb),
@@ -703,6 +709,8 @@ begin
 
   if v_act = 'beli' then
     if it.exclusive then raise exception '% tidak dijual. Barang ini hanya bisa didapat sebagai hadiah.', it.name; end if;
+    if it.rak = 'kisah' then raise exception 'Bab Kisah dibeli di rak Kisah.'; end if;
+    if not game.kd_req_ok(v_pid, v_id) then raise exception '% hanya untuk kapten yang sudah menamatkan Kisah Lapau "%".', it.name, coalesce(it.req ->> 'kisahName', it.req ->> 'kisah'); end if;
     if it.rak = 'rupa' and game.kd_qty(v_pid, v_id) > 0 then raise exception 'Kamu sudah memiliki %.', it.name; end if;
     v_price := game.kd_price(v_id);
     perform game.keping_add(v_pid, -v_price, 'kedai', 'beli ' || v_id);

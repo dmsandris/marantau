@@ -412,7 +412,7 @@
         tx = ox + Math.sin(aim) * rng; ty = oy - Math.cos(aim) * rng;
       }
       L.balls.push({ x0: ox, y0: oy, x1: tx, y1: ty, t: -i * 0.06, dur: 0.55 + Math.hypot(tx - ox, ty - oy) / 900, hit: hit, ammo: sh.ammo, tgt: tgt, dmg: hit && first ? sh : null,
-        lava: who === 'you' && sh.ammo !== 'chain' && sh.ammo !== 'grape' && window.MTKD_FX && MTKD_FX.myMeriam() });
+        lava: who === 'you' && sh.ammo !== 'chain' && sh.ammo !== 'grape' && window.MTKD_FX ? ({ meriam_letusan: 'lava', meriam_guntur: 'petir' })[MTKD_FX.myMeriam()] || null : null });
       if (hit) first = false;
       L.smoke.push({ x: ox + Math.sin(sideA) * 10, y: oy - Math.cos(sideA) * 10, r: 8, a: 0.75, vx: Math.sin(sideA) * 14, vy: -Math.cos(sideA) * 14 });
     }
@@ -942,7 +942,8 @@
     L.balls.forEach(function (b) {
       if (b.t < 0) return; var u = clamp(b.t / b.dur, 0, 1), x = lerp(b.x0, b.x1, u), y = lerp(b.y0, b.y1, u), hg = Math.sin(u * Math.PI) * 26;
       c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.arc(x, y, 3.2, 0, TAU); c.fill();
-      if (b.lava) MTKD_FX.lavaBall(c, x, y - hg, 4);
+      if (b.lava === 'petir') MTKD_FX.zap(c, b.x0, b.y0, x, y - hg, 1, 0.9);
+      else if (b.lava) MTKD_FX.lavaBall(c, x, y - hg, 4);
       else { c.fillStyle = b.ammo === 'chain' ? '#c9c4b2' : b.ammo === 'grape' ? '#a0a0a0' : '#1b1712'; c.beginPath(); c.arc(x, y - hg, b.ammo === 'grape' ? 2.4 : 3.8, 0, TAU); c.fill(); }
       if (b.ammo === 'chain') { c.strokeStyle = '#c9c4b2'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x - 6, y - hg); c.lineTo(x + 6, y - hg); c.stroke(); }
     });
