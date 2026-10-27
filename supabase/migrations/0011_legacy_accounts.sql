@@ -123,7 +123,12 @@ begin
     on conflict (player_id) do nothing;
     select * into r from game.players where player_id = u for update;
   elsif r.last_active < now() - interval '1 minute' then
-    update game.players set last_active = now() where player_id = u;
+    -- Tide v39: cap "terakhir aktif" tidak boleh membuat panggilan MENUNGGU kunci baris pemain.
+    -- Bila baris sedang dikunci transaksi lain (beli/jual/berlayar pemain yang sama), lewati saja;
+    -- panggilan berikutnya yang akan menulisnya. Dulu panggilan ringan (pollVoyage, getCargoState)
+    -- ikut antre di belakang transaksi lambat -> berantai jadi statement timeout.
+    update game.players set last_active = now()
+    where player_id = (select p.player_id from game.players p where p.player_id = u for update skip locked);
   end if;
   return r;
 end $$;
