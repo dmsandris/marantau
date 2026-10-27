@@ -45,6 +45,16 @@
   .dt-shake { animation: dtShake .35s; }
   @keyframes dtShake { 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
   @media (prefers-reduced-motion: reduce) { .dt-shake { animation: none; } }
+  /* v37f: jurnal Saga 2 yang sudah tamat diringkas (bisa dibuka) */
+  .dt-done { padding: 0 !important; }
+  .dt-done > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; font-size: .9em; color: #4a3720; }
+  .dt-done > summary::-webkit-details-marker { display: none; }
+  .dt-done > summary .ico { width: 15px; height: 15px; color: #8f6522; flex: none; }
+  .dt-done > summary b { font-family: var(--font-title); }
+  .dt-done > summary .sm { margin-left: auto; font-size: .84em; color: #7a6448; white-space: nowrap; }
+  .dt-done > summary .chev { transition: transform .15s; }
+  .dt-done[open] > summary .chev { transform: rotate(90deg); }
+  .dt-done > .in { padding: 0 12px 12px; }
 </style>
 <script>
 /* =====================================================================
@@ -268,6 +278,11 @@ var DT = (function () {
     var info = '';
     if ((s.step || 0) >= 1) info = '<div class="dt-info"><div class="row">Armada terbuka di Sowtour<b>' + (s.lobbies || 0) + '</b></div><div class="row">Kapten lain yang bisa ikut, online<b>' + (s.online || 0) + '</b></div>' +
       ((s.step || 0) < 5 ? '<div class="row">Perbekalan di palka<b>' + (s.mesiu || 0) + ' Mesiu &middot; ' + (s.beras || 0) + ' Beras</b></div>' : '<div class="row">Kemenangan veteran<b>' + (s.vetWins || 0) + '</b></div>') + '</div>';
+    if ((s.step || 0) >= 5) {
+      var op = false; try { op = localStorage.getItem('dtDoneOpen') === '1'; } catch (e) { }
+      return '<details class="qg-journal lt-journal dt-done"' + (op ? ' open' : '') + '><summary>' + ic('compass') + '<b>Saga 2 selesai</b><span class="muted small">Tempat Dua Tangan Berjabat</span><span class="sm">' + (s.vetWins || 0) + ' kemenangan veteran</span>' + ic('chevron').replace('class="ico', 'class="ico chev') + '</summary>' +
+        '<div class="in"><p>' + objective(s) + '</p>' + info + histHtml(s.history) + '</div></details>';
+    }
     return '<div class="qg-journal lt-journal"><div class="qg-jhead">' + ic('compass') + '<b>Tempat Dua Tangan Berjabat</b><span class="legend-tag">Saga 2 &middot; Penutup</span></div>' +
       '<p>' + objective(s) + '</p>' + info + ((s.step || 0) >= 1 && (s.step || 0) < 5 ? bekalHtml(s.bekal) : '') + histHtml(s.history) + '</div>';
   }
@@ -700,7 +715,7 @@ var DT = (function () {
       '<div class="qg-reward">' + ic('book') + '<div><b>Peta Dua Tangan</b><span>+15 Navigation, waktu tempuh rute pulau Saga 2 &minus;20%</span></div></div>' +
       '<div class="qg-reward">' + ic('star') + '<div><b>Jabat Tangan Perak-Emas</b><span>+10% harga jual di Kota Sowtour, Kepulauan Karang Garam, dan Joungjava' + (r.equipped === false ? ' (pasang di slot artefak kapal)' : '') + '</span></div></div>' +
       '<div class="qg-reward">' + ic('star') + '<div><b>Kalung Karang &amp; Topi Bowler</b><span>Kenang-kenangan dari coco, tetap di palka</span></div></div>' +
-      '<div class="qg-reward paradiso">' + ic('medal') + '<div><b>Tanda Jasa: Penyambung Dua Tangan &middot; Saga Kedua</b><span>Credit bisa ditonton ulang dari jurnal quest</span></div></div>' +
+      '<div class="qg-reward paradiso">' + ic('medal') + '<div><b>Tanda Jasa: Penyambung Dua Tangan &middot; Saga Kedua</b><span>Credit bisa ditonton ulang dari Tanda Jasa di Kartu Kapten</span></div></div>' +
       actions(btn('ok', 'anchor', 'Ke dermaga'));
     on(w, '[data-dt=ok]', close);
     au_('achieve');
@@ -726,12 +741,11 @@ var DT = (function () {
     var h = here(), html = '';
     if (h) html += callout(h.icon, h.t, h.d, 'here', h.l);
     if ((s.step || 0) >= 1) html += journal();
-    if ((s.step || 0) >= 5 && s.credits) html += actions(btn('recred', 'star', 'Tonton ulang credit Saga Kedua', false));
     if (!html) return;
     var w = insert(html, { quiet: !!h && (s.step || 0) < 5 });
     if (!w) return;
     if (h) on(w, '[data-dt=here]', function () { h.fn(); });
-    on(w, '[data-dt=recred]', function () { close(); credits(); });
+    var dd = w.querySelector('.dt-done'); if (dd) dd.addEventListener('toggle', function () { try { localStorage.setItem('dtDoneOpen', dd.open ? '1' : '0'); } catch (e) { } });
     bindHist(w);
   }
   wrap_('setModal_', function () { if (currentPanel === 'tasks') try { decorTasks(); } catch (e) { console.warn('[DT]', e); } });
@@ -811,6 +825,17 @@ var DT = (function () {
     { id: 'dt_helper5', t: 2, ic: 'medal', n: 'Tangan Penolong II', d: 'Menang Serbuan Bersama sebagai veteran 5 kali.', g: function (m) { return [m.c.dtvet || 0, 5]; } },
     { id: 'dt_helper20', t: 3, ic: 'medal', n: 'Tangan Penolong III', d: 'Menang Serbuan Bersama sebagai veteran 20 kali.', g: function (m) { return [m.c.dtvet || 0, 20]; } }
   );
+  // v37f: tonton ulang credit Saga Kedua dari Tanda Jasa (bukan dari jurnal)
+  wrap_('renderCharacterSheetWith_', function () {
+    var sec = document.getElementById('achSection'), s = st(); if (!sec || !s || (s.step || 0) < 5 || !s.credits) return;
+    sec.querySelectorAll('.ach-card.got').forEach(function (cd) {
+      var b = cd.querySelector('.ach-body b');
+      if (!b || b.textContent !== 'Saga Kedua' || cd.querySelector('.dt-replay')) return;
+      var d = document.createElement('div'); d.className = 'dt-replay bx-replay'; d.innerHTML = '<button class="btn btn-sm">' + ic('star') + '&nbsp; Tonton ulang credit</button>';
+      cd.querySelector('.ach-body').appendChild(d);
+      d.querySelector('button').onclick = function (ev) { ev.stopPropagation(); if (typeof closeModal === 'function') closeModal(); credits(); };
+    });
+  });
 
   return {
     N: N, journal: journal, scenes: scenes, here: here, startRaid: startRaid, boardOpen: boardOpen,
