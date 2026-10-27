@@ -2200,12 +2200,13 @@
   }
 
   /* Rekonsiliasi: kalau layar & server tidak sepakat (mis. HP ditidurkan saat berangkat),
-   * ikuti server. Ringan: 1 api_pollVoyage tiap 15 detik di pelabuhan + saat tab kembali aktif. */
+   * ikuti server. Ringan: 1 api_pollVoyage tiap 60 detik di pelabuhan + saat tab kembali aktif. */
   var lastReconcile_ = 0;
   function reconcileVoyage_(force) {
     if (!bootDone || !state || !state.player || txPending || !txIdle_() || combatSceneOpen || departing_) return;
     if (state.voyage && state.voyage.inTransit) { if (force) pollVoyage_(); return; }
-    if (!force && Date.now() - lastReconcile_ < 15000) return;
+    // Tide v39: di pelabuhan cukup 1 cek per menit (tab kembali aktif tetap dicek seketika lewat force)
+    if (!force && Date.now() - lastReconcile_ < 60000) return;
     lastReconcile_ = Date.now();
     var seq = voySeq;
     google.script.run.withSuccessHandler(function (res) {
