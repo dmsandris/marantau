@@ -191,14 +191,16 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const enc = (await one(`select game.kd_enc($1, '{"randomPirate":true,"enemyMaxHp":100}'::jsonb) e`, [A.id])).e;
   ok(enc.allyDmg === 12 && /Daeng/.test(enc.allyNote), 'Pengawal: perahu Daeng ikut menembak ' + JSON.stringify(enc));
   ok(!(await one(`select game.kd_enc($1, '{"boss":"mrgap","enemyMaxHp":600}'::jsonb) e`, [A.id])).e.allyDmg, 'tidak untuk bos quest');
-  // jasa: Kupon Reparasi
-  await H.sql(`update game.player_location set city_id = 'sunda_empire', destination_city_id = null, arrive_at = null, depart_at = null where player_id = $1`, [A.id]);
+  // jasa: Kupon Reparasi (bersihkan sisa pelayaran uji di atas, termasuk pencegatan tertunda, agar gold tidak bergeser)
+  await H.sql(`update game.player_location set city_id = 'sunda_empire', destination_city_id = null, arrive_at = null, depart_at = null, pending_encounter = null where player_id = $1`, [A.id]);
   await H.sql(`update game.ships set condition = 40 where player_id = $1`, [A.id]);
   await A.call('api_kedai', ['beli', 'jasa_kupon']);
   const kup0 = Number((await one(`select game.kd_qty($1, 'jasa_kupon') q`, [A.id])).q);   // Peti Rantau mungkin sudah memberi kupon
   const gk = await gold(A);
   rr = await A.call('api_kedai', ['pakai', 'jasa_kupon']);
-  ok(Number(rr.ship.Condition) > 40 && await gold(A) === gk && rr.kedai.items.find(i => i.id === 'jasa_kupon').qty === kup0 - 1, 'Kupon Reparasi gratis & berkurang satu ' + JSON.stringify([rr.ship.Condition, gk, await gold(A), rr.kedai.items.find(i => i.id === 'jasa_kupon').qty]));
+  if (await gold(A) < gk) console.error('DEBUG log:', JSON.stringify(await H.sql(`select message from game.player_log where player_id = $1 order by id desc limit 6`, [A.id])));
+  ok(Number(rr.ship.Condition) > 40 && await gold(A) >= gk &&   // >=: tugas harian "Rawat kapal" bisa ikut selesai (+gold)
+     rr.kedai.items.find(i => i.id === 'jasa_kupon').qty === kup0 - 1, 'Kupon Reparasi gratis & berkurang satu ' + JSON.stringify([rr.ship.Condition, gk, await gold(A), rr.kedai.items.find(i => i.id === 'jasa_kupon').qty]));
   // jasa: Juru Taksir
   await H.sql(`select game.adjust_inventory($1, 'lada', 5)`, [A.id]);
   rr = await A.call('api_kedai', ['beli', 'jasa_taksir']); rr = await A.call('api_kedai', ['pakai', 'jasa_taksir']);
