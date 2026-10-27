@@ -250,6 +250,8 @@ create table if not exists game.hr_streak (
   tambat_extra int not null default 0,  -- Tali Tambat Cadangan (jasa Kedai)
   peti_n       int not null default 0
 );
+alter table game.hr_streak add column if not exists clean int not null default 0;        -- hari berturut-turut tanpa Tali Tambat
+alter table game.hr_streak add column if not exists clean_best int not null default 0;   -- Tanda Jasa rahasia Tak Pernah Bolong (30)
 alter table game.hr_streak enable row level security;
 
 create or replace function game.hr_pick(p_pid uuid, p_day date, p_tier int, p_gol int, p_dow int,
@@ -429,6 +431,8 @@ begin
   end if;
   s.last_day := p_day;
   s.best := greatest(s.best, s.cur);
+  s.clean := case when v_how = 'lanjut' then s.clean + 1 else 1 end;
+  s.clean_best := greatest(s.clean_best, s.clean);
   v_pos := ((s.cur - 1) % 7) + 1;
   if v_pos = 7 then
     s.peti_n := s.peti_n + 1;
@@ -437,7 +441,7 @@ begin
     v_kp := game.cfg_num('HarianStreakKeping', 5)::bigint;
   end if;
   update game.hr_streak set cur = s.cur, best = s.best, last_day = s.last_day, tambat_day = s.tambat_day,
-    tambat_extra = s.tambat_extra, peti_n = s.peti_n where player_id = p_pid;
+    tambat_extra = s.tambat_extra, peti_n = s.peti_n, clean = s.clean, clean_best = s.clean_best where player_id = p_pid;
   if v_pos = 7 then v_peti := game.hr_peti(p_pid, s.peti_n); end if;
   perform game.keping_add(p_pid, v_kp, case when v_pos = 7 then 'peti' else 'streak' end, 'streak ' || s.cur);
   return jsonb_build_object('cur', s.cur, 'pos', v_pos, 'kp', v_kp, 'peti', v_peti, 'how', v_how, 'best', s.best);
@@ -564,6 +568,7 @@ begin
   return jsonb_build_object('cur', case when v_alive then s.cur else 0 end, 'best', s.best, 'alive', v_alive, 'today', v_today,
     'filled', v_filled, 'pending', s.last_day = d - 2 and v_alive,
     'tambatReady', s.tambat_day is null or s.tambat_day < d - 7, 'extra', s.tambat_extra, 'petiN', s.peti_n,
+    'cleanBest', s.clean_best,
     'tambatDays', case when s.tambat_day is not null and s.tambat_day >= d - 7 then jsonb_build_array(s.tambat_day) else '[]'::jsonb end);
 end $$;
 

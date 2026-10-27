@@ -8,17 +8,17 @@
 -- untuk kelompok barang unggulan. Tidak ada cron: game.pd_tick() memajukan semuanya saat
 -- ada panggilan (getGameState / api_pacu) dari kapten yang fiturnya terbuka.
 -- Gerbang: PacuOpen = '0' -> hanya FiturPenguji. Kabar chat dunia hanya bila PacuOpen = '1'.
--- Pekan Uji: PacuGoldOn = '0' -> hadiah keping saja (tanpa gold).
+-- Hadiah gold juara 1 aktif (Fase 3). PacuGoldOn = '0' -> Pekan Uji: hadiah keping saja.
 -- Admin (SQL Editor):
 --   select * from game.pd_audit where event_id = 'PD-2026-10-31';
 --   select game.admin_pacu_coret('PD-2026-10-31', 'username', 'alasan');   -- sebelum Senin 08:00
 -- =====================================================================
 
 insert into game.config(key, value) values
-  ('PacuOpen', '0'), ('PacuGoldOn', '0'), ('PacuCloseBoardHours', '6'), ('PacuThemeMul', '1.5'),
+  ('PacuOpen', '0'), ('PacuGoldOn', '1'), ('PacuCloseBoardHours', '6'), ('PacuThemeMul', '1.5'),
   ('PacuTargetJukung', '3000,12000,40000'), ('PacuTargetPinisi', '15000,60000,200000'), ('PacuTargetGaliung', '150000,600000,2000000'),
   ('PacuTierKeping', '20,40,80'), ('PacuJuaraKeping', '200,120,80'), ('PacuKategoriKeping', '150'),
-  ('PacuGoldJukung', '50000'), ('PacuGoldPinisi', '250000'), ('PacuGoldGaliung', '750000'),
+  ('PacuGoldJukung', '100000'), ('PacuGoldPinisi', '250000'), ('PacuGoldGaliung', '600000'),
   ('PacuMataMinJual', '15'), ('PacuNewsGapHours', '3')
 on conflict (key) do nothing;
 

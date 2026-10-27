@@ -7,6 +7,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const DAY = 86400000;
   const setOffsetDays = d => H.sql(`update game.config set value = $1 where key = 'HarianClockOffset'`, [String(d * DAY)]);
   await H.sql(`update game.config set value = '0' where key = 'PirateEncounterBaseChance'`);
+  await H.sql(`update game.config set value = '0' where key = 'EtalaseJumlah'`);   // harga tanpa diskon Etalase (0034)
 
   const mk = async (u, name) => { const c = await H.user(u); await c.call('api_createCharacter', [name, 'merchant']); return c; };
   const A = await mk('hr_alfa', 'Kapten Alfa');

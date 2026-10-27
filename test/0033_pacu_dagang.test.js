@@ -18,6 +18,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const score = async (u, ev) => { const r = await one(`select score from game.pd_scores where event_id = $2 and player_id = $1`, [u.id, ev]); return r ? Number(r.score) : null; };
   const st = async u => (await u.call('api_getGameState', [null])).pacu;
   await H.sql(`update game.config set value = '1' where key = 'PacuMataMinJual'`);
+  await H.sql(`update game.config set value = '0' where key = 'PacuGoldOn'`);   // pekan 1 = Pekan Uji
 
   // --- gerbang -----------------------------------------------------------------------
   await at('2026-10-30 19:00');
@@ -134,7 +135,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const g1 = await gold(A);
   s = await st(A);
   ok(s.last.id === 'PD-2026-11-07' && s.last.results.gol['1'].list.length === 3, 'Jukung 3 lolos: juara 1-3');
-  ok(await gold(A) === g1 + 50000, 'gold juara Jukung ' + (await gold(A) - g1));
+  ok(await gold(A) === g1 + 100000, 'gold juara Jukung ' + (await gold(A) - g1));
   ok(s.last.results.lompat && s.last.results.lompat.name, 'Lompatan Terjauh ada setelah rekor');
   ok(Number((await one(`select game.kd_qty($1, 'layar_emas') q`, [A.id])).q) === 1, 'Layar Emas permanen setelah juara 1 tiga kali');
   ok(s.stats.juara1 === 3 && s.stats.ikut === 2, 'statistik untuk Tanda Jasa');

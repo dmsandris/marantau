@@ -2662,9 +2662,9 @@
   function cvFloatText_(text, x, y, color) { cvFloatingTexts.push({ text: String(text), x: x, y: y, life: 1.4, vy: -0.9, color: color || '#ff5a3c' }); }
 
   /** Proyektil parabola; onImpact dipanggil sekali saat mendarat. */
-  function cvLaunchProjectile_(sx, sy, tx, ty, onImpact, delay) {
+  function cvLaunchProjectile_(sx, sy, tx, ty, onImpact, delay, lava) {
     var dist = Math.hypot(tx - sx, ty - sy);
-    cvProjectiles.push({ sx: sx, sy: sy, tx: tx, ty: ty, progress: -(delay || 0), speed: 1.6 / Math.max(0.5, dist / 500), apex: Math.min(160, dist * 0.22), onImpact: onImpact, impacted: false, trail: 0 });
+    cvProjectiles.push({ sx: sx, sy: sy, tx: tx, ty: ty, progress: -(delay || 0), speed: 1.6 / Math.max(0.5, dist / 500), apex: Math.min(160, dist * 0.22), onImpact: onImpact, impacted: false, trail: 0, lava: !!lava });
   }
 
   /** Posisi lubang meriam ke-k di layar untuk kapal (sisi yang menghadap musuh). */
@@ -2768,9 +2768,14 @@
       var cx = p.sx + (p.tx - p.sx) * tt, gy = p.sy + (p.ty - p.sy) * tt;
       var by2 = gy - Math.sin(tt * Math.PI) * p.apex;
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(cx, gy + 4, 6, 2.5, 0, 0, 6.3); ctx.fill();
-      ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.arc(cx, by2, 3.6, 0, 6.3); ctx.fill();
-      ctx.fillStyle = 'rgba(255,220,160,.5)'; ctx.beginPath(); ctx.arc(cx - 1, by2 - 1, 1.2, 0, 6.3); ctx.fill();
-      p.trail += dt; if (p.trail > 30) { p.trail = 0; cvSpawnParticle_(cx, by2, 0, -0.1, 'rgba(210,210,205,A)', 2, 0.03, 0, { grow: 0.05, a: 0.4 }); }
+      if (p.lava && window.MTKD_FX) {   // Tide v37: Meriam Letusan (Set Api Gunung)
+        MTKD_FX.lavaBall(ctx, cx, by2, 4.4);
+        p.trail += dt; if (p.trail > 18) { p.trail = 0; cvSpawnParticle_(cx, by2, (Math.random() - 0.5) * 0.6, -0.3, 'rgba(255,140,40,A)', 2.2, 0.035, 0.02, { add: true }); }
+      } else {
+        ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.arc(cx, by2, 3.6, 0, 6.3); ctx.fill();
+        ctx.fillStyle = 'rgba(255,220,160,.5)'; ctx.beginPath(); ctx.arc(cx - 1, by2 - 1, 1.2, 0, 6.3); ctx.fill();
+        p.trail += dt; if (p.trail > 30) { p.trail = 0; cvSpawnParticle_(cx, by2, 0, -0.1, 'rgba(210,210,205,A)', 2, 0.03, 0, { grow: 0.05, a: 0.4 }); }
+      }
       if (p.progress >= 1 && !p.impacted) { p.impacted = true; if (p.onImpact) p.onImpact(p.tx, p.ty); cvProjectiles.splice(pi, 1); }
     }
 
@@ -2940,7 +2945,7 @@
 
   /** Salvo 3 peluru dari lubang meriam `from` ke lambung `to`. hit=true -> ledakan; false -> percikan air. */
   function cvVolley_(from, fromDir, to, toDir, hit, onFirstImpact) {
-    var first = true;
+    var first = true, lava = from === cvPlayerShip && window.MTKD_FX && MTKD_FX.myMeriam();
     for (var k = 0; k < 3; k++) {
       (function (k) {
         var gp = cvGunPort_(from, fromDir, 1 + k * 2);
@@ -2948,9 +2953,9 @@
         var tp = cvHullPoint_(to, toDir);
         if (!hit) { tp.x += (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 50) * to.s; tp.y = to.y + to.bob + (8 + Math.random() * 16) * to.s; }
         cvLaunchProjectile_(gp.x, gp.y, tp.x, tp.y, function (tx, ty) {
-          if (hit) { cvSpawnImpactBurst_(tx, ty); } else { cvSpawnSplash_(tx, ty); }
+          if (hit) { cvSpawnImpactBurst_(tx, ty); if (lava) cvSpawnSparkle_(tx, ty, 'rgba(255,120,40,A)'); } else { cvSpawnSplash_(tx, ty); }
           if (first) { first = false; if (onFirstImpact) onFirstImpact(tx, ty); }
-        }, k * 0.13);
+        }, k * 0.13, lava);
       })(k);
     }
   }
@@ -4223,10 +4228,10 @@
     var m = metaGet_(), n = ACH.filter(function (a) { return m.u[a.id]; }).length;
     return '<div id="achSection"><div class="scroll-divider">Tanda Jasa &middot; ' + n + '/' + ACH.length + '</div><div class="ach-grid">' +
       ACH.map(function (a) {
-        var got = !!m.u[a.id], g = a.g(m), pct = Math.min(100, Math.round(g[0] / g[1] * 100));
-        return '<div class="ach-card' + (got ? ' got' : '') + '" title="' + esc_(a.d) + '"><div class="ach-medal t' + a.t + '">' + ic(got ? a.ic : 'lock') + '</div>' +
-          '<div class="ach-body"><b>' + esc_(a.n) + '</b><span>' + esc_(a.d) + '</span>' +
-          (got ? '<em>' + ic('check') + 'Hari ' + esc_(m.u[a.id]) + '</em>' : (g[1] > 1 ? '<div class="ach-prog"><i style="width:' + pct + '%"></i></div><em>' + formatGold(Math.min(g[0], g[1])) + ' / ' + formatGold(g[1]) + '</em>' : '')) +
+        var got = !!m.u[a.id], g = a.g(m), pct = Math.min(100, Math.round(g[0] / g[1] * 100)), hid = a.secret && !got;   // v37: Tanda Jasa rahasia
+        return '<div class="ach-card' + (got ? ' got' : '') + '" title="' + esc_(hid ? 'Tanda Jasa rahasia.' : a.d) + '"><div class="ach-medal t' + a.t + '">' + ic(got ? a.ic : 'lock') + '</div>' +
+          '<div class="ach-body"><b>' + esc_(hid ? '???' : a.n) + '</b><span>' + esc_(hid ? 'Tanda Jasa rahasia.' : a.d) + '</span>' +
+          (got ? '<em>' + ic('check') + 'Hari ' + esc_(m.u[a.id]) + '</em>' : hid ? '' : (g[1] > 1 ? '<div class="ach-prog"><i style="width:' + pct + '%"></i></div><em>' + formatGold(Math.min(g[0], g[1])) + ' / ' + formatGold(g[1]) + '</em>' : '')) +
           '</div></div>';
       }).join('') + '</div></div>';
   }

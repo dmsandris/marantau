@@ -789,6 +789,8 @@ var MTShip = (function () {
       for (var ri = 0; ri <= 22; ri++) { var ru = 0.04 + ri * 0.042; ctx.beginPath(); ctx.arc(waleX(ru), waleY(ru) + 3.6, 0.55, 0, 6.3); ctx.fill(); }
       for (var rj = 0; rj < 5; rj++) { ctx.beginPath(); ctx.arc(46 + rj * 2.2, -18 + rj * 3.6, 0.55, 0, 6.3); ctx.fill(); }
     }
+    // Tide v37 Fase 3: rupa lambung dari Kedai (di dalam klip lambung)
+    if (o.kd && (o.kd.lambung || o.kd.sakti) && KDH.hull) { try { KDH.hull(ctx, o, { t: t, L: L, s: s, hull: hull, trim: trim }); } catch (e) { } }
     ctx.restore();
     hullPath(ctx);
     ctx.strokeStyle = L('#140c07', 0.6); ctx.lineWidth = 0.9;
@@ -995,7 +997,7 @@ var MTShip = (function () {
       ctx.beginPath(); ctx.arc(-63, -45, 1.6, 0, 6.3); ctx.fill();
     }
     // Tide v37: haluan, panji, penghuni, aura dari Kedai Rantau
-    if (o.kd && KDH.after) { try { KDH.after(ctx, o, { M: M, t: t, L: L, deckY: deckY, trim: trim, sail: sail, flag: flag, hull: hull, s: s, dir: dir }); } catch (e) { } }
+    if (o.kd && KDH.after) { try { KDH.after(ctx, o, { M: M, t: t, L: L, deckY: deckY, trim: trim, sail: sail, flag: flag, hull: hull, s: s, dir: dir, deckPt: deckPt, ports: o.ports || 7 }); } catch (e) { } }
     ctx.restore();
   }
 
@@ -2612,6 +2614,9 @@ var MTScene = (function () {
     var bob = Math.sin(t * 1.1) * H * 0.003, roll = Math.sin(t * 0.8) * 0.012 + moveK * 0.02;
     var so = shipOpts(inst, p, t, 1);
     so.furl = furlK; so.roll = roll;
+    // Tide v37 Fase 3: info gerak untuk rupa Kedai (jejak, kedatangan, kucing ke dermaga)
+    so.moving = departing ? moveK : (furlK < 1 ? 1 - furlK : 0); so.arrive = inst.arrivalT; so.docked = furlK >= 1 && !departing;
+    if (pdg && pdg[2]) so.dockPt = [(pdg[2][0] + 2 - shx) / sc, (pdg[2][1] - 2 - shy - bob) / sc];
     ctx.save(); ctx.globalAlpha = 0.22;
     var ro = shipOpts(inst, p, t, 1); ro.furl = furlK; ro.reflect = true; ro.roll = -roll;
     MTShip.draw(ctx, shx, shy + bob + 5 * sc, sc, ro); ctx.restore();
@@ -2738,6 +2743,7 @@ var MTScene = (function () {
     }
     var bob = Math.sin(t * 1.3) * H * 0.004, roll = Math.sin(t * 0.9) * 0.025 + moveK * 0.02;
     var pp = { lit: lit, lights: 1 }, so = shipOpts(inst, pp, t, 1); so.furl = furlK; so.roll = roll;
+    so.moving = departing ? moveK : 0.15; so.arrive = inst.arrivalT; so.docked = furlK >= 1 && !departing;
     ctx.save(); ctx.globalAlpha = 0.2; var ro = shipOpts(inst, pp, t, 1); ro.furl = furlK; ro.reflect = true; ro.roll = -roll; MTShip.draw(ctx, shx, shy + bob + 5 * sc, sc, ro); ctx.restore();
     MTShip.draw(ctx, shx, shy + bob, sc, so);
     MTShip.foam(ctx, shx, shy + bob, sc, 1, t, departing ? moveK : 0.15, 0.6);
@@ -3312,7 +3318,7 @@ var MTScene = (function () {
       sx = U.lerp(-W * 0.3, sx, 1 - Math.pow(1 - inst.seaIntroT, 3));
     }
     var bob = Math.sin(t * 1.4) * H * 0.006, roll = Math.sin(t * 1.1) * 0.035 + (inst.encounter ? Math.sin(t * 2.3) * 0.02 : 0);
-    var so = shipOpts(inst, p, t, 1); so.furl = 0; so.roll = roll;
+    var so = shipOpts(inst, p, t, 1); so.furl = 0; so.roll = roll; so.moving = 1;
     ctx.save(); ctx.globalAlpha = 0.16;
     var ro = shipOpts(inst, p, t, 1); ro.reflect = true; ro.roll = -roll;
     MTShip.draw(ctx, sx, sy + bob + 6 * sc, sc, ro); ctx.restore();
