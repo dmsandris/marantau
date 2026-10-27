@@ -381,10 +381,16 @@ language sql stable as $$
   select greatest(0, round(coalesce(i.price_admin, i.price) * game.cfg_num('KedaiPriceMul', 1)))::int from game.kd_items i where i.id = p_id
 $$;
 -- syarat beli (req): {"kisah": "<id bab>"} = bab Kisah Lapau sudah tamat
+-- plpgsql (bukan sql): badan fungsi baru diperiksa saat dipanggil, jadi aman bila kisah_done
+-- belum ada saat migrasi ini dijalankan (mis. Supabase Preview yang tidak menjalankan ulang 0001b).
 create or replace function game.kd_req_ok(p_pid uuid, p_id text) returns boolean
-language sql stable as $$
-  select coalesce((select case when i.req ? 'kisah' then game.kisah_done(p_pid, i.req ->> 'kisah') else true end from game.kd_items i where i.id = p_id), true)
-$$;
+language plpgsql stable as $$
+declare r jsonb;
+begin
+  select i.req into r from game.kd_items i where i.id = p_id;
+  if r is null or not (r ? 'kisah') then return true; end if;
+  return game.kisah_done(p_pid, r ->> 'kisah');
+end $$;
 create or replace function game.kd_qty(p_pid uuid, p_id text) returns int
 language sql stable as $$ select coalesce((select qty from game.kd_owned where player_id = p_pid and item_id = p_id), 0) $$;
 create or replace function game.kd_grant(p_pid uuid, p_id text, p_qty int, p_src text) returns void
