@@ -27,7 +27,7 @@
   }
   // Endpoint yang boleh dipanggil tanpa login (sisanya butuh sesi)
   var PUBLIC = { api_ping: 1, api_gettitlescreenconfig: 1, api_getsailingbackgroundurl: 1, api_getcities: 1,
-    api_getarchetypes: 1, api_authwhoami: 1, api_usernameavailable: 1, api_legacycheck: 1 };
+    api_getarchetypes: 1, api_authwhoami: 1, api_usernameavailable: 1, api_legacycheck: 1, api_gmstatus: 1 };
   async function rpc(name, args) {
     var fn = String(name).toLowerCase();
     if (!PUBLIC[fn]) {
@@ -36,7 +36,13 @@
       if (!s.data || !s.data.session) throw err(AUTH_MSG);
     }
     var r = await sb.rpc(fn, { a: args || [] });
-    if (r.error) throw mapError(r.error);
+    if (r.error) {
+      // Tide v38: server sedang pemeliharaan -> tampilkan layar maintenis, panggilan ini dibiarkan menggantung
+      // (tidak memunculkan pesan error di game; halaman dimuat ulang saat pelabuhan dibuka).
+      if (r.error.code === 'MT_MAINT' && window.MTGM) { MTGM.blocked(r.error.details); return new Promise(function () {}); }
+      throw mapError(r.error);
+    }
+    if (fn === 'api_mppulse' && r.data && window.MTGM) { try { MTGM.onPulse(r.data.gm); } catch (e) {} }
     return r.data;
   }
   async function legacyMove(u, p) {
@@ -101,6 +107,8 @@
     api_rpc: function (name, args) { return call(name, args || []); }
   };
   function call(name, args) {
+    // Perintah GM di kotak chat: "/gm pesan", "/gm! pesan", "/panel"
+    if (name === 'api_mpChat' && window.MTGM && /^\s*\//.test(String(args && args[1] || ''))) return MTGM.chatCommand(args[1]);
     if (LOCAL[name]) return Promise.resolve().then(function () { return LOCAL[name].apply(null, args); });
     return rpc(name, args);
   }

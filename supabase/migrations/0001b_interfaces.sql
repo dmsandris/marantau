@@ -352,3 +352,7 @@ create or replace function game.kisah_done(p_pid uuid, p_kisah text) returns boo
 language plpgsql stable as $$ begin return false; end $$;
 create or replace function game.pacu_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Tide v38 · GM & Pemeliharaan / 0036] pengumuman GM + status pemeliharaan untuk denyut multiplayer.
+-- null = tidak ada apa-apa (tidak menambah isi jawaban pulse).
+create or replace function game.gm_pulse(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
