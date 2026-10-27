@@ -665,7 +665,7 @@ begin
     't', game.now_ms(), 'me', jsonb_build_object('c', info.c, 'sea', info.sea),
     'here', v_here, 'online', v_online, 'onlineList', v_list, 'mePub', info.pub,
     'chat', jsonb_build_object('g', ch_g, 'c', ch_c),
-    'inbox', v_inbox, 'duel', v_duel);
+    'inbox', v_inbox, 'duel', v_duel, 'gm', game.gm_pulse(v_id));
 end $$;
 select game.expose('api_mppulse');
 

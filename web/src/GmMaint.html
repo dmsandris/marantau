@@ -1,0 +1,491 @@
+<!--
+  GmMaint.html — Tide v38 · Pengumuman GM, Mode Pemeliharaan, Cek Versi Klien  (MTGM)
+  ------------------------------------------------------------------------------
+  * Layar "Maintenis dulu ya gaes" menutup SELURUH game (juga layar judul) selama
+    pemeliharaan. Pemain tidak bisa masuk; layar memeriksa status tiap 15 detik dan
+    memuat ulang halaman sendiri saat pelabuhan dibuka.
+  * Banner GM di atas semua layar (termasuk sinematik & mini-game). Darurat = modal.
+  * Panel GM (hanya akun GM) + perintah chat: /gm pesan · /gm! pesan (darurat) · /panel
+  * Cek versi: membaca version.json; kalau ada build baru -> banner + muat ulang otomatis.
+  Data datang dari: jawaban api_mpPulse (field gm, dioper oleh mt-supabase.js),
+  api_gmStatus (publik, saat belum login / pulse tidak jalan), dan error MT_MAINT.
+-->
+<style>
+  #mtMaint { position: fixed; inset: 0; z-index: 2147483000; display: none; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 18%, #1d3a55 0%, #0d1d2c 46%, #060c14 100%);
+    color: var(--parch-100, #f4e7c8); font-family: var(--font-body, Georgia, serif); }
+  #mtMaint.open { display: grid; place-items: center; animation: mtmIn .5s ease both; }
+  @keyframes mtmIn { from { opacity: 0; } to { opacity: 1; } }
+  #mtMaint .mtm-stars { position: absolute; inset: 0 0 45% 0; pointer-events: none;
+    background-image: radial-gradient(1.4px 1.4px at 12% 22%, #fff8 50%, transparent 51%), radial-gradient(1px 1px at 28% 12%, #fff6 50%, transparent 51%),
+      radial-gradient(1.6px 1.6px at 47% 30%, #fffa 50%, transparent 51%), radial-gradient(1px 1px at 63% 9%, #fff7 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 79% 26%, #fff9 50%, transparent 51%), radial-gradient(1px 1px at 91% 14%, #fff5 50%, transparent 51%),
+      radial-gradient(1px 1px at 6% 40%, #fff5 50%, transparent 51%), radial-gradient(1.2px 1.2px at 70% 38%, #fff6 50%, transparent 51%);
+    animation: mtmTw 4s ease-in-out infinite alternate; }
+  @keyframes mtmTw { from { opacity: .55; } to { opacity: 1; } }
+  #mtMaint .mtm-card { position: relative; width: min(560px, calc(100vw - 32px)); text-align: center; padding: 8px 0 24px; }
+  #mtMaint .mtm-stage { position: relative; width: min(340px, 78vw); aspect-ratio: 1 / 1; margin: 0 auto 6px; }
+  #mtMaint .mtm-stage::before { content: ''; position: absolute; inset: 6%; border-radius: 50%;
+    background: radial-gradient(circle at 50% 45%, rgba(240,207,120,.16), rgba(240,207,120,.03) 62%, transparent 70%);
+    box-shadow: inset 0 0 0 2px rgba(240,207,120,.18); }
+  #mtMaint .mtm-scene { position: absolute; inset: 0; opacity: 0; transform: scale(.94); transition: opacity .7s ease, transform .9s ease; }
+  #mtMaint .mtm-scene.on { opacity: 1; transform: none; }
+  #mtMaint .mtm-scene svg { width: 100%; height: 100%; display: block; }
+  #mtMaint h1 { font-family: var(--font-display, Georgia, serif); font-weight: 400; color: var(--brass-300, #f0cf78);
+    font-size: clamp(30px, 7vw, 46px); line-height: 1.05; margin: 4px 0 6px; text-shadow: 0 3px 0 #0008, 0 0 24px rgba(240,207,120,.25); }
+  #mtMaint .mtm-sub { font-size: clamp(16px, 3.6vw, 19px); color: var(--parch-200, #e8d6aa); margin: 0 0 18px; }
+  #mtMaint .mtm-cap { font-family: var(--font-title, Georgia, serif); letter-spacing: .06em; font-size: 13px; text-transform: uppercase;
+    color: var(--sea-200, #a9dcec); min-height: 1.4em; margin: 0 0 10px; transition: opacity .3s; }
+  #mtMaint .mtm-rope { position: relative; height: 10px; width: min(320px, 74vw); margin: 0 auto 18px; border-radius: 6px;
+    background: repeating-linear-gradient(115deg, #8f6522 0 6px, #b8862b 6px 12px); box-shadow: inset 0 1px 2px #0009, 0 1px 0 #ffffff14; overflow: hidden; }
+  #mtMaint .mtm-rope i { position: absolute; top: -3px; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3c4, #d3a342 60%, #4a320c);
+    box-shadow: 0 0 10px rgba(240,207,120,.7); animation: mtmKnot 2.4s ease-in-out infinite; }
+  @keyframes mtmKnot { 0% { left: -16px; } 50% { left: calc(100% - 0px); } 100% { left: -16px; } }
+  #mtMaint .mtm-info { display: grid; gap: 8px; justify-items: center; }
+  #mtMaint .mtm-pill { display: inline-flex; gap: 8px; align-items: center; padding: 7px 14px; border-radius: 999px; font-size: 15px;
+    background: rgba(240,207,120,.1); border: 1px solid rgba(240,207,120,.28); color: var(--brass-100, #fbeabb); }
+  #mtMaint .mtm-pill b { font-family: var(--font-title, Georgia, serif); color: var(--brass-300, #f0cf78); }
+  #mtMaint .mtm-gm { max-width: 440px; font-style: italic; color: var(--parch-100, #f4e7c8); font-size: 16px; }
+  #mtMaint .mtm-gm::before { content: 'GM: '; font-style: normal; font-family: var(--font-title, Georgia, serif); font-weight: 700; color: var(--brass-300, #f0cf78); }
+  #mtMaint .mtm-foot { margin-top: 16px; font-size: 13px; color: rgba(232,214,170,.55); }
+  #mtMaint .mtm-foot button { font: inherit; color: var(--sea-200, #a9dcec); background: none; border: 0; text-decoration: underline; cursor: pointer; padding: 4px; }
+
+  /* banner GM & versi */
+  #mtGmBars { position: fixed; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 2147482000;
+    display: grid; gap: 6px; width: min(620px, calc(100vw - 16px)); pointer-events: none; }
+  .mtg-bar { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 12px; border-radius: 10px;
+    background: linear-gradient(180deg, #2a1d10f2, #170e09f2); border: 1px solid rgba(240,207,120,.55); color: var(--parch-100, #f4e7c8);
+    box-shadow: 0 8px 24px #000a, inset 0 1px 0 #ffffff1a; font-family: var(--font-body, Georgia, serif); font-size: 15px; line-height: 1.3;
+    animation: mtgDrop .45s cubic-bezier(.2,.9,.3,1.2) both; }
+  @keyframes mtgDrop { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+  .mtg-bar.warn { border-color: #e0a43c; background: linear-gradient(180deg, #3a2408f5, #1e1204f5); }
+  .mtg-bar.urgent { border-color: #e06a4a; background: linear-gradient(180deg, #431a10f5, #200b06f5); }
+  .mtg-bar.ver { border-color: var(--sea-300, #7cc3dc); background: linear-gradient(180deg, #10303ef5, #0b1520f5); }
+  .mtg-chip { flex: none; font-family: var(--font-title, Georgia, serif); font-weight: 900; font-size: 11px; letter-spacing: .08em; padding: 4px 7px; border-radius: 6px;
+    background: var(--brass-300, #f0cf78); color: #2a1a06; }
+  .mtg-bar.warn .mtg-chip { background: #f0b04a; } .mtg-bar.urgent .mtg-chip { background: #ff8a66; } .mtg-bar.ver .mtg-chip { background: var(--sea-200, #a9dcec); }
+  .mtg-tx { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .mtg-cd { display: block; font-family: var(--font-title, Georgia, serif); font-size: 12.5px; letter-spacing: .03em; color: var(--brass-300, #f0cf78); margin-top: 2px; }
+  .mtg-bar.ver .mtg-cd { color: var(--sea-200, #a9dcec); }
+  .mtg-btn { flex: none; font-family: var(--font-title, Georgia, serif); font-weight: 700; font-size: 12px; padding: 7px 10px; border-radius: 7px; cursor: pointer;
+    border: 1px solid rgba(240,207,120,.6); background: rgba(240,207,120,.14); color: var(--brass-100, #fbeabb); min-height: 32px; }
+  .mtg-x { flex: none; width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; color: rgba(244,231,200,.7); font-size: 20px; line-height: 1; cursor: pointer; }
+  .mtg-x:hover, .mtg-btn:hover { background: rgba(255,255,255,.08); }
+
+  /* modal darurat */
+  #mtGmUrgent { position: fixed; inset: 0; z-index: 2147482500; display: none; place-items: center; background: rgba(4,6,12,.72); padding: 16px; }
+  #mtGmUrgent.open { display: grid; animation: mtmIn .25s ease both; }
+  #mtGmUrgent .mtu-box { width: min(440px, 100%); text-align: center; padding: 22px 20px 18px; border-radius: 14px; color: var(--parch-100, #f4e7c8);
+    background: linear-gradient(180deg, #3a1a10, #1a0b06); border: 2px solid #e06a4a; box-shadow: 0 20px 60px #000c; font-family: var(--font-body, Georgia, serif); }
+  #mtGmUrgent h2 { margin: 0 0 8px; font-family: var(--font-display, Georgia, serif); font-weight: 400; font-size: 32px; color: #ffb08f; }
+  #mtGmUrgent p { margin: 0 0 6px; font-size: 18px; overflow-wrap: anywhere; }
+  #mtGmUrgent .mtg-cd { margin: 4px 0 14px; font-size: 14px; }
+  #mtGmUrgent button { font-family: var(--font-title, Georgia, serif); font-weight: 700; font-size: 15px; padding: 10px 28px; border-radius: 9px; cursor: pointer;
+    border: 1px solid #ffb08f; background: #e06a4a; color: #200b06; min-height: 44px; }
+
+  /* tombol & panel GM */
+  #mtGmBtn { position: fixed; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 2147481000; display: none;
+    width: 46px; height: 46px; border-radius: 50%; cursor: pointer; font-family: var(--font-title, Georgia, serif); font-weight: 900; font-size: 14px; letter-spacing: .04em;
+    color: #2a1a06; background: radial-gradient(circle at 35% 30%, #fff3c4, #d3a342 60%, #8f6522); border: 2px solid #4a320c; box-shadow: 0 6px 16px #000a; }
+  #mtGmBtn.on { display: block; }
+  #mtGmBtn.maint { animation: mtgPulse 1.6s ease-in-out infinite; }
+  @keyframes mtgPulse { 50% { box-shadow: 0 0 0 7px rgba(224,106,74,.35), 0 6px 16px #000a; } }
+  #mtGmPanel { position: fixed; inset: 0; z-index: 2147482400; display: none; place-items: center; background: rgba(4,6,12,.6); padding: 12px; }
+  #mtGmPanel.open { display: grid; }
+  #mtGmPanel .mtp-box { width: min(480px, 100%); max-height: calc(100vh - 24px); overflow: auto; border-radius: 14px; padding: 16px; color: var(--parch-ink, #33230f);
+    background: linear-gradient(180deg, var(--parch-50, #fcf6e6), var(--parch-100, #f4e7c8)); border: 2px solid var(--teak-500, #6b4629); box-shadow: 0 20px 60px #000c;
+    font-family: var(--font-body, Georgia, serif); font-size: 15px; }
+  #mtGmPanel h3 { margin: 0 0 2px; font-family: var(--font-title, Georgia, serif); font-size: 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #mtGmPanel h4 { margin: 16px 0 8px; font-family: var(--font-title, Georgia, serif); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--teak-600, #4f331e);
+    border-top: 1px solid rgba(79,51,30,.25); padding-top: 12px; }
+  #mtGmPanel .mtp-st { font-size: 14px; color: var(--parch-muted, #7b6445); margin: 0 0 4px; }
+  #mtGmPanel .mtp-st.on { color: #a3361e; font-weight: 700; }
+  #mtGmPanel textarea, #mtGmPanel input, #mtGmPanel select { font: inherit; width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid rgba(79,51,30,.45); background: #fffdf6; color: var(--parch-ink, #33230f); min-height: 40px; }
+  #mtGmPanel textarea { resize: vertical; min-height: 64px; }
+  #mtGmPanel .mtp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  #mtGmPanel label { display: grid; gap: 3px; font-size: 13px; color: var(--teak-600, #4f331e); }
+  #mtGmPanel .mtp-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  #mtGmPanel .mtp-acts button { flex: 1 1 auto; font-family: var(--font-title, Georgia, serif); font-weight: 700; font-size: 13px; padding: 10px 12px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--teak-600, #4f331e); background: var(--teak-700, #372316); color: var(--brass-100, #fbeabb); min-height: 42px; }
+  #mtGmPanel .mtp-acts button.alt { background: transparent; color: var(--teak-700, #372316); }
+  #mtGmPanel .mtp-acts button.red { background: #a3361e; border-color: #6e1f0f; color: #fff2ea; }
+  #mtGmPanel .mtp-acts button:disabled { opacity: .5; cursor: wait; }
+  #mtGmPanel .mtp-x { border: 0; background: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--teak-600, #4f331e); width: 36px; height: 36px; }
+  #mtGmPanel .mtp-msg { min-height: 1.3em; font-size: 13.5px; margin-top: 8px; color: #2f6b2f; }
+  #mtGmPanel .mtp-msg.err { color: #a3361e; }
+  #mtGmPanel .mtp-hint { font-size: 12.5px; color: var(--parch-muted, #7b6445); margin-top: 10px; }
+
+  #mtMaintGmBar { position: fixed; top: 0; left: 0; right: 0; z-index: 2147482100; display: none; text-align: center; padding: 3px 8px;
+    font-family: var(--font-title, Georgia, serif); font-size: 12px; font-weight: 700; letter-spacing: .05em; color: #fff2ea; background: repeating-linear-gradient(135deg, #a3361e 0 14px, #7a2512 14px 28px); }
+  #mtMaintGmBar.on { display: block; }
+  #mtMaintGmBar.on ~ #mtGmBars { top: calc(28px + env(safe-area-inset-top, 0px)); }
+
+  @media (prefers-reduced-motion: reduce) {
+    #mtMaint *, #mtMaint, .mtg-bar, #mtGmBtn { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div id="mtMaint" role="alertdialog" aria-modal="true" aria-labelledby="mtmTitle" aria-describedby="mtmSub">
+  <div class="mtm-stars"></div>
+  <div class="mtm-card">
+    <div class="mtm-stage" id="mtmStage" aria-hidden="true"></div>
+    <div class="mtm-cap" id="mtmCap" aria-live="polite"></div>
+    <div class="mtm-rope" aria-hidden="true"><i></i></div>
+    <h1 id="mtmTitle">Maintenis dulu ya gaes</h1>
+    <p class="mtm-sub" id="mtmSub">kembali sebentar lagi.</p>
+    <div class="mtm-info">
+      <div class="mtm-gm" id="mtmGm" hidden></div>
+      <div class="mtm-pill" id="mtmEta" hidden></div>
+    </div>
+    <div class="mtm-foot">Halaman akan dimuat ulang sendiri begitu pelabuhan dibuka. <button type="button" id="mtmRetry">Cek sekarang</button></div>
+  </div>
+</div>
+<div id="mtMaintGmBar">MODE PEMELIHARAAN AKTIF &middot; pemain lain tidak bisa masuk &middot; kamu GM</div>
+<div id="mtGmBars" aria-live="polite"></div>
+<div id="mtGmUrgent" role="alertdialog" aria-modal="true" aria-labelledby="mtuTitle">
+  <div class="mtu-box"><h2 id="mtuTitle">Pengumuman GM</h2><p id="mtuTx"></p><span class="mtg-cd" id="mtuCd"></span><button type="button" id="mtuOk">Siap, mengerti!</button></div>
+</div>
+<button type="button" id="mtGmBtn" title="Panel GM" aria-label="Buka panel GM">GM</button>
+<div id="mtGmPanel" role="dialog" aria-modal="true" aria-labelledby="mtpTitle">
+  <div class="mtp-box">
+    <h3><span id="mtpTitle">Panel GM</span><button type="button" class="mtp-x" id="mtpX" aria-label="Tutup">&times;</button></h3>
+
+    <h4>Pengumuman ke semua layar</h4>
+    <textarea id="mtpTx" maxlength="240" placeholder="Contoh: Server akan direset pukul 14.00, simpan daganganmu ya Kapten!"></textarea>
+    <div class="mtp-row">
+      <label>Jenis<select id="mtpLvl"><option value="info">Info</option><option value="warn">Penting</option><option value="urgent">Darurat (muncul di tengah layar)</option></select></label>
+      <label>Hitung mundur ke jam (opsional)<input type="time" id="mtpAt"></label>
+    </div>
+    <div class="mtp-row">
+      <label>Tampil selama (menit)<input type="number" id="mtpMin" min="1" max="1440" value="10"></label>
+      <span></span>
+    </div>
+    <div class="mtp-acts"><button type="button" id="mtpSay">Kirim ke semua layar</button><button type="button" class="alt" id="mtpClear">Hapus semua pengumuman</button></div>
+
+    <h4>Mode pemeliharaan</h4>
+    <p class="mtp-st" id="mtpSt">Status: normal</p>
+    <label>Pesan di layar maintenis (opsional)<input type="text" id="mtpMTx" maxlength="240" placeholder="Contoh: Lagi pasang pulau baru"></label>
+    <div class="mtp-row">
+      <label>Mulai jam (kosong = sekarang)<input type="time" id="mtpMStart"></label>
+      <label>Perkiraan lama (menit)<input type="number" id="mtpMDur" min="0" max="600" placeholder="mis. 30"></label>
+    </div>
+    <div class="mtp-acts"><button type="button" class="red" id="mtpMOn">Tutup pelabuhan</button><button type="button" id="mtpMOff">Buka kembali</button></div>
+    <div class="mtp-msg" id="mtpMsg" aria-live="polite"></div>
+    <div class="mtp-hint">Lewat chat juga bisa: <b>/gm pesan</b> &middot; <b>/gm! pesan</b> (darurat) &middot; <b>/panel</b>. Saat pemeliharaan, kamu tetap bisa main untuk menguji.</div>
+  </div>
+</div>
+
+<script>
+var MTGM = (function () {
+  'use strict';
+  var ST = { data: null, lastPulse: 0, isGm: false, blocked: false, maint: null, timer: 0, tick: 0, pollBusy: false,
+             urgentShown: {}, verNew: null, verAt: 0, verChecked: 0, sceneIdx: 0, sceneTimer: 0, dueTimer: 0 };
+  var DKEY = 'mt_gm_dismiss_v1', UKEY = 'mt_gm_urgent_v1';
+  var dismissed = load(DKEY), urgentSeen = load(UKEY);
+  function load(k) { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } }
+  function save(k, v) { try { var ks = Object.keys(v); if (ks.length > 40) ks.slice(0, ks.length - 40).forEach(function (x) { delete v[x]; }); localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function now() { return Date.now() - (ST.skew || 0); }      // jam server (kira-kira)
+  function hhmm(ms) { var d = new Date(Math.round((ms + (ST.skew || 0)) / 60000) * 60000); return ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2); }
+  function left(ms) {
+    var s = Math.max(0, Math.round((ms - now()) / 1000));
+    if (s >= 3600) return Math.floor(s / 3600) + ' jam ' + Math.floor((s % 3600) / 60) + ' menit';
+    if (s >= 60) return Math.floor(s / 60) + ' menit ' + ('0' + (s % 60)).slice(-2) + ' detik';
+    return s + ' detik';
+  }
+  function sfx(n) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n); } catch (e) {} }
+  function rpc(name, args) {
+    return new Promise(function (ok, fail) { google.script.run.withSuccessHandler(ok).withFailureHandler(fail)[name].apply(null, args || []); });
+  }
+
+  /* ---------- data masuk ---------- */
+  function apply(d, fromPulse) {
+    if (fromPulse) ST.lastPulse = Date.now();
+    d = d || {};
+    if (d.t) ST.skew = Date.now() - d.t;
+    ST.data = d;
+    ST.isGm = !!d.gm;
+    ST.maint = d.m || null;
+    if (ST.maint && ST.maint.on && !ST.isGm) { showMaint(ST.maint); }
+    else if (ST.blocked && (!ST.maint || !ST.maint.on || ST.isGm)) { reopen(); return; }
+    $('mtMaintGmBar').classList.toggle('on', !!(ST.isGm && ST.maint && ST.maint.on));
+    var btn = $('mtGmBtn'); btn.classList.toggle('on', ST.isGm); btn.classList.toggle('maint', !!(ST.isGm && ST.maint && ST.maint.on));
+    renderBars();
+    if ($('mtGmPanel').classList.contains('open')) panelStatus();
+    // jadwal pemeliharaan: tanya server tepat saat jamnya tiba
+    clearTimeout(ST.dueTimer);
+    if (ST.maint && !ST.maint.on && ST.maint.startAt) {
+      var ms = ST.maint.startAt - now() + 1500;
+      if (ms < 2147000000) ST.dueTimer = setTimeout(poll, Math.max(500, ms));
+    }
+  }
+  function onPulse(gm) { apply(gm, true); }
+
+  /* ---------- layar maintenis ---------- */
+  var SCENES = [
+    ['Menambal lambung kapal…', function () {
+      return '<svg viewBox="0 0 200 200"><defs><linearGradient id="mtw1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7fa3"/><stop offset="1" stop-color="#0e2a3a"/></linearGradient></defs>' +
+        '<path d="M20 150 Q100 140 180 150 L180 178 Q100 186 20 178Z" fill="#4f331e"/><path d="M20 150 Q100 140 180 150" stroke="#8f6522" stroke-width="3" fill="none"/>' +
+        '<g><animateTransform attributeName="transform" type="rotate" values="-2 100 120;2 100 120;-2 100 120" dur="3.2s" repeatCount="indefinite"/>' +
+        '<path d="M40 112 L160 112 L146 140 Q100 150 54 140Z" fill="#6b4629" stroke="#24170f" stroke-width="3"/><path d="M50 122 H150" stroke="#372316" stroke-width="2"/>' +
+        '<rect x="96" y="40" width="6" height="74" fill="#372316"/><path d="M102 46 L148 100 L102 100Z" fill="#e8d6aa" stroke="#7b6445" stroke-width="2"/><path d="M96 54 L62 100 L96 100Z" fill="#d6bd87" stroke="#7b6445" stroke-width="2"/>' +
+        '<path d="M102 40 l14 5 -14 5z" fill="#b23a2a"/><rect x="118" y="122" width="16" height="10" rx="2" fill="#d3a342" opacity=".9"/></g>' +
+        '<g transform="translate(140 128)"><g><animateTransform attributeName="transform" type="rotate" values="-35;10;-35" dur=".7s" repeatCount="indefinite"/>' +
+        '<rect x="-2" y="-30" width="4" height="30" rx="2" fill="#8f6522"/><rect x="-9" y="-36" width="18" height="9" rx="2" fill="#9aa7b2" stroke="#33404a" stroke-width="1.5"/></g></g>' +
+        '<g fill="#ffd36b"><circle cx="130" cy="130" r="2"><animate attributeName="opacity" values="0;1;0" dur=".7s" repeatCount="indefinite"/></circle>' +
+        '<circle cx="124" cy="124" r="1.5"><animate attributeName="opacity" values="0;1;0" dur=".7s" begin=".15s" repeatCount="indefinite"/></circle>' +
+        '<circle cx="134" cy="121" r="1.3"><animate attributeName="opacity" values="0;1;0" dur=".7s" begin=".3s" repeatCount="indefinite"/></circle></g></svg>';
+    }],
+    ['Menjahit layar yang robek…', function () {
+      return '<svg viewBox="0 0 200 200"><rect x="98" y="22" width="5" height="150" fill="#372316"/><rect x="60" y="30" width="80" height="4" rx="2" fill="#4f331e"/>' +
+        '<path d="M64 34 Q102 44 136 34 Q146 92 136 150 Q102 140 64 150 Q54 92 64 34Z" fill="#f4e7c8" stroke="#7b6445" stroke-width="2.5">' +
+        '<animate attributeName="d" dur="3s" repeatCount="indefinite" values="M64 34 Q102 44 136 34 Q146 92 136 150 Q102 140 64 150 Q54 92 64 34Z;M64 34 Q102 40 136 34 Q152 92 136 150 Q102 144 64 150 Q60 92 64 34Z;M64 34 Q102 44 136 34 Q146 92 136 150 Q102 140 64 150 Q54 92 64 34Z"/></path>' +
+        '<path d="M84 70 L116 112" stroke="#b23a2a" stroke-width="3" stroke-dasharray="5 4" fill="none"/>' +
+        '<path d="M84 70 L116 112" stroke="#33230f" stroke-width="1.2" stroke-dasharray="0 9" stroke-linecap="round" fill="none"><animate attributeName="stroke-dashoffset" values="0;-36" dur="2.4s" repeatCount="indefinite"/></path>' +
+        '<g><animateMotion dur="2.4s" repeatCount="indefinite" path="M84 70 L116 112 L84 70"/><path d="M-2 -12 L2 -12 L1 10 L-1 10Z" fill="#c9d3da" stroke="#33404a" stroke-width="1"/><circle cy="-9" r="1.2" fill="#33404a"/></g>' +
+        '<path d="M40 176 Q70 168 100 176 T160 176" stroke="#7cc3dc" stroke-width="3" fill="none" opacity=".6"/></svg>';
+    }],
+    ['Menghitung ulang harga rempah…', function () {
+      return '<svg viewBox="0 0 200 200"><rect x="97" y="58" width="6" height="96" fill="#8f6522"/><path d="M70 160 H130 L120 150 H80Z" fill="#6b4629"/><circle cx="100" cy="56" r="6" fill="#d3a342"/>' +
+        '<g><animateTransform attributeName="transform" type="rotate" values="-9 100 60;9 100 60;-9 100 60" dur="3s" repeatCount="indefinite"/>' +
+        '<rect x="44" y="58" width="112" height="5" rx="2" fill="#b8862b"/>' +
+        '<g><animateTransform attributeName="transform" type="rotate" values="9 50 60;-9 50 60;9 50 60" dur="3s" repeatCount="indefinite"/><path d="M50 60 L34 100 M50 60 L66 100" stroke="#8f6522" stroke-width="1.5"/><path d="M28 100 H72 Q66 114 50 114 Q34 114 28 100Z" fill="#d3a342" stroke="#4a320c" stroke-width="2"/>' +
+        '<circle cx="42" cy="96" r="5" fill="#b23a2a"/><circle cx="52" cy="94" r="5" fill="#8e3d1a"/><circle cx="60" cy="97" r="4" fill="#a8521f"/></g>' +
+        '<g><animateTransform attributeName="transform" type="rotate" values="9 150 60;-9 150 60;9 150 60" dur="3s" repeatCount="indefinite"/><path d="M150 60 L134 100 M150 60 L166 100" stroke="#8f6522" stroke-width="1.5"/><path d="M128 100 H172 Q166 114 150 114 Q134 114 128 100Z" fill="#d3a342" stroke="#4a320c" stroke-width="2"/>' +
+        '<g fill="#f0cf78" stroke="#8f6522" stroke-width="1.5"><ellipse cx="144" cy="97" rx="7" ry="3"/><ellipse cx="156" cy="97" rx="7" ry="3"/><ellipse cx="150" cy="93" rx="7" ry="3"/></g></g></g>' +
+        '<g fill="#f0cf78" stroke="#8f6522" stroke-width="1.5"><ellipse cx="150" cy="30" rx="7" ry="3"><animate attributeName="cy" values="20;92;92" keyTimes="0;.5;1" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;.5;.6" dur="3s" repeatCount="indefinite"/></ellipse></g></svg>';
+    }],
+    ['Memberi makan pelikan pengantar surat…', function () {
+      return '<svg viewBox="0 0 200 200"><path d="M10 160 Q55 150 100 160 T190 160 V200 H10Z" fill="#1a4d69"/><path d="M10 160 Q55 150 100 160 T190 160" stroke="#7cc3dc" stroke-width="3" fill="none"><animate attributeName="d" dur="3s" repeatCount="indefinite" values="M10 160 Q55 150 100 160 T190 160;M10 160 Q55 168 100 158 T190 162;M10 160 Q55 150 100 160 T190 160"/></path>' +
+        '<rect x="30" y="128" width="70" height="8" fill="#6b4629"/><rect x="38" y="136" width="6" height="30" fill="#4f331e"/><rect x="86" y="136" width="6" height="30" fill="#4f331e"/>' +
+        '<g><animateTransform attributeName="transform" type="translate" values="0 0;0 -3;0 0" dur="1.6s" repeatCount="indefinite"/>' +
+        '<ellipse cx="128" cy="108" rx="26" ry="18" fill="#f4e7c8" stroke="#7b6445" stroke-width="2"/><path d="M110 104 Q118 92 132 100" fill="#e8d6aa" stroke="#7b6445" stroke-width="2"/>' +
+        '<circle cx="148" cy="84" r="11" fill="#f4e7c8" stroke="#7b6445" stroke-width="2"/><circle cx="151" cy="81" r="2" fill="#33230f"/>' +
+        '<g><animateTransform attributeName="transform" type="rotate" values="0 156 86;-18 156 86;0 156 86" dur="1.6s" repeatCount="indefinite"/><path d="M156 84 L190 90 Q176 104 156 92Z" fill="#f0b04a" stroke="#8f6522" stroke-width="1.5"/></g>' +
+        '<path d="M120 126 l-4 10 M134 126 l2 10" stroke="#f0b04a" stroke-width="3" stroke-linecap="round"/></g>' +
+        '<g><animateMotion dur="1.6s" repeatCount="indefinite" path="M64 120 Q120 40 178 92"/><path d="M-8 0 Q0 -5 8 0 Q0 5 -8 0Z" fill="#9aa7b2"/><path d="M8 0 l5 -4 v8z" fill="#9aa7b2"/></g></svg>';
+    }],
+    ['Membersihkan teritip di dermaga…', function () {
+      return '<svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="62" fill="none" stroke="#d3a342" stroke-width="5"/><circle cx="100" cy="100" r="54" fill="#0b1520" stroke="#8f6522" stroke-width="2"/>' +
+        '<g fill="#f0cf78" font-family="Georgia,serif" font-size="14" font-weight="700" text-anchor="middle"><text x="100" y="60">U</text><text x="100" y="150">S</text><text x="146" y="105">T</text><text x="54" y="105">B</text></g>' +
+        '<g><animateTransform attributeName="transform" type="rotate" values="0 100 100;200 100 100;150 100 100;360 100 100" keyTimes="0;.45;.7;1" dur="4s" repeatCount="indefinite"/>' +
+        '<path d="M100 56 L108 100 L100 144 L92 100Z" fill="#b23a2a"/><path d="M100 100 L108 100 L100 144 L92 100Z" fill="#e8d6aa"/><circle cx="100" cy="100" r="5" fill="#d3a342" stroke="#4a320c" stroke-width="2"/></g></svg>';
+    }]
+  ];
+  function startScenes() {
+    var stage = $('mtmStage');
+    if (!stage.children.length) stage.innerHTML = SCENES.map(function (s) { return '<div class="mtm-scene">' + s[1]() + '</div>'; }).join('');
+    var show = function () {
+      var els = stage.children; for (var i = 0; i < els.length; i++) els[i].classList.toggle('on', i === ST.sceneIdx);
+      $('mtmCap').textContent = SCENES[ST.sceneIdx][0];
+      ST.sceneIdx = (ST.sceneIdx + 1) % SCENES.length;
+    };
+    clearInterval(ST.sceneTimer); show(); ST.sceneTimer = setInterval(show, 3400);
+  }
+  function showMaint(info) {
+    info = info || {};
+    var ov = $('mtMaint'), first = !ov.classList.contains('open');
+    ST.blocked = true; ST.maint = info.on ? info : (ST.maint || info);
+    var gm = $('mtmGm'); gm.hidden = !info.tx; gm.textContent = info.tx || '';
+    updEta();
+    if (first) {
+      ov.classList.add('open'); startScenes();
+      // kunci game di belakang: tutup modal & hentikan suara
+      try { document.activeElement && document.activeElement.blur(); } catch (e) {}
+      try { if (window.MTAudio && MTAudio.set && MTAudio.prefs && MTAudio.prefs().on) { ST.audioWas = true; MTAudio.set('on', false); } } catch (e) {}
+      $('mtGmBars').innerHTML = ''; $('mtGmUrgent').classList.remove('open');
+      setTimeout(function () { try { $('mtmRetry').focus({ preventScroll: true }); } catch (e) {} }, 50);
+    }
+    schedule(15000);
+  }
+  function updEta() {
+    var eta = $('mtmEta'), m = ST.maint || {};
+    if (m.endAt && m.endAt > now()) { eta.hidden = false; var mn = Math.max(1, Math.ceil((m.endAt - now()) / 60000)); eta.innerHTML = 'Perkiraan buka pukul <b>' + hhmm(m.endAt) + '</b> &middot; ± ' + (mn >= 60 ? Math.floor(mn / 60) + ' jam ' + (mn % 60) + ' menit' : mn + ' menit') + ' lagi'; }
+    else if (m.endAt) { eta.hidden = false; eta.innerHTML = 'Sebentar lagi, Kapten&hellip; kru masih <b>beres-beres</b>'; }
+    else eta.hidden = true;
+  }
+  // Pelabuhan dibuka: muat ulang (sekalian dapat versi game terbaru)
+  function reopen() {
+    if (ST.reloading) return; ST.reloading = true;
+    $('mtmTitle').textContent = 'Pelabuhan dibuka!'; $('mtmSub').textContent = 'Menyiapkan kapalmu…';
+    try { if (ST.audioWas && window.MTAudio) MTAudio.set('on', true); } catch (e) {}
+    setTimeout(hardReload, 900);
+  }
+  function hardReload() {
+    try { var u = new URL(location.href); u.searchParams.set('mtv', Date.now().toString(36)); location.replace(u.toString()); }
+    catch (e) { location.reload(); }
+  }
+  // Dipanggil jembatan saat server menolak dengan MT_MAINT
+  function blocked(details) {
+    var info = {};
+    try { info = typeof details === 'string' ? JSON.parse(details) : (details || {}); } catch (e) {}
+    info.on = true;
+    if (info.t) ST.skew = Date.now() - info.t;
+    showMaint(info);
+  }
+
+  /* ---------- tanya status ---------- */
+  function schedule(ms) { clearTimeout(ST.timer); ST.timer = setTimeout(autoPoll, ms); }
+  // Cadangan: kalau denyut multiplayer berjalan (sudah membawa data GM), tidak perlu bertanya lagi
+  function autoPoll() { if (!ST.blocked && Date.now() - ST.lastPulse < 50000) return next(); poll(); }
+  function poll() {
+    if (ST.pollBusy) return; ST.pollBusy = true;
+    rpc('api_gmStatus', []).then(function (d) { ST.pollBusy = false; apply(d, false); next(); },
+      function () { ST.pollBusy = false; next(); });
+  }
+  function next() {
+    schedule(ST.blocked ? 15000 : 30000);
+  }
+
+  /* ---------- banner pengumuman ---------- */
+  function annList() { return ((ST.data && ST.data.a) || []).filter(function (x) { return x.until > now() - 5000; }); }
+  function renderBars() {
+    var host = $('mtGmBars'); if (!host || ST.blocked) return;
+    var list = annList();
+    // darurat: modal sekali per pengumuman
+    list.forEach(function (a) {
+      if (a.lvl === 'urgent' && !urgentSeen[a.id] && !$('mtGmUrgent').classList.contains('open')) {
+        $('mtuTx').textContent = a.tx; $('mtuOk').setAttribute('data-id', a.id); $('mtuCd').setAttribute('data-at', a.at || '');
+        $('mtGmUrgent').classList.add('open'); sfx('horn');
+        setTimeout(function () { try { $('mtuOk').focus({ preventScroll: true }); } catch (e) {} }, 50);
+      }
+    });
+    var vis = list.filter(function (a) { return !dismissed[a.id] && !(a.lvl === 'urgent' && !urgentSeen[a.id]); }).slice(-2);
+    var key = vis.map(function (a) { return a.id; }).join(',') + '|' + (ST.verNew || '');
+    if (host._k !== key) {
+      host._k = key;
+      var prev = host._ids || {}, ids = {};
+      host.innerHTML = vis.map(function (a) {
+        ids[a.id] = 1;
+        return '<div class="mtg-bar ' + esc(a.lvl) + '" data-id="' + a.id + '"' + (prev[a.id] ? ' style="animation:none"' : '') + '><span class="mtg-chip">GM</span>' +
+          '<span class="mtg-tx">' + esc(a.tx) + '<span class="mtg-cd" data-at="' + (a.at || '') + '" data-kind="' + esc(a.kind) + '"></span></span>' +
+          '<button type="button" class="mtg-x" aria-label="Tutup pengumuman">&times;</button></div>';
+      }).join('') + (ST.verNew ? '<div class="mtg-bar ver"><span class="mtg-chip">BARU</span><span class="mtg-tx">Versi baru Marantau sudah berlabuh.<span class="mtg-cd" id="mtgVerCd"></span></span>' +
+          '<button type="button" class="mtg-btn" id="mtgVerGo">Muat ulang</button></div>' : '');
+      host._ids = ids;
+      vis.forEach(function (a) { if (!prev[a.id]) sfx(a.lvl === 'warn' ? 'horn' : 'click'); });
+      host.querySelectorAll('.mtg-x').forEach(function (b) {
+        b.addEventListener('click', function () { var id = b.parentNode.getAttribute('data-id'); dismissed[id] = 1; save(DKEY, dismissed); host._k = ''; renderBars(); });
+      });
+      var vg = $('mtgVerGo'); if (vg) vg.addEventListener('click', hardReload);
+    }
+    tickCd();
+  }
+  function tickCd() {
+    document.querySelectorAll('#mtGmBars .mtg-cd[data-at], #mtuCd').forEach(function (el) {
+      var at = Number(el.getAttribute('data-at') || 0);
+      if (!at) { el.textContent = ''; return; }
+      var maint = el.getAttribute('data-kind') === 'maint';
+      el.textContent = at > now() ? (maint ? 'Pelabuhan ditutup pukul ' : 'Pukul ') + hhmm(at) + ' · ' + left(at) + ' lagi'
+                                  : (maint ? 'Pelabuhan ditutup sekarang…' : 'Sudah waktunya!');
+    });
+    if (ST.verNew) {
+      var sec = Math.max(0, Math.round((ST.verAt - Date.now()) / 1000)), vc = $('mtgVerCd');
+      if (vc) vc.textContent = 'Dimuat ulang otomatis dalam ' + Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2) + '.';
+      if (sec <= 0) hardReload();
+    }
+    if (ST.blocked) updEta();
+  }
+  setInterval(function () {
+    // pengumuman yang lewat waktu hilang sendiri
+    if (ST.data && ST.data.a) { var n = ST.data.a.length; ST.data.a = annList(); if (ST.data.a.length !== n) $('mtGmBars')._k = ''; }
+    renderBars();
+  }, 1000);
+
+  /* ---------- cek versi klien ---------- */
+  function checkVersion(force) {
+    if (!window.MT_BUILD || ST.blocked || ST.verNew) return;
+    if (!force && Date.now() - ST.verChecked < 60000) return;
+    ST.verChecked = Date.now();
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.v || j.v === window.MT_BUILD) return;
+      ST.verNew = j.v;
+      if (document.hidden) { hardReload(); return; }          // pemain sedang tidak melihat -> langsung segarkan
+      ST.verAt = Date.now() + 90000;
+      $('mtGmBars')._k = ''; renderBars();
+    }).catch(function () {});
+  }
+  setInterval(function () { checkVersion(false); }, 5 * 60000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (ST.verNew) hardReload(); return; }
+    checkVersion(false);
+    if (!ST.blocked && Date.now() - ST.lastPulse > 40000) poll();
+  });
+
+  /* ---------- panel & perintah GM ---------- */
+  function timeToMs(v) {
+    if (!v) return 0;
+    var p = String(v).split(':'), d = new Date(); d.setHours(Number(p[0]), Number(p[1]), 0, 0);
+    if (d.getTime() <= Date.now() + 30000) d.setDate(d.getDate() + 1);   // jam yang sudah lewat = besok
+    return d.getTime() - (ST.skew || 0);
+  }
+  function msg(t, err) { var m = $('mtpMsg'); m.textContent = t; m.classList.toggle('err', !!err); }
+  function cmd(act, tx, opt) {
+    return rpc('api_gmCommand', [act, tx || '', opt || {}]).then(function (r) { if (r && 'status' in r) apply(r.status || {}, false); return r; });
+  }
+  function busy(on) { document.querySelectorAll('#mtGmPanel .mtp-acts button').forEach(function (b) { b.disabled = on; }); }
+  function run(p, okText) {
+    busy(true); msg('Mengirim…');
+    return p.then(function () { busy(false); msg(okText); }, function (e) { busy(false); msg(String((e && e.message) || e), true); });
+  }
+  function panelStatus() {
+    var m = ST.maint, st = $('mtpSt');
+    st.classList.toggle('on', !!(m && m.on));
+    st.textContent = m && m.on ? 'Status: PELABUHAN DITUTUP' + (m.endAt ? ' · perkiraan buka ' + hhmm(m.endAt) : '')
+                   : m && m.startAt ? 'Status: terjadwal tutup pukul ' + hhmm(m.startAt) + (m.endAt ? ' s.d. ' + hhmm(m.endAt) : '')
+                   : 'Status: normal (pelabuhan buka)';
+  }
+  function openPanel() { $('mtGmPanel').classList.add('open'); panelStatus(); msg(''); setTimeout(function () { try { $('mtpTx').focus(); } catch (e) {} }, 30); }
+  function closePanel() { $('mtGmPanel').classList.remove('open'); }
+  function wire() {
+    $('mtGmBtn').addEventListener('click', openPanel);
+    $('mtpX').addEventListener('click', closePanel);
+    $('mtGmPanel').addEventListener('click', function (e) { if (e.target === this) closePanel(); });
+    $('mtpSay').addEventListener('click', function () {
+      var tx = $('mtpTx').value.trim(); if (!tx) { msg('Tulis pesannya dulu.', true); return; }
+      var opt = { lvl: $('mtpLvl').value, min: Number($('mtpMin').value) || 10 }, at = timeToMs($('mtpAt').value);
+      if (at) opt.at = at;
+      run(cmd('say', tx, opt).then(function () { $('mtpTx').value = ''; $('mtpAt').value = ''; }), 'Terkirim ke semua layar.');
+    });
+    $('mtpClear').addEventListener('click', function () { run(cmd('clear'), 'Semua pengumuman dihapus.'); });
+    $('mtpMOn').addEventListener('click', function () {
+      var tx = $('mtpMTx').value.trim(), start = timeToMs($('mtpMStart').value), dur = Number($('mtpMDur').value) || 0;
+      if (start) {
+        var o = { startAt: start }; if (dur) o.endAt = start + dur * 60000;
+        if (!confirm('Jadwalkan pelabuhan tutup pukul ' + hhmm(start) + '? Pemain akan melihat hitung mundur.')) return;
+        run(cmd('maint_at', tx, o), 'Terjadwal. Hitung mundur tampil di layar pemain.');
+      } else {
+        if (!confirm('Tutup pelabuhan SEKARANG? Semua pemain lain akan keluar ke layar maintenis.')) return;
+        run(cmd('maint_on', tx, dur ? { endAt: now() + dur * 60000 } : {}), 'Pelabuhan ditutup. Kamu tetap bisa main.');
+      }
+    });
+    $('mtpMOff').addEventListener('click', function () { run(cmd('maint_off', ''), 'Pelabuhan dibuka. Pemain akan masuk lagi otomatis.'); });
+    $('mtuOk').addEventListener('click', function () {
+      var id = this.getAttribute('data-id'); urgentSeen[id] = 1; save(UKEY, urgentSeen);
+      $('mtGmUrgent').classList.remove('open'); $('mtGmBars')._k = ''; renderBars();
+    });
+    $('mtmRetry').addEventListener('click', function () { this.textContent = 'Memeriksa…'; var b = this; setTimeout(function () { b.textContent = 'Cek sekarang'; }, 1500); poll(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('mtGmPanel').classList.contains('open')) closePanel(); });
+    // bersihkan ?mtv= dari alamat setelah muat ulang
+    try { var u = new URL(location.href); if (u.searchParams.has('mtv')) { u.searchParams.delete('mtv'); history.replaceState(null, '', u.toString()); } } catch (e) {}
+    schedule(1500);
+    setTimeout(function () { checkVersion(true); }, 20000);
+  }
+  // Perintah chat (dipanggil jembatan untuk teks yang diawali "/")
+  function chatCommand(text) {
+    var t = String(text || '').trim(), m = t.match(/^\/(\S+)\s*([\s\S]*)$/); if (!m) return Promise.resolve({});
+    var c = m[1].toLowerCase(), rest = m[2].trim();
+    if (c === 'panel' || c === 'gmpanel') { if (!ST.isGm) return Promise.reject(new Error('Perintah ini khusus GM.')); openPanel(); return Promise.resolve({}); }
+    if (c === 'gm' || c === 'gm!') {
+      if (!rest) return Promise.reject(new Error('Tulis pesannya: /gm Server reset pukul 14.00'));
+      return cmd('say', rest, { lvl: c === 'gm!' ? 'urgent' : 'info' }).then(function () { return {}; });
+    }
+    return Promise.reject(new Error('Perintah tidak dikenal. Pakai /gm pesan, /gm! pesan, atau /panel.'));
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
+  return { onPulse: onPulse, blocked: blocked, chatCommand: chatCommand, poll: poll, isGm: function () { return ST.isGm; }, _st: ST };
+})();
+</script>

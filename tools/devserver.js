@@ -66,6 +66,13 @@ const DIST = path.join(__dirname, '..', 'dist');
         if (!user && !ANON_OK.has(fn)) return send(res, 401, { code: '42501', message: `permission denied for function ${fn}` });
         await db.query(`select set_config('request.jwt.claim.sub', $1, false), set_config('request.jwt.claim.email', $2, false)`, [user ? user.id : '', user ? user.email : '']);
         try {
+          // Tiru gerbang pre-request PostgREST (0036 mode pemeliharaan)
+          try {
+            await db.query(`select set_config('request.path', $1, false)`, ['/rpc/' + fn]);
+            await db.query('select public.mt_pre_request()');
+          } catch (e) {
+            if (/MT_MAINT/.test(e.message)) { const j = JSON.parse(e.message); return send(res, 503, j); }
+          }
           const r = await db.query(`select public.${fn}($1::jsonb) as r`, [JSON.stringify(b.a || [])]);
           if (process.env.SLOW) await new Promise(r => setTimeout(r, Number(process.env.SLOW)));
           return send(res, 200, r.rows[0].r);
