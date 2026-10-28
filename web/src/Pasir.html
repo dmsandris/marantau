@@ -52,6 +52,8 @@ var PS = (function () {
         if (k === 'kaca') return gm(['kaca', sec.querySelector('[data-in=kaca]').value]);
         if (k === 'langkah') return gm(['langkah', sec.querySelector('[data-in=q]').value, sec.querySelector('[data-in=n]').value]);
         if (k === 'reset' && confirm('Hapus semua data uji Pasir untuk akunmu?')) return gm(['reset']);
+        if (k === 'ambil' && confirm('Ambil SEMUA harta akunmu ke potret (uji)? Bisa dikembalikan dengan Pulih.')) return gm(['ambil'], true);
+        if (k === 'pulih') return gm(['pulih'], true);
       });
     }
     var tones = (p.eras || []).map(function (e) {
@@ -64,10 +66,16 @@ var PS = (function () {
       ' Kaca <input type="number" min="0" max="' + (p.kacaMax || 7) + '" data-in="kaca" value="' + (p.kaca || 0) + '"><button type="button" data-ps="kaca">Set</button></div>' +
       '<div class="ps-row">Langkah <select data-in="q">' + ['10', '11', '12', '13', '14'].map(function (k) { return '<option value="ps' + k + '">' + k + ' (' + (q[k] || 0) + ')</option>'; }).join('') +
       '</select><input type="number" min="0" data-in="n" value="0"><button type="button" data-ps="langkah">Set</button><button type="button" data-ps="reset">Reset</button></div>' +
+      '<div class="ps-row">Harta <button type="button" data-ps="ambil">Ambil</button><button type="button" data-ps="pulih">Pulih</button></div>' +
       '<div class="ps-st">Nada: <b>' + esc(p.tone) + '</b> &middot; retak ' + (p.retak || 0) + ' &middot; kaca ' + (p.kaca || 0) + '/' + (p.kacaMax || 7) + '</div>';
   }
-  function gm(args) {
-    call(['gm'].concat(args), function () { if (typeof showToast === 'function') showToast('Uji Pasir: tersimpan', 'success'); });
+  function gm(args, reload) {
+    call(['gm'].concat(args), function () {
+      if (typeof showToast === 'function') showToast('Uji Pasir: tersimpan', 'success');
+      // harta & peta berubah: muat ulang seluruh state
+      if (reload && typeof loadState === 'function') try { loadState(); } catch (e) { location.reload(); }
+      else if (reload) location.reload();
+    });
   }
 
   wrap_('applyFreshState_', function () { apply(); });
