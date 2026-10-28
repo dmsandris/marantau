@@ -1,0 +1,165 @@
+<style>
+  /* ================= Tide v41 · Nada warna lapisan (PE) ================= */
+  #peFx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; display: none; }
+  body.pe-on #peFx { display: block; }
+  #sceneCanvas, #scenePhoto, #battleCanvas { transition: filter 1.2s ease; }
+  body.pe-dingin #sceneCanvas, body.pe-dingin #scenePhoto, body.pe-dingin #battleCanvas { filter: saturate(.62) brightness(.93) contrast(1.06) hue-rotate(-6deg); }
+  body.pe-sepia  #sceneCanvas, body.pe-sepia  #scenePhoto, body.pe-sepia  #battleCanvas { filter: sepia(.5) saturate(.8) contrast(.96); }
+  body.pe-emas   #sceneCanvas, body.pe-emas   #scenePhoto, body.pe-emas   #battleCanvas { filter: sepia(.88) saturate(1.2) hue-rotate(-8deg) contrast(1.05) brightness(.96); }
+  body.pe-kedip  #sceneCanvas, body.pe-kedip  #scenePhoto, body.pe-kedip  #battleCanvas { filter: sepia(.82) saturate(1.1) hue-rotate(-8deg) contrast(1.08); transition: filter .12s linear; }
+  body.pe-kedip.pe-flash #sceneCanvas, body.pe-kedip.pe-flash #scenePhoto, body.pe-kedip.pe-flash #battleCanvas { filter: brightness(1.12) contrast(1.05); }
+  body.pe-celah  #sceneCanvas, body.pe-celah  #scenePhoto, body.pe-celah  #battleCanvas { filter: grayscale(1) contrast(1.2); }
+  /* Transisi Celah (layar penuh) */
+  #peCelah { position: fixed; inset: 0; z-index: 2147481500; pointer-events: none; opacity: 0; transition: opacity .6s ease; background: radial-gradient(ellipse at 50% 40%, #2b2b2b, #050505 78%); }
+  #peCelah.on { opacity: 1; pointer-events: auto; }
+  #peCelah canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  @media (prefers-reduced-motion: reduce) { #sceneCanvas, #scenePhoto, #battleCanvas, #peCelah { transition: none !important; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Nada warna lapisan (modul PE)
+ * Klien hanya mengenal nama nada: kini | dingin | sepia | emas | kedip | celah.
+ *   PE.set(nada)          ganti nada layar kota & tempur (filter + lapisan efek)
+ *   PE.celah(ms, cb)      transisi layar penuh: monokrom + pasir emas jatuh, lalu cb()
+ * Lapisan efek (butir film, vignette, goresan, pasir, kilat) mengikuti penjaga FPS
+ * (scene.lowFx) dan prefers-reduced-motion: warna tetap, gerak dimatikan.
+ * ===================================================================== */
+var PE = (function () {
+  var TONES = ['kini', 'dingin', 'sepia', 'emas', 'kedip', 'celah'];
+  var FX = {
+    kini:   null,
+    dingin: { tint: 'rgba(110,140,170,.10)', fog: .10, vig: 'rgba(20,30,44,', vigA: .35 },
+    sepia:  { tint: 'rgba(150,100,50,.06)', grain: .05, vig: 'rgba(40,24,10,', vigA: .32 },
+    emas:   { tint: 'rgba(170,120,40,.07)', grain: .11, scratch: true, flicker: .03, vig: 'rgba(36,20,6,', vigA: .55 },
+    kedip:  { tint: 'rgba(170,120,40,.05)', grain: .08, flash: true, sand: 14, vig: 'rgba(30,18,6,', vigA: .5 },
+    celah:  { grain: .06, sand: 40, sandCol: '#e8c46a', vig: 'rgba(0,0,0,', vigA: .6 }
+  };
+  var cur = 'kini', cv = null, ctx = null, raf = 0, last = 0, noise = [], sand = [], scratches = [], flashT = 0;
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { }
+
+  function lowFx() { try { return !!(window.scene && scene.lowFx); } catch (e) { return false; } }
+  function still() { return reduce || lowFx(); }
+
+  function ensure() {
+    if (cv && cv.isConnected) return true;
+    var host = document.getElementById('scene'); if (!host) return false;
+    cv = document.getElementById('peFx');
+    if (!cv) {
+      cv = document.createElement('canvas'); cv.id = 'peFx'; cv.setAttribute('aria-hidden', 'true');
+      var vg = document.getElementById('sceneVignette');
+      if (vg && vg.parentNode === host) host.insertBefore(cv, vg.nextSibling); else host.appendChild(cv);
+    }
+    ctx = cv.getContext('2d');
+    if (!noise.length) for (var k = 0; k < 3; k++) noise.push(makeNoise(96));
+    return true;
+  }
+  function makeNoise(n) {
+    var c = document.createElement('canvas'); c.width = c.height = n;
+    var g = c.getContext('2d'), d = g.createImageData(n, n);
+    for (var i = 0; i < d.data.length; i += 4) { var v = Math.random() * 255 | 0; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+    g.putImageData(d, 0, 0); return c;
+  }
+  function size() {
+    var w = cv.clientWidth || 1, h = cv.clientHeight || 1, r = Math.min(1.5, window.devicePixelRatio || 1);
+    if (cv.width !== Math.round(w * r) || cv.height !== Math.round(h * r)) { cv.width = Math.round(w * r); cv.height = Math.round(h * r); }
+    return { w: cv.width, h: cv.height };
+  }
+
+  function drawFx(g, W, Hh, f, t, moving) {
+    g.clearRect(0, 0, W, Hh);
+    if (!f) return;
+    if (f.tint) { g.fillStyle = f.tint; g.fillRect(0, 0, W, Hh); }
+    if (f.fog) {
+      var fg = g.createLinearGradient(0, 0, 0, Hh);
+      fg.addColorStop(0, 'rgba(210,220,230,' + f.fog + ')'); fg.addColorStop(.6, 'rgba(210,220,230,' + (f.fog * .6) + ')'); fg.addColorStop(1, 'rgba(210,220,230,0)');
+      g.fillStyle = fg; g.fillRect(0, 0, W, Hh);
+    }
+    if (f.flicker && moving) { var fl = (Math.random() - .5) * f.flicker; g.fillStyle = fl > 0 ? 'rgba(255,240,200,' + fl + ')' : 'rgba(0,0,0,' + (-fl) + ')'; g.fillRect(0, 0, W, Hh); }
+    if (f.grain && moving) {
+      g.save(); g.globalAlpha = f.grain; g.globalCompositeOperation = 'overlay';
+      var pat = g.createPattern(noise[(t / 80 | 0) % noise.length], 'repeat');
+      g.translate(Math.random() * 96 | 0, Math.random() * 96 | 0); g.fillStyle = pat; g.fillRect(-96, -96, W + 192, Hh + 192); g.restore();
+    }
+    if (f.scratch && moving) {
+      if (Math.random() < .08) scratches.push({ x: Math.random() * W, life: 3 + Math.random() * 6 | 0, a: .12 + Math.random() * .18 });
+      g.save(); g.strokeStyle = 'rgba(255,240,210,1)'; g.lineWidth = 1;
+      scratches = scratches.filter(function (s) { g.globalAlpha = s.a; g.beginPath(); g.moveTo(s.x, 0); g.lineTo(s.x + (Math.random() - .5) * 4, Hh); g.stroke(); s.x += (Math.random() - .5) * 3; return --s.life > 0; });
+      g.restore();
+    }
+    if (f.sand && moving) {
+      var need = Math.round(f.sand * W / 1000);
+      while (sand.length < need) sand.push({ x: Math.random() * W, y: Math.random() * -Hh, v: .6 + Math.random() * 1.6, r: .6 + Math.random() * 1.6 });
+      g.save(); g.fillStyle = f.sandCol || '#d9b45c';
+      sand.forEach(function (p) { p.y += p.v * (W / 900) * 2; p.x += Math.sin((p.y + t) / 60) * .3; if (p.y > Hh) { p.y = -4; p.x = Math.random() * W; } g.globalAlpha = .55; g.beginPath(); g.arc(p.x, p.y, p.r * (W / 1000), 0, 7); g.fill(); });
+      g.restore();
+    }
+    if (f.vig) {
+      var vg = g.createRadialGradient(W / 2, Hh * .48, Math.min(W, Hh) * .35, W / 2, Hh / 2, Math.max(W, Hh) * .75);
+      vg.addColorStop(0, f.vig + '0)'); vg.addColorStop(1, f.vig + f.vigA + ')');
+      g.fillStyle = vg; g.fillRect(0, 0, W, Hh);
+    }
+  }
+
+  function loop(ts) {
+    raf = 0;
+    if (cur === 'kini' || !ensure()) return;
+    if (document.hidden) { raf = requestAnimationFrame(loop); return; }
+    var moving = !still();
+    if (moving && ts - last < 66) { raf = requestAnimationFrame(loop); return; }   // ~15 fps cukup untuk butir film
+    last = ts;
+    var s = size();
+    if (FX[cur] && FX[cur].flash && moving) {
+      if (ts > flashT) { document.body.classList.add('pe-flash'); setTimeout(function () { document.body.classList.remove('pe-flash'); }, 90 + Math.random() * 160); flashT = ts + 700 + Math.random() * 2600; }
+    }
+    drawFx(ctx, s.w, s.h, FX[cur], ts, moving);
+    if (moving) raf = requestAnimationFrame(loop);
+  }
+
+  function set(tone) {
+    tone = TONES.indexOf(tone) >= 0 ? tone : 'kini';
+    if (tone === cur && (tone === 'kini' || raf || still())) return;
+    TONES.forEach(function (t) { document.body.classList.remove('pe-' + t); });
+    document.body.classList.remove('pe-on', 'pe-flash');
+    cur = tone; sand = []; scratches = [];
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (tone === 'kini') { if (ctx && cv) ctx.clearRect(0, 0, cv.width, cv.height); return; }
+    document.body.classList.add('pe-' + tone, 'pe-on');
+    if (ensure()) raf = requestAnimationFrame(loop);
+  }
+
+  // Transisi Celah: layar penuh monokrom + pasir emas, lalu cb()
+  function celah(ms, cb) {
+    ms = Math.max(600, ms || 2400);
+    var box = document.getElementById('peCelah');
+    if (!box) { box = document.createElement('div'); box.id = 'peCelah'; box.setAttribute('aria-hidden', 'true'); box.innerHTML = '<canvas></canvas>'; document.body.appendChild(box); }
+    var c = box.querySelector('canvas'), g = c.getContext('2d'), t0 = 0, id = 0, grains = [];
+    var r = Math.min(1.5, window.devicePixelRatio || 1);
+    c.width = Math.round(innerWidth * r); c.height = Math.round(innerHeight * r);
+    box.classList.add('on');
+    try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx('bell'); } catch (e) { }
+    function frame(ts) {
+      if (!t0) t0 = ts;
+      var k = (ts - t0) / ms, W = c.width, Hh = c.height;
+      g.clearRect(0, 0, W, Hh);
+      if (!still()) {
+        // pasir mengalir dari atas ke bawah, makin deras di tengah
+        var add = Math.round(30 * (1 - Math.abs(k - .5) * 1.4));
+        for (var i = 0; i < add; i++) grains.push({ x: W * (.5 + (Math.random() - .5) * (.2 + k)), y: -6, v: 2 + Math.random() * 5, r: (.8 + Math.random() * 1.8) * r });
+        g.fillStyle = '#e8c46a';
+        grains = grains.filter(function (p) { p.y += p.v * r; p.x += (Math.random() - .5) * r; g.globalAlpha = .8; g.fillRect(p.x, p.y, p.r, p.r * 2.4); return p.y < Hh; });
+        g.globalAlpha = 1;
+      }
+      if (k < 1) id = requestAnimationFrame(frame);
+      else { box.classList.remove('on'); setTimeout(function () { g.clearRect(0, 0, c.width, c.height); }, 650); if (cb) try { cb(); } catch (e) { console.error(e); } }
+    }
+    id = requestAnimationFrame(frame);
+    return function stop() { cancelAnimationFrame(id); box.classList.remove('on'); };
+  }
+
+  window.addEventListener('resize', function () { if (cur !== 'kini' && cv) { sand = []; if (!raf) raf = requestAnimationFrame(loop); } });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && cur !== 'kini' && !raf) raf = requestAnimationFrame(loop); });
+
+  return { set: set, celah: celah, tone: function () { return cur; }, tones: TONES.slice() };
+})();
+</script>

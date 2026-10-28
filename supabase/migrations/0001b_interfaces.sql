@@ -359,3 +359,9 @@ language plpgsql as $$ begin return null; end $$;
 -- null = tidak ada apa-apa (tidak menambah isi jawaban pulse).
 create or replace function game.gm_pulse(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Tide v41 · Pasir / 0039] status lapisan zaman (null = tertutup; key tidak dikirim ke klien)
+create or replace function game.pasir_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
+-- Era pemain: 'kini' (bawaan) | 'keadilan' | 'badai' | 'lampau' | 'pusaran'
+create or replace function game.pasir_era(p_pid uuid) returns text
+language plpgsql stable as $$ begin return 'kini'; end $$;
