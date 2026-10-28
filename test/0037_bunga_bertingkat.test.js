@@ -19,9 +19,8 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const cfg = await one(`select value from game.config where key = 'BankTier'`);
   ok(cfg && cfg.value === '5000000:0.5,10000000:0.3,20000000:0.2,inf:0', 'config BankTier default');
   let b = await run(1000, 0);
-  ok(Array.isArray(b.bankTiers) && b.bankTiers.length === 4, '4 tingkat dikirim ke klien');
-  ok(Number(b.bankRatePercent) === 0.5, 'bankRatePercent = tingkat pertama (0,5)');
-  near(b.bankInterestCap, 60000, 'bunga maksimal 60.000/hari game');
+  ok(b.bankTiers === undefined && b.bankInterestDay === undefined && b.bankInterestCap === undefined, 'rincian tingkat tidak dikirim ke klien');
+  ok(Number(b.bankRatePercent) === 0.5 && Number(b.bankRateMinPercent) === 0, 'klien hanya menerima rentang 0% s/d 0,5%');
 
   // Satu hari, tiap tingkat
   b = await run(1000000, 1);                 // 1 jt × 0,5%
@@ -36,7 +35,6 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   near(b.bankBalance, 20060000, 'saldo 20 jt: +60.000');
   b = await run(35345842, 1);                // saldo terkaya: hanya 60.000
   near(b.bankBalance, 35405842, 'saldo 35 jt: tetap +60.000');
-  near(b.bankInterestDay, 60000, 'bunga harian ditampilkan 60.000');
 
   // Banyak hari: di atas 20 jt tumbuh lurus, bukan majemuk
   b = await run(35000000, 80);               // 10 hari nyata
@@ -70,7 +68,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await H.sql(`update game.config set value = 'inf:0.5' where key = 'BankTier'`);
   b = await run(35000000, 1);
   near(b.bankBalance, 35175000, 'config satu tingkat: 0,5% penuh');
-  ok(b.bankInterestCap === null, 'tanpa batas bunga bila tingkat teratas berbunga');
+  ok(Number(b.bankRateMinPercent) === 0.5, 'satu tingkat: rentang jadi 0,5% saja');
   await H.sql(`update game.config set value = '' where key = 'BankTier'`);
   b = await run(1000000, 1);
   near(b.bankBalance, 1005000, 'config kosong: kembali ke BankInterestRatePercent');

@@ -7,6 +7,7 @@
 --   di atas 20 jt : 0%
 -- Saldo lama tidak dipotong. Bunga utang tidak berubah.
 -- Config: BankTier = "batas:persen,batas:persen,...,inf:persen" (batas atas tiap tingkat).
+-- RAHASIA: pemain hanya melihat "Bunga 0% s/d 0,5%"; rincian tingkat tidak dikirim ke klien.
 -- Menimpa game.bank_state dari 0002 (fungsi lain tetap sama).
 -- =====================================================================
 
@@ -128,10 +129,9 @@ begin
   return jsonb_build_object(
     'bankBalance', game.eco_round(bank_bal),
     'debtBalance', game.eco_round(debt_bal),
-    'bankRatePercent', trim_scale(coalesce((tiers -> 0 ->> 'rate')::numeric, 0)),
-    'bankTiers', tiers,
-    'bankInterestDay', game.eco_round(game.bank_interest_day(bank_bal, tiers)),
-    'bankInterestCap', case when cap is null then null else game.eco_round(cap) end,
+    -- Rincian tingkat sengaja tidak dikirim ke klien; pemain hanya melihat rentang bunga.
+    'bankRatePercent', trim_scale((select max((t2 ->> 'rate')::numeric) from jsonb_array_elements(tiers) t2)),
+    'bankRateMinPercent', trim_scale((select min((t2 ->> 'rate')::numeric) from jsonb_array_elements(tiers) t2)),
     'debtRatePercent', trim_scale(debt_rate),
     'maxDebt', trim_scale(game.cfg_num('MaxDebtAmount', 100000)),
     'migrated', true);
