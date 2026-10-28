@@ -2420,7 +2420,7 @@
     setModal_(panelHeader_('bank', 'Bank &amp; Moneylender', 'Gold di tangan: <b>' + formatGold(gold) + '</b>') + npcHtml_('bankir', lineBank_()) +
       '<div class="vault">' +
         '<div class="card pos"><span class="bg-ico">' + ic('bank') + '</span><div class="v-l">' + ic('bank') + ' Simpanan</div>' +
-          '<div class="v-v">' + formatGold(bank.bankBalance) + '</div><div class="v-s">Bunga ' + bank.bankRatePercent + '% / hari-game &middot; aman dari bajak laut</div>' +
+          '<div class="v-v">' + formatGold(bank.bankBalance) + '</div><div class="v-s">' + (bank.bankTiers ? 'Bunga +' + formatGold(bank.bankInterestDay || 0) + ' / hari-game' : 'Bunga ' + bank.bankRatePercent + '% / hari-game') + ' &middot; aman dari bajak laut</div>' +
           '<div class="amt-row"><input type="number" min="1" id="bankAmount" placeholder="Jumlah">' +
             '<button class="btn btn-sm bank-action" onclick="doBankDeposit()">Setor</button><button class="btn btn-sm bank-action" onclick="doBankWithdraw()">Tarik</button></div>' +
           '<div class="quick-amts"><button onclick="setAmt_(\'bankAmount\',' + Math.floor(gold / 4) + ')">25% gold</button><button onclick="setAmt_(\'bankAmount\',' + Math.floor(gold / 2) + ')">50% gold</button><button onclick="setAmt_(\'bankAmount\',' + gold + ')">Semua gold</button><button onclick="setAmt_(\'bankAmount\',' + bank.bankBalance + ')">Semua saldo</button></div>' +
@@ -2433,8 +2433,33 @@
           '<div class="quick-amts"><button onclick="setAmt_(\'debtAmount\',' + Math.min(gold, bank.debtBalance) + ')">Lunasi maks</button><button onclick="setAmt_(\'debtAmount\',' + Math.max(0, bank.maxDebt - bank.debtBalance) + ')">Pinjam maks</button></div>' +
         '</div>' +
       '</div>' +
+      bankTierHtml_(bank) +
       (bank.debtBalance > 0 ? '<p class="small" style="color:var(--bad-ink);margin-top:12px;">' + ic('alert') + ' Utang berbunga majemuk &mdash; makin lama dibiarkan, makin berat. Bayar sebisanya.</p>' : '') +
       '<p id="bankMsg" class="msg-err"></p>');
+  }
+  /** Tide v39: tabel Bunga Bertingkat (per bagian saldo). */
+  function bankTierHtml_(bank) {
+    var tiers = bank && bank.bankTiers;
+    if (!tiers || tiers.length < 2) return '';
+    var bal = Number(bank.bankBalance) || 0, lo = 0, rows = '';
+    function jt_(n) { var v = n / 1000000; return (Math.round(v * 100) / 100).toLocaleString('id-ID') + ' jt'; }
+    for (var i = 0; i < tiers.length; i++) {
+      var hi = tiers[i].upTo == null ? null : Number(tiers[i].upTo), rate = Number(tiers[i].rate) || 0;
+      var label = hi == null ? 'di atas ' + jt_(lo) : (lo === 0 ? 'sampai ' + jt_(hi) : jt_(lo) + ' – ' + jt_(hi));
+      var part = Math.max(0, (hi == null ? bal : Math.min(bal, hi)) - lo);
+      var on = part > 0;
+      rows += '<tr' + (on ? ' style="font-weight:700;"' : ' style="opacity:.6;"') + '><td>' + label + '</td><td style="text-align:right;">' +
+        (rate > 0 ? rate.toLocaleString('id-ID') + '%' : '0%') + '</td><td style="text-align:right;">' +
+        (on ? formatGold(part) : '&ndash;') + '</td></tr>';
+      if (hi != null) lo = hi;
+    }
+    var full = bank.bankInterestCap != null && bank.bankInterestDay >= bank.bankInterestCap;
+    return '<div class="card" style="padding:12px 14px;margin-top:12px;"><div class="v-l" style="font-family:var(--font-title);font-weight:700;font-size:.62em;letter-spacing:.22em;text-transform:uppercase;color:var(--parch-muted);">' + ic('bank') + ' Bunga Bertingkat / hari-game</div>' +
+      '<table class="small" style="width:100%;border-collapse:collapse;margin-top:6px;"><tr style="opacity:.7;"><td>Bagian saldo</td><td style="text-align:right;">Bunga</td><td style="text-align:right;">Saldomu</td></tr>' + rows + '</table>' +
+      '<p class="small" style="margin-top:6px;">Bunga hari ini: <b>+' + formatGold(bank.bankInterestDay || 0) + '</b>' +
+      (bank.bankInterestCap != null ? ' &middot; paling banyak +' + formatGold(bank.bankInterestCap) : '') + '</p>' +
+      (full ? '<p class="small" style="margin-top:4px;font-style:italic;">&ldquo;Brankas kami sudah penuh, Kapten. Emas yang tidur tak lagi beranak.&rdquo;</p>' : '') +
+      '</div>';
   }
   function setAmt_(id, v) { var el = document.getElementById(id); if (el) { el.value = Math.max(0, Math.floor(v)); el.focus(); } }
 
@@ -3315,6 +3340,10 @@
   function lineBank_() {
     var b = state.bank || {};
     if (b.debtBalance > 0) return 'Utangmu ' + formatGold(b.debtBalance) + ' gold dan bunganya terus berjalan. Cicil selagi bisa, Kapten.';
+    if (b.bankInterestCap != null && b.bankInterestDay >= b.bankInterestCap && state.player.gold <= 5000) return pickLine_([
+      'Brankas kami sudah penuh, Kapten. Emas yang tidur tak lagi beranak.',
+      'Saldo sebesar itu? Bank tak sanggup membungakannya lagi. Mungkin sudah waktunya emas itu dibawa berlayar.'
+    ], 'bank_full');
     if (state.player.gold > 5000) return 'Gold sebanyak itu di kapal? Bajak laut akan senang. Simpan di sini, aman dan berbunga.';
     if (state.city && state.city.CityId === 'joungjava') return pickLine_([
       'Bank ini? Ah, saya tidak butuh uangnya. Saya menjaganya karena suara koin di brankas lebih merdu dari gamelan mana pun.',
