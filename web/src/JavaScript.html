@@ -2420,7 +2420,7 @@
     setModal_(panelHeader_('bank', 'Bank &amp; Moneylender', 'Gold di tangan: <b>' + formatGold(gold) + '</b>') + npcHtml_('bankir', lineBank_()) +
       '<div class="vault">' +
         '<div class="card pos"><span class="bg-ico">' + ic('bank') + '</span><div class="v-l">' + ic('bank') + ' Simpanan</div>' +
-          '<div class="v-v">' + formatGold(bank.bankBalance) + '</div><div class="v-s">Bunga ' + bank.bankRatePercent + '% / hari-game &middot; aman dari bajak laut</div>' +
+          '<div class="v-v">' + formatGold(bank.bankBalance) + '</div><div class="v-s">' + 'Bunga ' + bankRateText_(bank) + ' / hari-game' + ' &middot; aman dari bajak laut</div>' +
           '<div class="amt-row"><input type="number" min="1" id="bankAmount" placeholder="Jumlah">' +
             '<button class="btn btn-sm bank-action" onclick="doBankDeposit()">Setor</button><button class="btn btn-sm bank-action" onclick="doBankWithdraw()">Tarik</button></div>' +
           '<div class="quick-amts"><button onclick="setAmt_(\'bankAmount\',' + Math.floor(gold / 4) + ')">25% gold</button><button onclick="setAmt_(\'bankAmount\',' + Math.floor(gold / 2) + ')">50% gold</button><button onclick="setAmt_(\'bankAmount\',' + gold + ')">Semua gold</button><button onclick="setAmt_(\'bankAmount\',' + bank.bankBalance + ')">Semua saldo</button></div>' +
@@ -2435,6 +2435,12 @@
       '</div>' +
       (bank.debtBalance > 0 ? '<p class="small" style="color:var(--bad-ink);margin-top:12px;">' + ic('alert') + ' Utang berbunga majemuk &mdash; makin lama dibiarkan, makin berat. Bayar sebisanya.</p>' : '') +
       '<p id="bankMsg" class="msg-err"></p>');
+  }
+  /** Tide v39: hanya rentang bunga ("0% s/d 0,5%"), rincian tingkat dirahasiakan. */
+  function bankRateText_(bank) {
+    var hi = Number(bank.bankRatePercent) || 0, lo = bank.bankRateMinPercent == null ? hi : Number(bank.bankRateMinPercent);
+    var f = function (n) { return String(n).replace('.', ','); };
+    return lo < hi ? f(lo) + '% s/d ' + f(hi) + '%' : f(hi) + '%';
   }
   function setAmt_(id, v) { var el = document.getElementById(id); if (el) { el.value = Math.max(0, Math.floor(v)); el.focus(); } }
 
@@ -3322,7 +3328,11 @@
       'Kopi? Saya seduh sendiri, tidak ada yang bisa menyamai racikan saya. Dulu saya punya kedai kopi... cerita lama.',
       'Pejabat-pejabat berseragam putih itu? Kami pernah satu meja makan. Mereka buruk sekali soal memilih anggur.'
     ], 'bank_coco');
-    return pickLine_(['Uang yang tidur di brankas tetap bekerja untukmu.', 'Butuh modal? Kami bisa meminjamkan &mdash; dengan bunga, tentu.'], 'bank');
+    return pickLine_(['Uang yang tidur di brankas tetap bekerja untukmu.', 'Butuh modal? Kami bisa meminjamkan &mdash; dengan bunga, tentu.',
+      'Suku bunga sekarang mengikuti apa kata pemerintah, Kapten. Kami di sini hanya menjalankan.',
+      'Sudah jarang orang meminjam uang. Jadinya suku bunga tabungan pun ikut berubah.',
+      'Brankas kami makin sesak. Makin besar simpanan, makin sulit kami membungakannya.',
+      'Emas yang terlalu lama tidur jarang beranak banyak, Kapten. Emas yang berlayar, lain cerita.'], 'bank');
   }
   function lineTasks_() {
     var m = state.mission;
