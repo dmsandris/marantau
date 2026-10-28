@@ -223,13 +223,13 @@ $$;
 
 -- Perbarui stok satu kota (dipanggil saat pasar dibuka)
 -- Tide v35 (hemat RAM/IO): baris hanya ditulis ulang bila siklus pasar berganti atau sudah
--- lewat MarketRefreshMinSec detik (bawaan 30). Di dalam satu siklus stok meluruh eksponensial,
+-- lewat MarketRefreshMinSec detik (bawaan 180 sejak Tide v41, dulu 30). Di dalam satu siklus stok meluruh eksponensial,
 -- jadi menulis lebih jarang memberi stok yang SAMA persis. Baris yang sedang dikunci transaksi
 -- lain (beli/jual) dilewati, tidak ditunggu. Harga yang tampil dihitung dari proyeksi saat dibaca.
 create or replace function game.mkt_refresh(p_city text) returns void
 language plpgsql as $$
 declare v_cyc bigint := game.mkt_cycle_index(); v_tags jsonb := game.mkt_cycle_tags(p_city, game.mkt_cycle_index());
-  v_min interval := make_interval(secs => game.cfg_num('MarketRefreshMinSec', 30)::double precision);
+  v_min interval := make_interval(secs => game.cfg_num('MarketRefreshMinSec', 180)::double precision);
 begin
   update game.market m
      set stock = game.mkt_project(m.stock, m.at, m.cyc, m.role, c.tier, c.ref, c.id, v_tags, v_cyc),
