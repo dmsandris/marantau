@@ -123,7 +123,13 @@ var HR = (function () {
   function st() { return (state && state.harian) || null; }
   function open(k) { var s = st(); return !!(s && s.open && (k === 'any' ? (s.open.harian || s.open.kedai || s.open.gotong) : s.open[k])); }
   function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
-  function fmtShort(n) { n = Number(n) || 0; return n >= 1e6 ? (Math.round(n / 1e5) / 10).toString().replace('.', ',') + ' jt' : n >= 1e4 ? Math.round(n / 1e3) + ' rb' : fmt(n); }
+  // Singkat hanya bila tepat (maks 1 desimal) - jangan pernah membulatkan nominal hadiah.
+  function fmtShort(n) {
+    n = Number(n) || 0;
+    var u = n >= 1e6 ? [1e6, ' jt'] : n >= 1e4 ? [1e3, ' rb'] : null;
+    if (!u || (n * 10) % u[0] !== 0) return fmt(n);
+    return (n / u[0]).toString().replace('.', ',') + u[1];
+  }
   function label(t) { return esc_(t.l || '').replace('{n}', '<b>' + fmt(t.n) + '</b>'); }
   function doneCount(s) { return ((s && s.tasks) || []).filter(function (t) { return t.done; }).length; }
   function timeLeft(ms) { ms = Math.max(0, ms || 0); var h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000); return (h ? h + ' jam ' : '') + m + ' menit'; }
