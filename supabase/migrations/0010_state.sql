@@ -58,7 +58,8 @@ begin
     'harian', game.harian_state(v_pid),
     'gotong', game.gotong_state(v_pid),
     'pacu', game.pacu_state(v_pid),
-    'kisah', game.kisah_state(v_pid)
+    'kisah', game.kisah_state(v_pid),
+    'honor', game.honor_state(v_pid)
   );
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru
