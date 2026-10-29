@@ -135,6 +135,28 @@ const assert = require('assert');
   assert.strictEqual(done2.type, 'procure');
   assert.strictEqual(await gold(A), g1 + procure.reward);
 
+  // ---------------- Tide v42: tiap penawaran hanya 1x selesai per hari game
+  const bd = await A.call('api_getMissionBoard', [city]);
+  assert.strictEqual(bd.offers.length, board.offers.length, 'papan tetap utuh, hanya ditandai');
+  assert(bd.offers[courier.offerIndex].done && bd.offers[procure.offerIndex].done);
+  assert(!bd.offers[2].done && !bd.offers[3].done);
+  assert.strictEqual(bd.allDone, true, 'semua penawaran terbuka sudah selesai');
+  assert.strictEqual(board.allDone, false);
+  await H.expectError(() => A.call('api_acceptMission', [city, procure.offerIndex]), /sudah kamu selesaikan hari ini, Kapten/);
+  await H.expectError(() => A.call('api_acceptMission', [city, courier.offerIndex]), /sudah kamu selesaikan hari ini, Kapten/);
+  // kota lain tidak ikut terkunci
+  assert(!(await A.call('api_getMissionBoard', ['joungjava'])).offers.some(o => o.done));
+  // pemain lain tidak terpengaruh
+  const B0 = await mkPlayer('kapten_v42', 5000, city);
+  const bb = await B0.call('api_getMissionBoard', [city]);
+  assert(!bb.offers.some(o => o.done) && bb.allDone === false);
+  // hari berganti -> papan terbuka lagi (simulasi: geser hari misi yang sudah selesai)
+  const newDay = () => H.sql(`update game.player_missions set accepted_at = accepted_at - 1 where player_id = $1 and status = 'completed'`, [A.id]);
+  await newDay();
+  const bn = await A.call('api_getMissionBoard', [city]);
+  assert(!bn.offers.some(o => o.done) && bn.allDone === false);
+  console.log('sekali sehari ok');
+
   // ---------------- procure lewat Market biasa (bug v20): barang di palka biasa ikut dihitung
   await moveTo(A, city);
   ms = await A.call('api_acceptMission', [city, procure.offerIndex]);
@@ -149,6 +171,7 @@ const assert = require('assert');
   await A.call('api_completeMission', []);
   assert.strictEqual(await gold(A), g2 + procure.reward);
   assert.strictEqual(await invQty(A, procure.commodityId), 0);
+  await newDay();
   console.log('procure via market ok');
   console.log('procure ok: cost', bought.totalCost, 'reward', procure.reward, 'profit', procure.reward - bought.totalCost);
 

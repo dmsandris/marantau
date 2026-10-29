@@ -2340,8 +2340,12 @@
   function renderMissionBoard_(board) {
     var el = document.getElementById('missionBoardSection');
     if (!el) return;
-    var offers = board.offers || [];
-    var html = '<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">' + ic('star') + '<span>Standing-mu di kota ini: <b>' + board.reputationHere + '</b></span></div><div class="card-grid">';
+    // Tide v42: penawaran yang sudah diselesaikan hari ini hilang dari papan
+    var offers = (board.offers || []).filter(function (o) { return !o.done; });
+    var html = '<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">' + ic('star') + '<span>Standing-mu di kota ini: <b>' + board.reputationHere + '</b></span></div>';
+    if (board.allDone) html += '<div class="card mission-alldone" style="display:flex;gap:12px;align-items:center;margin-bottom:12px;"><span class="upg-ico">' + ic('check') + '</span><div><b style="font-family:var(--font-title);">Sudah tidak ada tugas lagi untukmu hari ini, Kapten.</b>' +
+      '<div class="muted small">Papan baru muncul saat hari berganti.</div></div></div>';
+    html += '<div class="card-grid">';
     html += offers.map(function (o) {
       if (!o.unlocked) {
         return '<div class="card" style="opacity:.6;display:flex;gap:12px;align-items:center;"><span class="upg-ico">' + ic('lock') + '</span><div><b style="font-family:var(--font-title);">' + esc_(o.label) + '</b>' +
@@ -4324,7 +4328,8 @@
       var sm2 = state.mission;
       if (sm2 && sm2.hasActive && sm2.type === 'procure' && (sm2.loadedQty || 0) < sm2.qty && sm2.sourceCityId === cid) return '<b class="tip-good">Beli barang pesananmu di sini!</b>';
       if (sm2 && sm2.hasActive && sm2.deliverToCityId === cid && (sm2.type === 'legacy' || !sm2.type || (sm2.loadedQty || 0) >= sm2.qty)) return '<b class="tip-good">Misimu bisa diserahkan di sini!</b>';
-      var mb = panelCache['missionBoard:' + cid], n = mb && mb.offers ? mb.offers.filter(function (o) { return o.unlocked; }).length : null;
+      var mb = panelCache['missionBoard:' + cid], n = mb && mb.offers ? mb.offers.filter(function (o) { return o.unlocked && !o.done; }).length : null;
+      if (mb && mb.allDone) return 'Tugas hari ini sudah tuntas' + (state.reputationHere ? ' &middot; Standing <b>' + state.reputationHere + '</b>' : '');
       return (n != null ? '<b>' + n + '</b> tawaran misi' : 'Papan misi kota') + (state.reputationHere ? ' &middot; Standing <b>' + state.reputationHere + '</b>' : '');
     }
     if (id === 'cargo') { var cap = sh.EffectiveCargo || sh.Cargo || 0; return 'Palka <b>' + (hudCargoUsed || 0) + '/' + cap + '</b>' + (cap && hudCargoUsed >= cap ? ' &middot; <b class="tip-bad">penuh</b>' : ''); }
@@ -4343,7 +4348,7 @@
       var sm = state.mission;
       if (sm && sm.hasActive && sm.type === 'procure' && (sm.loadedQty || 0) < sm.qty && sm.sourceCityId === cid) return { cls: 'gold pulse', txt: '!', t: 'Beli barang pesanan di sini' };
       if (sm && sm.hasActive && sm.deliverToCityId === cid && (sm.type === 'legacy' || !sm.type || (sm.loadedQty || 0) >= sm.qty)) return { cls: 'gold pulse', txt: '!', t: 'Misi bisa diserahkan di sini' };
-      var mb = panelCache['missionBoard:' + cid]; var n = mb && mb.offers ? mb.offers.filter(function (o) { return o.unlocked; }).length : 0;
+      var mb = panelCache['missionBoard:' + cid]; var n = mb && mb.offers ? mb.offers.filter(function (o) { return o.unlocked && !o.done; }).length : 0;
       if (n && !(state.mission && state.mission.hasActive)) return { cls: 'info', txt: String(n), t: n + ' tawaran misi' };
     }
     if (id === 'ship' || id === 'setsail') { var pct = sh.ConditionPct != null ? sh.ConditionPct : 100; if (pct < 60 && id === 'ship') return { cls: 'bad pulse', txt: '!', t: 'Kapal perlu reparasi' }; }
