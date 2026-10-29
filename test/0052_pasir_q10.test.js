@@ -122,6 +122,6 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   ok((await one('select game.toogood_freed($1) f', [pid])).f === true, 'TooGood merdeka lagi');
   ok(await gate('api_galaquest') === null, 'gerbang terbuka lagi');
 
-  console.log('0041 pasir q10: semua lulus');
+  console.log('0052 pasir q10: semua lulus');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

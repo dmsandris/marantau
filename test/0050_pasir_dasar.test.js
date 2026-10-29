@@ -89,6 +89,6 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   ok((await gs(G)).pasir.gm === true, 'GM lewat FiturPenguji');
   ok(!('pasir' in await gs(A)), 'pemain lain tetap tertutup saat hanya penguji');
 
-  console.log('0039 pasir dasar: semua lulus');
+  console.log('0050 pasir dasar: semua lulus');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

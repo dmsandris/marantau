@@ -1,5 +1,5 @@
 -- =====================================================================
--- 0041 — Pasir · Batch 2: Quest 10 "Penumpang Bergaun Putih" (Tide v41)
+-- 0052 — Pasir · Batch 2: Quest 10 "Penumpang Bergaun Putih" (Tide v41)
 -- Skenario: claude/SKENARIO-Saga3-Dark.md bagian 8.
 --
 -- Langkah (game.player_quests, quest_id = 'ps10'):
@@ -149,7 +149,7 @@ begin
                   game.ts_hunter_encounter(p_pid, p_dest), game.lt_encounter(p_pid, p_dest));
 end $$;
 
--- salinan 0040 + kedatangan Pasir
+-- salinan 0051 + kedatangan Pasir
 create or replace function game.hr_hook(p_pid uuid, p_kind text, p_amount numeric, p_ctx jsonb) returns void
 language plpgsql as $$
 begin
@@ -179,7 +179,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Gerbang pre-request (salinan 0036 + Pasir): kisah lama & Pacu Dagang tertutup di era lain
+-- Gerbang pre-request (salinan 0039_reset_sandi + Pasir): kisah lama & Pacu Dagang tertutup di era lain
 -- ---------------------------------------------------------------------
 create or replace function game.ps_blocked_path(p_path text) returns text
 language plpgsql stable as $$
@@ -195,22 +195,33 @@ end $$;
 
 create or replace function public.mt_pre_request() returns void
 language plpgsql security definer set search_path = game, public as $$
-declare v_block boolean := false; v_path text; v_info jsonb; v_msg text; v_pid uuid;
+declare v_block text; v_path text; v_info jsonb; v_u text; v_msg text; v_pid uuid;
 begin
-  v_path := lower(coalesce(current_setting('request.path', true), ''));
   begin
-    if game.maint_active() and v_path !~ 'rpc/(api_ping|api_gmstatus)$' and not game.is_gm(auth.uid()) then
-      v_info := game.maint_info();
-      v_block := true;
+    v_path := lower(coalesce(current_setting('request.path', true), ''));
+    if game.maint_active() then
+      if v_path ~ 'rpc/(api_ping|api_gmstatus)$' then return; end if;
+      if not game.is_gm(auth.uid()) then v_info := game.maint_info(); v_block := 'maint'; end if;
+    end if;
+    if v_block is null and auth.uid() is not null then
+      v_u := lower(split_part(coalesce(auth.email(), ''), '@', 1));
+      if v_u <> '' and exists (select 1 from game.pw_must_change where username = v_u)
+         and v_path !~ 'rpc/(api_ping|api_gmstatus|api_pwstatus|api_pwchanged|api_authwhoami|api_legacyclaim|api_legacycheck)$' then
+        v_block := 'pw';
+      end if;
     end if;
   exception when others then
-    v_block := false;   -- gagal-terbuka
+    return;   -- gagal-terbuka: jangan pernah mematikan game karena gerbang ini error
   end;
-  if v_block then
+  if v_block = 'maint' then
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Maintenis dulu ya gaes, kembali sebentar lagi.',
                                   'details', coalesce(v_info, '{}'::jsonb)::text)::text,
       detail = json_build_object('status', 503, 'status_text', 'Maintenance')::text;
+  elsif v_block = 'pw' then
+    raise sqlstate 'PGRST' using
+      message = json_build_object('code', 'MT_PWCHANGE', 'message', 'Pasang sandi baru dulu, Kapten.', 'details', '{}')::text,
+      detail = json_build_object('status', 403, 'status_text', 'Password change required')::text;
   end if;
   -- Pasir: hanya diperiksa untuk endpoint kisah lama / Pacu Dagang (satu baris pasir_state)
   begin

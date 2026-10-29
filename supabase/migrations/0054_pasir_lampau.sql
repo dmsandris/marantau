@@ -1,5 +1,5 @@
 -- =====================================================================
--- 0043 — Pasir · Batch 4: Zaman 40 Tahun Lalu (Tide v41)
+-- 0054 — Pasir · Batch 4: Zaman 40 Tahun Lalu (Tide v41)
 -- Skenario: claude/SKENARIO-Saga3-Dark.md bagian 4, 6.7, 6.8, 14, 15.
 --
 --   * Era 'lampau' dipilih di Jam Agung setelah Quest 11 selesai (ps_zaman_opsi). Mendarat di IKN berjaya.
@@ -12,9 +12,9 @@
 --   * Efek buku & Pusaka baru: ship_json, voy_max_cond, voy_repair_quote, voy_enc_book.
 --
 -- ⚠️ SALINAN versi terakhir + tambahan: spot_city (0030), voy_far_city (0028), cities_json (0001), city_flavor (0030),
---    city_open/player_unlocks (0040), eco_require_trade_here/ww_mission_guard/spot_service_guard (0030),
+--    city_open/player_unlocks (0051), eco_require_trade_here/ww_mission_guard/spot_service_guard (0030),
 --    voy_roll_encounter/voy_complete_arrival/ship_json/voy_max_cond/voy_enc_book (0003), voy_repair_quote (0028),
---    ps_zaman_opsi (0042). Aman diulang.
+--    ps_zaman_opsi (0053). Aman diulang.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -83,7 +83,7 @@ language sql stable as $$
 $$;
 
 -- ---------------------------------------------------------------------
--- Peta per era (salinan 0040 + lampau)
+-- Peta per era (salinan 0051 + lampau)
 -- ---------------------------------------------------------------------
 create or replace function game.ps_sudyrman_open(p_pid uuid) returns boolean
 language sql stable as $$ select game.pasir_era(p_pid) = 'lampau' and coalesce((game.ps_sdata(p_pid) ->> 'sudyrman')::boolean, false) $$;
@@ -345,7 +345,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Pusaka Kapal: katalog dengan harga & tempat jual (salinan 0042 + harga)
+-- Pusaka Kapal: katalog dengan harga & tempat jual (salinan 0053 + harga)
 -- ---------------------------------------------------------------------
 create or replace function game.ps_pusaka_katalog() returns jsonb
 language sql immutable as $$
@@ -487,7 +487,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Zaman yang bisa dipilih di Jam Agung (salinan 0042 + 40 Tahun Lalu)
+-- Zaman yang bisa dipilih di Jam Agung (salinan 0053 + 40 Tahun Lalu)
 -- ---------------------------------------------------------------------
 create or replace function game.ps_zaman_opsi(p_pid uuid) returns text[]
 language sql stable as $$
@@ -497,7 +497,7 @@ language sql stable as $$
     else array[]::text[] end
 $$;
 
--- kait untuk batch berikutnya (diganti 0044+)
+-- kait untuk batch berikutnya (diganti 0055+)
 create or replace function game.ps_act_q12(p_pid uuid, p_act text, a jsonb) returns jsonb
 language sql as $$ select null::jsonb $$;
 create or replace function game.ps_state_q12(p_pid uuid) returns jsonb

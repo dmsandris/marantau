@@ -147,6 +147,6 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await H.sql(`select game.admin_pasir('q11_ana', 'pulih')`);
   ok((await one(`select count(*)::int n from game.pv_pusaka where player_id = $1`, [pid])).n === 1, 'Pusaka tetap setelah pulih');
 
-  console.log('0042 pasir q11: semua lulus');
+  console.log('0053 pasir q11: semua lulus');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

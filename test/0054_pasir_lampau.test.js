@@ -115,6 +115,6 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await H.sql(`select game.admin_pasir('q12_ana', 'tutup', '1')`);
   ok((await gs()).pasir.zaman.length === 0, 'setelah ditutup: Jam Agung tidak lagi menunjuk masa lalu');
 
-  console.log('0043 pasir lampau: semua lulus');
+  console.log('0054 pasir lampau: semua lulus');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -1,5 +1,5 @@
 -- =====================================================================
--- 0040 — Pasir · Batch 1: potret harta, pengosongan & pengembalian (Tide v41)
+-- 0051 — Pasir · Batch 1: potret harta, pengosongan & pengembalian (Tide v41)
 -- Rencana: claude/PLAN-Coding-Saga3-Dark.md (project docs).
 --
 --   game.pv_snap            potret harta per pemain (TERTUTUP: tidak pernah dibaca endpoint klien)

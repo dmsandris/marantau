@@ -1,5 +1,5 @@
 -- =====================================================================
--- 0042 — Pasir · Batch 3: Quest 11 "Kapal yang Tak Pernah Terdampar" (Tide v41)
+-- 0053 — Pasir · Batch 3: Quest 11 "Kapal yang Tak Pernah Terdampar" (Tide v41)
 -- Skenario: claude/SKENARIO-Saga3-Dark.md bagian 6.5, 6.9, 9, 15.
 --
 -- Langkah (game.player_quests, quest_id = 'ps11'):
@@ -236,7 +236,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Kait berlayar & tiba (salinan 0041 + Q11 & era)
+-- Kait berlayar & tiba (salinan 0052 + Q11 & era)
 -- ---------------------------------------------------------------------
 create or replace function game.ps_on_sail(p_pid uuid, p_origin text, p_dest text) returns void
 language plpgsql as $$
@@ -280,7 +280,7 @@ begin
   end if;
 end $$;
 
--- Kait untuk batch berikutnya: aksi & status tambahan (diganti 0043+; null/{} = tidak ada)
+-- Kait untuk batch berikutnya: aksi & status tambahan (diganti 0054+; null/{} = tidak ada)
 create or replace function game.ps_act_more(p_pid uuid, p_act text, a jsonb) returns jsonb
 language sql as $$ select null::jsonb $$;
 create or replace function game.ps_state_more(p_pid uuid) returns jsonb
@@ -409,11 +409,11 @@ begin
     perform game.log(p_pid, 'Paman Ocid menjual sisa roda gigi Jam Agung ke saudagar logam: ' || v_cost || ' gold untukmu.');
     return jsonb_build_object('ok', true);
   end if;
-  return game.ps_act_more(p_pid, p_act, a);   -- batch berikutnya (0043+) menyambung di sini
+  return game.ps_act_more(p_pid, p_act, a);   -- batch berikutnya (0054+) menyambung di sini
 end $$;
 
 -- ---------------------------------------------------------------------
--- Status untuk klien (salinan 0041 + Q11, Pusaka, Retak, zaman)
+-- Status untuk klien (salinan 0052 + Q11, Pusaka, Retak, zaman)
 -- ---------------------------------------------------------------------
 create or replace function game.pasir_state(p_pid uuid) returns jsonb
 language plpgsql as $$
@@ -453,7 +453,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Alat GM (salinan 0040 + pusaka, jangkar)
+-- Alat GM (salinan 0051 + pusaka, jangkar)
 -- ---------------------------------------------------------------------
 create or replace function game.pasir_admin(p_pid uuid, p_aksi text, p_arg text default null, p_arg2 text default null) returns jsonb
 language plpgsql as $$
@@ -515,7 +515,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Endpoint: api_pasir (salinan 0041 + ps_act_ext)
+-- Endpoint: api_pasir (salinan 0052 + ps_act_ext)
 -- ---------------------------------------------------------------------
 create or replace function public.api_pasir(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$

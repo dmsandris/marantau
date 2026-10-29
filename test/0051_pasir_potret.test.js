@@ -151,6 +151,6 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const src = (await one(`select prosrc from pg_proc where proname = 'pv_ambil'`)).prosrc;
   ok(/mp_sail_guard/.test(src), 'ambil memanggil penjaga duel/armada');
 
-  console.log('0040 pasir potret: semua lulus');
+  console.log('0051 pasir potret: semua lulus');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

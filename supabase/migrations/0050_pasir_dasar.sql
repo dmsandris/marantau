@@ -1,5 +1,5 @@
 -- =====================================================================
--- 0039 — Pasir · Batch 0: fondasi (Tide v41)
+-- 0050 — Pasir · Batch 0: fondasi (Tide v41)
 -- Rencana: claude/PLAN-Coding-Saga3-Dark.md (project docs). Nama sengaja netral.
 --
 --   * Gerbang: config PasirOpen (0 = tertutup) atau FiturPenguji, lalu
