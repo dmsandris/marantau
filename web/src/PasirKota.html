@@ -12,6 +12,9 @@ var PK = (function () {
   var BASE = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'toogood', 'ikn', 'empeer_depeer'];
   var WHITE = '#f4f4f0';
   function cold() { try { return PE.tone() === 'dingin'; } catch (e) { return false; } }
+  var SUF = { dingin: '__adil', sepia: '__badai' };
+  function suffix() { try { return SUF[PE.tone()] || null; } catch (e) { return null; } }
+  function sorot() { try { return !!(window.state && state.pasir && state.pasir.sorot); } catch (e) { return false; } }
   function H() { return MTCities.H; }
 
   function whiteFlags(B) {
@@ -70,10 +73,22 @@ var PK = (function () {
       g.addColorStop(0, 'rgba(220,235,255,' + (0.34 * on).toFixed(3) + ')'); g.addColorStop(1, 'rgba(220,235,255,0)');
       c.fillStyle = g; c.beginPath(); c.moveTo(d.x, d.y);
       c.lineTo(d.x + Math.cos(a - wd) * len, d.y + Math.sin(a - wd) * len); c.lineTo(d.x + Math.cos(a + wd) * len, d.y + Math.sin(a + wd) * len); c.closePath(); c.fill();
+      // Tide v41 Batch 3: sejak Tahun Badai Besar kedua, satu sorot lagi menyapu LAUT
+      if (sorot()) {
+        var a2 = Math.sin(tt * 0.33 + 1) * 0.32 + Math.PI * 0.18, len2 = d.u * 44;
+        var g2 = c.createLinearGradient(d.x, d.y, d.x + Math.cos(a2) * len2, d.y + Math.sin(a2) * len2);
+        g2.addColorStop(0, 'rgba(230,240,255,' + (0.4 * on).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(230,240,255,0)');
+        c.fillStyle = g2; c.beginPath(); c.moveTo(d.x, d.y);
+        c.lineTo(d.x + Math.cos(a2 - 0.06) * len2, d.y + Math.sin(a2 - 0.06) * len2); c.lineTo(d.x + Math.cos(a2 + 0.06) * len2, d.y + Math.sin(a2 + 0.06) * len2); c.closePath(); c.fill();
+      }
       c.restore();
     } });
   }
-  var EXTRA = { skitraw: skitraw, ikn: ikn };
+  // em pe'er de pe'er: Gedung Kubah = Jam Agung yang berhenti
+  function empeer(B) {
+    B.hotspots.forEach(function (h) { if (h.id === 'kubah') { h.id = 'ps_jam'; h.label = 'Jam Agung'; h.icon = 'hourglass'; } });
+  }
+  var EXTRA = { skitraw: skitraw, ikn: ikn, empeer_depeer: empeer };
   function register() {
     if (!window.MTCities || !MTCities.register) return false;
     BASE.forEach(function (id) {
@@ -84,7 +99,52 @@ var PK = (function () {
         if (id !== 'toogood') whiteFlags(B);
       }, id === 'toogood' ? 'gloom' : 'overcast');
     });
+    MTCities.register('skitraw__badai', badaiSkitraw, 'gloom');
     return true;
+  }
+
+  /* ---------- Skitraw, Tahun Badai Besar: kampung nelayan, belum ada neon ---------- */
+  function badaiSkitraw(B) {
+    var Hh = H(), u = B.u, q = B.qTop, sy = B.shoreY, ctx = B.ctx, r = B.r;
+    Hh.hills(B, { c: ['#6a8a50', '#3a5a32'], h: 0.2, peak: 0.55, trees: 30, kind: 'jungle', jag: 0.03,
+      village: { walls: ['#8a6a44', '#7a5a3a', '#9a7a52'], roofs: ['#4a3a24', '#5a4a30'], types: ['stilt', 'gable', 'stilt'], prob: 0.35 } });
+    Hh.beach(B, 0, B.landEnd);
+    // rumah panggung nelayan di tepi pantai
+    for (var i = 0; i < 6; i++) {
+      var hx = u * (1 + i * 3.6 + (i > 2 ? 4 : 0)), hw = u * (1.8 + (i % 2) * 0.5);
+      Hh.bld(B, { x: hx, w: hw, base: sy - u * 1.6, h: u * 1.1, roof: i % 3 ? 'gable' : 'stilt', rh: u * 0.8, wall: i % 2 ? '#7a5a3a' : '#8a6a44', roofCol: '#4a3a24', stilt: true, ground: sy - u * 0.4 });
+    }
+    // jaring dijemur di tiang
+    ctx.strokeStyle = 'rgba(60,44,28,.7)'; ctx.lineWidth = Math.max(1, u * 0.06);
+    for (var n = 0; n < 3; n++) {
+      var nx = u * (6.6 + n * 1.4); ctx.beginPath(); ctx.moveTo(nx, sy - u * 0.4); ctx.lineTo(nx, sy - u * 2.4); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(60,44,28,.35)'; ctx.lineWidth = 0.8;
+    for (var k = 0; k < 9; k++) { ctx.beginPath(); ctx.moveTo(u * 6.6, sy - u * (2.3 - k * 0.2)); ctx.quadraticCurveTo(u * 7.3, sy - u * (2 - k * 0.2), u * 9.4, sy - u * (2.3 - k * 0.2)); ctx.stroke(); }
+    // dermaga kayu kecil
+    Hh.woodQuay(B, u * 11, u * 15);
+    // perahu Gala yang bocor, terbalik sedikit di pasir
+    var px = u * 20, py = sy - u * 0.2;
+    ctx.save(); ctx.translate(px, py); ctx.rotate(-0.12);
+    ctx.fillStyle = '#6a4a2a'; ctx.beginPath(); ctx.moveTo(-u * 2.2, -u * 0.5); ctx.quadraticCurveTo(0, u * 0.7, u * 2.2, -u * 0.5); ctx.lineTo(u * 1.9, -u * 0.8); ctx.lineTo(-u * 1.9, -u * 0.8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2a1a0e'; ctx.beginPath(); ctx.ellipse(u * 0.4, -u * 0.25, u * 0.35, u * 0.14, 0.2, 0, 6.3); ctx.fill();   // lubang
+    ctx.strokeStyle = '#4a3220'; ctx.lineWidth = Math.max(1, u * 0.05); ctx.beginPath(); ctx.moveTo(-u * 1.7, -u * 0.6); ctx.lineTo(u * 1.7, -u * 0.6); ctx.stroke();
+    ctx.restore();
+    // Gala muda di samping perahu
+    B.dyn.push({ type: 'fn', u: u, x: px + u * 2.6, y: sy - u * 0.3, fn: function (inst, c, pp, tt, dt, d) {
+      var s = d.u * 0.034, sway = Math.sin(tt * 1.6) * d.u * 0.02;
+      c.save(); c.translate(d.x + sway, d.y);
+      c.strokeStyle = '#4a3020'; c.lineWidth = s * 2.6; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-s * 2, 0); c.lineTo(-s * 2.4, -s * 8); c.moveTo(s * 2, 0); c.lineTo(s * 2.2, -s * 8); c.stroke();
+      c.fillStyle = '#5a6a7a'; c.fillRect(-s * 4, -s * 19, s * 8, s * 11);
+      c.strokeStyle = '#7a5230'; c.beginPath(); c.moveTo(s * 4, -s * 17); c.lineTo(s * 9, -s * 13 + Math.sin(tt * 3) * s); c.stroke();   // tangan memegang papan
+      c.fillStyle = '#8a6a3a'; c.fillRect(s * 8, -s * 16, s * 5, s * 1.4);
+      c.fillStyle = '#7a5230'; c.beginPath(); c.arc(0, -s * 22, s * 3.6, 0, 6.3); c.fill();
+      c.fillStyle = '#1e140c'; c.beginPath(); c.arc(0, -s * 23.2, s * 3.7, Math.PI, 0); c.fill();
+      c.restore();
+    } });
+    Hh.hot(B, 'ps_gala', 'Perahu Bocor', 'wrench', px - u * 2.4, sy - u * 3.2, u * 6, u * 3.4);
+    B.moored = []; B.roamers = []; B.walk = null;
   }
   register();
 
@@ -95,14 +155,18 @@ var PK = (function () {
   }
 
   // Belokkan cityId ke varian saat Zaman Keadilan
-  var wrapped = null;
+  var wrapped = null, forced = false;
   function ensure() {
     if (typeof scene === 'undefined' || !scene || scene === wrapped || !scene.configure) return;
     var orig = scene.configure;
     scene.configure = function (o) {
-      if (o && cold() && (o.mode === 'port' || (o.mode == null && scene.mode === 'port')) && typeof o.cityId === 'string' && o.cityId.indexOf('__adil') < 0 && MTCities.get(o.cityId + '__adil')) {
-        o = Object.assign({}, o, { cityId: o.cityId + '__adil' });
+      var suf = suffix();
+      if (o && suf && (o.mode === 'port' || (o.mode == null && scene.mode === 'port')) && typeof o.cityId === 'string' && o.cityId.indexOf('__') < 0 && MTCities.get(o.cityId + suf)) {
+        o = Object.assign({}, o, { cityId: o.cityId + suf });
       }
+      // Tahun Badai Besar: selalu malam berbadai
+      if (o && suf === '__badai') { o = Object.assign({}, o, { fixedFrac: 0.86, weather: 'storm' }); forced = true; }
+      else if (o && forced) { o = Object.assign({}, o, { fixedFrac: null }); if (o.weather === undefined) o.weather = null; forced = false; }
       return orig.call(this, o);
     };
     wrapped = scene;

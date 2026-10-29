@@ -1997,13 +1997,16 @@ var MTGames = (function () {
       function showFail() {
         if (G.storm) G.storm.set(0.06);
         au('defeat');
-        S.card({ cls: 'bad', seal: SEAL, kicker: 'Gagal &middot; ' + Math.round(clamp(G.s / S_TOT, 0, 1) * 100) + '% perjalanan', title: 'Terlempar Keluar Pusaran!',
-          quote: 'Arus melemparkan kapalmu ke tepi badai. Kondisi kapal sedikit berkurang &mdash; jalur cahaya mahkota masih menunggu.', who: 'Pusaran Bjorneo',
+        var FC = opts.failCard || {};
+        S.card({ cls: 'bad', seal: SEAL, kicker: 'Gagal &middot; ' + Math.round(clamp(G.s / S_TOT, 0, 1) * 100) + '% perjalanan', title: FC.title || 'Terlempar Keluar Pusaran!',
+          quote: FC.quote || 'Arus melemparkan kapalmu ke tepi badai. Kondisi kapal sedikit berkurang &mdash; jalur cahaya mahkota masih menunggu.', who: FC.who || 'Pusaran Bjorneo',
           stats: [['Lingkaran', Math.min(LOOPS, Math.floor(phiAt(G.s) / 6.2832) + 1) + ' / ' + LOOPS], ['Benturan', String(G.hits)]],
           buttons: [{ label: 'Coba lagi', primary: true, onClick: function () { S.hideCard(); G.failShown = false; begin(); } }, { label: 'Keluar', cls: 'btn-lg btn-ghost', onClick: function () { S.exit(); } }] });
       }
       function winNow() {
         var perfect = G.hits === 0;
+        var WC = opts.winCard;
+        if (WC) { S.win({ perfect: perfect, score: Math.max(0, 1000 - G.hits * 250), hits: G.hits, time: Math.round(G.time) }, { seal: SEAL, kicker: WC.kicker || 'Lolos Arus Pusaran', title: WC.title, badge: perfect ? 'Sempurna &middot; tanpa benturan' : null, quote: WC.quote, who: WC.who, stats: [['Benturan', String(G.hits)], ['Waktu', fmt(G.time)]], cta: WC.cta }); return; }
         S.win({ perfect: perfect, score: Math.max(0, 1000 - G.hits * 250), hits: G.hits, time: Math.round(G.time) }, {
           seal: SEAL, kicker: 'Lolos Arus Pusaran', title: 'Gerbang Benteng Terbuka',
           badge: perfect ? 'Sempurna &middot; tanpa benturan' : null,
@@ -2014,15 +2017,17 @@ var MTGames = (function () {
         });
       }
       S.progress(S.pips(LOOPS, [], 0));
+      var IC = opts.introCard || {};
+      if (opts.celah) S.root.classList.add('mtg-celah');
       S.intro({
-        seal: SEAL, kicker: 'Pusaran Bjorneo &middot; The Maelstrom', title: 'Arus Pusaran',
-        quote: 'Mahkota sudah kembali ke laut. Ikuti cahayanya &mdash; laut hanya membuka jalan sekali.', who: 'Nenek Ulin',
-        steps: ['Kapalmu terseret <b>spiral pusaran</b>: 3 lingkaran menuju pusat (&plusmn;1 menit).',
+        seal: SEAL, kicker: IC.kicker || 'Pusaran Bjorneo &middot; The Maelstrom', title: IC.title || 'Arus Pusaran',
+        quote: IC.quote || 'Mahkota sudah kembali ke laut. Ikuti cahayanya &mdash; laut hanya membuka jalan sekali.', who: IC.who || 'Nenek Ulin',
+        steps: IC.steps || ['Kapalmu terseret <b>spiral pusaran</b>: 3 lingkaran menuju pusat (&plusmn;1 menit).',
           'Tetap di <b>jalur cahaya mahkota</b> (lajur emas). Terlalu lama di luar = dihantam arus liar.',
           'Hindari <b>puing hanyut</b> dan <b>lingkaran petir biru</b> &mdash; menyambar &plusmn;1 detik setelah berkedip.',
           '<b>Tarikan pusat</b> makin kuat di lingkaran dalam. 3 nyawa. Lolos tanpa benturan = <b>sempurna</b>.'],
         controls: { desk: ['<kbd>A</kbd>/<kbd>&larr;</kbd> menjauhi pusat', '<kbd>D</kbd>/<kbd>&rarr;</kbd> ke arah pusat'], touch: ['Tahan sisi <b>kiri</b> / <b>kanan</b> layar'] },
-        cta: 'Masuki pusaran'
+        cta: IC.cta || 'Masuki pusaran'
       }, begin);
 
       return {

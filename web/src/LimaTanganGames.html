@@ -115,12 +115,16 @@ var MTGames4 = (function () {
   var COUNT = ['Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan'];
   var TASSY_TAU = { hot: 'Kau memasak besi, bukan menempanya!', cold: 'Dingin! Besi dingin itu keras kepala, seperti Tedsky.', streak: 'Nah. Tanganmu mulai mendengar.', start: 'Pas. Warna jerami. Sekarang dengarkan aku menghitung.', quench: 'Celup! Tunggu warnanya, jangan tunggu keberanianmu.' };
   function playTempa(opts, cb) {
-    var S = shell('FreeYork &middot; Dok Legenda', 'Tempa Pengait');
+    var S = shell(opts.kicker || 'FreeYork &middot; Dok Legenda', opts.title || 'Tempa Pengait');
     S.cb = cb;
+    // Tide v41: opts.kicker/title/intro/voice/strikes/zoneK/cardTitle/grades/okBtn/failBtn/shape (dipakai ulang Saga lain)
+    var VOICE = opts.voice || null, NS = Math.max(3, Math.min(8, opts.strikes || 8)), ZK = opts.zoneK || 1, PT = 64 / NS, PN = 40 / NS;
+    var TAU = VOICE ? Object.assign({}, TASSY_TAU, VOICE) : TASSY_TAU;
+    function vo(t) { return VOICE ? t : tassy(t); }
     var AUTO = !!opts.__autoplay, W = 900, H = 460;
-    S.body.innerHTML = '<div class="ltg-hud"><span>Tahap <b class="tp-ph">1</b> / 3 &middot; <span class="tp-name">Panaskan</span></span><span>Ketukan <b class="tp-n">0</b> / 8</span><span>Skor <b class="tp-sc">0</b></span></div>';
+    S.body.innerHTML = '<div class="ltg-hud"><span>Tahap <b class="tp-ph">1</b> / 3 &middot; <span class="tp-name">Panaskan</span></span><span>Ketukan <b class="tp-n">0</b> / ' + NS + '</span><span>Skor <b class="tp-sc">0</b></span></div>';
     var C = stageCanvas(S, W, H), ctx = C.ctx;
-    var msg = document.createElement('div'); msg.className = 'tsg-msg'; msg.innerHTML = '<b>Tassyaaa:</b> ' + tassy('"Warna jerami. Jangan putih."') + ' Tahan ububan sampai besi berwarna <b>kuning jerami</b>, lalu ketuk palu tepat di zona hijau. Terakhir, celup sekali saat warnanya oranye-kuning.'; S.body.appendChild(msg);
+    var msg = document.createElement('div'); msg.className = 'tsg-msg'; msg.innerHTML = opts.intro || ('<b>Tassyaaa:</b> ' + tassy('"Warna jerami. Jangan putih."') + ' Tahan ububan sampai besi berwarna <b>kuning jerami</b>, lalu ketuk palu tepat di zona hijau. Terakhir, celup sekali saat warnanya oranye-kuning.'); S.body.appendChild(msg);
     var pad = document.createElement('div'); pad.className = 'ltg-pad';
     pad.innerHTML = '<button class="btn hold" type="button" data-b="1">Ububan &middot; tahan</button><button class="btn btn-gold" type="button" data-s="1">Ketuk palu</button>';
     S.body.appendChild(pad);
@@ -146,25 +150,25 @@ var MTGames4 = (function () {
       S.body.querySelector('.tp-n').textContent = G.n; S.body.querySelector('.tp-sc').textContent = Math.max(0, Math.round(total()));
     }
     function total() { var s = G.strikes.reduce(function (a, b) { return a + b; }, 0) + (G.qpts || 0) - G.burns * 10 - G.cold * 5; return s; }
-    function zoneW() { return 0.14 + 0.26 * clamp((G.h - 0.3) / 0.55, 0, 1); }
+    function zoneW() { return Math.min(0.6, (0.14 + 0.26 * clamp((G.h - 0.3) / 0.55, 0, 1)) * ZK); }
     function markerPos() { return Math.sin(G.swingT / PERIOD * Math.PI * 2); }
     function spark(n, x, y) { for (var i = 0; i < n; i++) G.sparks.push({ x: x, y: y, vx: (Math.random() - 0.5) * 420, vy: -Math.random() * 380, l: 0.4 + Math.random() * 0.5, a: 0 }); }
     function act() {
       if (G.done) return;
-      if (G.ph === 1) { if (G.h >= 0.72 && G.h <= 1) startForge(); else say(G.h > 1 ? tassy('"' + TASSY_TAU.hot + '"') : 'Besinya belum <b>kuning jerami</b> (sekarang ' + heatName(G.h) + '). Tahan ububan.'); return; }
+      if (G.ph === 1) { if (G.h >= 0.72 && G.h <= 1) startForge(); else say(G.h > 1 ? vo('"' + TAU.hot + '"') : 'Besinya belum <b>kuning jerami</b> (sekarang ' + heatName(G.h) + '). Tahan ububan.'); return; }
       if (G.ph === 2) { strike(); return; }
       if (G.ph === 3 && G.qpts == null) { quench(); }
     }
-    function startForge() { G.ph = 2; G.swingT = 0; au('page'); say(tassy('"' + TASSY_TAU.start + '"')); hud(); }
+    function startForge() { G.ph = 2; G.swingT = 0; au('page'); say(vo('"' + TAU.start + '"')); hud(); }
     function strike() {
       var p = markerPos(), w = zoneW(), pts = 0, cold = G.h < 0.3;
       au('dig'); G.flash = 1; spark(cold ? 4 : 22, 470, 268);
-      if (cold) { G.cold++; G.streak = 0; say(tassy('"' + TASSY_TAU.cold + '"'), 'bad'); }
-      else if (Math.abs(p) <= w * 0.4) { pts = 8; G.streak++; say(G.streak >= 3 ? tassy('"' + TASSY_TAU.streak + '"') : '<b>Tepat!</b> Besi mengalah di bawah palu.', 'good'); }
-      else if (Math.abs(p) <= w) { pts = 5; G.streak = 0; say('Dekat. Palunya sedikit ' + (p > 0 ? 'terlambat' : 'terlalu cepat') + '.'); }
+      if (cold) { G.cold++; G.streak = 0; say(vo('"' + TAU.cold + '"'), 'bad'); }
+      else if (Math.abs(p) <= w * 0.4) { pts = PT; G.streak++; say(G.streak >= 3 ? vo('"' + TAU.streak + '"') : '<b>Tepat!</b> Besi mengalah di bawah palu.', 'good'); }
+      else if (Math.abs(p) <= w) { pts = PN; G.streak = 0; say('Dekat. Palunya sedikit ' + (p > 0 ? 'terlambat' : 'terlalu cepat') + '.'); }
       else { G.streak = 0; say('Meleset. Palu memantul dari landasan.', 'bad'); }
       G.strikes.push(pts); G.n++; G.h = Math.max(0, G.h - 0.11);
-      if (G.n >= 8) { G.ph = 3; G.lift = 0; G.h = Math.max(G.h, 1.0); G.quenchT = 0; say(tassy('"' + TASSY_TAU.quench + '"') + ' Ketuk sekali saat warnanya <b>oranye-kuning</b>.'); }
+      if (G.n >= NS) { G.ph = 3; G.lift = 0; G.h = Math.max(G.h, 1.0); G.quenchT = 0; say(vo('"' + TAU.quench + '"') + ' Ketuk sekali saat warnanya <b>oranye-kuning</b>.'); }
       hud();
     }
     function quench() {
@@ -177,14 +181,14 @@ var MTGames4 = (function () {
       if (G.done) return; G.done = true;
       var clean = G.burns === 0 && G.cold === 0, sc = clamp(Math.round(total() + (clean ? 16 : 0)), 0, 100);
       var grade = sc >= 90 ? 'sempurna' : sc >= 70 ? 'baik' : sc >= 50 ? 'kasar' : 'retak';
-      var tep = G.strikes.filter(function (x) { return x === 8; }).length, dek = G.strikes.filter(function (x) { return x === 5; }).length;
-      var GL = { sempurna: ['Sempurna', '"…Kakekku akan cemburu."'], baik: ['Baik', '"Bagus. Rantainya akan menangis."'], kasar: ['Kasar', '"Ini akan bekerja. Tapi rantai Tedsky akan tertawa dulu sebelum patah."'], retak: ['Retak', '"Besi tidak berbohong. Tanganmu terburu-buru."'] }[grade];
+      var tep = G.strikes.filter(function (x) { return x === PT; }).length, dek = G.strikes.filter(function (x) { return x === PN; }).length;
+      var GL = (opts.grades || { sempurna: ['Sempurna', '"…Kakekku akan cemburu."'], baik: ['Baik', '"Bagus. Rantainya akan menangis."'], kasar: ['Kasar', '"Ini akan bekerja. Tapi rantai Tedsky akan tertawa dulu sebelum patah."'], retak: ['Retak', '"Besi tidak berbohong. Tanganmu terburu-buru."'] })[grade];
       au(grade === 'retak' ? 'error' : 'victory');
       pad.remove(); keys.remove();
-      S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">Mutu pengait</div><div class="g">' + GL[0] + '</div><div class="q">' + tassy(GL[1]) + '</div>' +
+      S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">' + (opts.cardTitle || 'Mutu pengait') + '</div><div class="g">' + GL[0] + '</div><div class="q">' + vo(GL[1]) + '</div>' +
         '<div class="rows"><div><span>Ketukan tepat / dekat</span><b>' + tep + ' / ' + dek + '</b></div><div><span>Celup</span><b>' + (G.qpts || 0) + ' / 20</b></div>' +
         '<div><span>Kerapian</span><b>' + (clean ? '+16' : (G.burns ? 'terbakar ' + G.burns + '× ' : '') + (G.cold ? 'besi dingin ' + G.cold + '×' : '')) + '</b></div><div><span>Skor</span><b>' + sc + ' / 100</b></div></div></div>');
-      finishBtn(S, grade === 'retak' ? 'Pengait patah di bak air' : 'Angkat pengait', { win: grade !== 'retak', grade: grade, score: sc, duration: Date.now() - G.t0, kind: 'tempa' });
+      finishBtn(S, grade === 'retak' ? (opts.failBtn || 'Pengait patah di bak air') : (opts.okBtn || 'Angkat pengait'), { win: grade !== 'retak', grade: grade, score: sc, duration: Date.now() - G.t0, kind: 'tempa' });
     }
     function update(dt) {
       G.t += dt;
@@ -242,13 +246,16 @@ var MTGames4 = (function () {
         ctx.fillStyle = 'rgba(110,210,130,.55)'; ctx.fillRect(cx - mw / 2 * w, my, mw * w, 16);
         ctx.fillStyle = 'rgba(160,255,170,.85)'; ctx.fillRect(cx - mw / 2 * w * 0.4, my, mw * w * 0.4, 16);
         var px = cx + markerPos() * mw / 2; ctx.fillStyle = '#ffe7a3'; ctx.fillRect(px - 3, my - 6, 6, 28);
-        var word = COUNT[Math.min(7, G.n)] || ''; ctx.fillStyle = '#ffd39a'; ctx.font = 'italic 26px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(tassy(word), cx, my - 18);
+        var word = COUNT[Math.min(7, G.n)] || ''; ctx.fillStyle = '#ffd39a'; ctx.font = 'italic 26px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(vo(word), cx, my - 18);
       }
       // palu (ayunan)
       var swing = G.flash, hx2 = 490, hy2 = 200 + (1 - swing) * -40;
       ctx.save(); ctx.translate(hx2 + 60, hy2); ctx.rotate(-0.7 + swing * 0.7); ctx.fillStyle = '#5a3a22'; ctx.fillRect(-6, 0, 12, 120); ctx.fillStyle = '#6a6a72'; ctx.fillRect(-34, -18, 68, 30); ctx.restore();
       G.sparks.forEach(function (s) { ctx.fillStyle = 'rgba(255,' + Math.round(200 - s.a * 200) + ',80,' + (1 - s.a / s.l).toFixed(2) + ')'; ctx.fillRect(s.x, s.y, 3, 3); });
       if (G.flash > 0) glow(ctx, 470, 268, 120, '255,230,160', G.flash * 0.6);
+      if (opts.shape === 'jangkar') { // mata jangkar di ujung batang
+        ctx.save(); ctx.fillStyle = heatCol(G.h); ctx.translate(bx + 200, by + 9); ctx.beginPath(); ctx.arc(0, 0, 26, 0.2, Math.PI - 0.2); ctx.lineTo(-30, 2); ctx.lineTo(-24, -8); ctx.arc(0, 0, 18, Math.PI - 0.2, 0.2, true); ctx.lineTo(24, -8); ctx.lineTo(30, 2); ctx.closePath(); ctx.fill(); ctx.restore();
+      }
     }
     function loop(ts) { if (S.done) return; var dt = G.last ? Math.min(0.05, (ts - G.last) / 1000) : 0.016; G.last = ts; update(dt); draw(); S.raf = requestAnimationFrame(loop); }
     hud(); S.raf = requestAnimationFrame(loop);
@@ -259,13 +266,15 @@ var MTGames4 = (function () {
   // Napas 60 dtk (turun aktif 1,5x boros), gelembung +8, ubur-ubur api -8, belut -5 (+jatuhkan 1 mutiara),
   // kima Hati Karang buka-tutup (terjepit -15). Naik: berhenti >= 2 dtk di batas cahaya, kalau tidak pusing.
   function playSelam(opts, cb) {
-    var S = shell('Kepulauan Karang Garam &middot; pagi setelah badai', 'Selam Mutiara');
+    var S = shell(opts.kicker || 'Kepulauan Karang Garam &middot; pagi setelah badai', opts.title || 'Selam Mutiara');
     S.cb = cb;
+    // Tide v41: opts.kicker/title/intro/targetName/target('gear')/grabMsg/cards (dipakai ulang Saga lain)
+    var TN = opts.targetName || 'Hati Karang', CARDS = opts.cards || null;
     var AUTO = !!opts.__autoplay, W = 900, H = 600, SURF = 54, LINE = 230, FLOOR = 556;
-    S.body.innerHTML = '<div class="ltg-hud"><span>Napas <span class="ltg-bar"><i class="sl-bat"></i></span></span><span>Hati Karang <b class="sl-h">' + (opts.haveHeart ? 'sudah' : '–') + '</b></span><span>Mutiara <b class="sl-b">0</b></span></div>';
+    S.body.innerHTML = '<div class="ltg-hud"><span>Napas <span class="ltg-bar"><i class="sl-bat"></i></span></span><span>' + TN + ' <b class="sl-h">' + (opts.haveHeart ? 'sudah' : '–') + '</b></span><span>Mutiara <b class="sl-b">0</b></span></div>';
     var C = stageCanvas(S, W, H), ctx = C.ctx;
     var msg = document.createElement('div'); msg.className = 'tsg-msg';
-    msg.innerHTML = opts.haveHeart ? 'Kimanya masih di dasar. Kumpulkan mutiara kecil di karang, lalu pulang dengan napasmu sendiri.' : '<b>Ipo:</b> "Ikuti aku! Jangan sentuh ubur-ubur yang menyala. Cari gelembung kalau napas tinggal sedikit. Waktu naik, <b>pelankan sebelum garis hijau</b> (ketuk menyelam sebentar), lalu tunggu dua hitungan!"';
+    msg.innerHTML = opts.intro || (opts.haveHeart ? 'Kimanya masih di dasar. Kumpulkan mutiara kecil di karang, lalu pulang dengan napasmu sendiri.' : '<b>Ipo:</b> "Ikuti aku! Jangan sentuh ubur-ubur yang menyala. Cari gelembung kalau napas tinggal sedikit. Waktu naik, <b>pelankan sebelum garis hijau</b> (ketuk menyelam sebentar), lalu tunggu dua hitungan!"');
     S.body.appendChild(msg);
     var pad = document.createElement('div'); pad.className = 'ltg-pad'; pad.style.gridTemplateColumns = '1fr 2fr 1fr';
     pad.innerHTML = '<button class="btn" type="button" data-d="-1">&#9664;</button><button class="btn btn-gold hold" type="button" data-dive="1">Tahan untuk menyelam</button><button class="btn" type="button" data-d="1">&#9654;</button>';
@@ -317,7 +326,8 @@ var MTGames4 = (function () {
       // berhasil = naik dengan Hati Karang (atau sudah punya, selam ulang untuk butir)
       var got = ok && D.heart;
       var res = { win: got, heart: got && !opts.haveHeart, beads: got ? D.beads : 0, duration: Date.now() - D.t0, kind: 'selam', surfaced: ok };
-      if (ok && !got) { au('page'); S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">Naik tanpa Hati Karang</div><div class="g">Kimanya masih di dasar</div><div class="q"><b>Ipo:</b> "Ambil Hati Karang dulu, baru mutiara. Kimanya tidak ke mana-mana!"</div></div>'); }
+      if (CARDS) { var cc = ok && got ? CARDS.ok : ok ? CARDS.empty : CARDS.fail; au(ok && got ? 'victory' : ok ? 'page' : 'splash'); S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">' + cc[0] + '</div><div class="g">' + cc[1] + '</div><div class="q">' + cc[2] + '</div></div>'); }
+      else if (ok && !got) { au('page'); S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">Naik tanpa Hati Karang</div><div class="g">Kimanya masih di dasar</div><div class="q"><b>Ipo:</b> "Ambil Hati Karang dulu, baru mutiara. Kimanya tidak ke mana-mana!"</div></div>'); }
       else if (ok) { au('victory'); S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">' + (D.heart && !opts.haveHeart ? 'Hati Karang' : 'Pulang dengan napas sendiri') + '</div><div class="g">' + D.beads + ' mutiara kecil</div><div class="q"><b>Ipo:</b> "' + (D.heart ? 'Nek! Dia pulang dengan napasnya sendiri!' : 'Kimanya masih di sana. Mau coba lagi?') + '"</div></div>'); }
       else { au('splash'); S.body.insertAdjacentHTML('beforeend', '<div class="ltg-card"><div class="s">Napas habis</div><div class="g">Ipo menarikmu ke atas</div><div class="q">"' + (why || 'Kau hampir jadi ikan! Istirahat dulu. Nenek bilang orang yang terburu-buru di bawah air biasanya tidak naik lagi.') + '"</div></div>'); }
       finishBtn(S, ok ? 'Naik ke perahu' : 'Istirahat', res);
@@ -359,7 +369,7 @@ var MTGames4 = (function () {
       pearls.forEach(function (p) { if (!p.got && Math.hypot(p.x - D.x, p.y - D.y) < 26) { p.got = true; D.beads++; au('coin'); } });
       // kima
       if (!D.heart && Math.hypot(kima.x - D.x, kima.y - 14 - D.y) < 40) {
-        if (kimaOpen()) { D.heart = true; au('success'); say('<b>Hati Karang!</b> Mutiara sebesar kepalan, hangat seperti batu di bawah matahari. Sekarang naik. <b>Pelankan sebelum garis hijau</b>, lalu tunggu dua hitungan.', 'good'); }
+        if (kimaOpen()) { D.heart = true; au('success'); say(opts.grabMsg || '<b>Hati Karang!</b> Mutiara sebesar kepalan, hangat seperti batu di bawah matahari. Sekarang naik. <b>Pelankan sebelum garis hijau</b>, lalu tunggu dua hitungan.', 'good'); }
         else if (hurt(15, 'Kima menutup! Tanganmu terjepit')) { D.vy = -120; }
       }
       // batas cahaya
@@ -373,6 +383,11 @@ var MTGames4 = (function () {
       if (D.y <= SURF + 2 && D.wasDeep) { end(true); return; }
       if (guide) { var gx = D.heart ? 450 : kima.x + 40, gy = D.heart ? SURF + 10 : kima.y - 70; guide.x += (gx - guide.x) * dt * 0.6; guide.y += (gy - guide.y) * dt * 0.5; }
       hud();
+    }
+    function gearAt(x, y, r) { // roda gigi kuningan (Jam Agung)
+      ctx.save(); ctx.translate(x, y); ctx.rotate(D.t * 0.6); ctx.fillStyle = '#d8b25a'; ctx.beginPath();
+      for (var i = 0; i < 20; i++) { var rr = i % 2 ? r : r * 1.25, a = i / 20 * Math.PI * 2; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill(); ctx.fillStyle = '#6a4a1a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.38, 0, 6.3); ctx.fill(); ctx.restore();
     }
     function diver(x, y, s, c) {
       ctx.save(); ctx.translate(x, y); var sw = Math.sin(D.t * 8) * 0.3;
@@ -413,12 +428,12 @@ var MTGames4 = (function () {
       var open = kimaOpen() ? 1 : 0.15, kx = kima.x, ky = kima.y;
       ctx.fillStyle = '#8a9a8a'; ctx.beginPath(); ctx.ellipse(kx, ky, 60, 18, 0, 0, Math.PI); ctx.fill();
       ctx.save(); ctx.translate(kx, ky); ctx.rotate(-open * 0.5); ctx.fillStyle = '#9aaa98'; ctx.beginPath(); ctx.ellipse(0, 0, 60, 18, 0, Math.PI, 0); ctx.fill(); ctx.restore();
-      if (!D.heart && open > 0.5) { glow(ctx, kx, ky - 8, 30, '255,240,200', 0.7); ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(kx, ky - 6, 9, 0, 6.3); ctx.fill(); }
+      if (!D.heart && open > 0.5) { glow(ctx, kx, ky - 8, 30, '255,240,200', 0.7); if (opts.target === 'gear') gearAt(kx, ky - 6, 11); else { ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(kx, ky - 6, 9, 0, 6.3); ctx.fill(); } }
       // Ipo & pemain
       if (guide) diver(guide.x, guide.y, 0.85, '#a8744a');
       if (D.dizzy > 0) { ctx.save(); ctx.translate(D.x, D.y); ctx.rotate(Math.sin(t * 12) * 0.2); ctx.translate(-D.x, -D.y); }
       diver(D.x, D.y, 1);
-      if (D.heart && !opts.haveHeart) { glow(ctx, D.x + 14, D.y - 2, 18, '255,240,200', 0.7); ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(D.x + 14, D.y - 2, 6, 0, 6.3); ctx.fill(); }
+      if (D.heart && !opts.haveHeart) { glow(ctx, D.x + 14, D.y - 2, 18, '255,240,200', 0.7); if (opts.target === 'gear') gearAt(D.x + 14, D.y - 2, 8); else { ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(D.x + 14, D.y - 2, 6, 0, 6.3); ctx.fill(); } }
       if (D.dizzy > 0) ctx.restore();
       var dark = clamp((D.y - 200) / 500, 0, 0.55); ctx.fillStyle = 'rgba(2,10,20,' + dark.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H);
       if (D.breath < 12) { ctx.fillStyle = 'rgba(120,0,0,' + (0.12 + 0.1 * Math.sin(t * 8)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }

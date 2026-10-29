@@ -8,6 +8,15 @@
   body.pe-emas   #sceneCanvas, body.pe-emas   #scenePhoto, body.pe-emas   #battleCanvas { filter: sepia(.88) saturate(1.2) hue-rotate(-8deg) contrast(1.05) brightness(.96); }
   body.pe-kedip  #sceneCanvas, body.pe-kedip  #scenePhoto, body.pe-kedip  #battleCanvas { filter: sepia(.82) saturate(1.1) hue-rotate(-8deg) contrast(1.08); transition: filter .12s linear; }
   body.pe-kedip.pe-flash #sceneCanvas, body.pe-kedip.pe-flash #scenePhoto, body.pe-kedip.pe-flash #battleCanvas { filter: brightness(1.12) contrast(1.05); }
+  body.pe-sepia.pe-flash #sceneCanvas, body.pe-sepia.pe-flash #scenePhoto { filter: brightness(1.18) contrast(1.05); transition: filter .08s linear; }
+  /* mini game di masa lalu ikut bernada (Tide v41) */
+  body.pe-sepia .mtg .mtg-stage canvas, body.pe-sepia .tsg .ltg-cv { filter: sepia(.45) saturate(.85); }
+  body.pe-emas .mtg .mtg-stage canvas, body.pe-emas .tsg .ltg-cv { filter: sepia(.8) saturate(1.1) hue-rotate(-8deg); }
+  .mtg-celah .mtg-stage canvas { filter: grayscale(1) contrast(1.18) sepia(.18); }
+  .mtg-celah .mtg-stage::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(circle, #e8c46a 0 1px, transparent 1.6px), radial-gradient(circle, #e8c46a 0 1px, transparent 1.4px);
+    background-size: 37px 53px, 61px 41px; animation: peSand 6s linear infinite; }
+  @keyframes peSand { from { background-position: 0 0, 10px 0; } to { background-position: 0 530px, 10px 410px; } }
   body.pe-celah  #sceneCanvas, body.pe-celah  #scenePhoto, body.pe-celah  #battleCanvas { filter: grayscale(1) contrast(1.2); }
   /* Transisi Celah (layar penuh) */
   #peCelah { position: fixed; inset: 0; z-index: 2147481500; pointer-events: none; opacity: 0; transition: opacity .6s ease; background: radial-gradient(ellipse at 50% 40%, #2b2b2b, #050505 78%); }
@@ -29,12 +38,12 @@ var PE = (function () {
   var FX = {
     kini:   null,
     dingin: { tint: 'rgba(110,140,170,.10)', fog: .10, vig: 'rgba(20,30,44,', vigA: .35 },
-    sepia:  { tint: 'rgba(150,100,50,.06)', grain: .05, vig: 'rgba(40,24,10,', vigA: .32 },
+    sepia:  { tint: 'rgba(150,100,50,.06)', grain: .05, vig: 'rgba(40,24,10,', vigA: .32, rain: 90, flash: true, flashGap: 5200 },
     emas:   { tint: 'rgba(170,120,40,.07)', grain: .11, scratch: true, flicker: .03, vig: 'rgba(36,20,6,', vigA: .55 },
     kedip:  { tint: 'rgba(170,120,40,.05)', grain: .08, flash: true, sand: 14, vig: 'rgba(30,18,6,', vigA: .5 },
     celah:  { grain: .06, sand: 40, sandCol: '#e8c46a', vig: 'rgba(0,0,0,', vigA: .6 }
   };
-  var cur = 'kini', cv = null, ctx = null, raf = 0, last = 0, noise = [], sand = [], scratches = [], flashT = 0;
+  var cur = 'kini', cv = null, ctx = null, raf = 0, last = 0, noise = [], sand = [], scratches = [], rain = [], flashT = 0;
   var reduce = false;
   try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { }
 
@@ -94,6 +103,14 @@ var PE = (function () {
       sand.forEach(function (p) { p.y += p.v * (W / 900) * 2; p.x += Math.sin((p.y + t) / 60) * .3; if (p.y > Hh) { p.y = -4; p.x = Math.random() * W; } g.globalAlpha = .55; g.beginPath(); g.arc(p.x, p.y, p.r * (W / 1000), 0, 7); g.fill(); });
       g.restore();
     }
+    if (f.rain && moving) { // hujan miring Tahun Badai Besar
+      var nr = Math.round(f.rain * W / 1000);
+      while (rain.length < nr) rain.push({ x: Math.random() * W * 1.2, y: Math.random() * Hh, v: 9 + Math.random() * 7, l: 10 + Math.random() * 14 });
+      g.save(); g.strokeStyle = 'rgba(230,214,180,.32)'; g.lineWidth = Math.max(1, W / 1400);
+      g.beginPath();
+      rain.forEach(function (p) { var k = W / 900; p.y += p.v * k * 2.2; p.x -= p.v * k * 0.7; if (p.y > Hh || p.x < -20) { p.y = -10; p.x = Math.random() * W * 1.2; } g.moveTo(p.x, p.y); g.lineTo(p.x + p.l * k * 0.3, p.y - p.l * k); });
+      g.stroke(); g.restore();
+    }
     if (f.vig) {
       var vg = g.createRadialGradient(W / 2, Hh * .48, Math.min(W, Hh) * .35, W / 2, Hh / 2, Math.max(W, Hh) * .75);
       vg.addColorStop(0, f.vig + '0)'); vg.addColorStop(1, f.vig + f.vigA + ')');
@@ -110,7 +127,7 @@ var PE = (function () {
     last = ts;
     var s = size();
     if (FX[cur] && FX[cur].flash && moving) {
-      if (ts > flashT) { document.body.classList.add('pe-flash'); setTimeout(function () { document.body.classList.remove('pe-flash'); }, 90 + Math.random() * 160); flashT = ts + 700 + Math.random() * 2600; }
+      if (ts > flashT) { document.body.classList.add('pe-flash'); setTimeout(function () { document.body.classList.remove('pe-flash'); }, 90 + Math.random() * 160); flashT = ts + (FX[cur].flashGap || 700) + Math.random() * (FX[cur].flashGap ? FX[cur].flashGap : 2600); }
     }
     drawFx(ctx, s.w, s.h, FX[cur], ts, moving);
     if (moving) raf = requestAnimationFrame(loop);
@@ -121,7 +138,7 @@ var PE = (function () {
     if (tone === cur && (tone === 'kini' || raf || still())) return;
     TONES.forEach(function (t) { document.body.classList.remove('pe-' + t); });
     document.body.classList.remove('pe-on', 'pe-flash');
-    cur = tone; sand = []; scratches = [];
+    cur = tone; sand = []; scratches = []; rain = [];
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     if (tone === 'kini') { if (ctx && cv) ctx.clearRect(0, 0, cv.width, cv.height); return; }
     document.body.classList.add('pe-' + tone, 'pe-on');

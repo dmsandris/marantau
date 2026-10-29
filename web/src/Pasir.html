@@ -176,7 +176,7 @@ var PS = (function () {
       '<div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
     document.body.appendChild(ov);
     var stop = function () { };
-    try { stop = MTCine.play(ov.querySelector('canvas'), kind, { ctl: ctl, vis: opts.vis }) || stop; } catch (e) { console.warn('[PS] cine', e); }
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind, { ctl: ctl, vis: opts.vis, solo: opts.solo, data: opts.data }) || stop; } catch (e) { console.warn('[PS] cine', e); }
     var txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.ts-skip');
     function slideOf(i) { var s = slides[i]; return typeof s === 'string' ? { t: s } : s; }
     function show() {
@@ -547,7 +547,10 @@ var PS = (function () {
     { sk: 'jabat', n: 'Saga 2', a: 'Dua tangan berjabat di teluk.', b: 'Tidak pernah terjadi.' },
     { sk: 'menara', n: 'Hari ini', a: 'Festival Restorasi IKN.', b: 'Zaman Keadilan: Satnislaus Laksamana Agung. Restorasi menjadi Pajak Keadilan. Menara Cahaya menjadi Menara Pengawas.', mark: 'cold' }
   ];
+  var nodeHooks = [];   // modul quest berikutnya menambah simpul (PS.nodeHooks.push(fn))
+  function allNodes() { var a = NODES.slice(); nodeHooks.forEach(function (f) { try { a = a.concat(f() || []); } catch (e) { } }); return a; }
   function papan(tutorial) {
+    var NODES = allNodes();
     var w = modalWrap('map', 'Papan Benang', tutorial ? 'Gambar Paman Ocid' : 'Jurnalmu');
     var m = memGet('benang') || {};
     w.innerHTML = '<div class="ps-papan"><canvas></canvas></div><div class="ps-papan-info">Ketuk satu simpul di benang.</div>' +
@@ -558,7 +561,7 @@ var PS = (function () {
       cv.width = W * dpr; cv.height = Hh * dpr;
       var c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
       MTPS.paper(c, 0, 0, W, Hh, 'rgba(60,40,20,.06)');
-      var n = NODES.length, cols = W < 560 ? 4 : n, rows = Math.ceil(n / cols), mx = 14, gap = (W - mx * 2) / cols;
+      var n = NODES.length, cols = W < 560 ? 4 : (n > 8 ? 5 : n), rows = Math.ceil(n / cols), mx = 14, gap = (W - mx * 2) / cols;
       var cw = Math.min(gap * 0.86, 150), ch = cw * 0.66, rowH = (Hh - 10) / rows, fs = Math.max(9, Math.min(11, gap / 9));
       boxes = [];
       for (var r = 0; r < rows; r++) {
@@ -805,6 +808,7 @@ var PS = (function () {
         if (k === 'reset' && confirm('Hapus semua data uji Pasir untuk akunmu?')) { try { Object.keys(localStorage).forEach(function (x) { if (x.indexOf('ps:' + uname() + ':') === 0) localStorage.removeItem(x); }); } catch (e) { } return gm(['reset'], true); }
         if (k === 'ambil' && confirm('Ambil SEMUA harta akunmu ke potret (uji)? Bisa dikembalikan dengan Pulih.')) { rememberBefore(); return gm(['ambil'], true); }
         if (k === 'pulih') return gm(['pulih'], true);
+        if (k === 'jangkar') return gm(['jangkar'], true);
         if (k === 'benang') { document.getElementById('mtGmPanel').classList.remove('open'); return benang(true); }
       });
     }
@@ -818,8 +822,8 @@ var PS = (function () {
       ' Kaca <input type="number" min="0" max="' + (p.kacaMax || 7) + '" data-in="kaca" value="' + (p.kaca || 0) + '"><button type="button" data-ps="kaca">Set</button></div>' +
       '<div class="ps-row">Langkah <select data-in="q">' + ['10', '11', '12', '13', '14'].map(function (k) { return '<option value="ps' + k + '">' + k + ' (' + (q[k] || 0) + ')</option>'; }).join('') +
       '</select><input type="number" min="0" data-in="n" value="0"><button type="button" data-ps="langkah">Set</button><button type="button" data-ps="reset">Reset</button></div>' +
-      '<div class="ps-row">Harta <button type="button" data-ps="ambil">Ambil</button><button type="button" data-ps="pulih">Pulih</button></div>' +
-      '<div class="ps-st">Nada: <b>' + esc(p.tone) + '</b> &middot; retak ' + (p.retak || 0) + ' &middot; kaca ' + (p.kaca || 0) + '/' + (p.kacaMax || 7) + ' &middot; Q10 langkah ' + (q['10'] || 0) + '</div>';
+      '<div class="ps-row">Harta <button type="button" data-ps="ambil">Ambil</button><button type="button" data-ps="pulih">Pulih</button> &middot; <button type="button" data-ps="jangkar">Jangkar siap</button></div>' +
+      '<div class="ps-st">Nada: <b>' + esc(p.tone) + '</b> &middot; retak ' + (p.retak || 0) + ' &middot; kaca ' + (p.kaca || 0) + '/' + (p.kacaMax || 7) + ' &middot; Q10 langkah ' + (q['10'] || 0) + ' &middot; Q11 langkah ' + (q['11'] || 0) + '</div>';
   }
   function gm(args, reload) {
     call(['gm'].concat(args), function () {
@@ -829,6 +833,10 @@ var PS = (function () {
   }
   document.addEventListener('click', function (ev) { if (ev.target && ev.target.id === 'mtGmBtn') setTimeout(gmTool, 0); }, true);
 
-  return { st: st, call: call, adopt: adopt, journal: journal, papan: papan, benang: benang, _festival: festival, _geladak: geladak, _tangga: tangga, _hari: hariPertama, _catatan: catatan, _bukti: buktiScene, _ocid: ocidScene };
+  return { st: st, call: call, adopt: adopt, journal: journal, papan: papan, benang: benang, _festival: festival, _geladak: geladak, _tangga: tangga, _hari: hariPertama, _catatan: catatan, _bukti: buktiScene, _ocid: ocidScene,
+    // pembantu untuk modul quest berikutnya (PasirQ11.html, dst.)
+    K: { N: N, face: face, speech: speech, narr: narr, actions: actions, dots: dots, btn: btn, on: on, showModal: showModal, modalWrap: modalWrap, close: close, insert: insert, pages: pages,
+      cine: cine, busyUi: busyUi, busy: function (b) { flowBusy = !!b; }, seen: seen, markSeen: markSeen, memGet: memGet, memSet: memSet, esc: esc, au: au, apOf: apOf,
+      capName: capName, cid: cid, docked: docked, era: era, adil: adil, uname: uname, nodeHooks: nodeHooks } };
 })();
 </script>

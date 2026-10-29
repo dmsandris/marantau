@@ -1,0 +1,531 @@
+<style>
+  /* ================= Tide v41 · Pasir Quest 11 (PS11) ================= */
+  .ps-pusaka { margin: 10px 0 14px; }
+  .ps-pusaka .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ps-pusaka .slot { position: relative; padding: 10px; border-radius: 12px; border: 1px dashed rgba(120,90,50,.45); background: rgba(255,250,236,.55); min-height: 96px; display: flex; flex-direction: column; gap: 4px; font-size: .86em; color: #3a2a16; }
+  .ps-pusaka .slot.on { border-style: solid; border-color: rgba(184,134,43,.7); background: linear-gradient(180deg, #fff8e4, #f1e2bc); }
+  .ps-pusaka .slot .n { font-family: var(--font-title); font-weight: 700; letter-spacing: .04em; font-size: 1.02em; display: flex; gap: 6px; align-items: center; }
+  .ps-pusaka .slot .n svg { width: 16px; height: 16px; }
+  .ps-pusaka .slot .m { font-size: .78em; text-transform: uppercase; letter-spacing: .12em; color: #8a6a2a; }
+  .ps-pusaka .slot .d { color: #5a4630; line-height: 1.4; flex: 1; }
+  .ps-pusaka .slot .k { font-size: .75em; color: #8a7a60; }
+  .ps-pusaka .slot button { align-self: flex-start; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(79,51,30,.35); background: #fff8e8; color: #33230f; cursor: pointer; font: inherit; font-size: .82em; }
+  .ps-pusaka .own { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .ps-pusaka .own button { padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(79,51,30,.35); background: #fff8e8; cursor: pointer; font: inherit; font-size: .82em; }
+  .chip.ps-retak { background: rgba(240,224,190,.18); border-color: rgba(240,224,190,.5); color: #f6ead0; gap: 6px; }
+  .chip.ps-retak i { display: inline-block; width: 46px; height: 6px; border-radius: 4px; background: rgba(255,255,255,.2); overflow: hidden; vertical-align: middle; }
+  .chip.ps-retak i b { display: block; height: 100%; background: linear-gradient(90deg, #e8c46a, #d0603a); }
+  .ps-letter { font-family: Georgia, serif; font-style: italic; font-size: 1.05em; line-height: 1.7; padding: 6px 4px; }
+  @media (max-width: 560px) { .ps-pusaka .slots { grid-template-columns: 1fr; } .ps-pusaka .slot { min-height: 0; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Pasir Quest 11 "Kapal yang Tak Pernah Terdampar" (modul PS11)
+ * Server: 0042. Langkah: 1 surat · 2 jalan ke em pe'er de pe'er + biaya Jangkar · 3 Selam roda gigi ·
+ *   4 Tempa Jangkar Waktu · 5 Jam Agung -> Arus Pusaran (Celah Waktu) -> era badai ·
+ *   6 tambal perahu Gala muda · 7 pilihan riak gala_muda · 8 kapal hantu (Jaring Angin) · 9 Paman Ocid · 10 selesai
+ * Juga: panel Pusaka di Ship, jangkar kecil di haluan kapal, meteran Retak Waktu, ruang Jam Agung.
+ * Naskah tidak menyiratkan apa pun bahwa harta akan kembali.
+ * ===================================================================== */
+var PS11 = (function () {
+  if (!window.PS || !PS.K) return {};
+  var K = PS.K, esc = K.esc;
+  function p() { return PS.st(); }
+  function q() { var x = p(); return (x && x.q11) || null; }
+  function step() { var x = q(); return x ? (x.step || 0) : 0; }
+  function qd() { var x = q(); return (x && x.d) || {}; }
+  function q10done() { var x = p(); return !!(x && x.q10 && x.q10.step >= 11); }
+  function era() { return K.era(); }
+  function badai() { return era() === 'badai'; }
+  function lampau() { return era() === 'badai' || era() === 'lampau'; }
+  function gold() { return (state && state.player) ? (+state.player.gold || 0) : 0; }
+  function cost() { return (p() && p().q11cost) || 100000; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function call(a, ok, fail, b) { PS.call(a, ok, fail, b); }
+  function toast(t, k) { if (typeof showToast === 'function') showToast(t, k || 'info'); }
+  var btn = K.btn, on = K.on, actions = K.actions, speech = K.speech, narr = K.narr;
+
+  /* ---------- tokoh ---------- */
+  var GALA = null;
+  function gala() {
+    if (GALA) return GALA;
+    GALA = { name: 'Pemuda nelayan', title: 'Skitraw, Tahun Badai Besar', ap: K.apOf('gala-muda-badai', 'tukang', 0, { age: 0.12, facial: 0, head: 'none' }) };
+    return GALA;
+  }
+  function ocid() { return K.N().ocid; }
+
+  /* ---------- surat ---------- */
+  function surat() {
+    K.markSeen('surat11');
+    var w = K.modalWrap('scroll', 'Sepucuk Surat', 'Dari Paman Ocid');
+    w.innerHTML = narr('Ditulis dengan arang', '<div class="ps-letter">"Kapten, aku sudah menemukan jalan pulang ke pulauku. Temui aku di <b>Pustaka Sunda Empire</b>. Bawa modalmu.<br><br>&mdash; Ocid"</div>', actions(btn('ok', null, 'Tutup', false)), 'scroll', 'paper');
+    on(w, '[data-ps=ok]', K.close);
+  }
+
+  /* ---------- Babak 1: Pustaka Sunda -> peta -> biaya ---------- */
+  function ocidMulai() {
+    var w = K.modalWrap('book', 'Pustaka Sunda', 'Sunda Empire');
+    K.pages(w, ocid(), [
+      { narr: 'Di sudut pustaka', icon: 'book', t: '<p>Paman Ocid kini lebih rapi. Di mejanya terbentang petamu yang lusuh, dan sebatang arang.</p>' },
+      '"Jam Agung tidak hilang, Kapten. Ia hanya <b>berhenti lagi</b>."',
+      '"Dari roda cadangannya aku bisa membuat <b>jangkar</b>: jangkar untuk kapal yang mau berlayar ke belakang."',
+      '"Tapi pertama, kau perlu jalan ke pulauku. Di dunia ini, tak ada yang ingat jalannya. Kecuali aku."'
+    ], btn('peta', 'map', 'Gambarkan jalannya'), function (w2) {
+      on(w2, '[data-ps=peta]', function (b) { call(['mulai11'], function () { K.close(); petaCine(); try { if (typeof loadState === 'function') setTimeout(loadState, 300); } catch (e) { } }, null, b); });
+    }, 'Penjaga Jam Agung');
+  }
+  var START = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'toogood', 'ikn'];
+  function petaData() {
+    var cs = (state.cities || []).filter(function (c) { return START.indexOf(c.CityId) >= 0 || c.CityId === 'empeer_depeer'; })
+      .map(function (c) { return { id: c.CityId, name: c.Name || c.CityId, x: +c.MapX || 0, y: +c.MapY || 0 }; });
+    return { cities: cs, from: 'sunda_empire', to: 'empeer_depeer', toName: "em pe'er de pe'er" };
+  }
+  function petaCine() {
+    K.cine('ps_peta', [
+      { phase: 0, t: 'Paman Ocid membentangkan petamu. Hanya pulau-pulau <b>hari pertamamu</b> yang tersisa.' },
+      { phase: 1, t: 'Dengan arang, ia menarik garis dari <b>Sunda Empire</b> ke tempat yang kosong di peta.' },
+      { phase: 2, t: 'Kabut di ujung garis tersibak. <b>Pulau em pe\'er de pe\'er</b> muncul di petamu. Hanya pulau itu.' }
+    ], function () { bayarScene(); }, { data: petaData(), endLabel: 'Lanjut' });
+  }
+  function bayarScene() {
+    var where = K.cid() === 'empeer_depeer' ? 'Jam Agung' : 'Pustaka Sunda';
+    var w = K.modalWrap('book', 'Paman Ocid', where), c = cost(), can = gold() >= c;
+    w.innerHTML = speech(ocid(), '"Biaya jangkar <b>' + fmt(c) + ' gold</b>. Untuk besi, arang, dan upah pandai besi. Aku tak akan menawar, Kapten. Pandai besi di pulauku juga tidak."' +
+      (can ? '' : '<p class="muted small" style="margin-top:6px"><i>Gold-mu belum cukup. Paman Ocid menunggu.</i></p>'),
+      actions((can ? btn('bayar', 'coins', 'Bayar ' + fmt(c) + ' gold') : '') + btn('later', null, 'Nanti dulu', false)), 'Penjaga Jam Agung');
+    on(w, '[data-ps=later]', K.close);
+    on(w, '[data-ps=bayar]', function (b) {
+      call(['bayar11'], function () {
+        w.innerHTML = speech(ocid(), '"Bagus. Aku berangkat duluan. Temui aku di dermaga <b>em pe\'er de pe\'er</b>. Bawa napas panjang, Kapten: rodanya ada di dasar laut."',
+          actions(btn('sail', 'ship', 'Buka peta berlayar') + btn('ok', null, 'Tutup', false)), 'Penjaga Jam Agung') + journal();
+        on(w, '[data-ps=ok]', K.close); on(w, '[data-ps=sail]', function () { K.close(); openPanel('setsail'); });
+      }, null, b);
+    });
+  }
+
+  /* ---------- Babak 1: Selam & Tempa di em pe'er de pe'er ---------- */
+  function g4(kind, opts, cb) {
+    if (!window.MTGames4 || !MTGames4.open) { cb({ win: true, grade: 'baik', score: 75, duration: 9000 }); return; }
+    K.busy(true);
+    MTGames4.open(kind, opts, function (res) { K.busy(false); cb(res || { cancelled: true }); });
+  }
+  function empeerTiba() {
+    K.markSeen('empeer11');
+    var w = K.modalWrap('anchor', "Pulau em pe'er de pe'er", 'Zaman Keadilan');
+    K.pages(w, ocid(), [
+      { narr: 'Pulau yang diam', icon: 'eye', t: '<p>Kota protokol itu sepi. Bendera putih di setiap tiang. Di puncak 999 anak tangga, <b>Jam Agung berhenti</b>.</p>' },
+      '"Selamat datang di pulauku, Kapten. Atau yang tersisa darinya."',
+      '"Saat perempuan itu lenyap, <b>roda gigi cadangan Jam Agung</b> jatuh ke laut, ke perairan dalam di bawah tebing. Aku terlalu tua untuk menyelam."'
+    ], btn('selam', 'fish', 'Menyelam') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', K.close);
+      on(w2, '[data-ps=selam]', function () { K.close(); selamGame(); });
+    }, 'Penjaga Jam Agung');
+  }
+  function selamGame() {
+    g4('selam', {
+      kicker: "Pulau em pe'er de pe'er &middot; perairan dalam", title: 'Selam &middot; Roda Gigi Jam Agung', targetName: 'Roda Gigi', target: 'gear', guide: false,
+      intro: '<b>Paman Ocid:</b> "Rodanya tersangkut di celah karang yang buka-tutup di dasar. Jangan sentuh ubur-ubur yang menyala. Cari gelembung kalau napas tinggal sedikit. Waktu naik, <b>pelankan sebelum garis hijau</b>, lalu tunggu dua hitungan."',
+      grabMsg: '<b>Roda gigi Jam Agung!</b> Kuningannya masih hangat. Sekarang naik. <b>Pelankan sebelum garis hijau</b>, lalu tunggu dua hitungan.',
+      cards: { ok: ['Roda gigi Jam Agung', 'Di tanganmu', '<b>Paman Ocid:</b> "Itu dia. Dua puluh tahun aku memolesnya."'],
+        empty: ['Naik tanpa roda', 'Rodanya masih di dasar', '<b>Paman Ocid:</b> "Celah karang itu tidak ke mana-mana, Kapten."'],
+        fail: ['Napas habis', 'Kau naik terengah', '<b>Paman Ocid:</b> "Istirahat dulu. Laut di sini tidak suka orang terburu-buru."'] }
+    }, function (res) {
+      if (res.cancelled) return;
+      if (res.win) { call(['selam11', 'ok'], function () { tempaIntro(); }); return; }
+      if (!res.surfaced) call(['selam11', 'gagal'], function () { toast('Napasmu masih pendek. Coba lagi sebentar lagi.'); });
+    });
+  }
+  function tempaIntro() {
+    var w = K.modalWrap('wrench', 'Dok Kecil', "Pulau em pe'er de pe'er");
+    K.pages(w, ocid(), [
+      '"Dok kecil di bawah tangga masih punya tungku. Pandai besinya kabur ke kota. Jadi kau yang menempa, aku yang menghitung."'
+    ], btn('tempa', 'hammer', 'Tempa Jangkar Waktu') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', K.close);
+      on(w2, '[data-ps=tempa]', function () { K.close(); tempaGame(); });
+    }, 'Penjaga Jam Agung');
+  }
+  var GRADE = { sempurna: 'Sempurna', baik: 'Baik', kasar: 'Kasar', retak: 'Retak' };
+  function tempaGame() {
+    g4('tempa', {
+      kicker: "em pe'er de pe'er &middot; Dok kecil", title: 'Tempa Jangkar Waktu', shape: 'jangkar',
+      intro: '<b>Paman Ocid:</b> "Panaskan sampai <b>kuning jerami</b>, jangan putih. Pukul tepat di zona hijau, delapan kali. Lalu celup sekali saat warnanya oranye-kuning."',
+      voice: { hot: 'Terlalu panas! Besi yang terbakar lupa bentuknya.', cold: 'Dingin. Besi dingin keras kepala, seperti pustakawan.', streak: 'Nah. Jarum dan palu sama saja: soal irama.', start: 'Pas. Sekarang ikuti detaknya.', quench: 'Celup! Seperti jam berdentang: tepat, atau tidak sama sekali.' },
+      cardTitle: 'Mutu Jangkar Waktu',
+      grades: { sempurna: ['Sempurna', '"Jangkar ini bisa menahan kapal di tengah abad."'], baik: ['Baik', '"Bagus. Ia akan memegang waktumu."'], kasar: ['Kasar', '"Ia akan bekerja. Tapi waktu akan menggigitnya sedikit-sedikit."'], retak: ['Retak', '"Retak. Waktu akan menembus celahnya. Sekali lagi."'] },
+      okBtn: 'Angkat jangkar', failBtn: 'Jangkar retak di bak air'
+    }, function (res) {
+      if (res.cancelled || res.score == null) return;
+      call(['tempa11', String(res.score), String(res.duration || 0)], function (x) {
+        if (!x.ok) { toast('Jangkar retak. Paman Ocid menyalakan tungku lagi.'); return; }
+        var w = K.modalWrap('anchor', 'Jangkar Waktu', 'Pusaka Kapal');
+        w.innerHTML = narr('Pusaka Kapal', '<p>Jangkar perunggu kehitaman, dengan roda gigi Jam Agung terpasang di batangnya. Mutu: <b>' + esc(GRADE[x.grade] || x.grade) + '</b>.</p><p>Paman Ocid memasangnya di haluan kapalmu.</p>', '', 'anchor') +
+          speech(ocid(), '"Jangkar biasa menahan kapal di tempatnya. <b>Jangkar ini menahan kapal di waktunya.</b>"', actions(btn('jam', 'hourglass', 'Naik ke Jam Agung') + btn('later', null, 'Nanti dulu', false)), 'Penjaga Jam Agung');
+        on(w, '[data-ps=later]', K.close);
+        on(w, '[data-ps=jam]', function () { K.close(); jamScene(); });
+      });
+    });
+  }
+
+  /* ---------- Babak 2: Lompatan Pertama ---------- */
+  function jamScene() {
+    K.cine('ps_tangga', [
+      { phase: 2, t: 'Paman Ocid membawamu menaiki <b>999 anak tangga</b>, ke ruang Jam Agung. Roda-roda raksasa diam.' },
+      { phase: 3, t: 'Ia memasang roda gigi yang kau angkat dari laut. <b>Jam Agung berdetak sekali.</b>' },
+      { phase: 3, t: '<b>Paman Ocid:</b> "Jarumnya menunjuk ke satu malam: <b>Tahun Badai Besar</b>. Ke sanalah ia pergi."' },
+      { phase: 4, t: '<b>Paman Ocid:</b> "Pegang kemudimu. Celah waktu itu seperti pusaran: ikuti cahayanya, atau kau terlempar."' }
+    ], function () { lompatGame(); }, { solo: true, endLabel: 'Masuki celah' });
+  }
+  function lompatGame() {
+    var open = window.MTGames && MTGames.open;
+    function go() {
+      K.busy(true);
+      PE.celah(2600, function () {
+        call(['lompat', 'badai'], function () { K.busy(false); if (typeof loadState === 'function') loadState(); }, function (e) { K.busy(false); toast((e && e.message) || 'Gagal', 'error'); });
+      });
+    }
+    if (!open) { go(); return; }
+    K.busy(true);
+    MTGames.open('pusaran', {
+      celah: true, kicker: 'Jam Agung · Celah Waktu', title: 'Celah Waktu',
+      introCard: { kicker: 'Jam Agung &middot; Celah Waktu', title: 'Arus Pusaran &middot; Celah Waktu', quote: 'Waktu juga punya arus, Kapten. Jangan melawannya. Ikuti saja cahayanya.', who: 'Paman Ocid',
+        steps: ['Kapalmu terseret <b>celah waktu</b>: 3 lingkaran pasir menuju pusat (&plusmn;1 menit).', 'Tetap di <b>jalur cahaya</b>. Terlalu lama di luar = dihantam arus waktu.', 'Hindari <b>puing</b> dan <b>kilat</b> yang berkedip sebelum menyambar.', '3 nyawa. Terlempar? Coba lagi, tanpa kerusakan.'], cta: 'Masuki celah' },
+      winCard: { kicker: 'Lolos Celah Waktu', title: 'Tahun Badai Besar', quote: 'Hujan. Bau garam. Detak jam melambat... lalu berhenti.', who: 'Catatan jurnal kapten', cta: 'Mendarat' },
+      failCard: { title: 'Terlempar dari Celah!', quote: 'Pasir emas melemparkanmu kembali ke ruang Jam Agung. Jarumnya masih menunjuk ke malam itu.', who: 'Paman Ocid' }
+    }, function (res) { K.busy(false); if (res && res.win) go(); });
+  }
+
+  /* ---------- Babak 3: Tahun Badai Besar ---------- */
+  function badaiArrive() {
+    K.markSeen('badai11');
+    if (currentPanel) K.close();
+    K.cine('ps_hantu', [
+      { phase: 0, t: '<b>Skitraw, bertahun-tahun lalu.</b> Malam badai. Kampung nelayan, belum ada neon.' },
+      { phase: 0, t: 'Di pantai, seorang pemuda basah kuyup memukuli lambung perahunya yang bocor.' }
+    ], function () { galaPanel(); }, { endLabel: 'Hampiri dia' });
+  }
+  function galaPanel() {
+    var s = step();
+    if (s === 6) return galaTambal();
+    if (s === 7) return galaPilih();
+    if (s === 8) return hantuScene();
+  }
+  function galaTambal() {
+    var w = K.modalWrap('wrench', 'Perahu Bocor', 'Skitraw, Tahun Badai Besar');
+    K.pages(w, gala(), [
+      '"Kapten dari mana? Malam begini tak ada yang berlayar. <b>Kecuali orang gila. Atau ambo.</b>"',
+      '"Perahu ambo bocor. Kalau tak ditambal malam ini, besok ambo tak bisa melaut. Bantu ambo pegang papannya?"'
+    ], btn('tambal', 'wrench', 'Bantu menambal') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', K.close);
+      on(w2, '[data-ps=tambal]', function () { K.close(); tambalGame(); });
+    }, 'Skitraw, Tahun Badai Besar');
+  }
+  function tambalGame() {
+    g4('tempa', {
+      kicker: 'Skitraw &middot; Tahun Badai Besar', title: 'Tambal Lambung', strikes: 5, zoneK: 1.3,
+      intro: '<b>Pemuda nelayan:</b> "Panaskan pakunya sampai kuning, lalu pukul tepat. Lima kali saja, Kapten. Terakhir celup ke air laut."',
+      voice: { hot: 'Pakunya meleleh, Kapten!', cold: 'Dingin! Pakunya tak mau masuk.', streak: 'Mantap! Tangan Kapten lebih kuat dari tangan ambo.', start: 'Nah, sekarang pukul!', quench: 'Celup ke air laut!' },
+      cardTitle: 'Tambalan',
+      grades: { sempurna: ['Rapat', '"Tak setetes pun air masuk!"'], baik: ['Rapat', '"Cukup untuk melaut besok."'], kasar: ['Rapat, hampir', '"Asal tak kena ombak besar."'], retak: ['Bocor', '"Masih bocor, Kapten. Sekali lagi?"'] },
+      okBtn: 'Lambung rapat', failBtn: 'Masih bocor'
+    }, function (res) {
+      if (res.cancelled || res.score == null) return;
+      call(['tambal11', String(res.score), String(res.duration || 0)], function (x) { if (x.ok) galaPilih(); else toast('Masih bocor. Pemuda itu menyiapkan paku lagi.'); });
+    });
+  }
+  function galaPilih() {
+    var w = K.modalWrap('wrench', 'Perahu Bocor', 'Skitraw, Tahun Badai Besar');
+    K.pages(w, gala(), [
+      '"Terima kasih, Kapten. Ambo tak punya apa-apa untuk membalas."',
+      '<i>Ia menatap laut yang gelap.</i> "Kadang ambo bermimpi punya galangan sendiri. Di sini, di pantai ini. Mimpi bodoh, ya?"'
+    ], btn('cerita', null, '"Ceritakan tentang galangan" <small>(masa depan)</small>', false) + btn('bantu', null, '"Hanya membantu"', false), function (w2) {
+      on(w2, '[data-ps=cerita]', function (b) {
+        call(['gala11', 'cerita'], function () {
+          w2.innerHTML = speech(gala(), '"Galangan? Ambo? <b>Ambo bahkan tak punya sabun.</b>" <i>Ia tertawa keras sampai hujan terasa hangat.</i>', '<p class="muted small"><i>Kaca waktu di sakumu bergetar. Retak Waktu bertambah.</i></p>' + actions(btn('laut', 'eye', 'Lihat ke laut')), 'Skitraw, Tahun Badai Besar');
+          on(w2, '[data-ps=laut]', function () { K.close(); hantuScene(); });
+        }, null, b);
+      });
+      on(w2, '[data-ps=bantu]', function (b) {
+        call(['gala11', 'bantu'], function () {
+          w2.innerHTML = speech(gala(), '"Kapten baik sekali. Ini, ambil." <i>Ia menyerahkan sepotong <b>sabun kelapa</b> yang dibungkus daun.</i> "Ambo bikin sendiri. Belum ada yang mau beli."', '<p class="muted small"><i>Didapat: Sabun Kelapa Buatan Gala Muda.</i></p>' + actions(btn('laut', 'eye', 'Lihat ke laut')), 'Skitraw, Tahun Badai Besar');
+          on(w2, '[data-ps=laut]', function () { K.close(); hantuScene(); });
+        }, null, b);
+      });
+    }, 'Skitraw, Tahun Badai Besar');
+  }
+
+  /* ---------- Babak 4: Kapal Hantu ---------- */
+  function hantuScene() {
+    var vis = typeof shipVisual_ === 'function' ? shipVisual_() : null;
+    K.cine('ps_hantu', [
+      { phase: 1, t: '<b>Kilat.</b> Di tengah laut, sebuah <b>kapal tanpa awak</b> hanyut ke arah pantai.' },
+      { phase: 1, t: '<b>Pemuda nelayan:</b> "Kapal hantu..."' },
+      { phase: 2, t: 'Dari balik hujan muncul kapal ramping putih tulang. <b>Janji Putih.</b> Di haluannya, seorang perempuan bergaun putih melempar tali.' }
+    ], function () { kejarGame(); }, { vis: vis, endLabel: 'Kejar!' });
+  }
+  function kejarGame() {
+    var open = window.MTGames2 && MTGames2.open;
+    if (!open) { hantuAkhir(1); return; }
+    K.busy(true);
+    MTGames2.open('angin', {
+      kicker: 'Skitraw · Tahun Badai Besar', title: 'Kejar Janji Putih', zones: 3,
+      intro: 'Angin badai berputar-putar, Kapten! Baca embusannya, kejar kapal putih itu!',
+      opponent: { name: 'Pemuda nelayan', title: 'Skitraw', ap: gala().ap },
+      winLine: 'Sepelempar tali lagi, Kapten!'
+    }, function (res) {
+      K.busy(false);
+      if (!res || res.cancelled) { toast('Janji Putih masih menyeret kapal hantu itu. Kejar lagi dari perahu di pantai.'); return; }
+      hantuAkhir(res.retries || 0);
+    });
+  }
+  function hantuAkhir(retries) {
+    var near = retries === 0, vis = typeof shipVisual_ === 'function' ? shipVisual_() : null;
+    var sl = [{ phase: 2, t: '<b>Franziska</b> <i>(menembus hujan)</i>: "Kau terlambat satu malam, Kapten! <b>Malam ini sudah milikku!</b>"' }];
+    if (near) {
+      sl.push({ phase: 3, t: 'Kau cukup dekat untuk melihatnya: lambung kapal hantu itu <b>putih tulang</b>. Layarnya terlipat <b>seperti surat</b>.' });
+      sl.push({ phase: 2, t: '<b>Franziska:</b> "Pulanglah, Kapten. Malam ini tidak ada yang terluka. Aku janji."' });
+    } else sl.push({ phase: 3, t: 'Dari kejauhan, lambung kapal hantu itu tampak <b>putih tulang</b>.' });
+    sl.push({ phase: 4, t: 'Janji Putih menyeret kapal hantu menjauh dari pantai, lalu lenyap dalam pusaran pasir. Ia pergi <b>lebih jauh ke belakang</b>.' });
+    sl.push({ phase: 4, t: '<b>Kaca kedua retak.</b>' });
+    K.cine('ps_hantu', sl, function () {
+      K.busy(true);
+      call(['kejar11', String(retries)], function () {
+        PE.celah(2400, function () { K.busy(false); if (typeof loadState === 'function') loadState(); });
+      }, function (e) { K.busy(false); toast((e && e.message) || 'Gagal', 'error'); });
+    }, { vis: vis, noSkip: true, endLabel: 'Lanjut' });
+  }
+
+  /* ---------- Babak 5: Kembali ---------- */
+  function ocidPaham() {
+    K.markSeen('paham11');
+    var riak = (p() && p().riak) || {}, list = [
+      { narr: 'Kembali', icon: 'hourglass', t: '<p>Kau terbangun di ruang Jam Agung. Bajumu masih basah oleh hujan yang turun bertahun-tahun lalu.</p>' },
+      '"Satu malam hanya bisa diubah sekali. <b>Ia sampai di sana lebih dulu.</b>"'
+    ];
+    if (riak.gala_muda === 'cerita') list.push('"Kau menceritakan masa depan pada pemuda itu, bukan? Aku bisa melihat retaknya dari sini."');
+    list.push('"Dengar, Kapten: <b>jangan pernah ceritakan masa depan kepada orang-orang di sana.</b> Setiap kali kau melakukannya, kaca waktu retak sedikit. Dan kaca itu tidak tumbuh kembali."');
+    list.push('"<b>Jam tidak pernah berjalan mundur, Kapten. Yang hilang, hilang.</b> Yang bisa kita lakukan hanya menghentikannya sebelum ia memecahkan semuanya."');
+    list.push('"Satu lagi. Sisa roda gigi Jam Agung sudah kujual ke saudagar logam. Ini bagianmu. Modal, Kapten. Kau akan butuh."');
+    var w = K.modalWrap('hourglass', 'Ruang Jam Agung', "Pulau em pe'er de pe'er");
+    K.pages(w, ocid(), list, btn('ok11', 'coins', 'Terima'), function (w2) {
+      on(w2, '[data-ps=ok11]', function (b) {
+        call(['paham11'], function () {
+          w2.innerHTML = speech(ocid(), '"Ia pergi lebih jauh ke belakang. Ke masa ketika <b>lampu kota yang runtuh itu terlihat sampai tengah laut</b>."', actions(btn('papan', 'map', 'Papan Benang') + btn('ok', null, 'Tutup', false)), 'Penjaga Jam Agung') + journal();
+          on(w2, '[data-ps=ok]', K.close); on(w2, '[data-ps=papan]', function () { PS.papan(false); });
+          try { metaMax_('psbadai', 1); } catch (e) { }
+          setTimeout(function () { toast('Kabar di lapau: Menara Pengawas IKN kini juga menyorot laut.'); }, 1500);
+        }, null, b);
+      });
+    }, 'Penjaga Jam Agung');
+  }
+
+  /* ---------- Ruang Jam Agung (hotspot di em pe'er de pe'er) ---------- */
+  function jamPanel() {
+    var s = step();
+    if (s === 2) return bayarScene();
+    if (s === 3) return empeerTiba();
+    if (s === 4) return tempaIntro();
+    if (s === 5) return jamScene();
+    if (s === 9) return ocidPaham();
+    var w = K.modalWrap('hourglass', 'Jam Agung', "Pulau em pe'er de pe'er");
+    if (s < 2) { w.innerHTML = narr('Terkunci', '<p>Jam Agung berhenti. Pintu ruangnya terkunci rapat, dan tak seorang pun di kota ini tahu siapa penjaganya.</p>', actions(btn('ok', null, 'Tutup', false)), 'lock'); on(w, '[data-ps=ok]', K.close); return; }
+    var x = p() || {}, ms = x.jangkarMs || 0, z = x.zaman || [];
+    var txt = z.length ? '"Jarumnya menunjuk. Kau siap, Kapten?"' : '"Jarumnya belum mau menunjuk ke mana pun, Kapten. Sabar. Perempuan itu meninggalkan jejak; jam ini akan mencium baunya."';
+    var cd = ms > 0 ? '<p class="muted small"><i>Jangkar Waktu masih dingin: ' + Math.ceil(ms / 60000) + ' menit lagi.</i></p>' : '';
+    w.innerHTML = speech(ocid(), txt, cd + actions(btn('ok', null, 'Tutup', false)), 'Penjaga Jam Agung');
+    on(w, '[data-ps=ok]', K.close);
+  }
+
+  /* ---------- Jurnal ---------- */
+  function objective() {
+    var s = step();
+    if (s === 1) return '<i>"Aku sudah menemukan jalan pulang ke pulauku."</i> Temui Paman Ocid di <b>Pustaka Sunda Empire</b>. Bawa modalmu.';
+    if (s === 2) return 'Bayar biaya Jangkar Waktu (<b>' + fmt(cost()) + ' gold</b>) kepada Paman Ocid.';
+    if (s === 3) return '<i>"Bawa napas panjang."</i> Selami perairan dalam <b>em pe\'er de pe\'er</b>: roda gigi Jam Agung.';
+    if (s === 4) return 'Tempa <b>Jangkar Waktu</b> di dok kecil em pe\'er de pe\'er.';
+    if (s === 5) return '<i>"Jangkar ini menahan kapal di waktunya."</i> Naiki 999 anak tangga ke <b>Jam Agung</b>.';
+    if (s >= 6 && s <= 8) return '<i>"Malam badai. Bertahun-tahun lalu."</i> Seorang pemuda di pantai Skitraw butuh bantuan.';
+    if (s === 9) return 'Paman Ocid menunggumu di ruang <b>Jam Agung</b>.';
+    if (s >= 10) return '<i>"Ia pergi lebih jauh ke belakang. Ke masa ketika lampu kota yang runtuh itu terlihat sampai tengah laut."</i>';
+    return '';
+  }
+  function journal() {
+    var s = step(); if (s < 1) return '';
+    return '<div class="qg-journal"><div class="qg-jh">' + ic('anchor') + ' <b>Kapal yang Tak Pernah Terdampar</b></div><div class="qg-obj">' + ic('scroll') + ' <b>Catatan terakhirmu:</b><br>' + objective() + '</div></div>';
+  }
+  function decorTasks() {
+    if (currentPanel !== 'tasks' || step() < 1) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.ps11-j')) return;
+    var box = c.querySelector('.ps-wrap'), d = document.createElement('div'); d.className = 'ps11-j';
+    d.innerHTML = journal();
+    var s = step(), city = K.cid(), dock = K.docked(), b = '';
+    if (dock && s === 1 && city === 'sunda_empire') b = btn('j1', 'book', 'Ke Pustaka');
+    if (dock && s === 2 && (city === 'sunda_empire' || city === 'empeer_depeer')) b = btn('j2', 'coins', 'Temui Paman Ocid');
+    if (dock && s === 3 && city === 'empeer_depeer') b = btn('j3', 'fish', 'Menyelam');
+    if (dock && s === 4 && city === 'empeer_depeer') b = btn('j4', 'hammer', 'Tempa Jangkar');
+    if (dock && (s === 5 || s === 9) && city === 'empeer_depeer') b = btn('j5', 'hourglass', 'Jam Agung');
+    if (s >= 6 && s <= 8 && badai()) b = btn('j6', 'wrench', 'Ke perahu di pantai');
+    if (b) d.querySelector('.qg-journal').insertAdjacentHTML('beforeend', actions(b));
+    if (box) box.appendChild(d); else { var w = K.insert(''); if (w) w.appendChild(d); }
+    on(d, '[data-ps=j1]', ocidMulai); on(d, '[data-ps=j2]', bayarScene); on(d, '[data-ps=j3]', function () { K.close(); selamGame(); });
+    on(d, '[data-ps=j4]', function () { K.close(); tempaGame(); }); on(d, '[data-ps=j5]', jamPanel); on(d, '[data-ps=j6]', galaPanel);
+  }
+
+  /* ---------- Pusaka di panel Ship ---------- */
+  function pusakaList() { var x = p(); return (x && x.pusaka) || []; }
+  function decorShip() {
+    if (currentPanel !== 'ship') return;
+    var list = pusakaList(); if (!list.length) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.ps-pusaka')) return;
+    var slots = [1, 2, 3].map(function (n) {
+      var it = list.filter(function (x) { return x.slot === n; })[0];
+      if (!it) return '<div class="slot"><div class="n">' + ic('plus') + 'Slot ' + n + '</div><div class="d">Kosong.</div></div>';
+      return '<div class="slot on"><div class="n">' + ic(it.id === 'jangkar' ? 'anchor' : 'gem') + esc(it.name) + '</div>' + (it.mutu ? '<div class="m">' + esc(GRADE[it.mutu] || it.mutu) + '</div>' : '') +
+        '<div class="d">' + esc(it.desc) + '</div><button type="button" data-px-lepas="' + esc(it.id) + '">Lepas</button></div>';
+    }).join('');
+    var free = list.filter(function (x) { return !x.slot; });
+    var own = free.length ? '<div class="own">' + free.map(function (x) { return '<button type="button" data-px-pasang="' + esc(x.id) + '">' + ic('plus') + ' Pasang ' + esc(x.name) + '</button>'; }).join('') + '</div>' : '';
+    var d = document.createElement('div'); d.className = 'ps-pusaka';
+    d.innerHTML = '<div class="scroll-divider">Pusaka</div><div class="slots">' + slots + '</div>' + own;
+    var anchor = c.querySelector('.tier-note') || c.querySelector('.ph');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(d, anchor.nextSibling); else c.appendChild(d);
+    d.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b) return;
+      var lp = b.getAttribute('data-px-lepas'), ps = b.getAttribute('data-px-pasang');
+      if (lp) call(['lepas', lp], refreshShip, null, b);
+      if (ps) { var used = list.filter(function (x) { return x.slot; }).map(function (x) { return x.slot; }), slot = [1, 2, 3].filter(function (n) { return used.indexOf(n) < 0; })[0]; if (!slot) { toast('Ketiga slot Pusaka sudah terisi. Lepas satu dulu.'); return; } call(['pasang', ps, String(slot)], refreshShip, null, b); }
+    });
+  }
+  function refreshShip() { if (currentPanel === 'ship') { try { openPanel('ship'); } catch (e) { } } try { if (typeof renderScene === 'function') renderScene(); } catch (e) { } }
+
+  // jangkar kecil di haluan kapal pemain sendiri
+  function installedIds() { return pusakaList().filter(function (x) { return x.slot; }).map(function (x) { return x.id; }); }
+  if (window.MTShip && MTShip.fromVisual) {
+    var origFV = MTShip.fromVisual;
+    MTShip.fromVisual = function (v) {
+      var o = origFV.apply(this, arguments);
+      try { if (v && window.state && v === state.shipVisual) { var ids = installedIds(); if (ids.length) o.kd = Object.assign({}, o.kd || {}, { px: ids }); } } catch (e) { }
+      return o;
+    };
+  }
+  if (window.MTShip && MTShip.kdHooks) {
+    var KH = MTShip.kdHooks, origAfter = KH.after;
+    KH.after = function (ctx, o, g) {
+      if (origAfter) { try { origAfter.apply(this, arguments); } catch (e) { } }
+      var px = o && o.kd && o.kd.px; if (!px || o.reflect || px.indexOf('jangkar') < 0) return;
+      ctx.save(); ctx.translate(55, -5);
+      var col = g && g.L ? g.L('#9a7a3a') : '#9a7a3a';
+      ctx.strokeStyle = g && g.L ? g.L('#5a4628', 0.7) : 'rgba(90,70,40,.7)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(-2, -9); ctx.quadraticCurveTo(-1, -6, 0, -4.5); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, -4, 1.2, 0, 6.3); ctx.moveTo(0, -2.8); ctx.lineTo(0, 4); ctx.moveTo(-2.4, -1.4); ctx.lineTo(2.4, -1.4); ctx.moveTo(-3.6, 1.6); ctx.quadraticCurveTo(-2.8, 4.6, 0, 4.4); ctx.quadraticCurveTo(2.8, 4.6, 3.6, 1.6); ctx.stroke();
+      ctx.restore();
+    };
+  }
+
+  /* ---------- Tahun Badai Besar: kota tertidur ---------- */
+  var BLOCK = { market: 1, bank: 1, bursa: 1, kedai: 1, tavern: 1, library: 1, pacu: 1, fishing: 1, mancing: 1, setsail: 1, harian: 1, gotong: 1, kehormatan: 1, items: 1 };
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (p() && K.docked()) {
+        if (panel === 'ps_jam' && K.cid() === 'empeer_depeer') { jamPanel(); return; }
+        if (panel === 'ps_gala' && badai()) { galaPanel(); return; }
+        if (panel === 'library' && K.cid() === 'sunda_empire' && step() === 1) { ocidMulai(); return; }
+        if (badai() && BLOCK[panel]) {
+          var w = K.modalWrap('moon', 'Tahun Badai Besar', 'Skitraw');
+          w.innerHTML = narr('Malam badai', '<p>Bertahun-tahun lalu, di malam seperti ini, kampung nelayan ini sudah tidur. Tak ada yang buka. Hanya seorang pemuda di pantai yang masih terjaga.</p>', actions(btn('ok', null, 'Tutup', false)), 'moon', 'night');
+          on(w, '[data-ps=ok]', K.close); return;
+        }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  var origSail = window.doSetSail;
+  if (typeof origSail === 'function') {
+    window.doSetSail = function () {
+      if (badai()) { toast('Malam begini tak ada yang berlayar, Kapten. Kecuali orang gila.'); return; }
+      return origSail.apply(this, arguments);
+    };
+  }
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments);
+      if (!K.adil() || !(p() && p().sorot) || !out || !out.length || Math.random() > 0.4) return out;
+      out[0] = 'Menara Pengawas IKN kini menyorot laut juga, sepanjang malam. Entah apa yang dicarinya.';
+      return out;
+    };
+  }
+
+  /* ---------- HUD: Retak Waktu & tujuan ---------- */
+  wrap_('renderScene', function () {
+    var x = p(), box = document.getElementById('cityTypeFlavor'); if (!box || !x || !K.docked()) return;
+    if (badai()) {
+      var fl = box.firstElementChild; if (fl && !fl.classList.contains('loc-chips')) fl.textContent = 'Kampung nelayan. Malam badai, bertahun-tahun lalu. Belum ada neon, belum ada galangan.';
+      var kk = document.getElementById('locKicker'); if (kk) kk.textContent = 'Tahun Badai Besar';
+    }
+    var chips = '';
+    if (lampau()) { var r = Math.max(0, Math.min(100, x.retak || 0)); chips += '<span class="chip ps-retak" title="Retak Waktu">' + ic('hourglass') + 'Retak <i><b style="width:' + r + '%"></b></i></span>'; }
+    var s = step(), c = K.cid(), lbl = '';
+    if (s === 1) lbl = 'Pustaka Sunda';
+    if (s === 2) lbl = 'Biaya Jangkar';
+    if (s === 3) lbl = c === 'empeer_depeer' ? 'Menyelam' : "em pe'er de pe'er";
+    if (s === 4) lbl = 'Tempa Jangkar';
+    if (s === 5) lbl = 'Jam Agung';
+    if (s >= 6 && s <= 8) lbl = 'Perahu di pantai';
+    if (s === 9) lbl = 'Jam Agung';
+    if (lbl) chips += '<span class="chip ps-chip">' + ic('anchor') + esc(lbl) + '</span>';
+    if (!chips) return;
+    var row = box.querySelector('.loc-chips'); if (row) row.insertAdjacentHTML('afterbegin', chips); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chips + '</div>');
+  });
+
+  /* ---------- Papan Benang: simpul baru ---------- */
+  K.nodeHooks.push(function () {
+    if (step() < 9) return [];
+    return [
+      { sk: 'badai2', n: 'Badai yang Kedua', a: 'Kau menyusul ke Tahun Badai Besar.', b: 'Ia sampai lebih dulu. Kaca kedua retak.', mark: 'red' },
+      { sk: 'tanya', n: '40 Tahun Lalu?', a: '...', b: 'Ia pergi lebih jauh ke belakang. Ke masa lampu kota sampai ke tengah laut.', mark: 'red' }
+    ];
+  });
+
+  /* ---------- Tanda Jasa ---------- */
+  var achPushed = false;
+  function pushAch() {
+    if (achPushed || !p() || typeof ACH === 'undefined' || !ACH.push) return;
+    achPushed = true;
+    ACH.push({ id: 'ps_badai', t: 3, ic: 'hourglass', n: 'Badai yang Kedua', d: 'Menyusul ke satu malam yang sudah diubah.', ps: true, g: function (m) { return [m.c.psbadai || 0, 1]; } });
+  }
+
+  /* ---------- Adegan otomatis ---------- */
+  function scenes() {
+    var x = p(); if (!x || !q10done()) return;
+    var s = step(), c = K.cid();
+    pushAch();
+    if (s >= 10) { try { metaMax_('psbadai', 1); } catch (e) { } }
+    if (!K.docked()) return;
+    if (s === 1 && !K.seen('surat11')) { if (currentPanel) K.close(); surat(); return; }
+    if (s === 1 && c === 'sunda_empire' && !K.seen('ocid11hint')) { K.markSeen('ocid11hint'); setTimeout(function () { toast('Paman Ocid menunggumu di Pustaka.'); }, 1200); }
+    if (s === 3 && c === 'empeer_depeer' && !K.seen('empeer11')) { if (currentPanel) K.close(); empeerTiba(); return; }
+    if (s === 5 && c === 'empeer_depeer' && !K.seen('jam11hint')) { K.markSeen('jam11hint'); setTimeout(function () { toast('Jam Agung menunggu di puncak 999 anak tangga.'); }, 1200); }
+    if (badai() && s === 6 && !K.seen('badai11')) { badaiArrive(); return; }
+    if (badai() && s >= 6 && s <= 8 && !K.seen('badai11:' + s)) { K.markSeen('badai11:' + s); setTimeout(function () { toast('Pemuda itu masih di pantai, di samping perahunya.'); }, 1200); }
+    if (s === 9 && c === 'empeer_depeer' && !K.seen('paham11')) { if (currentPanel) K.close(); ocidPaham(); return; }
+  }
+  wrap_('setModal_', function () {
+    try { decorTasks(); } catch (e) { console.warn('[PS11] tasks', e); }
+    try { decorShip(); } catch (e) { console.warn('[PS11] ship', e); }
+  });
+  wrap_('applyFreshState_', function () {
+    if (!p()) return;
+    pushAch();
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !p()) return;
+      var ov = document.getElementById('modalOverlay');
+      if (K.busyUi() || (ov && ov.classList.contains('open'))) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { scenes(); } catch (e) { console.warn('[PS11] scenes', e); }
+    }, 2300);
+  });
+
+  return { step: step, journal: journal, _surat: surat, _mulai: ocidMulai, _bayar: bayarScene, _selam: selamGame, _tempa: tempaGame, _jam: jamScene, _lompat: lompatGame, _badai: badaiArrive, _gala: galaPanel, _hantu: hantuScene, _paham: ocidPaham, _jamPanel: jamPanel };
+})();
+</script>
