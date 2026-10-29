@@ -40,6 +40,8 @@
       // Tide v38: server sedang pemeliharaan -> tampilkan layar maintenis, panggilan ini dibiarkan menggantung
       // (tidak memunculkan pesan error di game; halaman dimuat ulang saat pelabuhan dibuka).
       if (r.error.code === 'MT_MAINT' && window.MTGM) { MTGM.blocked(r.error.details); return new Promise(function () {}); }
+      // Tide v43: sandi direset GM -> wajib pasang sandi baru dulu (halaman dimuat ulang setelahnya)
+      if (r.error.code === 'MT_PWCHANGE' && window.MTPW) { MTPW.require(); return new Promise(function () {}); }
       throw mapError(r.error);
     }
     if (fn === 'api_mppulse' && r.data && window.MTGM) { try { MTGM.onPulse(r.data.gm); } catch (e) {} }
@@ -86,6 +88,9 @@
         if (/rate limit|too many/i.test(r.error.message)) throw err('Terlalu banyak percobaan gagal. Coba lagi beberapa menit lagi.');
         throw mapError(r.error);
       }
+      // Tide v43: masuk dengan sandi sementara dari GM -> pasang sandi baru sebelum lanjut
+      var ps = null; try { ps = await rpc('api_pwStatus', []); } catch (e) {}
+      if (ps && ps.must && window.MTPW) await MTPW.force(p);
       var who = await rpc('api_authWhoAmI', []);
       if (!who.hasCharacter) {
         // Pindah akun lama sempat terputus? Coba selesaikan klaimnya (diam-diam kalau tidak ada).
@@ -102,6 +107,26 @@
       if (chk.error) throw err('Password lama salah.');
       var up = await sb.auth.updateUser({ password: newPass });
       if (up.error) throw mapError(up.error);
+      return { ok: true };
+    },
+    // Tide v43: ganti sandi wajib setelah reset GM (sandi lama = sandi sementara)
+    api_pwForceChange: async function (oldPass, newPass) {
+      var s = await sb.auth.getSession();
+      var em = s.data.session && s.data.session.user.email;
+      if (!em) throw err(AUTH_MSG);
+      newPass = String(newPass || '');
+      if (newPass.length < 6) throw err('Password minimal 6 karakter.');
+      if (newPass.length > 72) throw err('Password terlalu panjang.');
+      if (newPass === String(oldPass || '')) throw err('Sandi baru harus berbeda dari sandi sementara.');
+      var chk = await sb.auth.signInWithPassword({ email: em, password: String(oldPass || '') });
+      if (chk.error) throw err('Sandi sementara salah.');
+      var up = await sb.auth.updateUser({ password: newPass });
+      if (up.error) {
+        if (/different from the old|same/i.test(up.error.message)) throw err('Sandi baru harus berbeda dari sandi sementara.');
+        if (/weak|short|characters/i.test(up.error.message)) throw err('Sandi terlalu lemah. Pakai minimal 6 karakter, campur huruf dan angka.');
+        throw mapError(up.error);
+      }
+      await rpc('api_pwChanged', []);
       return { ok: true };
     },
     api_rpc: function (name, args) { return call(name, args || []); }

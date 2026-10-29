@@ -1,0 +1,97 @@
+<!--
+  ResetSandi.html — Tide v43 · Wajib pasang sandi baru setelah reset oleh GM  (MTPW)
+  ------------------------------------------------------------------------------
+  * MTPW.force(sandiSementara): dipanggil saat masuk dengan sandi sementara; janji selesai
+    setelah sandi baru terpasang (login lalu lanjut seperti biasa).
+  * MTPW.require(): server menolak panggilan dengan MT_PWCHANGE (sesi yang sudah ada);
+    pemain mengetik sandi sementara + sandi baru, lalu halaman dimuat ulang.
+  Server: api_pwStatus / api_pwChanged, gerbang mt_pre_request (0039_reset_sandi.sql).
+-->
+<style>
+  #mtPw { position: fixed; inset: 0; z-index: 2147483100; display: none; place-items: center; padding: 16px;
+    background: radial-gradient(ellipse at 50% 20%, rgba(29,58,85,.94), rgba(6,12,20,.97)); }
+  #mtPw.open { display: grid; animation: mtpwIn .35s ease both; }
+  @keyframes mtpwIn { from { opacity: 0; } to { opacity: 1; } }
+  #mtPw .mtpw-box { width: min(420px, 100%); max-height: calc(100vh - 32px); overflow: auto; box-sizing: border-box; border-radius: 14px; padding: 20px 18px 16px;
+    color: var(--parch-ink, #33230f); background: linear-gradient(180deg, var(--parch-50, #fcf6e6), var(--parch-100, #f4e7c8));
+    border: 2px solid var(--teak-500, #6b4629); box-shadow: 0 20px 60px #000c; font-family: var(--font-body, Georgia, serif); font-size: 15px; }
+  #mtPw .mtpw-key { display: block; width: 54px; height: 54px; margin: 0 auto 6px; }
+  #mtPw h2 { margin: 0 0 6px; text-align: center; font-family: var(--font-title, Georgia, serif); font-size: 21px; color: var(--teak-700, #372316); }
+  #mtPw p { margin: 0 0 12px; line-height: 1.45; color: var(--teak-600, #4f331e); text-align: center; }
+  #mtPw label { display: grid; gap: 3px; margin-top: 10px; font-size: 13px; color: var(--teak-600, #4f331e); }
+  #mtPw input { font: inherit; width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 8px; min-height: 42px;
+    border: 1px solid rgba(79,51,30,.45); background: #fffdf6; color: var(--parch-ink, #33230f); }
+  #mtPw input:focus { outline: 2px solid var(--brass-500, #c9922f); outline-offset: 1px; }
+  #mtPw .mtpw-go { display: block; width: 100%; margin-top: 16px; min-height: 46px; border-radius: 9px; cursor: pointer;
+    font-family: var(--font-title, Georgia, serif); font-weight: 700; font-size: 15px;
+    border: 1px solid #7a5313; background: linear-gradient(180deg, #ffe7a3, #c9922f); color: #2b1905; }
+  #mtPw .mtpw-go:disabled { opacity: .55; cursor: wait; }
+  #mtPw .mtpw-msg { min-height: 1.3em; margin-top: 10px; font-size: 13.5px; text-align: center; color: #a3361e; }
+  #mtPw .mtpw-msg.ok { color: #2f6b2f; }
+  #mtPw .mtpw-hint { margin-top: 8px; font-size: 12.5px; color: var(--parch-muted, #7b6445); text-align: center; }
+  @media (prefers-reduced-motion: reduce) { #mtPw.open { animation: none; } }
+</style>
+
+<div id="mtPw" role="dialog" aria-modal="true" aria-labelledby="mtpwTitle" aria-describedby="mtpwSub">
+  <form class="mtpw-box" id="mtpwForm" onsubmit="return false;" autocomplete="off">
+    <svg class="mtpw-key" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="30" fill="#372316"/>
+      <circle cx="24" cy="26" r="9" fill="none" stroke="#f0cf78" stroke-width="4"/>
+      <path d="M31 32 L48 49 M42 43 L47 38 M37 38 L41 34" stroke="#f0cf78" stroke-width="4" stroke-linecap="round" fill="none"/>
+    </svg>
+    <h2 id="mtpwTitle">Pasang sandi baru, Kapten</h2>
+    <p id="mtpwSub">Sandimu baru saja direset oleh GM. Sandi sementara hanya untuk sekali masuk. Pasang sandi baru yang hanya kamu yang tahu.</p>
+    <label id="mtpwOldRow">Sandi sementara dari GM<input type="password" id="mtpwOld" autocomplete="current-password" maxlength="72"></label>
+    <label>Sandi baru (minimal 6 karakter)<input type="password" id="mtpwNew" autocomplete="new-password" maxlength="72"></label>
+    <label>Ulangi sandi baru<input type="password" id="mtpwNew2" autocomplete="new-password" maxlength="72"></label>
+    <button type="submit" class="mtpw-go" id="mtpwGo">Simpan &amp; lanjut berlayar</button>
+    <div class="mtpw-msg" id="mtpwMsg" aria-live="polite"></div>
+    <div class="mtpw-hint">Jangan berikan sandi barumu ke siapa pun, termasuk GM.</div>
+  </form>
+</div>
+
+<script>
+var MTPW = (function () {
+  var ST = { open: false, known: '', done: null };
+  function $(id) { return document.getElementById(id); }
+  function msg(t, good) { var m = $('mtpwMsg'); m.textContent = t || ''; m.classList.toggle('ok', !!good); }
+  function show(known) {
+    ST.known = known || '';
+    $('mtpwOldRow').style.display = ST.known ? 'none' : '';
+    $('mtpwOld').value = ST.known; $('mtpwNew').value = ''; $('mtpwNew2').value = ''; msg('');
+    $('mtpwGo').disabled = false;
+    $('mtPw').classList.add('open'); ST.open = true;
+    setTimeout(function () { try { $(ST.known ? 'mtpwNew' : 'mtpwOld').focus(); } catch (e) {} }, 60);
+  }
+  function submit() {
+    var o = $('mtpwOld').value, n = $('mtpwNew').value, n2 = $('mtpwNew2').value;
+    if (!o) { msg('Isi sandi sementara dari GM.'); return; }
+    if (n.length < 6) { msg('Sandi baru minimal 6 karakter.'); return; }
+    if (n !== n2) { msg('Ulangi sandi baru belum sama.'); return; }
+    if (n === o) { msg('Sandi baru harus berbeda dari sandi sementara.'); return; }
+    $('mtpwGo').disabled = true; msg('Menyimpan…', true);
+    google.script.run.withSuccessHandler(function () {
+      msg('Sandi baru terpasang. Selamat berlayar!', true);
+      setTimeout(function () {
+        $('mtPw').classList.remove('open'); ST.open = false;
+        var d = ST.done; ST.done = null;
+        if (d) d(); else location.reload();
+      }, 700);
+    }).withFailureHandler(function (e) {
+      $('mtpwGo').disabled = false;
+      var t = String((e && e.message) || e).replace(/^Error:\s*/, '');
+      if (ST.known && /sementara salah/.test(t)) { ST.known = ''; $('mtpwOldRow').style.display = ''; $('mtpwOld').value = ''; }
+      msg(t);
+    }).api_pwForceChange(o, n);
+  }
+  // Saat masuk dengan sandi sementara: tahan proses login sampai sandi baru terpasang
+  function force(known) {
+    return new Promise(function (resolve) { ST.done = resolve; show(known); });
+  }
+  // Sesi berjalan ditolak server (MT_PWCHANGE): minta sekali, lalu muat ulang halaman
+  function require_() { if (ST.open) return; ST.done = null; show(''); }
+  function wire() { $('mtpwForm').addEventListener('submit', submit); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
+  return { force: force, require: require_ };
+})();
+</script>
