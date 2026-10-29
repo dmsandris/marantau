@@ -66,6 +66,11 @@ begin
   begin
     v_ps := game.pasir_state(v_pid);
     if v_ps is not null then r := r || jsonb_build_object('pasir', v_ps); end if;
+    -- Di zaman lain kisah lama tidak pernah terjadi untuk pemain ini
+    if v_ps is not null and coalesce(v_ps ->> 'era', 'kini') <> 'kini' then
+      r := r || jsonb_build_object('gala', null, 'toogood', null, 'warwerwor', null, 'barsati', null, 'kompas', null,
+        'cocoepan', null, 'tigasilang', null, 'limatangan', null, 'duatangan', null, 'gotong', null, 'pacu', null);
+    end if;
   exception when others then raise warning '[pasir] state: %', sqlerrm;
   end;
 

@@ -1,0 +1,114 @@
+<script>
+/* =====================================================================
+ * Tide v41 · Pasir: wajah kota di Zaman Keadilan (modul PK)
+ * Varian builder '<kota>__adil' didaftarkan lewat MTCities.register. Saat nada layar 'dingin'
+ * (era keadilan), scene.configure membelokkan cityId ke varian itu.
+ *   semua pulau awal : bendera putih Pemerintah Dunia di setiap tiang, langit kelabu rata
+ *   Skitraw          : Gaul-Wash tak pernah berdiri -> gudang kosong "DISEWAKAN"; Chafik di ujung dermaga
+ *   IKN              : restorasi dibiayai Pajak Keadilan; Menara Cahaya menjadi Menara Pengawas
+ *   TooGood          : tetap sarang penyamun (tidak merdeka, bendera bajak laut tetap)
+ * ===================================================================== */
+var PK = (function () {
+  var BASE = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'toogood', 'ikn', 'empeer_depeer'];
+  var WHITE = '#f4f4f0';
+  function cold() { try { return PE.tone() === 'dingin'; } catch (e) { return false; } }
+  function H() { return MTCities.H; }
+
+  function whiteFlags(B) {
+    (B.flags || []).forEach(function (f) { f.col = WHITE; });
+    var u = B.u, q = B.qTop;
+    [0.18, 0.46, 0.74].forEach(function (k, i) { B.flags.push({ x: B.W * k, y: q - u * (3.4 + i * 0.4), h: u * 0.9, col: WHITE }); });
+  }
+  function skitraw(B) {
+    var u = B.u, q = B.qTop, sy = B.shoreY, ctx = B.ctx;
+    var gx = u * 21.4, gw = u * 7.6;
+    // tutup bekas galangan: gudang kayu kusam, pintu tergembok
+    ctx.fillStyle = '#9a948a'; ctx.fillRect(gx - u * 0.2, q - u * 4.6, gw + u * 0.4, u * 4.6);
+    ctx.fillStyle = '#7a746a'; ctx.beginPath(); ctx.moveTo(gx - u * 0.5, q - u * 4.4); ctx.lineTo(gx + gw / 2, q - u * 5.6); ctx.lineTo(gx + gw + u * 0.5, q - u * 4.4); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(40,36,30,.35)'; ctx.lineWidth = Math.max(0.6, u * 0.04);
+    for (var p = 0; p < gw; p += u * 0.55) { ctx.beginPath(); ctx.moveTo(gx + p, q - u * 4.4); ctx.lineTo(gx + p, q); ctx.stroke(); }
+    ctx.fillStyle = '#5a5248'; ctx.fillRect(gx + u * 2.4, q - u * 2.8, u * 2.8, u * 2.8);
+    ctx.strokeStyle = '#3a342c'; ctx.lineWidth = Math.max(1, u * 0.08); ctx.beginPath(); ctx.moveTo(gx + u * 2.4, q - u * 2.8); ctx.lineTo(gx + u * 5.2, q); ctx.moveTo(gx + u * 5.2, q - u * 2.8); ctx.lineTo(gx + u * 2.4, q); ctx.stroke();
+    ctx.fillStyle = '#9aa0a6'; ctx.fillRect(sy * 0 + gx + u * 3.6, q - u * 1.6, u * 0.4, u * 0.5);
+    ctx.fillStyle = '#9ab0c0'; ctx.fillRect(gx + u * 3.2, q, u * 5.4, Math.max(2, sy - q + u * 0.4));
+    H().sign(ctx, gx + u * 1.2, q - u * 4.0, u * 5.2, u * 0.9, ['DISEWAKAN'], 'board', { bg: '#f1ede4', fg: '#3a3a3a', frame: '#6a645c' });
+    // neon Gaul-Wash tak pernah ada
+    B.dyn = (B.dyn || []).filter(function (d) { return d.type !== 'neon'; });
+    B.hotspots.forEach(function (h) { if (h.id === 'ship' && /Gaul/i.test(h.label || '')) { h.id = 'ps_gudang'; h.label = 'Gudang Kosong'; h.icon = 'warehouse'; } });
+    // Chafik di ujung dermaga, kakinya belum sampai ke air
+    B.dyn.push({ type: 'fn', u: u, x: u * 20.3, y: q, fn: function (inst, c, pp, tt, dt, d) {
+      var s = d.u * 0.03, bob = Math.sin(tt * 1.3) * d.u * 0.03;
+      c.save(); c.translate(d.x, d.y + bob);
+      c.fillStyle = '#3a2a1a'; c.fillRect(-s * 6, -s * 2, s * 12, s * 2);             // papan dermaga
+      c.strokeStyle = '#6b4a2a'; c.lineWidth = s * 2.4; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-s * 2, 0); c.lineTo(-s * 3 + Math.sin(tt * 2) * s, s * 7); c.moveTo(s * 2, 0); c.lineTo(s * 3 + Math.sin(tt * 2 + 1) * s, s * 7); c.stroke();
+      c.fillStyle = '#e8e0cc'; c.fillRect(-s * 4, -s * 12, s * 8, s * 11);        // kemeja
+      c.fillStyle = '#7a5230'; c.beginPath(); c.arc(0, -s * 15, s * 4, 0, 6.3); c.fill();
+      c.fillStyle = '#1e140c'; c.beginPath(); c.arc(0, -s * 16.5, s * 4, Math.PI, 0); c.fill();
+      c.restore();
+    } });
+  }
+  function ikn(B) {
+    var u = B.u, q = B.qTop, sy = B.shoreY, ctx = B.ctx;
+    var tx = u * 22.5, tb = Math.min(sy - u * 2, B.hillY(u * 23.5) + u * 1.6);
+    H().sign(ctx, tx - u * 1.3, tb - u * 6, u * 4.8, u * 1.6, ['MENARA PENGAWAS', 'KEADILAN MUTLAK'], 'board', { bg: '#f4f4f0', fg: '#2a3340', frame: '#8a96a2', sub: true, subFg: '#5a6a7a' });
+    H().sign(ctx, u * 19.7, q - u * 2.45, u * 3.4, u * 0.7, ['PAJAK KEADILAN'], 'board', { bg: '#f4f4f0', fg: '#2a3340', frame: '#8a96a2' });
+    var bx = tx + u * 1.1, by = tb - u * 6.4;
+    ctx.fillStyle = '#5a5e58'; ctx.fillRect(bx - u * 0.5, by, u * 1, u * 0.5);
+    ctx.fillStyle = '#c8ced4'; ctx.fillRect(bx - u * 0.38, by - u * 0.6, u * 0.76, u * 0.6);
+    ctx.fillStyle = '#2e3230'; ctx.beginPath(); ctx.moveTo(bx - u * 0.5, by - u * 0.6); ctx.lineTo(bx, by - u * 1.1); ctx.lineTo(bx + u * 0.5, by - u * 0.6); ctx.closePath(); ctx.fill();
+    // lambang Absolute Justice di dada menara
+    ctx.save(); ctx.translate(tx + u * 1.1, tb - u * 2.2); ctx.fillStyle = '#f4f4f0'; ctx.beginPath(); ctx.moveTo(0, -u * 0.9); ctx.lineTo(u * 0.7, -u * 0.4); ctx.lineTo(u * 0.5, u * 0.7); ctx.lineTo(0, u * 1); ctx.lineTo(-u * 0.5, u * 0.7); ctx.lineTo(-u * 0.7, -u * 0.4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#c9a450'; ctx.fillRect(-u * 0.06, -u * 0.6, u * 0.12, u * 1.2); ctx.fillRect(-u * 0.35, -u * 0.1, u * 0.7, u * 0.1); ctx.restore();
+    // sorot pengawas: putih dingin, menyapu dermaga (bukan laut)
+    B.dyn = (B.dyn || []).filter(function (d) { return d.type !== 'fireworks'; });
+    B.dyn.push({ type: 'fn', u: u, x: bx, y: by - u * 0.3, fn: function (inst, c, pp, tt, dt, d) {
+      var on = Math.max(0.35, Math.min(1, (pp.lights || 0) * 1.5));
+      var a = Math.sin(tt * 0.5) * 0.5 + Math.PI * 0.78, len = d.u * 30, wd = 0.05;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      var g = c.createLinearGradient(d.x, d.y, d.x + Math.cos(a) * len, d.y + Math.sin(a) * len);
+      g.addColorStop(0, 'rgba(220,235,255,' + (0.34 * on).toFixed(3) + ')'); g.addColorStop(1, 'rgba(220,235,255,0)');
+      c.fillStyle = g; c.beginPath(); c.moveTo(d.x, d.y);
+      c.lineTo(d.x + Math.cos(a - wd) * len, d.y + Math.sin(a - wd) * len); c.lineTo(d.x + Math.cos(a + wd) * len, d.y + Math.sin(a + wd) * len); c.closePath(); c.fill();
+      c.restore();
+    } });
+  }
+  var EXTRA = { skitraw: skitraw, ikn: ikn };
+  function register() {
+    if (!window.MTCities || !MTCities.register) return false;
+    BASE.forEach(function (id) {
+      var base = MTCities.get(id); if (!base) return;
+      MTCities.register(id + '__adil', function (B) {
+        base(B);
+        try { if (EXTRA[id]) EXTRA[id](B); } catch (e) { console.warn('[PK]', id, e); }
+        if (id !== 'toogood') whiteFlags(B);
+      }, id === 'toogood' ? 'gloom' : 'overcast');
+    });
+    return true;
+  }
+  register();
+
+  // Restorasi IKN di Zaman Keadilan: dibiayai Pajak Keadilan (dermaga & lampu ada, Menara Cahaya tidak)
+  if (typeof window.mtRestorasi_ === 'function') {
+    var origRs = window.mtRestorasi_;
+    window.mtRestorasi_ = function () { return cold() ? 4 : origRs.apply(this, arguments); };
+  }
+
+  // Belokkan cityId ke varian saat Zaman Keadilan
+  var wrapped = null;
+  function ensure() {
+    if (typeof scene === 'undefined' || !scene || scene === wrapped || !scene.configure) return;
+    var orig = scene.configure;
+    scene.configure = function (o) {
+      if (o && cold() && (o.mode === 'port' || (o.mode == null && scene.mode === 'port')) && typeof o.cityId === 'string' && o.cityId.indexOf('__adil') < 0 && MTCities.get(o.cityId + '__adil')) {
+        o = Object.assign({}, o, { cityId: o.cityId + '__adil' });
+      }
+      return orig.call(this, o);
+    };
+    wrapped = scene;
+  }
+  wrap_('renderScene', null, function () { try { ensure(); } catch (e) { } });
+
+  return { cold: cold, register: register };
+})();
+</script>
