@@ -240,12 +240,12 @@ var MTGames3 = (function () {
     return '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Bengkel besar FreeYork">' + s + '</svg>';
   }
   function playJejak(opts, cb) {
-    var cfg = JEJAK[opts.variant] || JEJAK.brankas, S = shell(cfg.kicker, cfg.title);
+    var cfg = opts.cfg || JEJAK[opts.variant] || JEJAK.brankas, S = shell(cfg.kicker, cfg.title);   // Tide v41: opts.cfg & opts.sceneSvg
     S.cb = cb;
-    var warm = opts.variant === 'bengkel', N = cfg.clues.length;
+    var warm = opts.variant === 'bengkel' || !!opts.warm, N = cfg.clues.length;
     S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center;margin:0 0 6px"><span class="tsg-clue">Jejak <b class="jj-n">0</b> / ' + N + '</span>' +
       '<span class="tsg-bat" title="' + (warm ? 'Minyak lentera' : 'Baterai senter') + '"><i></i></span></div>' +
-      '<div class="tsg-stage">' + (warm ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
+      '<div class="tsg-stage">' + (opts.sceneSvg ? '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Dermaga">' + opts.sceneSvg + '</svg>' : warm ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
       '<div class="tsg-msg">' + cfg.intro + '</div><ul class="tsg-list"></ul>';
     var stage = S.body.querySelector('.tsg-stage'), svg = stage.querySelector('svg'), cv = stage.querySelector('canvas'), ctx = cv.getContext('2d');
     var msg = S.body.querySelector('.tsg-msg'), list = S.body.querySelector('.tsg-list'), nEl = S.body.querySelector('.jj-n'), batEl = S.body.querySelector('.tsg-bat i');

@@ -527,12 +527,14 @@ var MTGames = (function () {
     /** Intro standar: tombol Mulai & Keluar */
     intro: function (o, start) {
       var S = this;
+      if (S.opts && S.opts.introCard && !S._icMerged) { S._icMerged = true; o = Object.assign({}, o, S.opts.introCard); }   // Tide v41: teks pembuka bisa diganti
       o.buttons = [{ label: o.cta || 'Mulai', primary: true, onClick: function () { S.hideCard(); start(); } }];
       S.card(o);
     },
     /** Menang: kartu emas lalu "Lanjutkan" menutup overlay & memanggil cb. */
     win: function (res, o) {
       var S = this; if (S.done) return;
+      if (S.opts && S.opts.winCard) o = Object.assign({}, o || {}, S.opts.winCard);   // Tide v41: kartu menang bisa diganti
       S.won = res; res.win = true; res.cancelled = false;
       au('victory'); vib([40, 60, 80]);
       o = o || {}; o.cls = 'ok ' + (o.cls || '');
@@ -1367,7 +1369,7 @@ var MTGames = (function () {
       }
       function show(delay) {
         G.phase = 'show'; G.si = 0; G.timer = -(delay || 0.6); prog();
-        status('Perhatikan&hellip;', 'Nenek Ulin menyalakan sandi &middot; ' + LENS[G.round] + ' kilatan');
+        status('Perhatikan&hellip;', (opts.guideName || 'Nenek Ulin') + ' menyalakan sandi &middot; ' + LENS[G.round] + ' kilatan');
       }
       function onDur() { return [0.5, 0.45, 0.41, 0.37, 0.34][G.round] || 0.34; }
       function gapDur() { return [0.22, 0.2, 0.17, 0.15, 0.14][G.round] || 0.14; }
@@ -1378,7 +1380,7 @@ var MTGames = (function () {
         if (G.seq[G.ii] !== i) {
           G.phase = 'wrong'; G.mistakes++; G.shake = 1; S.fail({ round: G.round + 1 });
           AX.buzz(0.05); au('error'); vib([60, 40, 60]); prog();
-          status('Sandi keliru', 'Nenek Ulin mengulang urutan ronde ini');
+          status('Sandi keliru', (opts.guideName || 'Nenek Ulin') + ' mengulang urutan ronde ini');
           S.msg('&ldquo;Pelan-pelan, Nak. Lihat lagi.&rdquo;', 'bad', 1800);
           S.later(function () { show(0.3); }, 1500);
           return;
@@ -1401,7 +1403,7 @@ var MTGames = (function () {
       }
       function finale() {
         G.phase = 'final'; G.fireT = S.t; prog();
-        status('Api Bjorneo menyala!', 'Jawaban keenam dari gunung api');
+        status(opts.finalA || 'Api Bjorneo menyala!', opts.finalB || 'Jawaban keenam dari gunung api');
         AX.gong(65, 0.32); au('horn'); S.later(function () { AX.shimmer(); au('achieve'); }, 900);
         S.later(winNow, 3600);
       }
@@ -1586,10 +1588,10 @@ var MTGames = (function () {
       S.intro({
         face: gov, kicker: 'Puncak Mercusuar &middot; Bjorneo', title: 'Sandi Mercusuar',
         quote: 'Kalau mereka sungguh bersamamu, mereka akan menjawab cahaya kita.', who: govWho,
-        steps: ['<b>Nenek Ulin</b> menyalakan urutan kilatan di lensa mercusuar &mdash; <b>merah, hijau, biru, kuning</b> &mdash; tiap warna bernada gamelan.',
+        steps: ['<b>' + esc(opts.guideName || 'Nenek Ulin') + '</b> menyalakan urutan kilatan di lensa mercusuar &mdash; <b>merah, hijau, biru, kuning</b> &mdash; tiap warna bernada gamelan.',
           'Ulangi urutannya dengan <b>mengetuk lensa</b> yang sesuai.',
-          '5 ronde, urutan bertambah panjang: <b>4 &rarr; 8 kilatan</b>. Tiap ronde berhasil, satu armada sekutu menjawab dari cakrawala.',
-          'Keliru? Nenek Ulin mengulang urutan ronde itu &mdash; tanpa batas.'],
+          ROUNDS + ' ronde, urutan bertambah panjang: <b>' + LENS[0] + ' &rarr; ' + LENS[ROUNDS - 1] + ' kilatan</b>. Tiap ronde berhasil, satu ' + (opts.guideName ? 'kapal' : 'armada sekutu') + ' menjawab dari cakrawala.',
+          'Keliru? ' + esc(opts.guideName || 'Nenek Ulin') + ' mengulang urutan ronde itu &mdash; tanpa batas.'],
         controls: { desk: ['Klik lensa', '<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> warna'], touch: ['Ketuk lensa berwarna'] },
         cta: 'Nyalakan lensa'
       }, function () { S.msg('&ldquo;Lihat cahayanya, Nak. Laut hanya menjawab sandi yang diulang dengan benar.&rdquo;', 'good', 2600); begin(); });

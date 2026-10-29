@@ -37,7 +37,7 @@
 <script>
 /* =====================================================================
  * Tide v41 · Sinematik Pasir (MTPS)
- *   MTCine kinds : ps_festival · ps_geladak · ps_tangga (opts.solo) · ps_adil · ps_hantu · ps_peta · ps_benua   (opts.ctl = { i: slide })
+ *   MTCine kinds : ps_festival · ps_geladak · ps_tangga (opts.solo) · ps_adil · ps_hantu · ps_peta · ps_benua · ps_lonceng   (opts.ctl = { i: slide })
  *   MTPS.benang(o, done)    "Benang yang Putus" (o: { name, ship, shipVis, gold, cities, bank, cargo, wh, medals, replay })
  *   MTPS.ingat(kind, text, o, done)   kartu "Ingatanmu": sketsa arang yang luntur ke pemandangan sekarang
  *   MTPS.sketch(ctx, kind, x, y, w, h, o)   satu sketsa arang (dipakai juga Papan Benang)
@@ -642,6 +642,64 @@ var MTPS = (function () {
       if (t < 0.8) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
     return { draw: draw, intro: 1 };
+  });
+
+  /* ================= MTCine: ps_lonceng (Akademi Laut Sudyrman, menara lonceng; Batch 5) =================
+   * ctl.i: 0 lapangan & lonceng · 1 Franzi muda melukis peta, Slaus muda tertawa · 2 Franziska tua di sampingmu · 3 ia pergi, kaca ketiga */
+  MTCine.register('ps_lonceng', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0;
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 3); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#d8a860'); g.addColorStop(0.6, '#f0d8a0'); g.addColorStop(1, '#8a6a3a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // benteng putih & menara lonceng
+      var bx = W * 0.56, by = H * 0.68, bw = W * 0.16, bh = H * 0.58;
+      ctx.fillStyle = '#f2e6c8'; ctx.fillRect(W * 0.18, H * 0.62, W * 0.7, H * 0.2);
+      for (var c = 0; c < 14; c++) ctx.fillRect(W * 0.18 + c * W * 0.05, H * 0.6, W * 0.025, H * 0.03);
+      ctx.fillStyle = '#f6ecd4'; ctx.fillRect(bx, by - bh, bw, bh);
+      ctx.fillStyle = '#8a3a2a'; ctx.beginPath(); ctx.moveTo(bx - W * 0.01, by - bh); ctx.lineTo(bx + bw / 2, by - bh - H * 0.1); ctx.lineTo(bx + bw + W * 0.01, by - bh); ctx.closePath(); ctx.fill();
+      // ruang lonceng terbuka
+      var ox = bx + bw * 0.12, oy = by - bh + H * 0.06, ow = bw * 0.76, oh = H * 0.2;
+      ctx.fillStyle = '#5a3a1e'; ctx.fillRect(ox, oy, ow, oh);
+      var sw = Math.sin(t * 1.2) * 0.2;
+      ctx.save(); ctx.translate(ox + ow / 2, oy + oh * 0.12); ctx.rotate(sw); ctx.fillStyle = '#c9a450'; ctx.beginPath(); ctx.moveTo(-ow * 0.12, 0); ctx.lineTo(ow * 0.12, 0); ctx.lineTo(ow * 0.16, oh * 0.32); ctx.lineTo(-ow * 0.16, oh * 0.32); ctx.closePath(); ctx.fill(); ctx.restore();
+      if (i >= 1) {
+        // peta di dinding (Franzi melukis)
+        var k = sm(0, 3, i === 1 ? lt : 9);
+        ctx.strokeStyle = 'rgba(240,220,170,.9)'; ctx.lineWidth = 1.5; ctx.beginPath();
+        for (var p = 0; p <= 20 * k; p++) { var u = p / 20, x = ox + ow * (0.06 + u * 0.4), y = oy + oh * (0.5 + Math.sin(u * 9) * 0.12); if (p === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+        ctx.stroke();
+        person(ctx, ox + ow * 0.32, oy + oh, oh * 0.62, { gown: true, wave: true }, '#2a1a0e');           // Franzi muda
+        var laugh = Math.abs(Math.sin(t * 7)) * oh * 0.02;
+        person(ctx, ox + ow * 0.74, oy + oh - laugh, oh * 0.66, { hat: 'kapten' }, '#2a1a0e');           // Slaus muda
+        if (i === 1 && lt > 1.5) { ctx.fillStyle = 'rgba(60,30,10,.7)'; ctx.font = 'italic ' + Math.round(oh * 0.12) + 'px Georgia, serif'; ctx.fillText('ha ha', ox + ow * 0.8, oy + oh * 0.2); }
+      } else {
+        // kadet berbaris di lapangan
+        for (var r = 0; r < 10; r++) person(ctx, W * (0.24 + r * 0.03), H * 0.86, H * 0.08, { hat: 'kapten' }, '#3a2a18');
+      }
+      // latar depan: kau & Franziska tua di tebing
+      ctx.fillStyle = '#5a4428'; ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.84); ctx.quadraticCurveTo(W * 0.2, H * 0.8, W * 0.36, H); ctx.closePath(); ctx.fill();
+      person(ctx, W * 0.12, H * 0.9, H * 0.22, { hat: 'kapten' }, '#1e140a');
+      if (i >= 2) {
+        var a = i === 3 ? 1 - sm(0.5, 3, lt) : sm(0, 1.4, lt);
+        ctx.save(); ctx.globalAlpha = a; person(ctx, W * 0.2, H * 0.9, H * 0.23, { gown: true, bun: true, parasol: true }, '#f4ecdc'); ctx.restore();
+      }
+      if (i === 3) {
+        var hk = sm(1.5, 3, lt), hh = Math.min(W, H) * 0.08;
+        if (hk > 0) {
+          ctx.save(); ctx.globalAlpha = hk; ctx.translate(W * 0.5, H * 0.25); ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke();
+          for (var q = 0; q < 7; q++) { var qa = q / 7 * Math.PI * 2; ctx.fillStyle = q < 3 ? 'rgba(255,255,255,.95)' : 'rgba(120,100,70,.5)'; ctx.beginPath(); ctx.arc(Math.cos(qa) * hh * 0.75, Math.sin(qa) * hh * 0.9, hh * 0.08, 0, 6.3); ctx.fill(); }
+          ctx.restore();
+        }
+      }
+      ctx.save(); ctx.globalAlpha = 0.1; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 4) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.55);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(60,36,12,.8)'; ctx.fillText('AKADEMI LAUT SUDYRMAN · 40 TAHUN LALU', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
   });
 
   /* =====================================================================
