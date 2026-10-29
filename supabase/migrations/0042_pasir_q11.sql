@@ -280,6 +280,14 @@ begin
   end if;
 end $$;
 
+-- Kait untuk batch berikutnya: aksi & status tambahan (diganti 0043+; null/{} = tidak ada)
+create or replace function game.ps_act_more(p_pid uuid, p_act text, a jsonb) returns jsonb
+language sql as $$ select null::jsonb $$;
+create or replace function game.ps_state_more(p_pid uuid) returns jsonb
+language sql as $$ select '{}'::jsonb $$;
+create or replace function game.ps_admin_more(p_pid uuid, p_act text, p_arg text, p_arg2 text) returns boolean
+language sql as $$ select false $$;
+
 -- ---------------------------------------------------------------------
 -- Aksi Quest 11 + aksi umum (Pusaka, lompat, tarik). null = bukan aksi di sini.
 -- ---------------------------------------------------------------------
@@ -401,7 +409,7 @@ begin
     perform game.log(p_pid, 'Paman Ocid menjual sisa roda gigi Jam Agung ke saudagar logam: ' || v_cost || ' gold untukmu.');
     return jsonb_build_object('ok', true);
   end if;
-  return null;
+  return game.ps_act_more(p_pid, p_act, a);   -- batch berikutnya (0043+) menyambung di sini
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -439,7 +447,7 @@ begin
     'sorot', coalesce((r.data ->> 'sorot')::boolean, false),
     'barang', coalesce(r.data -> 'barang', '[]'::jsonb),
     'q11cost', game.cfg_num('PasirJangkarBiaya', 100000)
-  ) || case when v_gm then jsonb_build_object('gm', true,
+  ) || coalesce(game.ps_state_more(p_pid), '{}'::jsonb) || case when v_gm then jsonb_build_object('gm', true,
           'eras', (select jsonb_agg(jsonb_build_object('era', e, 'tone', game.pasir_tone(e))) from unnest(game.pasir_eras()) e))
         else '{}'::jsonb end;
 end $$;
@@ -493,7 +501,7 @@ begin
     delete from game.pasir_state where player_id = p_pid;
     delete from game.pv_snap where player_id = p_pid;
     delete from game.pv_pusaka where player_id = p_pid;
-  elsif v_act <> 'lihat' then
+  elsif v_act <> 'lihat' and not game.ps_admin_more(p_pid, v_act, p_arg, p_arg2) then
     raise exception 'Aksi GM tidak dikenal.';
   end if;
   select * into r from game.pasir_state where player_id = p_pid;

@@ -111,7 +111,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   ok(s.pasir.q11.step === 10 && s.pasir.q11.done, 'Quest 11 selesai');
   ok(await gold() === g0 + 100000, 'hadiah 100.000');
   ok(s.pasir.jangkarMs > 0, 'Jangkar didinginkan');
-  ok(s.pasir.zaman.length === 0, 'belum ada zaman lain');
+  ok(s.pasir.zaman.length === 1 && s.pasir.zaman[0] === 'lampau', 'Jam Agung kini menunjuk 40 Tahun Lalu');
 
   // --- Retak turun di Zaman Keadilan ---
   await H.sql(`update game.pasir_state set data = data || jsonb_build_object('retak_t', game.now_ms() - game.ww_day_ms() * 2) where player_id = $1`, [pid]);

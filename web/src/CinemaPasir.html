@@ -37,7 +37,7 @@
 <script>
 /* =====================================================================
  * Tide v41 · Sinematik Pasir (MTPS)
- *   MTCine kinds : ps_festival · ps_geladak · ps_tangga (opts.solo) · ps_adil · ps_hantu · ps_peta   (opts.ctl = { i: slide })
+ *   MTCine kinds : ps_festival · ps_geladak · ps_tangga (opts.solo) · ps_adil · ps_hantu · ps_peta · ps_benua   (opts.ctl = { i: slide })
  *   MTPS.benang(o, done)    "Benang yang Putus" (o: { name, ship, shipVis, gold, cities, bank, cargo, wh, medals, replay })
  *   MTPS.ingat(kind, text, o, done)   kartu "Ingatanmu": sketsa arang yang luntur ke pemandangan sekarang
  *   MTPS.sketch(ctx, kind, x, y, w, h, o)   satu sketsa arang (dipakai juga Papan Benang)
@@ -598,6 +598,47 @@ var MTPS = (function () {
         if (k < 1) { ctx.save(); ctx.translate(tip[0], tip[1]); ctx.rotate(-0.7); ctx.fillStyle = '#1e1810'; ctx.fillRect(-3, -26, 6, 26); ctx.restore(); }
       }
       CH.vignette(ctx, W, H, 0.35);
+      if (t < 0.8) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+
+  /* ================= MTCine: ps_benua ("Benua di Selatan"; Batch 4) =================
+   * opts.data = { cities: [{ id, name, x, y }], ports: [{ id, name, x, y }] }   ctl.i: 0 peta · 1 peta melebar, kabut · 2 benua muncul */
+  MTCine.register('ps_benua', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, D = opts.data || {}, cities = D.cities || [], ports = D.ports || [];
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 2); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      paper(ctx, 0, 0, W, H, 'rgba(150,100,30,.22)');
+      var all = cities.concat(ports), maxY = Math.max.apply(null, all.map(function (c) { return +c.y; }).concat([100]));
+      var zoom = i === 0 ? 0 : i === 1 ? sm(0, 3, lt) : 1;
+      var yMax = lerp(90, maxY + 10, zoom), pad = Math.min(W, H) * 0.08, mw = W - pad * 2, mh = H * 0.66;
+      function P(c) { return [pad + mw * (0.08 + (+c.x / 100) * 0.84), pad * 0.6 + mh * (0.06 + (+c.y / yMax) * 0.86)]; }
+      ctx.strokeStyle = 'rgba(80,50,20,.3)'; ctx.lineWidth = 1; ctx.strokeRect(pad, pad * 0.6, mw, mh);
+      cities.forEach(function (c) {
+        var p = P(c); ctx.fillStyle = '#b89a5a'; ctx.beginPath(); ctx.ellipse(p[0], p[1], mw * 0.026, mh * 0.026, 0, 0, 6.3); ctx.fill(); ctx.strokeStyle = 'rgba(70,44,16,.6)'; ctx.stroke();
+        ctx.font = Math.round(Math.max(10, mw * 0.015)) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2410'; ctx.fillText(c.name, p[0], p[1] + mh * 0.055);
+      });
+      // garis pantai benua di selatan
+      var reveal = i < 2 ? 0 : sm(0.3, 3.2, lt);
+      if (reveal > 0 && ports.length) {
+        var by = P({ x: 50, y: maxY - 6 })[1];
+        ctx.save(); ctx.globalAlpha = reveal;
+        ctx.fillStyle = 'rgba(150,120,60,.55)'; ctx.strokeStyle = 'rgba(70,44,16,.85)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(pad, pad * 0.6 + mh);
+        for (var k = 0; k <= 20; k++) { var u = k / 20; ctx.lineTo(pad + mw * u, by + Math.sin(u * 9 + 1) * mh * 0.03 + Math.sin(u * 23) * mh * 0.012); }
+        ctx.lineTo(pad + mw, pad * 0.6 + mh); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ports.forEach(function (c) { var p = P(c); ctx.fillStyle = '#7a2a12'; ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, 6.3); ctx.fill(); ctx.font = Math.round(Math.max(10, mw * 0.014)) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2410'; ctx.fillText(c.name, p[0], p[1] - 8); });
+        ctx.font = '700 ' + Math.round(Math.max(14, mw * 0.03)) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = '#9a6a10'; ctx.textAlign = 'center';
+        ctx.fillText('Benua Sudyrman', pad + mw / 2, pad * 0.6 + mh * 0.96);
+        ctx.restore();
+      }
+      // kabut di selatan
+      var fog = i === 0 ? 0 : i === 1 ? sm(0.5, 2.5, lt) : 1 - sm(0, 2.6, lt);
+      if (fog > 0.01) { ctx.save(); ctx.globalAlpha = fog; for (var f = 0; f < 14; f++) { var fx = pad + mw * hs(f), fy = pad * 0.6 + mh * (0.78 + hs(f + 3) * 0.2) + Math.sin(t * 0.5 + f) * 4; var g = ctx.createRadialGradient(fx, fy, 0, fx, fy, mw * 0.12); g.addColorStop(0, 'rgba(240,228,200,.95)'); g.addColorStop(1, 'rgba(240,228,200,0)'); ctx.fillStyle = g; ctx.fillRect(fx - mw * 0.12, fy - mw * 0.12, mw * 0.24, mw * 0.24); } ctx.restore(); }
+      ctx.save(); ctx.globalAlpha = 0.1; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 2) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.5);
       if (t < 0.8) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
     return { draw: draw, intro: 1 };
