@@ -39,7 +39,9 @@ create table if not exists game.mp_presence (
   ts           timestamptz not null default now(),
   last_chat_at timestamptz
 );
-create index if not exists mp_presence_ts_idx on game.mp_presence (ts desc);
+-- Tide v41: index ts dibuang. Tabel hanya berisi satu baris per kapten (puluhan baris), jadi index
+-- tidak mempercepat apa pun, tapi membuat setiap pembaruan ts menulis ulang index (bukan update HOT).
+drop index if exists game.mp_presence_ts_idx;
 alter table game.mp_presence add column if not exists s jsonb;   -- tampilan kapal (game.ship_visual)
 
 create table if not exists game.mp_chat_channels (
@@ -307,10 +309,11 @@ begin
       select coalesce(destination_city_id, '') into v_dest from game.player_location where player_id = p_pid;
     end if;
     v_city := coalesce(game.current_city(p_pid), r.c);
-    -- hemat tulis: hanya perbarui bila lokasi berubah atau cap waktu sudah > 15 detik
+    -- hemat tulis: hanya perbarui bila lokasi berubah atau cap waktu sudah > 45 detik
+    -- (Tide v41: dulu 15 dtk; jendela "online" tetap 2 menit, jadi status online tidak berubah)
     update game.mp_presence set c = v_city, sea = v_sea, dest = coalesce(v_dest, ''), ts = now()
     where player_id = p_pid
-      and (ts < now() - interval '15 seconds' or c is distinct from v_city or sea is distinct from v_sea
+      and (ts < now() - interval '45 seconds' or c is distinct from v_city or sea is distinct from v_sea
            or dest is distinct from coalesce(v_dest, ''));
   end if;
   select * into r from game.mp_presence where player_id = p_pid;
