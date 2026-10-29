@@ -115,6 +115,23 @@
   #mtGmPanel .mtp-msg { min-height: 1.3em; font-size: 13.5px; margin-top: 8px; color: #2f6b2f; }
   #mtGmPanel .mtp-msg.err { color: #a3361e; }
   #mtGmPanel .mtp-hint { font-size: 12.5px; color: var(--parch-muted, #7b6445); margin-top: 10px; }
+  #mtpRCard { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #fffdf6; border: 1px solid rgba(79,51,30,.35); }
+  #mtpRCard dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+  #mtpRCard dt { color: var(--parch-muted, #7b6445); }
+  #mtpRCard dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+  #mtpRCard .mtp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #mtpRCard .mtp-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(79,51,30,.1); color: var(--teak-700, #372316); }
+  #mtpRCard .mtp-tag.warn { background: #f6dcc9; color: #8a2c14; }
+  #mtpRCard .mtp-q { margin: 8px 0 0; font-size: 12.5px; color: var(--parch-muted, #7b6445); }
+  #mtpRTemp { margin-top: 10px; padding: 12px; border-radius: 10px; text-align: center; background: #372316; color: #fbeabb; }
+  #mtpRTemp .mtp-code { display: block; margin: 6px 0 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 26px; letter-spacing: .06em; color: #ffe7a3; user-select: all; }
+  #mtpRTemp small { display: block; font-size: 12.5px; line-height: 1.4; color: #e8d6aa; }
+  #mtpRTemp button { margin-top: 8px; min-height: 38px; padding: 6px 16px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 700;
+    border: 1px solid #7a5313; background: linear-gradient(180deg, #ffe7a3, #c9922f); color: #2b1905; }
+  #mtpRLog { margin-top: 10px; font-size: 13px; }
+  #mtpRLog table { width: 100%; border-collapse: collapse; }
+  #mtpRLog td { padding: 4px 6px; border-bottom: 1px solid rgba(79,51,30,.15); vertical-align: top; }
+  #mtpRLog td:first-child { white-space: nowrap; color: var(--parch-muted, #7b6445); }
 
   #mtMaintGmBar { position: fixed; top: 0; left: 0; right: 0; z-index: 2147482100; display: none; text-align: center; padding: 3px 8px;
     font-family: var(--font-title, Georgia, serif); font-size: 12px; font-weight: 700; letter-spacing: .05em; color: #fff2ea; background: repeating-linear-gradient(135deg, #a3361e 0 14px, #7a2512 14px 28px); }
@@ -172,6 +189,14 @@
     </div>
     <div class="mtp-acts"><button type="button" class="red" id="mtpMOn">Tutup pelabuhan</button><button type="button" id="mtpMOff">Buka kembali</button></div>
     <div class="mtp-msg" id="mtpMsg" aria-live="polite"></div>
+
+    <h4>Reset sandi pemain</h4>
+    <label>Username pemain<input type="text" id="mtpRU" maxlength="16" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="misal: sansan"></label>
+    <div class="mtp-acts"><button type="button" id="mtpRChk">Cek data kapten</button><button type="button" class="alt" id="mtpRLogBtn">Riwayat reset</button></div>
+    <div id="mtpRCard" hidden></div>
+    <div id="mtpRTemp" hidden></div>
+    <div class="mtp-msg" id="mtpRMsg" aria-live="polite"></div>
+    <div id="mtpRLog" hidden></div>
     <div class="mtp-hint">Lewat chat juga bisa: <b>/gm pesan</b> &middot; <b>/gm! pesan</b> (darurat) &middot; <b>/panel</b>. Saat pemeliharaan, kamu tetap bisa main untuk menguji.</div>
   </div>
 </div>
@@ -439,6 +464,75 @@ var MTGM = (function () {
   }
   function openPanel() { $('mtGmPanel').classList.add('open'); panelStatus(); msg(''); setTimeout(function () { try { $('mtpTx').focus(); } catch (e) {} }, 30); }
   function closePanel() { $('mtGmPanel').classList.remove('open'); }
+  /* ---------- Tide v43: reset sandi pemain ---------- */
+  var RS = { card: null };
+  function rmsg(t, err) { var m = $('mtpRMsg'); m.textContent = t || ''; m.classList.toggle('err', !!err); }
+  function gold(n) { return Number(n || 0).toLocaleString('id-ID'); }
+  function when(ms) {
+    if (!ms) return '-';
+    var d = new Date(Number(ms)), mins = Math.round((Date.now() - d.getTime()) / 60000);
+    var rel = mins < 2 ? 'baru saja' : mins < 60 ? mins + ' menit lalu' : mins < 2880 ? Math.round(mins / 60) + ' jam lalu' : Math.round(mins / 1440) + ' hari lalu';
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2) + ' (' + rel + ')';
+  }
+  function pwRpc(act, u) { return rpc('api_gmPassword', [act, u || '']); }
+  function renderCard(c) {
+    var el = $('mtpRCard');
+    if (!c) { el.hidden = true; el.innerHTML = ''; return; }
+    var row = function (k, v) { return '<dt>' + k + '</dt><dd>' + esc(v == null || v === '' ? '-' : v) + '</dd>'; };
+    var tags = [];
+    if (c.legacy) tags.push('<span class="mtp-tag">Kapten lama (belum pindah akun)</span>');
+    if (c.pending) tags.push('<span class="mtp-tag warn">Menunggu pasang sandi baru</span>');
+    if (Number(c.resets)) tags.push('<span class="mtp-tag">Pernah direset ' + Number(c.resets) + 'x</span>');
+    if (c.gm) tags.push('<span class="mtp-tag warn">Akun GM</span>');
+    el.innerHTML = '<dl>' + row('Username', c.username) + row('Nama kapten', c.name) + row('Archetype', c.arch ? 'The ' + c.arch.charAt(0).toUpperCase() + c.arch.slice(1) : '') +
+      row('Kapal', c.ship) + row('Kota terakhir', c.city) + row('Gold', gold(c.gold)) + row('Bank', gold(c.bank)) +
+      row('Terakhir aktif', when(c.last)) + row('Akun dibuat', when(c.created)) + '</dl>' +
+      (tags.length ? '<div class="mtp-tags">' + tags.join('') + '</div>' : '') +
+      '<p class="mtp-q">Tanyakan ke pemain: nama kapten, kapal, kota terakhir, kira-kira gold. Reset hanya kalau cocok.</p>' +
+      '<div class="mtp-acts"><button type="button" class="red" id="mtpRGo">Reset sandi ' + esc(c.username) + '</button></div>';
+    el.hidden = false;
+    $('mtpRGo').addEventListener('click', doReset);
+  }
+  function doLookup() {
+    var u = $('mtpRU').value.trim().toLowerCase();
+    $('mtpRTemp').hidden = true; RS.card = null; renderCard(null);
+    if (!/^[a-z0-9_]{3,16}$/.test(u)) { rmsg('Username 3-16 karakter: huruf kecil, angka, atau _.', true); return; }
+    busy(true); rmsg('Mencari…');
+    pwRpc('lookup', u).then(function (r) { busy(false); rmsg(''); RS.card = r.card; renderCard(r.card); },
+      function (e) { busy(false); rmsg(String((e && e.message) || e), true); });
+  }
+  function doReset() {
+    var c = RS.card; if (!c) return;
+    if (!confirm('Reset sandi "' + c.username + '" (' + (c.name || 'tanpa nama') + ')?\n\nSandi lama langsung tidak berlaku dan semua sesi masuknya dikeluarkan. Pastikan data sudah cocok dengan jawaban pemain.')) return;
+    busy(true); rmsg('Mereset…');
+    pwRpc('reset', c.username).then(function (r) {
+      busy(false); rmsg('');
+      RS.card = null; renderCard(null);
+      var t = $('mtpRTemp');
+      t.innerHTML = 'Sandi sementara untuk <b>' + esc(r.username) + '</b><span class="mtp-code" id="mtpRCode">' + esc(r.temp) + '</span>' +
+        '<small>Kirim ke pemain sekarang. Sandi ini hanya tampil sekali. Saat masuk, pemain wajib memasang sandi baru.</small>' +
+        '<button type="button" id="mtpRCopy">Salin</button>';
+      t.hidden = false;
+      $('mtpRCopy').addEventListener('click', function () {
+        var b = this, done = function () { b.textContent = 'Tersalin'; setTimeout(function () { b.textContent = 'Salin'; }, 1500); };
+        try { navigator.clipboard.writeText(r.temp).then(done, function () { b.textContent = 'Salin manual'; }); } catch (e) { b.textContent = 'Salin manual'; }
+      });
+      if (!$('mtpRLog').hidden) doLog();
+    }, function (e) { busy(false); rmsg(String((e && e.message) || e), true); });
+  }
+  var KIND = { reset: 'direset GM', reset_legacy: 'direset GM (kapten lama)', changed: 'sandi baru dipasang' };
+  function doLog() {
+    var el = $('mtpRLog');
+    pwRpc('log').then(function (r) {
+      var rows = (r.log || []).map(function (x) {
+        return '<tr><td>' + esc(when(x.at).replace(/ \(.*\)$/, '')) + '</td><td><b>' + esc(x.u) + '</b> ' + esc(KIND[x.k] || x.k) + (x.k !== 'changed' ? ' oleh ' + esc(x.by) : '') + '</td></tr>';
+      }).join('');
+      var pend = (r.pending || []).length ? '<p class="mtp-hint">Menunggu pasang sandi baru: <b>' + (r.pending || []).map(esc).join(', ') + '</b></p>' : '';
+      el.innerHTML = (rows ? '<table>' + rows + '</table>' : '<p class="mtp-hint">Belum ada reset sandi.</p>') + pend;
+      el.hidden = false;
+    }, function (e) { rmsg(String((e && e.message) || e), true); });
+  }
+
   function wire() {
     $('mtGmBtn').addEventListener('click', openPanel);
     $('mtpX').addEventListener('click', closePanel);
@@ -461,6 +555,10 @@ var MTGM = (function () {
         run(cmd('maint_on', tx, dur ? { endAt: now() + dur * 60000 } : {}), 'Pelabuhan ditutup. Kamu tetap bisa main.');
       }
     });
+    $('mtpRChk').addEventListener('click', doLookup);
+    $('mtpRU').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doLookup(); } });
+    $('mtpRU').addEventListener('input', function () { if (RS.card) { RS.card = null; renderCard(null); } });
+    $('mtpRLogBtn').addEventListener('click', function () { var el = $('mtpRLog'); if (!el.hidden) { el.hidden = true; return; } doLog(); });
     $('mtpMOff').addEventListener('click', function () { run(cmd('maint_off', ''), 'Pelabuhan dibuka. Pemain akan masuk lagi otomatis.'); });
     $('mtuOk').addEventListener('click', function () {
       var id = this.getAttribute('data-id'); urgentSeen[id] = 1; save(UKEY, urgentSeen);

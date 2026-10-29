@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PGlite } = require('@electric-sql/pglite');
+const { pgcrypto } = require('@electric-sql/pglite/contrib/pgcrypto');
 
 const MIG_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
 
@@ -22,7 +23,12 @@ end $$;
 -- Seperti Supabase asli: fungsi baru di schema public otomatis bisa dieksekusi anon/authenticated
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 create schema if not exists auth;
-create table if not exists auth.users (id uuid primary key, email text unique, created_at timestamptz default now());
+create table if not exists auth.users (id uuid primary key, email text unique, encrypted_password text, created_at timestamptz default now(), updated_at timestamptz default now());
+create table if not exists auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid not null, created_at timestamptz default now());
+create table if not exists auth.refresh_tokens (id bigserial primary key, user_id text, token text, revoked boolean default false);
+-- Seperti Supabase: pgcrypto (crypt / gen_salt bcrypt) di schema extensions
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 create or replace function auth.uid() returns uuid language sql stable as $f$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $f$;
 create or replace function auth.email() returns text language sql stable as $f$
@@ -36,7 +42,7 @@ language sql as $f$ insert into realtime.sent(topic, event, payload, private) va
 `;
 
 async function create(opts = {}) {
-  const db = new PGlite();
+  const db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(SUPABASE_STUB);
   const files = fs.readdirSync(MIG_DIR).filter(f => f.endsWith('.sql')).sort();
   for (const f of files) {

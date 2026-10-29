@@ -8,7 +8,7 @@ const DIST = path.join(__dirname, '..', 'dist');
 (async () => {
   const H = await require('../test/harness').create();
   const db = H.db;
-  const pw = {}, tokens = {}; // email -> hash, token -> {id,email}
+  const tokens = {}; // token -> {id,email}  (sandi disimpan bcrypt di auth.users.encrypted_password, seperti Supabase)
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
   function session(u) {
     const exp = Math.floor(Date.now() / 1000) + 3600;
@@ -18,7 +18,8 @@ const DIST = path.join(__dirname, '..', 'dist');
     return { access_token: access, refresh_token: refresh, token_type: 'bearer', expires_in: 3600, expires_at: exp,
       user: { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() } };
   }
-  const hash = p => crypto.createHash('sha256').update(p).digest('hex');
+  const setPw = (email, p) => H.sql(`update auth.users set encrypted_password = extensions.crypt($2, extensions.gen_salt('bf', 4)), updated_at = now() where email = $1`, [email, p]);
+  const pwOk = async (email, p) => { const r = await H.sql(`select id from auth.users where email = $1 and encrypted_password = extensions.crypt($2, encrypted_password)`, [email, String(p || '')]); return r.length ? r[0].id : null; };
   async function body(req) { let s = ''; for await (const c of req) s += c; try { return JSON.parse(s || '{}'); } catch (e) { return {}; } }
   function send(res, code, obj, type) {
     res.writeHead(code, { 'content-type': type || 'application/json', 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' });
@@ -41,7 +42,7 @@ const DIST = path.join(__dirname, '..', 'dist');
         if (ex.length) return send(res, 422, { code: 422, error_code: 'user_already_exists', msg: 'User already registered' });
         const id = crypto.randomUUID();
         await H.sql('insert into auth.users(id, email) values ($1, $2)', [id, b.email]);
-        pw[b.email] = hash(b.password);
+        await setPw(b.email, b.password);
         return send(res, 200, session({ id, email: b.email }));
       }
       if (url.pathname === '/auth/v1/token') {
@@ -50,13 +51,13 @@ const DIST = path.join(__dirname, '..', 'dist');
           const u = tokens['r:' + b.refresh_token]; if (!u) return send(res, 400, { error: 'invalid_grant', error_description: 'Invalid Refresh Token' });
           return send(res, 200, session(u));
         }
-        const r = await H.sql('select id from auth.users where email = $1', [b.email]);
-        if (!r.length || pw[b.email] !== hash(b.password)) return send(res, 400, { error: 'invalid_grant', error_description: 'Invalid login credentials', code: 'invalid_credentials', msg: 'Invalid login credentials' });
-        return send(res, 200, session({ id: r[0].id, email: b.email }));
+        const id = await pwOk(b.email, b.password);
+        if (!id) return send(res, 400, { error: 'invalid_grant', error_description: 'Invalid login credentials', code: 'invalid_credentials', msg: 'Invalid login credentials' });
+        return send(res, 200, session({ id, email: b.email }));
       }
       if (url.pathname === '/auth/v1/user') {
         if (!user) return send(res, 401, { msg: 'invalid JWT' });
-        if (req.method === 'PUT') { const b = await body(req); if (b.password) pw[user.email] = hash(b.password); }
+        if (req.method === 'PUT') { const b = await body(req); if (b.password) await setPw(user.email, b.password); }
         return send(res, 200, session(user).user);
       }
       if (url.pathname === '/auth/v1/logout') { delete tokens[auth]; return send(res, 204, '', 'text/plain'); }
@@ -72,6 +73,7 @@ const DIST = path.join(__dirname, '..', 'dist');
             await db.query('select public.mt_pre_request()');
           } catch (e) {
             if (/MT_MAINT/.test(e.message)) { const j = JSON.parse(e.message); return send(res, 503, j); }
+            if (/MT_PWCHANGE/.test(e.message)) { const j = JSON.parse(e.message); return send(res, 403, j); }
           }
           const r = await db.query(`select public.${fn}($1::jsonb) as r`, [JSON.stringify(b.a || [])]);
           if (process.env.SLOW) await new Promise(r => setTimeout(r, Number(process.env.SLOW)));
