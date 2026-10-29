@@ -31,6 +31,8 @@ create table if not exists game.player_missions (
   created_at         timestamptz not null default now()
 );
 alter table game.player_missions add column if not exists paid bigint not null default 0;
+-- Tide v42: nomor penawaran di papan (slot) -> tiap penawaran hanya bisa DISELESAIKAN 1x per hari game per pemain
+alter table game.player_missions add column if not exists offer_idx int;
 create index if not exists player_missions_player_idx on game.player_missions (player_id, status);
 -- Satu misi aktif per pemain (pengganti LockService + cek getActiveMissionRow_)
 create unique index if not exists player_missions_one_active_uq
@@ -244,7 +246,13 @@ declare
   v_base   double precision;
   v_offer  jsonb;
   v_offers jsonb := '[]'::jsonb;
+  v_done   int[];   -- Tide v42: slot yang sudah diselesaikan pemain ini hari ini
+  v_open   int := 0;
+  v_ndone  int := 0;
 begin
+  select coalesce(array_agg(distinct pm.offer_idx), '{}') into v_done from game.player_missions pm
+   where pm.player_id = p_pid and pm.status = 'completed' and pm.city_id = p_city
+     and pm.accepted_at = v_day and pm.offer_idx is not null;
   select coalesce(array_agg(id order by sort, id), '{}') into v_comms from game.commodities where active and tier <> 'premium';
   select coalesce(array_agg(city_id order by sort, city_id), '{}') into v_others
     from game.cities where city_id is distinct from p_city and not hidden;
@@ -276,7 +284,12 @@ begin
       'label', v_tier ->> 'label',
       'minReputation', (v_tier ->> 'minReputation')::int,
       'unlocked', v_rep >= (v_tier ->> 'minReputation')::int,
+      'done', v_idx = any (v_done),
       'qty', v_qty);
+    if v_rep >= (v_tier ->> 'minReputation')::int then
+      v_open := v_open + 1;
+      if v_idx = any (v_done) then v_ndone := v_ndone + 1; end if;
+    end if;
 
     if v_type = 'procure' then
       -- Pulau sumber: kota LAIN yang benar-benar menjual barang ini
@@ -323,7 +336,8 @@ begin
     v_offers := v_offers || jsonb_build_array(v_offer);
   end loop;
 
-  return jsonb_build_object('offers', v_offers, 'reputationHere', v_rep, 'gameDay', v_day);
+  return jsonb_build_object('offers', v_offers, 'reputationHere', v_rep, 'gameDay', v_day,
+    'allDone', v_open > 0 and v_ndone >= v_open);
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -375,6 +389,9 @@ begin
   if v_offer is null or jsonb_typeof(v_offer) <> 'object' then
     raise exception 'Penawaran misi tidak ditemukan - papan mungkin sudah berganti hari.';
   end if;
+  if coalesce((v_offer ->> 'done')::boolean, false) then
+    raise exception 'Tugas ini sudah kamu selesaikan hari ini, Kapten. Papan baru muncul saat hari berganti.';
+  end if;
   if not (v_offer ->> 'unlocked')::boolean then
     raise exception 'Reputasimu di kota ini belum cukup (butuh Standing %, kamu punya %).',
       v_offer ->> 'minReputation', v_board ->> 'reputationHere';
@@ -397,9 +414,9 @@ begin
   end if;
 
   insert into game.player_missions(player_id, status, accepted_at, city_id, commodity_id, qty, deliver_to_city_id,
-                                   reward, type, source_city_id, loaded_qty)
-  values (v_pid, 'active', game.game_day(), v_city, v_offer ->> 'commodityId', v_qty, v_offer ->> 'deliverToCityId',
-          (v_offer ->> 'reward')::bigint, v_type, coalesce(v_offer ->> 'sourceCityId', ''), v_loaded);
+                                   reward, type, source_city_id, loaded_qty, offer_idx)
+  values (v_pid, 'active', (v_board ->> 'gameDay')::int, v_city, v_offer ->> 'commodityId', v_qty, v_offer ->> 'deliverToCityId',
+          (v_offer ->> 'reward')::bigint, v_type, coalesce(v_offer ->> 'sourceCityId', ''), v_loaded, v_idx::int);
 
   if v_type = 'courier' then
     perform game.log(v_pid, 'Menerima titipan ' || v_qty || ' ' || (v_offer ->> 'commodityName') || ' untuk diantar ke ' ||
