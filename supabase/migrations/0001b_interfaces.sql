@@ -344,6 +344,9 @@ create or replace function game.harian_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
 create or replace function game.gotong_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Tide v44 · Jejak Perantau / 0060] onboarding pemain baru (null = bukan pemain baru)
+create or replace function game.perantau_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
 -- [Tide v37 · Pacu Dagang / 0033] status lomba akhir pekan (null = tertutup)
 -- Kisah Lapau (0035): status bab untuk getGameState, dan apakah bab sudah tamat (syarat rupa eksklusif)
 create or replace function game.kisah_state(p_pid uuid) returns jsonb

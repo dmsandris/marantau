@@ -1,0 +1,926 @@
+<style>
+  /* ================= Tide v44 · Jejak Perantau (onboarding pemain baru) ================= */
+
+  /* ---------- Buat Kapten: 3 langkah ---------- */
+  #ccWrap.prw { max-width: 1040px; padding-bottom: 24px; }
+  .prw-dots { display: flex; justify-content: center; align-items: center; gap: 0; margin: 0 auto 22px; max-width: 420px; }
+  .prw-dot { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 0 auto; background: none; border: 0; padding: 0; cursor: default; color: rgba(240,228,196,.45); font-family: var(--font-title); font-weight: 700; font-size: .62em; letter-spacing: .2em; text-transform: uppercase; }
+  .prw-dot i { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 1.35em; letter-spacing: 0; border: 2px solid rgba(240,207,120,.35); color: rgba(240,228,196,.6); background: rgba(8,14,22,.6); transition: all .25s ease; }
+  .prw-dot.on { color: var(--brass-300); }
+  .prw-dot.on i { background: linear-gradient(180deg, #ffe7a3, #c9922f); color: #2b1905; border-color: #ffe7a3; box-shadow: 0 0 18px rgba(240,190,80,.45); }
+  .prw-dot.past { cursor: pointer; color: rgba(240,228,196,.75); }
+  .prw-dot.past i { border-color: var(--brass-300); color: var(--brass-300); }
+  .prw-line { flex: 1 1 auto; height: 2px; margin: 0 8px 22px; background: rgba(240,207,120,.22); border-radius: 2px; min-width: 40px; }
+  .prw-line.past { background: linear-gradient(90deg, #c9922f, #f0cf78); }
+  .prw-page { display: none; }
+  .prw-page.on { display: block; animation: prwIn .38s var(--ease-out, ease) both; }
+  .prw-page.on.back { animation-name: prwBack; }
+  @keyframes prwIn { from { opacity: 0; transform: translateX(26px); } }
+  @keyframes prwBack { from { opacity: 0; transform: translateX(-26px); } }
+  .prw-page .cc-step { margin-top: 0; }
+  .prw-hint { text-align: center; color: rgba(240,228,196,.62); font-size: .92em; margin: -16px 0 6px; }
+  .prw-err { text-align: center; color: #ffb0a0; min-height: 1.4em; margin: 6px 0 0; }
+  .prw-greet { text-align: center; color: rgba(240,228,196,.85); font-style: italic; margin: -6px 0 16px; font-size: 1.02em; }
+  .prw-greet b { color: var(--brass-300); font-style: normal; font-family: var(--font-title); letter-spacing: .03em; }
+  .prw-page.prw-p1.on { min-height: 34vh; display: flex; flex-direction: column; justify-content: center; }
+  #ccWrap.prw .cc-step { display: none; }
+  .prw-p1 .cc-name { margin-bottom: 22px; }
+  .prw-p1 .cc-name input { font-size: 1.35em; padding: 16px 20px; width: min(460px, 100%); }
+  .prw-nav { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px auto 0; padding: 12px 0 4px; }
+  .prw-nav .btn { min-width: 150px; justify-content: center; }
+  .prw-nav #ccGo { margin: 0; min-width: 240px; }
+  .prw-nav .prw-back { min-width: 0; }
+  .prw-p3 #ccErr { margin-top: 8px; }
+  @media (max-width: 640px) {
+    .prw-dots { margin-bottom: 14px; }
+    .prw-nav { position: sticky; bottom: 0; z-index: 3; margin: 10px -20px 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(4,7,12,0), rgba(4,7,12,.92) 30%); }
+    .prw-nav .btn { flex: 1 1 0; min-width: 0; }
+    .prw-nav #ccGo { flex: 2 1 0; min-width: 0; }
+    .prw-page.prw-p1.on { min-height: 26vh; }
+    #ccGrid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  }
+
+  /* ---------- kartu bicara Syahbandar ---------- */
+  .pr-card { display: grid; grid-template-columns: 74px 1fr; gap: 14px; align-items: start; padding: 14px 16px; margin: 4px 0 14px; border-radius: 14px; background: linear-gradient(180deg, rgba(255,250,236,.85), rgba(244,232,206,.75)); border: 1px solid rgba(160,120,50,.35); box-shadow: 0 6px 18px rgba(40,24,8,.12); }
+  .pr-card .fc { width: 74px; height: 74px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px rgba(184,146,58,.6); }
+  .pr-card .fc svg { width: 100%; height: 100%; display: block; }
+  .pr-card .nm { font-family: var(--font-title); font-weight: 700; letter-spacing: .04em; color: #4a3218; }
+  .pr-card .nm span { font-weight: 400; color: #8a6a3a; font-size: .86em; letter-spacing: 0; }
+  .pr-card .tx { margin-top: 4px; color: #2e2010; line-height: 1.5; }
+  .pr-card .tx p { margin: 0 0 8px; }
+  .pr-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+  /* ---------- pita pemandu (Hari Pertama) ---------- */
+  #prCoach { position: fixed; left: 50%; bottom: 18px; z-index: 60; width: min(580px, calc(100% - 24px)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none; transition: opacity .35s ease, transform .35s var(--ease-out, ease);
+    display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: center; padding: 10px 14px 10px 10px; border-radius: 16px; color: #f3e6c4;
+    background: linear-gradient(180deg, rgba(24,34,48,.96), rgba(10,16,24,.97)); border: 1px solid rgba(240,207,120,.42); box-shadow: 0 14px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06); }
+  #prCoach.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #prCoach .fc { width: 54px; height: 54px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px rgba(240,207,120,.6); cursor: pointer; }
+  #prCoach .fc svg { width: 100%; height: 100%; display: block; }
+  #prCoach .k { font-family: var(--font-title); font-weight: 700; font-size: .62em; letter-spacing: .22em; text-transform: uppercase; color: var(--brass-300); display: flex; gap: 8px; align-items: center; }
+  #prCoach .k em { font-style: normal; color: rgba(240,228,196,.55); letter-spacing: .1em; }
+  #prCoach .t { font-size: .95em; line-height: 1.42; margin: 3px 0 0; }
+  #prCoach .t b { color: #ffe7a3; }
+  #prCoach .a { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  #prCoach .a .btn { padding: 6px 14px; min-height: 0; font-size: .9em; }
+  #prCoach .a .lnk { background: none; border: 0; color: rgba(240,228,196,.55); font-size: .8em; text-decoration: underline; cursor: pointer; padding: 4px; margin-left: auto; }
+  #prCoach .x { position: absolute; top: 6px; right: 8px; background: none; border: 0; color: rgba(240,228,196,.55); cursor: pointer; font-size: 1.1em; line-height: 1; padding: 4px; }
+  #prCoach.min { grid-template-columns: 40px; width: auto; padding: 6px; border-radius: 30px; left: auto; right: 18px; transform: none; }
+  #prCoach.min .fc { width: 40px; height: 40px; }
+  #prCoach.min .bd, #prCoach.min .x { display: none; }
+  #prCoach .bar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 8px; }
+  #prCoach .bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8923a, #f0cf78); transition: width .5s; }
+  @media (max-width: 760px) {
+    #prCoach { bottom: calc(var(--dock-h, 64px) + 10px); grid-template-columns: 44px 1fr; gap: 10px; }
+    #prCoach .fc { width: 44px; height: 44px; }
+    #prCoach .t { font-size: .9em; }
+    body.pr-modal #prCoach:not(.min) { top: calc(env(safe-area-inset-top) + 8px); bottom: auto; transform: translate(-50%, 0); }
+    #prCoach.min { right: 12px; }
+  }
+  /* sorotan tombol yang dituju */
+  .pr-spot { position: relative; z-index: 2; animation: prSpot 1.6s ease-in-out infinite; border-radius: 10px; }
+  @keyframes prSpot { 0%, 100% { box-shadow: 0 0 0 2px rgba(255,231,163,.95), 0 0 0 6px rgba(240,190,80,.35), 0 0 18px rgba(240,190,80,.5); } 50% { box-shadow: 0 0 0 2px rgba(255,231,163,.6), 0 0 0 10px rgba(240,190,80,0), 0 0 6px rgba(240,190,80,.2); } }
+  .pr-star { justify-self: start; width: max-content; max-width: 100%; display: inline-flex; align-items: center; gap: 4px; margin: 6px 0 0; padding: 2px 9px; border-radius: 99px; font-family: var(--font-title); font-weight: 700; font-size: .62em; letter-spacing: .12em; text-transform: uppercase; color: #2b1905; background: linear-gradient(180deg, #ffe7a3, #d9a540); box-shadow: 0 2px 6px rgba(120,80,10,.3); }
+
+  /* ---------- HUD Tanda Jasa ---------- */
+  .res.pr-tj .ri { color: #f0cf78; }
+  .res.pr-tj.bump .rv { animation: prBump .7s; }
+  @keyframes prBump { 30% { transform: scale(1.3); color: #ffe7a3; } }
+  #menuList .btn .pr-dot { position: absolute; top: 7px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #e8c35a; box-shadow: 0 0 0 2px rgba(40,24,10,.55); display: none; }
+  #menuList .btn.pr-has .pr-dot { display: block; }
+  .pr-gate[hidden] { display: none !important; }
+
+  /* ---------- panel Catatan Perantau ---------- */
+  .pr-sum { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; margin: 0 0 14px; background: linear-gradient(180deg, #24364a, #16222f); color: #f3e6c4; border: 1px solid rgba(240,207,120,.35); }
+  .pr-sum .ico { width: 30px; height: 30px; color: #f0cf78; }
+  .pr-sum b { font-family: var(--font-title); letter-spacing: .03em; }
+  .pr-sum .bar { height: 8px; border-radius: 8px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 6px; }
+  .pr-sum .bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8923a, #f0cf78); }
+  .pr-sum .v { font-family: var(--font-title); font-weight: 700; color: #ffe7a3; white-space: nowrap; }
+  .pr-sec { margin: 16px 0 8px; display: flex; align-items: center; gap: 8px; font-family: var(--font-title); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: .78em; color: #6b4a1e; }
+  .pr-sec .ico { width: 16px; height: 16px; }
+  .pr-sec span { margin-left: auto; letter-spacing: .04em; text-transform: none; font-weight: 400; color: #8a6a3a; }
+  .pr-list { display: grid; gap: 8px; }
+  .pr-row { display: grid; grid-template-columns: 38px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.62); border: 1px solid rgba(120,90,40,.2); }
+  .pr-row .st { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(60,40,15,.08); color: #8a6a3a; }
+  .pr-row .st .ico { width: 18px; height: 18px; }
+  .pr-row.ok .st { background: linear-gradient(180deg, #8fd19a, #3f8a4c); color: #fff; }
+  .pr-row.ready .st { background: linear-gradient(180deg, #ffe7a3, #c9922f); color: #2b1905; animation: prPulse 1.6s infinite; }
+  @keyframes prPulse { 50% { box-shadow: 0 0 0 6px rgba(240,190,80,.18); } }
+  .pr-row h4 { margin: 0; font-size: .95em; color: #2e2010; line-height: 1.3; }
+  .pr-row small { display: block; color: #7a6040; margin-top: 2px; line-height: 1.35; }
+  .pr-row .pb { height: 6px; border-radius: 6px; background: rgba(60,40,15,.12); overflow: hidden; margin-top: 6px; }
+  .pr-row .pb i { display: block; height: 100%; background: linear-gradient(90deg, #b8923a, #e8c35a); }
+  .pr-row .rw { display: grid; justify-items: end; gap: 4px; font-size: .85em; color: #4a3218; white-space: nowrap; }
+  .pr-row .rw .g { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-title); font-weight: 700; }
+  .pr-row .rw .g .ico { width: 14px; height: 14px; color: #b8923a; }
+  .pr-row .rw .btn { padding: 4px 12px; min-height: 0; font-size: .92em; }
+  .pr-row.ok .rw .g { color: #3f8a4c; text-decoration: line-through; text-decoration-color: rgba(63,138,76,.5); }
+  .pr-row .go { background: none; border: 0; padding: 0; color: #2f6a8f; font-size: .82em; text-decoration: underline; cursor: pointer; }
+  .pr-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 16px 0 4px; }
+  .pr-journal { padding: 12px 14px; border-radius: 12px; background: linear-gradient(180deg, #fbf3df, #f1e2c0); border: 1px dashed rgba(140,100,40,.5); color: #3b2a16; line-height: 1.5; margin: 0 0 12px; }
+  .pr-journal .h { display: flex; gap: 8px; align-items: center; font-family: var(--font-title); font-weight: 700; color: #6b4a1e; margin-bottom: 6px; }
+  .pr-journal .h .ico { width: 16px; height: 16px; }
+
+  /* ---------- sinematik pembuka ---------- */
+  .pr-cine { position: fixed; inset: 0; z-index: 320; background: #000; opacity: 0; transition: opacity .6s ease; }
+  .pr-cine.show { opacity: 1; }
+  .pr-cine.out { opacity: 0; }
+  .pr-cine canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .pr-cine .cap { position: absolute; left: 50%; bottom: max(7vh, 40px); transform: translateX(-50%); width: min(720px, calc(100% - 32px)); text-align: center; }
+  .pr-cine .ct { color: #fbf1d6; font-size: clamp(1.02em, 2.4vw, 1.35em); line-height: 1.5; text-shadow: 0 2px 12px rgba(0,0,0,.85); opacity: 0; transform: translateY(8px); transition: opacity .7s ease, transform .7s ease; min-height: 3em; }
+  .pr-cine .ct.in { opacity: 1; transform: none; }
+  .pr-cine .ct i { color: #ffe7a3; }
+  .pr-cine .cb { margin-top: 14px; }
+  .pr-cine .skip { position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px; background: rgba(0,0,0,.45); color: rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.25); border-radius: 20px; padding: 6px 14px; cursor: pointer; font-size: .85em; opacity: 0; transition: opacity .5s; }
+  .pr-cine .skip.on { opacity: 1; }
+
+  /* ---------- Kabar Pelabuhan (koran & surat) ---------- */
+  .pr-news { position: fixed; inset: 0; z-index: 310; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at 50% 30%, rgba(10,14,20,.7), rgba(3,5,8,.92)); opacity: 0; transition: opacity .45s ease; overflow-y: auto; }
+  .pr-news.on { opacity: 1; }
+  .pr-paper { width: min(560px, 100%); padding: 22px 24px 20px; color: #24180c; background: linear-gradient(180deg, #f6edd6, #e9dbb8); box-shadow: 0 30px 60px rgba(0,0,0,.6); transform: rotate(-1.2deg) scale(.94); transition: transform .5s var(--ease-out, ease); border-radius: 3px; position: relative; }
+  .pr-news.on .pr-paper { transform: rotate(-.6deg) scale(1); }
+  .pr-paper .mast { text-align: center; border-bottom: 3px double #3b2a16; padding-bottom: 8px; margin-bottom: 12px; }
+  .pr-paper .mast b { display: block; font-family: var(--font-title); font-size: 1.9em; letter-spacing: .06em; line-height: 1; }
+  .pr-paper .mast small { display: flex; justify-content: space-between; font-size: .72em; letter-spacing: .14em; text-transform: uppercase; margin-top: 6px; color: #5a4226; }
+  .pr-paper h2 { font-family: var(--font-title); font-size: clamp(1.15em, 3.6vw, 1.5em); line-height: 1.15; margin: 4px 0 10px; text-transform: uppercase; letter-spacing: .02em; }
+  .pr-paper .art { columns: 2 220px; column-gap: 20px; line-height: 1.55; font-size: .96em; text-align: justify; }
+  .pr-paper .art p { margin: 0 0 8px; }
+  .pr-paper .art p:first-child::first-letter { float: left; font-family: var(--font-title); font-size: 2.6em; line-height: .9; padding: 2px 6px 0 0; }
+  .pr-paper .ill { height: 110px; margin: 4px 0 12px; border: 1px solid rgba(60,40,15,.4); background: #e3d2a8; }
+  .pr-paper .ill svg { width: 100%; height: 100%; display: block; }
+  .pr-letter { width: min(500px, 100%); padding: 26px 28px 22px; color: #2a1a0a; background: radial-gradient(ellipse at 30% 20%, #fbf3dc, #ead7a9 75%); box-shadow: 0 26px 60px rgba(0,0,0,.6); border-radius: 4px; transform: rotate(.8deg) scale(.95); transition: transform .5s var(--ease-out, ease); font-style: italic; line-height: 1.65; position: relative; }
+  .pr-news.on .pr-letter { transform: rotate(.4deg) scale(1); }
+  .pr-letter .sig { text-align: right; font-family: var(--font-title); font-style: normal; font-size: 1.3em; margin-top: 6px; }
+  .pr-letter .seal { position: absolute; left: 24px; bottom: -18px; width: 56px; height: 56px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #7ad0e0, #2a7f93 70%); box-shadow: 0 6px 14px rgba(0,0,0,.4), inset 0 0 0 3px rgba(255,255,255,.35); }
+  .pr-letter .seal::after { content: ''; position: absolute; inset: 14px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.6); }
+  .pr-lwrap { display: flex; flex-direction: column; align-items: center; width: 100%; margin: auto; }
+  .pr-news .acts { display: flex; justify-content: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+</style>
+
+<script>
+/* =====================================================================
+ * Tide v44 - JEJAK PERANTAU (onboarding pemain baru)
+ * Konsep: claude/KONSEP-Onboarding-Pemain-Baru.md (v2)
+ * Server: 0060_perantau.sql  (state 'perantau' di getGameState,
+ *         api_perantau(aksi, arg), api_perantauSuggest, api_captainNameFree)
+ *
+ *  1. Buat Kapten dipecah 3 langkah: Nama -> Jalan Hidup -> Rupa (semua pemain baru).
+ *  2. Sinematik pembuka + Hari Pertama bersama Syahbandar Sunda (7 langkah berpandu).
+ *  3. Catatan Perantau: 12 tugas sejalan dengan Tanda Jasa; hadiah dicicil, total 70.000.
+ *  4. Tanda Jasa diperkenalkan: kartu TJ pertama, penghitung di HUD, panel Character.
+ *  5. Gosip bertingkat (10 / 15 TJ) dan Kabar Pelabuhan saat 20 TJ.
+ *     Semua petunjuk sengaja berupa kiasan: tidak menyebut nama tokoh atau nama kota tujuan.
+ * Hanya aktif bila state.perantau tidak null (karakter dibuat setelah fitur ini rilis).
+ * ===================================================================== */
+var PR = (function () {
+  /* ---------------- data ---------------- */
+  var STEPS = {
+    s1: { n: 'Bicara dengan Syahbandar', d: 'Perkenalan di dermaga Sunda.' },
+    s2: { n: 'Buka Pasar', d: 'Lihat harga barang di pelabuhan.' },
+    s3: { n: 'Beli barang pertama', d: 'Barang produksi pulau ini murah di sini.' },
+    s4: { n: 'Buka peta pelayaran', d: 'Pilih pelabuhan yang membutuhkan barangmu.' },
+    s5: { n: 'Angkat sauh', d: 'Berlayar ke pelabuhan tujuan.' },
+    s6: { n: 'Jual di pelabuhan lain', d: 'Beli murah, jual mahal.' },
+    s7: { n: 'Ambil misi gubernur', d: 'Papan misi ada di menu Tasks.' }
+  };
+  var TASKS = {
+    lapau_5: { n: 'Mampir ke Lapau 5 kali', d: 'Gosip lapau sering berisi petunjuk.', go: 'tavern' },
+    talk_10: { n: 'Ngobrol dengan 10 warga', d: 'Ketuk warga yang berjalan di dermaga.', go: null },
+    chat_1: { n: 'Sapa kapten lain di obrolan', d: 'Tombol obrolan ada di kanan atas layar.', go: null },
+    repair_1: { n: 'Reparasi kapal di galangan', d: 'Kondisi kapal turun setiap berlayar dan bertempur.', go: 'ship' },
+    book_1: { n: 'Beli 1 buku di Library', d: 'Buku menambah kemampuan kapten dan kapal.', go: 'library' },
+    full_hold: { n: 'Berlayar dengan palka penuh', d: 'Isi semua ruang palka sebelum angkat sauh.', go: 'market' },
+    night_sail: { n: 'Angkat sauh saat malam', d: 'Ikan dan orang tertentu hanya muncul malam hari.', go: 'setsail' },
+    fish_10: { n: 'Pancing 10 ikan', d: 'Menu Mancing (tombol F) saat merapat.', go: 'fishing' },
+    mission_1: { n: 'Selesaikan 1 misi gubernur', d: 'Antar titipan atau pesanan sampai tuntas.', go: 'tasks' },
+    upgrade_1: { n: 'Upgrade kapal 1 kali', d: 'Galangan di menu Ship.', go: 'ship' },
+    first_battle: { n: 'Selesaikan 1 pertempuran', d: 'Mundur pun dihitung. Keselamatan lebih dulu.', go: null },
+    gold_10k: { n: 'Pegang 10.000 gold sekaligus', d: 'Terus berdagang antar pulau.', go: null }
+  };
+  // Kiasan saja (aturan Marantau): tidak ada nama tokoh/kota tujuan di teks ini.
+  var GOSSIP10 = 'Di kota yang rendangnya paling enak, ada pemilik galangan yang gemar mengumpulkan cerita kapten-kapten bertanda jasa.';
+  var GOSSIP15 = [
+    'Tukang cuci kapal di galangan bercahaya neon itu katanya sedang mencari kapten yang bisa dipercaya. Tapi ia hanya mau bicara dengan yang tanda jasanya sudah cukup.',
+    'Seorang lelaki yang menyebut dirinya "ambo" sering menatap laut dari galangannya. Kata orang, ia menunggu kapten yang tepat.'
+  ];
+  var GOSSIP20 = [
+    'Tukang cuci kapal itu menanyakan kapten bertanda jasa banyak. Bukankah itu Tuan?',
+    'Lampu neon galangan di kota rendang itu dinyalakan sampai pagi. Pemiliknya menunggu seseorang.'
+  ];
+  var JOURNAL20 = 'Seorang lelaki yang menyebut dirinya <i>"ambo"</i> menunggumu di galangan bercahaya neon, di kota yang rendangnya paling enak.';
+
+  /* ---------------- util ---------------- */
+  function st() { return (state && state.perantau) || null; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function meta() { try { return metaGet_(); } catch (e) { return { u: {}, c: {}, v: [] }; } }
+  function cnt(k) { return (meta().c || {})[k] || 0; }
+  function badges() { return Object.keys(meta().u || {}).length; }
+  function claimed(id) { var s = st(); return !!(s && s.claimed && s.claimed[id]); }
+  function cat() { var s = st(); return (s && s.catalog) || []; }
+  function reward(id) { var e = cat().filter(function (x) { return x.id === id; })[0]; return e ? e.reward : 0; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function lsKey(k) { return 'mt_pr_' + k + ':' + (state && state.player ? state.player.characterName : 'x'); }
+  function lsGet(k) { try { return localStorage.getItem(lsKey(k)); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(lsKey(k), v == null ? '1' : String(v)); } catch (e) { } }
+  function busy() {
+    return (typeof combatSceneOpen !== 'undefined' && combatSceneOpen) ||
+      !!document.querySelector('.pr-cine, .pr-news, .qt-cine, .kp-cine, .pd-cine, .hk-cine, .hr-peti, .mtg.on, .tsg.on, .dt-key, #ccOverlay.open') ||
+      (document.getElementById('titleScreen') && !document.getElementById('titleScreen').classList.contains('hidden'));
+  }
+  function modalOpen() { var m = document.getElementById('modalOverlay'); return !!(m && m.classList.contains('open')); }
+  function call(args, ok, fail) {
+    var r = google.script.run.withSuccessHandler(function (x) { if (x && x.perantau !== undefined && state) state.perantau = x.perantau; if (ok) ok(x); })
+      .withFailureHandler(function (e) { if (fail) fail(e); else showToast(e.message, 'error'); });
+    r.api_perantau.apply(r, args);
+  }
+  // Tanda Jasa disimpan di perangkat lalu disinkron; kirim sekarang supaya server sudah melihatnya
+  function syncMetaNow(cb) {
+    var m = meta();
+    google.script.run.withSuccessHandler(function (merged) {
+      if (merged && state) { state.meta = merged; try { mergeMeta_(merged); saveMetaLocal_(); } catch (e) { } }
+      cb();
+    }).withFailureHandler(function () { cb(); }).api_saveMeta({ u: m.u, c: m.c, v: m.v });
+  }
+
+  /* ---------------- Syahbandar Sunda ---------------- */
+  var SYAH = null;
+  function syah() {
+    if (SYAH) return SYAH;
+    var ap = {};
+    try { ap = MTFace.npc('sunda_empire|syahbandar|perantau', 'syahbandar') || {}; } catch (e) { ap = {}; }
+    ap = Object.assign({}, ap, { fem: 0, skin: 2, hair: 6, hairStyle: 1, facial: 2, brows: 1, age: 0.72, seed: 440044, role: 'syahbandar', head: 'peci', outfit: 'seragam', eye: 'none', item: 'spyglass' });
+    return (SYAH = { name: 'Syahbandar', title: 'Pelabuhan Sunda', ap: ap });
+  }
+  function faceSvg(sz) { try { return MTFace.svg(syah().ap, { bgColors: ['#2f5a7a', '#0f1f2c'] }); } catch (e) { return ''; } }
+  function card(text, acts) {
+    var n = syah();
+    return '<div class="pr-card"><div class="fc">' + faceSvg() + '</div><div><div class="nm">' + esc_(n.name) + ' <span>&middot; ' + esc_(n.title) + '</span></div>' +
+      '<div class="tx">' + text + '</div>' + (acts ? '<div class="pr-acts">' + acts + '</div>' : '') + '</div></div>';
+  }
+  function showModal(html, cb) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    if (cb) cb(document.getElementById('modalContent'));
+  }
+  // Di Sunda, Syahbandar pelabuhan untuk pemain baru = mentor (nama & wajah tetap)
+  if (typeof window.npc_ === 'function') {
+    var origNpc = window.npc_;
+    window.npc_ = function (role) {
+      if (role === 'syahbandar' && st() && cid() === 'sunda_empire') return syah();
+      return origNpc.apply(this, arguments);
+    };
+  }
+
+  /* =====================================================================
+   * 1. BUAT KAPTEN 3 LANGKAH (untuk semua akun baru)
+   * ===================================================================== */
+  var W = { page: 1, built: false, checking: false };
+  function wq(sel) { return document.querySelector('#ccWrap ' + sel); }
+  function buildWizard() {
+    var wrap = document.getElementById('ccWrap');
+    if (!wrap || W.built) return;
+    var steps = wrap.querySelectorAll('.cc-step'), name = wrap.querySelector('.cc-name'), grid = document.getElementById('ccGrid'),
+      faceBox = document.getElementById('ccFaceBox'), err = document.getElementById('ccErr'), go = document.getElementById('ccGo'), sub = wrap.querySelector('.cc-sub');
+    if (steps.length < 3 || !name || !grid || !faceBox || !go) return;
+    W.built = true;
+    wrap.classList.add('prw');
+    var dots = document.createElement('div'); dots.className = 'prw-dots';
+    dots.innerHTML = [['1', 'Nama'], ['2', 'Jalan Hidup'], ['3', 'Rupa']].map(function (d, i) {
+      return (i ? '<span class="prw-line" data-l="' + (i + 1) + '"></span>' : '') + '<button type="button" class="prw-dot" data-p="' + (i + 1) + '"><i>' + d[0] + '</i>' + d[1] + '</button>';
+    }).join('');
+    sub.parentNode.insertBefore(dots, sub.nextSibling);
+    function page(n, extra) { var p = document.createElement('div'); p.className = 'prw-page prw-p' + n; p.setAttribute('data-page', n); if (extra) p.innerHTML = ''; return p; }
+    var p1 = page(1), p2 = page(2), p3 = page(3);
+    // halaman 1: nama
+    p1.appendChild(steps[0]); p1.appendChild(name);
+    p1.insertAdjacentHTML('beforeend', '<p class="prw-hint">Nama ini dilihat kapten lain di seluruh Mare Nusantara (2&ndash;24 huruf).</p><p class="prw-err" id="prwErr1"></p>' +
+      '<div class="prw-nav"><button type="button" class="btn btn-gold btn-lg" data-prw="next1">Lanjut &nbsp;&#8250;</button></div>');
+    // halaman 2: jalan hidup
+    p2.appendChild(steps[1]);
+    p2.insertAdjacentHTML('beforeend', '<p class="prw-greet" id="prwGreet"></p>');
+    p2.appendChild(grid);
+    p2.insertAdjacentHTML('beforeend', '<p class="prw-err" id="prwErr2"></p><div class="prw-nav"><button type="button" class="btn prw-back" data-prw="back">&#8249; &nbsp;Kembali</button>' +
+      '<button type="button" class="btn btn-gold btn-lg" data-prw="next2">Lanjut &nbsp;&#8250;</button></div>');
+    // halaman 3: rupa
+    p3.appendChild(steps[2]);
+    p3.appendChild(faceBox); p3.appendChild(err);
+    var nav3 = document.createElement('div'); nav3.className = 'prw-nav';
+    nav3.innerHTML = '<button type="button" class="btn prw-back" data-prw="back">&#8249; &nbsp;Kembali</button>';
+    nav3.appendChild(go); p3.appendChild(nav3);
+    wrap.appendChild(p1); wrap.appendChild(p2); wrap.appendChild(p3);
+
+    // tombol
+    wrap.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-prw]'), d = e.target.closest('.prw-dot');
+      if (b) {
+        var k = b.getAttribute('data-prw');
+        if (k === 'next1') next1(); else if (k === 'next2') next2(); else if (k === 'back') show(W.page - 1, true);
+      } else if (d && d.classList.contains('past')) show(+d.getAttribute('data-p'), true);
+    });
+    var inp = document.getElementById('ccName');
+    inp.setAttribute('placeholder', 'Nama kaptenmu');
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); next1(); } });
+    inp.addEventListener('input', function () { var e1 = document.getElementById('prwErr1'); if (e1) e1.textContent = ''; W.okName = null; });
+    grid.addEventListener('dblclick', function (e) { if (e.target.closest('.cc-card')) setTimeout(next2, 120); });
+    grid.addEventListener('click', function () { var e2 = document.getElementById('prwErr2'); if (e2) e2.textContent = ''; });
+    // galat dari server saat "Mulai Merantau": bawa kembali ke langkah yang relevan
+    if (window.MutationObserver) new MutationObserver(function () {
+      var t = err.textContent || ''; if (!t) return;
+      if (/nama/i.test(t)) { show(1, true); var e1 = document.getElementById('prwErr1'); if (e1) e1.textContent = t; }
+      else if (/archetype|jalan hidup/i.test(t)) { show(2, true); var e2 = document.getElementById('prwErr2'); if (e2) e2.textContent = t; }
+    }).observe(err, { childList: true, characterData: true, subtree: true });
+    show(1);
+  }
+  function show(n, back) {
+    n = Math.max(1, Math.min(3, n));
+    if (n >= 2 && !nameOk()) n = 1;
+    if (n === 3 && !ccSel_) n = 2;
+    W.page = n;
+    document.querySelectorAll('#ccWrap .prw-page').forEach(function (p) {
+      var on = +p.getAttribute('data-page') === n;
+      p.classList.toggle('on', on); p.classList.toggle('back', on && !!back);
+    });
+    document.querySelectorAll('#ccWrap .prw-dot').forEach(function (d) { var i = +d.getAttribute('data-p'); d.classList.toggle('on', i === n); d.classList.toggle('past', i < n); });
+    document.querySelectorAll('#ccWrap .prw-line').forEach(function (l) { l.classList.toggle('past', +l.getAttribute('data-l') <= n); });
+    var ov = document.getElementById('ccOverlay'); if (ov) ov.scrollTop = 0;
+    if (n === 1) setTimeout(function () { var i = document.getElementById('ccName'); if (i) i.focus(); }, 60);
+    if (n === 2) { var g = document.getElementById('prwGreet'); if (g) g.innerHTML = 'Kapten <b>' + esc_(nameVal()) + '</b>, pilih jalan hidupmu menyeberangi lautan.'; }
+    if (n === 3) { try { ccDrawFace_(); } catch (e) { } try { ccValidate_(); } catch (e) { } }
+    try { au_('page'); } catch (e) { }
+  }
+  function nameVal() { var i = document.getElementById('ccName'); return i ? i.value.trim() : ''; }
+  function nameOk() { var v = nameVal(); return v.length >= 2 && W.okName === v.toLowerCase(); }
+  function next1() {
+    var v = nameVal(), e1 = document.getElementById('prwErr1'), b = wq('[data-prw=next1]');
+    if (v.length < 2) { e1.textContent = 'Nama kapten minimal 2 huruf.'; return; }
+    if (v.length > 24) { e1.textContent = 'Nama kapten maksimal 24 huruf.'; return; }
+    if (W.okName === v.toLowerCase()) { show(2); return; }
+    if (W.checking) return;
+    W.checking = true; b.disabled = true; b.innerHTML = 'Memeriksa&hellip;';
+    var done = function () { W.checking = false; b.disabled = false; b.innerHTML = 'Lanjut &nbsp;&#8250;'; };
+    google.script.run.withSuccessHandler(function (r) {
+      done();
+      if (r && r.free) { W.okName = v.toLowerCase(); show(2); } else e1.textContent = (r && r.reason) || 'Nama ini tidak bisa dipakai.';
+    }).withFailureHandler(function () { done(); W.okName = v.toLowerCase(); show(2); })   // server lambat: cek akhir tetap di "Mulai Merantau"
+      .api_captainNameFree(v);
+  }
+  function next2() {
+    if (!ccSel_) { var e2 = document.getElementById('prwErr2'); if (e2) e2.textContent = 'Pilih satu jalan hidup dulu.'; return; }
+    show(3);
+  }
+  if (typeof window.openCreator_ === 'function') {
+    var origCreator = window.openCreator_;
+    window.openCreator_ = function () {
+      var r = origCreator.apply(this, arguments);
+      try { if (!W.built) buildWizard(); else show(nameOk() ? (ccSel_ ? W.page : 2) : 1); } catch (e) { console.warn('[PR] wizard', e); }
+      return r;
+    };
+  }
+
+  /* =====================================================================
+   * 2. SINEMATIK PEMBUKA
+   * ===================================================================== */
+  if (window.MTCine && MTCine.register && window.MTSky && window.MTShip) {
+    MTCine.register('pr_fajar', function () {
+      var U = MTUtil, C = MTCine.H, r = U.rng(4404), L = C.makeLit(), clouds = MTSky.makeClouds(r, 6), glit = MTSky.makeGlitter(r), lay = null, gulls = [], lights = [];
+      for (var i = 0; i < 6; i++) gulls.push({ x: r(), y: 0.1 + r() * 0.2, v: (0.008 + r() * 0.01) * (r() < 0.4 ? -1 : 1), s: 0.5 + r() * 0.6, ph: r() * 6 });
+      for (var j = 0; j < 14; j++) lights.push({ x: r(), y: r(), ph: r() * 6 });
+      function layout(W2, H2) { var port = W2 < H2; lay = { W: W2, H: H2, port: port, hy: H2 * (port ? 0.55 : 0.6), s: port ? W2 * 0.0042 : Math.min(W2 * 0.0021, H2 * 0.0037) }; }
+      function gull(ctx, x, y, sz, ph) {
+        var f = Math.sin(ph) * 0.6; ctx.beginPath(); ctx.moveTo(x - sz, y - sz * (0.25 + f * 0.5)); ctx.quadraticCurveTo(x - sz * 0.45, y - sz * (0.35 + f * 0.3), x, y);
+        ctx.quadraticCurveTo(x + sz * 0.45, y - sz * (0.35 + f * 0.3), x + sz, y - sz * (0.25 + f * 0.5)); ctx.stroke();
+      }
+      // atap bergonjong (rumah adat) sebagai siluet
+      function gonjong(ctx, x, base, w, h) {
+        ctx.beginPath(); ctx.moveTo(x - w * 0.42, base); ctx.lineTo(x - w * 0.42, base - h * 0.42); ctx.lineTo(x + w * 0.42, base - h * 0.42); ctx.lineTo(x + w * 0.42, base); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x - w * 0.55, base - h * 0.4);
+        ctx.quadraticCurveTo(x - w * 0.5, base - h * 0.62, x - w * 0.62, base - h * 1.05);
+        ctx.quadraticCurveTo(x - w * 0.3, base - h * 0.62, x, base - h * 0.78);
+        ctx.quadraticCurveTo(x + w * 0.3, base - h * 0.62, x + w * 0.62, base - h * 1.05);
+        ctx.quadraticCurveTo(x + w * 0.5, base - h * 0.62, x + w * 0.55, base - h * 0.4); ctx.closePath(); ctx.fill();
+      }
+      function draw(ctx, W2, H2, t, dt) {
+        if (!lay || lay.W !== W2 || lay.H !== H2) layout(W2, H2);
+        var hy = lay.hy, port = lay.port, p = MTSky.palette(0.004 + C.sm(0, 18, t) * 0.05);
+        L.set(p.tint);
+        MTSky.paintSky(ctx, W2, hy, p, t, []);
+        // matahari terbit
+        var sx = W2 * (port ? 0.42 : 0.44), sy = hy - H2 * 0.01 - C.sm(0, 16, t) * H2 * 0.1, sr = Math.min(W2, H2) * 0.05;
+        var g = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 9); g.addColorStop(0, 'rgba(255,214,150,.55)'); g.addColorStop(1, 'rgba(255,190,120,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W2, hy + 2);
+        ctx.fillStyle = 'rgba(255,236,190,.95)'; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+        MTSky.paintClouds(ctx, W2, hy * 0.95, p, clouds, dt, 0.4);
+        // pulau pelabuhan di kanan: bukit, balai bergonjong, gapura, lampu dermaga
+        var ix = W2 * (port ? 0.6 : 0.6), iw = W2 * (port ? 0.62 : 0.48), ih = H2 * 0.11, col = U.mix(p.seaD, p.hor, 0.42);
+        ctx.fillStyle = U.css(col);
+        ctx.beginPath(); ctx.moveTo(ix - iw * 0.2, hy + 1);
+        ctx.bezierCurveTo(ix + iw * 0.05, hy - ih * 0.9, ix + iw * 0.35, hy - ih * 1.25, ix + iw * 0.6, hy - ih * 0.6);
+        ctx.bezierCurveTo(ix + iw * 0.75, hy - ih * 0.3, ix + iw * 0.9, hy - ih * 0.2, ix + iw * 1.1, hy + 1); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = U.css(U.mix(col, [20, 22, 34], 0.35));
+        gonjong(ctx, ix + iw * 0.36, hy - ih * 0.86, iw * 0.11, ih * 0.62);
+        gonjong(ctx, ix + iw * 0.16, hy - ih * 0.42, iw * 0.065, ih * 0.38);
+        gonjong(ctx, ix + iw * 0.6, hy - ih * 0.52, iw * 0.075, ih * 0.42);
+        // gapura batu
+        var gx = ix + iw * 0.02, gh = ih * 0.5, gw = iw * 0.05; ctx.fillRect(gx - gw, hy - gh, gw * 0.5, gh); ctx.fillRect(gx + gw * 0.5, hy - gh, gw * 0.5, gh);
+        ctx.beginPath(); ctx.moveTo(gx - gw * 1.2, hy - gh); ctx.lineTo(gx, hy - gh * 1.35); ctx.lineTo(gx + gw * 1.2, hy - gh); ctx.closePath(); ctx.fill();
+        // lampu yang padam perlahan seiring fajar
+        var la = 0.9 * (1 - C.sm(3, 16, t));
+        if (la > 0.02) lights.forEach(function (l) {
+          ctx.fillStyle = 'rgba(255,214,140,' + (la * (0.6 + 0.4 * Math.sin(t * 2 + l.ph))).toFixed(3) + ')';
+          ctx.fillRect(ix + iw * (0.05 + l.x * 0.75), hy - ih * (0.05 + l.y * 0.5), 2, 2);
+        });
+        MTSky.paintSea(ctx, W2, H2 * 1.1, hy, p, t, { glitter: glit, rough: 0.8, drift: 6 });
+        // kapal pemain mendekati pelabuhan
+        var s = lay.s * (port ? 0.8 : 0.85), shx = W2 * (port ? 0.22 : 0.16) + C.ease(Math.min(1, t / 22)) * W2 * (port ? 0.12 : 0.16), shy = H2 * (port ? 0.74 : 0.79) + Math.sin(t * 1.1) * s;
+        var so = {}; try { if (typeof myShipOpts_ === 'function') so = myShipOpts_() || {}; } catch (e) { so = {}; }
+        so = Object.assign({}, so, { dir: 1, t: t, lit: L, lanterns: 0.4 * (1 - C.sm(2, 14, t)), roll: Math.sin(t * 0.9) * 0.012 });
+        ctx.save(); ctx.globalAlpha = 0.2; var sref = Object.assign({}, so, { reflect: true }); MTShip.draw(ctx, shx, shy + 3, s, sref); ctx.restore();
+        MTShip.draw(ctx, shx, shy, s, so);
+        MTShip.foam(ctx, shx, shy, s, 1, t, 0.5, 0.55);
+        MTShip.jukung(ctx, W2 * (port ? 0.86 : 0.82), hy + H2 * 0.08, s * 0.9, -1, t, '#e0b64c', L);
+        MTShip.jukung(ctx, W2 * (port ? 0.74 : 0.72), hy + H2 * 0.14, s * 1.05, -1, t * 1.1, '#c9342a', L);
+        ctx.strokeStyle = 'rgba(30,30,44,.55)'; ctx.lineWidth = 1.1; ctx.lineCap = 'round';
+        gulls.forEach(function (gg) { var gx2 = ((gg.x + t * gg.v) % 1.2 + 1.2) % 1.2 - 0.1; gull(ctx, gx2 * W2, gg.y * H2 + Math.sin(t * 0.8 + gg.ph) * H2 * 0.006, H2 * 0.008 * gg.s, t * 6 + gg.ph); });
+        C.vignette(ctx, W2, H2, 0.36);
+        if (t < 1.4) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - C.sm(0, 1.4, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W2, H2); }
+      }
+      return { draw: draw, intro: 6 };
+    });
+  }
+  function cine(slides, cb) {
+    var finished = false;
+    var ov = document.createElement('div'); ov.className = 'pr-cine';
+    ov.innerHTML = '<canvas></canvas><button class="skip" type="button">Lewati &nbsp;&#8250;&#8250;</button><div class="cap"><div class="ct"></div><div class="cb"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { if (window.MTCine) stop = MTCine.play(ov.querySelector('canvas'), 'pr_fajar') || stop; } catch (e) { console.warn('[PR] cine', e); }
+    var i = 0, txt = ov.querySelector('.ct'), btn = ov.querySelector('.cb .btn'), skip = ov.querySelector('.skip');
+    btn.style.visibility = 'hidden';
+    function showSlide() {
+      txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i]; txt.classList.add('in');
+      btn.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Turun ke dermaga'; btn.style.visibility = '';
+    }
+    function finish() {
+      if (finished) return; finished = true;
+      document.removeEventListener('keydown', onKey);
+      ov.classList.add('out'); setTimeout(function () { try { stop(); } catch (e) { } ov.remove(); }, 650);
+      if (cb) setTimeout(cb, 120);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    btn.onclick = function () { au_('page'); if (++i < slides.length) showSlide(); else finish(); };
+    skip.onclick = function () { au_('page'); finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1200);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!finished) showSlide(); }, 1300);
+  }
+  function playIntro() {
+    if (W.introBusy) return; W.introBusy = true;
+    var nm = state && state.player ? esc_(state.player.characterName) : 'Kapten';
+    cine([
+      '<i>"Dima bumi dipijak, di nan langik dijunjung."</i><br>Di mana bumi dipijak, di situ langit dijunjung.',
+      'Fajar di Mare Nusantara. <b>The Wandering Gull</b> merapat di Port of Sunda.<br>5.000 gold, satu kapal tua, dan seluruh lautan untuk <b>' + nm + '</b>.',
+      'Di ujung dermaga, Syahbandar pelabuhan sudah menunggu kapten baru.'
+    ], function () {
+      W.introBusy = false;
+      call(['intro'], function () { coach(); }, function () { coach(); });
+    });
+  }
+
+  /* =====================================================================
+   * 3. HARI PERTAMA: pita pemandu bersama Syahbandar
+   * ===================================================================== */
+  var SG = { data: null, city: '', busy: false, at: 0 };
+  function suggest() {
+    var s = st(); if (!s || !docked()) return;
+    if (SG.busy || (SG.city === cid() && Date.now() - SG.at < 120000)) return;
+    SG.busy = true;
+    google.script.run.withSuccessHandler(function (r) {
+      SG.busy = false; SG.at = Date.now(); SG.city = cid();
+      if (r && r.suggest) SG.data = r.suggest; else if (!SG.data) SG.data = null;
+      coach();
+    }).withFailureHandler(function () { SG.busy = false; SG.at = Date.now(); }).api_perantauSuggest();
+  }
+  function nextStep() {
+    var ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'];
+    for (var i = 0; i < ids.length; i++) if (!claimed(ids[i])) return ids[i];
+    return null;
+  }
+  function guiding() { var s = st(); return !!(s && s.intro && !s.skipped && nextStep()); }
+  // apakah langkah sudah terpenuhi (pemeriksaan akhir tetap di server)
+  function stepMet(id) {
+    var inT = !docked();
+    switch (id) {
+      case 's1': return false;   // lewat tombol
+      case 's2': return currentPanel === 'market';
+      case 's3': return cnt('buy') >= 1;
+      case 's4': return currentPanel === 'setsail' || inT || cnt('voyage') >= 1;
+      case 's5': return inT || cnt('voyage') >= 1;
+      case 's6': return cnt('sell') >= 1 && !inT;
+      case 's7': return !!(state && state.mission && state.mission.hasActive) || cnt('mission') >= 1;
+    }
+    return false;
+  }
+  // syarat longgar untuk tombol "Terima" di panel (bila panduan dilewati)
+  function stepDone(id) {
+    switch (id) {
+      case 's1': case 's2': case 's4': return true;
+      case 's3': return cnt('buy') >= 1 || cnt('trade') >= 1;
+      case 's5': return cnt('voyage') >= 1 || !docked();
+      case 's6': return cnt('sell') >= 1;
+      case 's7': return !!(state && state.mission && state.mission.hasActive) || cnt('mission') >= 1;
+    }
+    return false;
+  }
+  function stepText(id) {
+    var sg = SG.data, here = sg && sg.from === cid(), item = sg ? '<b>' + esc_(sg.itemName) + '</b>' : 'barang yang murah di sini', dest = sg ? '<b>' + esc_(sg.destName) + '</b>' : 'pelabuhan yang membutuhkannya';
+    switch (id) {
+      case 's1': return { t: 'Selamat datang di Port of Sunda, Tuan Kapten. Laut ini luas, tapi hukumnya satu: <b>beli murah, jual mahal</b>. Izinkan saya menunjukkan caranya.', b: 'Siap, Syahbandar' };
+      case 's2': return { t: 'Pertama, lihat <b>Pasar</b>. Barang yang dibuat pulau ini murah di sini; di pulau yang membutuhkannya, harganya naik.', b: 'Buka Pasar', panel: 'market' };
+      case 's3': return { t: here ? 'Mulailah dari ' + item + ' yang saya tandai &#9733;. Beli sekitar <b>' + sg.qty + ' unit</b> saja &mdash; sisakan gold untuk tambal lambung.' : 'Belilah sedikit barang yang harganya murah di sini. Sisakan gold untuk tambal lambung.', b: 'Buka Pasar', panel: 'market', spot: here ? '.mkt-row[data-good="' + sg.item + '"]' : null };
+      case 's4': return { t: 'Bagus! Sekarang buka <b>peta pelayaran</b>. Saran saya: ' + dest + (sg ? ' &mdash; di sana ' + esc_(sg.itemName) + ' dibeli sekitar <b>' + fmt(sg.sellPrice) + '</b> gold per unit.' : '.'), b: 'Buka peta', panel: 'setsail' };
+      case 's5': return { t: 'Pilih ' + dest + ' lalu <b>angkat sauh</b>. Pelayaran memakan waktu sungguhan. Bila dicegat bajak laut, mundur bukanlah aib.', b: 'Buka peta', panel: 'setsail', spot: sg ? '.dest-item[data-city="' + sg.dest + '"]' : null };
+      case 's6':
+        if (!docked()) return { t: 'Kapal sedang berlayar. Bersabarlah &mdash; laut tidak suka diburu-buru. Sambil menunggu, lihat-lihat panel <b>Character</b>.', b: null };
+        return { t: 'Sudah merapat! Buka <b>Pasar</b> dan jual ' + (sg ? esc_(sg.itemName) : 'muatanmu') + '. Begitulah saudagar hidup.', b: 'Buka Pasar', panel: 'market', spot: sg && sg.dest === cid() ? '.mkt-row[data-good="' + sg.item + '"]' : null };
+      case 's7': return { t: 'Satu lagi, Tuan Kapten. Para penguasa pulau membayar baik untuk kapten yang dapat dipercaya. Buka papan misi di <b>Tasks</b> dan ambil satu misi.', b: 'Buka Tasks', panel: 'tasks' };
+    }
+    return { t: '', b: null };
+  }
+  var CO = { el: null, busy: false, cur: null };
+  function coachEl() {
+    if (CO.el) return CO.el;
+    var d = document.createElement('div'); d.id = 'prCoach'; d.setAttribute('role', 'status');
+    document.body.appendChild(d); CO.el = d;
+    d.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pc]'); if (!b) { if (e.target.closest('.fc') && d.classList.contains('min')) { d.classList.remove('min'); lsSet('min', ''); } return; }
+      var k = b.getAttribute('data-pc');
+      if (k === 'min') { d.classList.add('min'); lsSet('min', '1'); }
+      else if (k === 'skip') skipGuide();
+      else if (k === 'act') act();
+    });
+    return d;
+  }
+  function act() {
+    var id = nextStep(); if (!id) return;
+    if (id === 's1') { claimStep('s1'); return; }
+    var x = stepText(id); if (!x.panel) return;
+    if (currentPanel === x.panel) {
+      var t = x.spot && document.querySelector('#modalContent ' + x.spot);
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (id === 's5' && SG.data) try { selectSailDest_(SG.data.dest); } catch (e) { }
+      return;
+    }
+    try { if (document.getElementById('game') && document.getElementById('game').classList.contains('dock-open')) document.getElementById('game').classList.remove('dock-open'); } catch (e) { }
+    if (currentPanel !== x.panel) openPanel(x.panel);
+    if (id === 's5' && SG.data) setTimeout(function () { try { if (currentPanel === 'setsail') selectSailDest_(SG.data.dest); } catch (e) { } }, 700);
+  }
+  function coach() {
+    var s = st(), d = coachEl();
+    gates();
+    document.body.classList.toggle('pr-modal', modalOpen());
+    if (!guiding() || busy()) { d.classList.remove('on'); spot(null); return; }
+    var id = nextStep(), x = stepText(id), n = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'].indexOf(id);
+    if ((id === 's3' || id === 's4' || id === 's5') && !SG.data) suggest();
+    var html = '<div class="fc" title="Syahbandar">' + faceSvg() + '</div><div class="bd"><div class="k">Hari Pertama <em>' + (n + 1) + '/7 &middot; +' + fmt(reward(id)) + ' gold</em></div>' +
+      '<div class="t">' + x.t + '</div><div class="a">' + (x.b && !(x.panel && currentPanel === x.panel && !x.spot) ? '<button class="btn btn-gold" data-pc="act">' + (x.panel && currentPanel === x.panel ? 'Tunjukkan' : x.b) + '</button>' : '') +
+      '<button class="lnk" data-pc="skip">Lewati panduan</button></div><div class="bar"><i style="width:' + Math.round(n / 7 * 100) + '%"></i></div></div>' +
+      '<button class="x" data-pc="min" title="Kecilkan" aria-label="Kecilkan">&#8211;</button>';
+    if (CO.cur !== html) { d.innerHTML = html; CO.cur = html; }
+    if (lsGet('min') === '1') d.classList.add('min');
+    d.classList.add('on');
+    stars();
+    spot(x);
+  }
+  function visible(el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null; }
+  function spot(x) {
+    var target = null;
+    if (x) {
+      if (x.spot && currentPanel === x.panel) target = document.querySelector('#modalContent ' + x.spot);
+      if (!target && x.panel && currentPanel !== x.panel) {
+        var mb = document.querySelector('#menuList .btn[data-panel="' + x.panel + '"]');
+        target = visible(mb) ? mb : document.querySelector('#menuList .dock-more');
+      }
+    }
+    document.querySelectorAll('.pr-spot').forEach(function (e) { if (e !== target) e.classList.remove('pr-spot'); });
+    if (target && !target.classList.contains('pr-spot')) target.classList.add('pr-spot');
+  }
+  function claimStep(id, quiet) {
+    if (CO.busy || claimed(id)) return;
+    CO.busy = true;
+    call(['claim', id], function (r) {
+      CO.busy = false;
+      if (r && r.newGold != null) try { patchGold_(r.newGold); } catch (e) { }
+      if (r && r.reward) { showToast('+' + fmt(r.reward) + ' gold dari Syahbandar · ' + STEPS[id].n, 'success'); try { au_('coin', { n: 2 }); } catch (e) { } }
+      CO.cur = null; gates(); coach(); if (currentPanel === 'perantau') render();
+      if (id === 's7') setTimeout(dayDone, 900);
+    }, function (e) { CO.busy = false; if (!quiet) showToast(e.message, 'error'); });
+  }
+  function tick() {
+    try {
+      if (!guiding()) { if (CO.el && CO.el.classList.contains('on')) coach(); return; }
+      var id = nextStep();
+      if (id !== 's1' && stepMet(id) && !CO.busy) claimStep(id, true);
+      coach();
+    } catch (e) { console.warn('[PR] tick', e); }
+  }
+  setInterval(tick, 1300);
+  function skipGuide() {
+    call(['skip'], function () {
+      coach(); gates();
+      showToast('Panduan disembunyikan. Hadiahnya tetap bisa diterima di Catatan Perantau.', 'info');
+    });
+  }
+  function dayDone() {
+    if (busy() || lsGet('daydone')) return;
+    lsSet('daydone');
+    showModal(panelHeader_('compass', 'Hari Pertama selesai', 'Jejak Perantau') +
+      card('<p>Tuan Kapten sudah berdagang, berlayar, dan dipercaya gubernur. Hari pertama yang baik!</p>' +
+        '<p>Mulai sekarang saya tidak akan menuntun lagi. Tapi saya titipkan <b>Catatan Perantau</b>: dua belas pekerjaan yang biasa dilakukan kapten-kapten hebat. Setiap yang selesai, saya beri imbalan.</p>',
+        '<button class="btn btn-gold" data-x="open">' + ic('compass') + '&nbsp; Buka Catatan Perantau</button><button class="btn" data-x="close">Nanti saja</button>'),
+      function (c) {
+        c.querySelector('[data-x=open]').onclick = function () { openPanel('perantau'); };
+        c.querySelector('[data-x=close]').onclick = function () { closeModal(); };
+      });
+    au_('achieve');
+  }
+
+  // tanda bintang di Pasar & peta
+  function stars() {
+    var sg = SG.data, id = nextStep(); if (!guiding() || !sg) return;
+    var sel = null;
+    if (currentPanel === 'market' && ((cid() === sg.from && (id === 's2' || id === 's3')) || (cid() === sg.dest && id === 's6'))) sel = '.mkt-row[data-good="' + sg.item + '"]';
+    if (currentPanel === 'setsail' && (id === 's4' || id === 's5')) sel = '.dest-item[data-city="' + sg.dest + '"]';
+    if (!sel) return;
+    var row = document.querySelector('#modalContent ' + sel);
+    if (row && !row.querySelector('.pr-star')) row.insertAdjacentHTML('beforeend', '<div class="pr-star">&#9733; Saran Syahbandar</div>');
+  }
+  wrap_('renderMarketGrid_', function () { try { stars(); setTimeout(coach, 50); } catch (e) { } });
+  wrap_('renderSetSailWith_', function () { try { stars(); setTimeout(coach, 50); } catch (e) { } });
+
+  /* =====================================================================
+   * 4. CATATAN PERANTAU (panel)
+   * ===================================================================== */
+  function achOf(id) { try { return ACH.filter(function (a) { return a.id === id; })[0] || null; } catch (e) { return null; } }
+  function taskProg(id) {
+    var a = achOf(id), m = meta(); if (!a) return [0, 1];
+    try { var g = a.g(m); return [Math.min(g[0], g[1]), g[1]]; } catch (e) { return [0, 1]; }
+  }
+  function taskDone(id) { var m = meta(); if (m.u && m.u[id]) return true; var g = taskProg(id); return g[0] >= g[1]; }
+  function readyCount() {
+    var s = st(); if (!s) return 0; var n = 0;
+    Object.keys(STEPS).forEach(function (id) { if (!claimed(id) && (s.skipped || (s.intro && !guiding())) && stepDone(id)) n++; });
+    Object.keys(TASKS).forEach(function (id) { if (!claimed(id) && taskDone(id)) n++; });
+    return n;
+  }
+  function row(id, def, ok, ready, prog, sub) {
+    var rw = reward(id);
+    return '<div class="pr-row' + (ok ? ' ok' : ready ? ' ready' : '') + '"><div class="st">' + ic(ok ? 'check' : ready ? 'gift' : 'lock') + '</div>' +
+      '<div><h4>' + esc_(def.n) + '</h4><small>' + esc_(def.d) + (sub || '') + '</small>' + (prog || '') + '</div>' +
+      '<div class="rw"><span class="g">' + ic('coin') + fmt(rw) + '</span>' +
+      (ok ? '<span class="small muted">Diterima</span>' : ready ? '<button class="btn btn-gold" data-pr-claim="' + id + '">Terima</button>' : def.go ? '<button class="go" data-pr-go="' + def.go + '">Ke sana</button>' : '') +
+      '</div></div>';
+  }
+  function render() {
+    var s = st(); if (!s || currentPanel !== 'perantau') return;
+    var earned = s.earned || 0, total = s.total || 70000, line;
+    var leftTasks = Object.keys(TASKS).filter(function (id) { return !claimed(id); }).length;
+    if (guiding()) line = 'Ikuti dulu panduan Hari Pertama, Tuan Kapten. Sambil jalan, pekerjaan di bawah ini juga boleh dicicil.';
+    else if (leftTasks) line = 'Dua belas pekerjaan kapten sejati. Setiap yang selesai juga memberi Tuan sebuah <b>Tanda Jasa</b>. Konon, kapten yang tanda jasanya banyak akan dicari orang-orang yang menyimpan cerita besar.';
+    else line = 'Semua sudah tuntas. Tuan Kapten bukan anak bawang lagi. Teruskan mengumpulkan Tanda Jasa &mdash; orang-orang besar di laut ini memperhatikan.';
+    var html = panelHeader_('compass', 'Catatan Perantau', 'Jejak Perantau &middot; imbalan dari Syahbandar Sunda') + card('<p>' + line + '</p>');
+    html += '<div class="pr-sum">' + ic('coin') + '<div><b>Imbalan Jejak Perantau</b><div class="bar"><i style="width:' + Math.round(earned / total * 100) + '%"></i></div></div><div class="v">' + fmt(earned) + ' / ' + fmt(total) + '</div></div>';
+    if (s.news && (s.galaStep || 0) === 0) html += journalHtml();
+    var stepsLeft = Object.keys(STEPS).filter(function (id) { return !claimed(id); }).length;
+    html += '<div class="pr-sec">' + ic('anchor') + 'Hari Pertama<span>' + (7 - stepsLeft) + '/7</span></div><div class="pr-list">' +
+      Object.keys(STEPS).map(function (id) { var ok = claimed(id), rd = !ok && (!guiding() || s.skipped) && stepDone(id); return row(id, STEPS[id], ok, rd); }).join('') + '</div>';
+    html += '<div class="pr-sec">' + ic('scroll') + 'Catatan Perantau<span>' + (12 - leftTasks) + '/12</span></div><div class="pr-list">' +
+      Object.keys(TASKS).map(function (id) {
+        var ok = claimed(id), done = taskDone(id), g = taskProg(id), a = achOf(id);
+        var prog = !ok && !done && g[1] > 1 ? '<div class="pb"><i style="width:' + Math.round(g[0] / g[1] * 100) + '%"></i></div><small>' + fmt(g[0]) + ' / ' + fmt(g[1]) + '</small>' : '';
+        return row(id, TASKS[id], ok, !ok && done, prog, a ? ' &middot; Tanda Jasa <i>' + esc_(a.n) + '</i>' : '');
+      }).join('') + '</div>';
+    html += '<div class="pr-foot">' + (s.news ? '<button class="btn btn-ghost-ink" data-pr="news">' + ic('scroll') + '&nbsp; Baca lagi Kabar Pelabuhan</button>' : '') +
+      (s.skipped && stepsLeft ? '' : (!s.intro ? '<button class="btn btn-ghost-ink" data-pr="intro">' + ic('anchor') + '&nbsp; Mulai panduan</button>' : '')) + '</div>';
+    setModal_(html);
+    var c = document.getElementById('modalContent');
+    c.querySelectorAll('[data-pr-claim]').forEach(function (b) { b.onclick = function () { claimTask(b.getAttribute('data-pr-claim'), b); }; });
+    c.querySelectorAll('[data-pr-go]').forEach(function (b) { b.onclick = function () { openPanel(b.getAttribute('data-pr-go')); }; });
+    var nb = c.querySelector('[data-pr=news]'); if (nb) nb.onclick = function () { closeModal(); newsShow(false); };
+    var ib = c.querySelector('[data-pr=intro]'); if (ib) ib.onclick = function () { closeModal(); playIntro(); };
+  }
+  function claimTask(id, btn) {
+    if (btn) { btn.disabled = true; btn.innerHTML = '&hellip;'; }
+    var go = function () {
+      call(['claim', id], function (r) {
+        if (r && r.newGold != null) try { patchGold_(r.newGold); } catch (e) { }
+        if (r && r.reward) { showToast('+' + fmt(r.reward) + ' gold · ' + ((STEPS[id] || TASKS[id] || {}).n || ''), 'success'); try { au_('coin', { n: 3 }); } catch (e) { } }
+        gates(); render();
+        var s = st(); if (s && !s.done && Object.keys(TASKS).every(function (k) { return claimed(k); })) setTimeout(allDone, 700);
+      }, function (e) { showToast(e.message, 'error'); render(); });
+    };
+    if (STEPS[id]) go(); else syncMetaNow(go);
+  }
+  function allDone() {
+    if (busy()) return;
+    call(['done'], function () {
+      showModal(panelHeader_('star', 'Catatan Perantau tuntas', 'Jejak Perantau') +
+        card('<p>Tuan Kapten sudah bukan anak bawang lagi.</p><p>Teruskan mengumpulkan <b>Tanda Jasa</b>. Orang-orang besar di laut ini memperhatikan, dan beberapa di antaranya menyimpan cerita yang tak pernah mereka ceritakan pada sembarang orang.</p>',
+          '<button class="btn btn-gold" data-x="ok">Terima kasih, Syahbandar</button>'),
+        function (c) { c.querySelector('[data-x=ok]').onclick = function () { closeModal(); }; });
+      au_('victory');
+    }, function () { });
+  }
+
+  // menu & HUD (disisipkan sekarang, sebelum MobileUI menata dock)
+  (function injectDom() {
+    var tasksBtn = document.querySelector('#menuList .btn[data-panel="tasks"]');
+    if (tasksBtn && !document.querySelector('#menuList .btn[data-panel="perantau"]')) {
+      tasksBtn.insertAdjacentHTML('beforebegin', '<button class="btn pr-gate" data-panel="perantau" hidden><span class="mi">' + ic('compass') + '</span><span class="ml">Catatan Perantau</span><span class="mk"></span><span class="pr-dot"></span></button>');
+    }
+    var gold = document.querySelector('#resourceBar .res.gold');
+    if (gold && !document.getElementById('resTj')) {
+      gold.insertAdjacentHTML('afterend', '<div class="res pr-tj pr-gate" id="resTj" role="button" tabindex="0" title="Tanda Jasa - ketuk untuk melihat semuanya" hidden><div class="ri">' + ic('medal') + '</div><div><div class="rl">Jasa</div><div class="rv" id="hudTj">0</div></div></div>');
+      var tj = document.getElementById('resTj');
+      var go = function (e) { if (e) e.stopPropagation(); openPanel('character'); setTimeout(function () { var x = document.getElementById('achSection'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 400); };
+      tj.addEventListener('click', go);
+      tj.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(e); } });
+    }
+  })();
+  var lastTj = -1;
+  function gates() {
+    var s = st();
+    document.querySelectorAll('.pr-gate').forEach(function (el) { el.hidden = !s; });
+    if (!s) return;
+    var b = document.querySelector('#menuList .btn[data-panel="perantau"]'); if (b) b.classList.toggle('pr-has', readyCount() > 0);
+    var n = badges(), v = document.getElementById('hudTj');
+    if (v && n !== lastTj) {
+      v.textContent = n;
+      if (lastTj >= 0 && n > lastTj) { var r = document.getElementById('resTj'); if (r) { r.classList.remove('bump'); void r.offsetWidth; r.classList.add('bump'); } }
+      lastTj = n;
+    }
+  }
+  if (typeof PANEL_SIZE !== 'undefined') PANEL_SIZE.perantau = 'mid';
+  if (typeof window.openPanel === 'function') {
+    var origOpen = window.openPanel;
+    window.openPanel = function (panel) {
+      if (panel === 'perantau') {
+        if (!st()) { showToast('Catatan Perantau hanya untuk kapten baru.', 'info'); return; }
+        var r = origOpen.apply(this, arguments); render(); return r;
+      }
+      var r2 = origOpen.apply(this, arguments);
+      setTimeout(function () { gates(); coach(); }, 30);
+      return r2;
+    };
+  }
+  wrap_('closeModal', function () { setTimeout(function () { coach(); }, 30); });
+
+  /* =====================================================================
+   * 5. TANDA JASA: kartu pertama, panel Character
+   * ===================================================================== */
+  function firstTj() {
+    if (!st() || lsGet('tj1') || badges() < 1) return;
+    if (busy() || modalOpen()) { setTimeout(firstTj, 2500); return; }
+    lsSet('tj1');
+    showModal(panelHeader_('medal', 'Tanda Jasa', 'Kata Syahbandar') +
+      card('<p>Itu <b>Tanda Jasa</b>, Tuan Kapten. Di Mare Nusantara, kapten dinilai dari tanda jasanya, bukan dari pundinya.</p>' +
+        '<p>Konon, kapten yang tanda jasanya banyak akan dicari oleh orang-orang yang menyimpan cerita besar. Kumpulkanlah sebanyak yang Tuan bisa.</p>',
+        '<button class="btn btn-gold" data-x="see">' + ic('medal') + '&nbsp; Lihat semua Tanda Jasa</button><button class="btn" data-x="ok">Baik</button>'),
+      function (c) {
+        c.querySelector('[data-x=see]').onclick = function () { openPanel('character'); setTimeout(function () { var x = document.getElementById('achSection'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 400); };
+        c.querySelector('[data-x=ok]').onclick = function () { closeModal(); };
+      });
+  }
+  wrap_('renderCharacterSheetWith_', function () {
+    if (!st()) return;
+    var c = document.getElementById('modalContent'), sec = document.getElementById('achSection'), hero = c && c.querySelector('.cs-hero');
+    if (!sec || !hero || sec.getAttribute('data-pr')) return;
+    sec.setAttribute('data-pr', '1');
+    var note = document.createElement('p'); note.className = 'muted small'; note.style.cssText = 'margin:4px 0 10px;text-align:center;font-style:italic;';
+    note.innerHTML = 'Tanda Jasa membuka pintu yang tak bisa dibeli dengan gold.';
+    var div = sec.querySelector('.scroll-divider'); if (div) div.parentNode.insertBefore(note, div.nextSibling);
+    hero.parentNode.insertBefore(sec, hero.nextSibling);
+  });
+
+  /* =====================================================================
+   * 6. GOSIP BERTINGKAT & KABAR PELABUHAN (20 Tanda Jasa)
+   * ===================================================================== */
+  function hintsOn() { var s = st(); return !!(s && (s.galaStep || 0) === 0); }
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function (n) {
+      var out = origRumors.apply(this, arguments);
+      try {
+        if (!hintsOn()) return out;
+        var s = st(), b = badges(), line = null;
+        if ((s.news || b >= 20) && Math.random() < 0.5) line = GOSSIP20[Math.floor(Math.random() * GOSSIP20.length)];
+        else if (b >= 15 && Math.random() < 0.35) line = GOSSIP15[Math.floor(Math.random() * GOSSIP15.length)];
+        else if (b >= 10 && Math.random() < 0.25) line = GOSSIP10;
+        if (line) { out = out.slice(); out.splice(Math.floor(Math.random() * Math.min(out.length + 1, 3)), 0, line); out = out.slice(0, n || 4); }
+      } catch (e) { }
+      return out;
+    };
+  }
+  function journalHtml() {
+    return '<div class="pr-journal"><div class="h">' + ic('scroll') + ' Catatan terakhirmu</div>' + JOURNAL20 + '</div>';
+  }
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks') return;
+    var s = st(); if (!s || !s.news || !hintsOn()) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.pr-journal')) return;
+    var anchor = c.querySelector('.npc') || c.querySelector('.ph');
+    var d = document.createElement('div'); d.innerHTML = journalHtml();
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(d.firstChild, anchor.nextSibling); else c.insertBefore(d.firstChild, c.firstChild);
+  });
+  var NEWS = { trying: false, last: 0 };
+  function newsCheck() {
+    var s = st(); if (!s || s.news || !hintsOn() || badges() < 20 || NEWS.trying) return;
+    if (Date.now() - NEWS.last < 60000) return;
+    if (busy()) { setTimeout(newsCheck, 3000); return; }
+    NEWS.trying = true; NEWS.last = Date.now();
+    syncMetaNow(function () {
+      call(['news'], function (r) { NEWS.trying = false; if (r && r.perantau && r.perantau.news) newsShow(true); },
+        function () { NEWS.trying = false; });
+    });
+  }
+  function paperArt() {
+    return '<svg viewBox="0 0 400 110" preserveAspectRatio="xMidYMid slice"><rect width="400" height="110" fill="#e3d2a8"/>' +
+      '<g fill="none" stroke="#3b2a16" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M0 86 C60 82 120 90 180 86 S300 82 400 88"/><path d="M0 96 C80 92 140 100 220 95 S340 92 400 98" opacity=".5"/>' +
+      '<path d="M120 86 L120 52 L230 52 L230 86"/><path d="M110 54 Q118 40 104 22 Q140 40 175 34 Q210 40 246 22 Q232 40 240 54 Z"/>' +
+      '<path d="M140 86 L140 66 L160 66 L160 86 M190 86 L190 66 L210 66 L210 86"/>' +
+      '<path d="M128 46 L222 46" stroke-dasharray="3 4"/><text x="175" y="47" font-family="Georgia,serif" font-size="9" fill="#3b2a16" stroke="none" text-anchor="middle">&#9679; &#9679; &#9679;</text>' +
+      '<path d="M262 80 Q275 64 300 74 L330 74 Q338 80 330 86 L270 86 Z"/><path d="M300 74 L300 40 L322 70"/>' +
+      '<path d="M40 30 q6 -5 12 0 q6 -5 12 0 M330 22 q5 -4 10 0 q5 -4 10 0"/></g></svg>';
+  }
+  function newsShow(fresh) {
+    if (document.querySelector('.pr-news')) return;
+    var day = st() ? st().newsDay : '';
+    var ov = document.createElement('div'); ov.className = 'pr-news';
+    var paper = '<div class="pr-paper"><div class="mast"><b>Kabar Pelabuhan</b><small><span>Mare Nusantara</span><span>Hari ' + esc_(day) + '</span><span>Satu keping</span></small></div>' +
+      '<h2>Galangan termasyhur di kota rendang tutup setengah hari</h2><div class="ill">' + paperArt() + '</div>' +
+      '<div class="art"><p>Pemilik galangan bercahaya neon itu terlihat murung sejak pagi. Warga melihatnya menatap laut lama sekali, sampai sabun cucian kapal mengering di ember.</p>' +
+      '<p>Lelaki yang terkenal paling pandai bercerita di seluruh pelabuhan itu kali ini hampir tak bicara. Ia hanya berkata, <i>"Ambo menunggu kapten yang tanda jasanya sudah cukup."</i></p>' +
+      '<p>Para pelaut menduga ada sesuatu yang lama ia simpan. Siapa kapten yang ditunggunya, belum ada yang tahu.</p></div>' +
+      '<div class="acts"><button class="btn btn-gold" data-n="letter">' + ic('scroll') + '&nbsp; Ada surat untukmu</button></div></div>';
+    var letter = '<div class="pr-letter"><p>Kapten,</p><p>nama Kapten sudah sering ambo dengar di lapau-lapau. Kata orang, tanda jasa Kapten sudah banyak.</p>' +
+      '<p>Kalau sempat, singgahlah ke galangan ambo &mdash; yang lampunya paling terang di kota yang rendangnya paling enak. Ada yang ingin ambo ceritakan. Empat mata saja.</p>' +
+      '<div class="sig">&mdash; G.</div><div class="seal"></div></div>' +
+      '<div class="acts"><button class="btn btn-gold" data-n="close">' + ic('compass') + '&nbsp; Simpan di catatan</button></div>';
+    ov.innerHTML = paper;
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.classList.add('on'); });
+    try { au_(fresh ? 'unfurl' : 'page'); } catch (e) { }
+    ov.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-n]'); if (!b) return;
+      var k = b.getAttribute('data-n');
+      if (k === 'letter') {
+        ov.classList.remove('on');
+        setTimeout(function () { ov.innerHTML = '<div class="pr-lwrap">' + letter + '</div>'; requestAnimationFrame(function () { ov.classList.add('on'); }); try { au_('page'); } catch (e2) { } }, 300);
+      } else if (k === 'close') {
+        ov.classList.remove('on'); setTimeout(function () { ov.remove(); coach(); }, 450);
+        if (fresh) showToast('Catatan baru di Catatan Perantau dan Tasks.', 'info');
+        gates();
+      }
+    });
+  }
+  function remindCheck() {
+    var s = st(); if (!s || !s.news || s.remind || !hintsOn() || cid() !== 'sunda_empire' || !docked()) return;
+    if ((s.gameDay || 0) < (s.newsDay || 0) + 3 || busy() || modalOpen()) return;
+    call(['remind'], function () {
+      showModal(panelHeader_('anchor', 'Pesan Syahbandar', 'Port of Sunda') +
+        card('<p>Rendang dan neon, Tuan Kapten. Jangan biarkan orang itu menunggu terlalu lama.</p><p class="muted small">Catatan lengkapnya ada di Catatan Perantau.</p>',
+          '<button class="btn btn-gold" data-x="ok">Baik, Syahbandar</button>'),
+        function (c) { c.querySelector('[data-x=ok]').onclick = function () { closeModal(); }; });
+    }, function () { });
+  }
+
+  /* =====================================================================
+   * kaitan umum
+   * ===================================================================== */
+  wrap_('checkAch_', function () { try { gates(); if (!st()) return; firstTj(); newsCheck(); if (currentPanel === 'perantau') render(); } catch (e) { console.warn('[PR]', e); } });
+  wrap_('applyFreshState_', function () {
+    try {
+      gates(); CO.cur = null;
+      var s = st(); if (!s) { coach(); return; }
+      if (!s.intro && !s.skipped) {
+        var tries = 0;
+        setTimeout(function later() {
+          var s2 = st(); if (!s2 || s2.intro) return;
+          if (busy() || modalOpen()) { if (tries++ < 60) setTimeout(later, 1500); return; }
+          playIntro();
+        }, 1600);
+      } else coach();
+      if (s.news === false) setTimeout(newsCheck, 4000);
+      setTimeout(remindCheck, 3500);
+      setTimeout(firstTj, 5000);
+      if (currentPanel === 'perantau') render();
+    } catch (e) { console.warn('[PR]', e); }
+  });
+
+  return { st: st, render: render, coach: coach, news: newsShow, syah: syah };
+})();
+</script>

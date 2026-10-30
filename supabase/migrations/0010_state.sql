@@ -47,6 +47,7 @@ begin
     'username', coalesce(v_me.username, ''),
     'unlocks', game.player_unlocks(v_pid),
     'gala', game.gala_state(v_pid),
+    'perantau', game.perantau_state(v_pid),
     'toogood', game.toogood_state(v_pid),
     'warwerwor', game.ww_state(v_pid),
     'barsati', game.bx_state(v_pid),
