@@ -196,6 +196,7 @@ begin
   elsif p_act = 'arsip13' then
     if s <> 5 or v_era <> 'lampau' then raise exception 'Aksi tidak dikenal.'; end if;
     if not v_docked or v_city <> 'sudyrman_akademi' then raise exception 'Arsip itu ada di Akademi Laut Sudyrman.'; end if;
+    perform game.ps_book_grant(p_pid, 'bk_ps_kadet');
     perform game.ps_set(p_pid, 'ps13', 6, '{"arsip": true}'::jsonb);
     perform game.log(p_pid, 'Tujuh kaca, tujuh percobaan. Ia tidak pernah mencoba berhenti.');
     return jsonb_build_object('ok', true);
@@ -224,6 +225,7 @@ begin
     update game.players set gold = gold + v_gold where player_id = p_pid;
     update game.pasir_state set riak = riak || jsonb_build_object('sudyrman', d ->> 'pasang'), updated_at = now() where player_id = p_pid;
     perform game.ps_sdata_set(p_pid, jsonb_build_object('set_benang', true));
+    perform game.ps_book_grant(p_pid, 'bk_ps_surat');
     perform game.ps_set(p_pid, 'ps13', 7, '{}'::jsonb, true);
     perform game.log(p_pid, 'Benua Sudyrman tenggelam. Rampasan Janji Putih dari tiga penyusulan: ' || v_gold || ' gold. Kaca ketujuh menunggu.');
     return jsonb_build_object('ok', true, 'gold', v_gold);

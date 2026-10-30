@@ -759,7 +759,7 @@
     if (voyage.encounterPending) {
       row.innerHTML = '<div id="voyageCard" data-mode="' + mode + ':' + esc_(voyage.destinationCityId) + '" class="glass danger">' +
         '<div class="danger-title">' + esc_(voyage.encounter ? voyage.encounter.enemyName : 'Kapal misterius') + '</div>' +
-        '<div class="danger-sub">Bendera hitam berkibar &mdash; mereka menghadang jalurmu ke ' + esc_(destName) + '!</div>' +
+        '<div class="danger-sub">' + (voyage.encounter && voyage.encounter.ps && voyage.encounter.bossTitle ? esc_(voyage.encounter.bossTitle) + '.' : 'Bendera hitam berkibar &mdash; mereka menghadang jalurmu ke ' + esc_(destName) + '!') + '</div>' +
         '<button class="btn btn-danger btn-lg" onclick="openCombatScene_()">' + ic('swords') + '&nbsp; Hadapi Sekarang</button></div>';
     } else {
       var pct = Math.round((voyage.progress || 0) * 100);
@@ -2699,7 +2699,10 @@
     var sink = 0;
     if (sinkT) { sink = Math.min(1, sinkT / 2.4); roll += dir * sink * 0.35; y += sink * sink * 170 * sh.s; }
     var bossEnc = isEnemy && state && state.voyage && state.voyage.encounter && state.voyage.encounter.boss;
-    var opts = bossEnc
+    var look = isEnemy && state && state.voyage && state.voyage.encounter && state.voyage.encounter.shipLook;   // v41: rupa kapal musuh khusus
+    var opts = look && typeof look === 'object'
+      ? Object.assign({ masts: 2, ports: 3 }, look, { dir: dir, t: t, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll })
+      : bossEnc
       ? { dir: dir, t: t, masts: 3, hull: '#171112', trim: '#c9a033', sail: '#6e1810', flag: '#111111', flagShape: 'flame', emblem: 'skull', emblemColor: '#e8bf55', pennant: '#b3261e', ports: 7, muzzles: true, railGuns: true, chaser: true, gilded: true, rivets: true, sizeK: 1.22, studding: 2, streamers: true, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll }
       : isEnemy
       ? { dir: dir, t: t, masts: 3, hull: '#2b1d16', trim: '#7a6440', sail: '#4d4843', flag: '#111111', flagType: 'skull', pennant: '#6e1d14', lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll }

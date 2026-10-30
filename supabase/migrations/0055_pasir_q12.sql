@@ -162,6 +162,7 @@ begin
     'displayLevel', 3 + p_kuat, 'enemyLevel', 2 + p_kuat, 'enemyMaxHp', hp, 'enemyHp', hp, 'hpFloor', round(hp * 0.45),
     'enemyDmgMul', 1.1 + p_kuat * 0.15, 'maxAmmo', ammo, 'ammoRemaining', ammo,
     'softSink', true, 'noRam', true,
+    'shipLook', jsonb_build_object('hull', '#efe9dc', 'trim', '#b9b1a0', 'sail', '#f8f5ee', 'flag', '#f8f5ee', 'emblemColor', '#b9b1a0', 'pennant', '#f8f5ee', 'masts', 2, 'ports', 3, 'sizeK', 1.1),
     'noRamMsg', 'Menabrak Janji Putih? Lambungnya licin seperti tulang; kapalmu yang akan pecah.',
     'noTalkMsg', 'Franziska tidak menjawab. Payung rendanya menunjuk ke laut lepas.');
 end $$;
@@ -359,6 +360,8 @@ begin
     update game.players set gold = gold + v_cost where player_id = p_pid;
     update game.pasir_state set kaca = greatest(kaca, 3), updated_at = now() where player_id = p_pid;
     perform game.ps_sdata_set(p_pid, jsonb_build_object('set_gemilang', true));
+    -- hadiah set Kedai Zaman Gemilang (barangnya didefinisikan 0057)
+    begin perform game.kd_grant(p_pid, 'panji_akademi', 1, 'pasir'); exception when others then null; end;
     perform game.ps_kdata_set(p_pid, jsonb_build_object('susul', null, 'jejak', null));
     perform game.ps_set(p_pid, 'ps12', 7, '{}'::jsonb, true);
     perform game.log(p_pid, 'Laksamana Tua Brandt membayar ' || v_cost || ' gold untuk perbekalan yang "diantar dengan sangat rapi". Kaca ketiga retak.');
