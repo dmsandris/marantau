@@ -240,12 +240,12 @@ var MTGames3 = (function () {
     return '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Bengkel besar FreeYork">' + s + '</svg>';
   }
   function playJejak(opts, cb) {
-    var cfg = JEJAK[opts.variant] || JEJAK.brankas, S = shell(cfg.kicker, cfg.title);
+    var cfg = opts.cfg || JEJAK[opts.variant] || JEJAK.brankas, S = shell(cfg.kicker, cfg.title);   // Tide v41: opts.cfg & opts.sceneSvg
     S.cb = cb;
-    var warm = opts.variant === 'bengkel', N = cfg.clues.length;
+    var warm = opts.variant === 'bengkel' || !!opts.warm, N = cfg.clues.length;
     S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center;margin:0 0 6px"><span class="tsg-clue">Jejak <b class="jj-n">0</b> / ' + N + '</span>' +
       '<span class="tsg-bat" title="' + (warm ? 'Minyak lentera' : 'Baterai senter') + '"><i></i></span></div>' +
-      '<div class="tsg-stage">' + (warm ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
+      '<div class="tsg-stage">' + (opts.sceneSvg ? '<svg class="scene" viewBox="0 0 1000 600" role="img" aria-label="Dermaga">' + opts.sceneSvg + '</svg>' : warm ? sceneBengkel() : sceneBrankas()) + '<canvas class="dark"></canvas></div>' +
       '<div class="tsg-msg">' + cfg.intro + '</div><ul class="tsg-list"></ul>';
     var stage = S.body.querySelector('.tsg-stage'), svg = stage.querySelector('svg'), cv = stage.querySelector('canvas'), ctx = cv.getContext('2d');
     var msg = S.body.querySelector('.tsg-msg'), list = S.body.querySelector('.tsg-list'), nEl = S.body.querySelector('.jj-n'), batEl = S.body.querySelector('.tsg-bat i');
@@ -405,15 +405,17 @@ var MTGames3 = (function () {
     return s;
   }
   function playPesta(opts, cb) {
-    var S = shell("Pulau em pe'er de pe'er &middot; Ruang Sidang Agung", 'Mata Syahbandar &middot; Pesta Topeng');
+    var S = shell(opts.kicker || "Pulau em pe'er de pe'er &middot; Ruang Sidang Agung", opts.title || 'Mata Syahbandar &middot; Pesta Topeng');
     S.cb = cb;
-    var ROUNDS = [
+    var BOW = opts.bowRound == null ? 2 : opts.bowRound;   // Tide v41: ronde "semua membungkuk kecuali dia" (-1 = tidak ada)
+    var ROUNDS = opts.rounds || [
       { clue: 'Ronde 1 &middot; Topeng dari logam, bukan porselen', hint: 'Topeng porselen berkilau putih. Cari yang buram dan berpaku.' },
       { clue: 'Ronde 2 &middot; Sarung tangan bernoda cat perunggu', hint: 'Noda anggur itu merah; noda tinta itu biru. Cat perunggu warnanya seperti sayap Garuda.' },
       { clue: 'Ronde 3 &middot; Tamu yang tidak membungkuk saat lagu kebesaran', hint: 'Dengarkan lagu kebesaran. Semua membungkuk&hellip; hampir semua.' }
     ];
     var round = 0, miss = 0;
     function guests(rd) {
+      if (opts.guests) return shuffle(opts.guests(rd, GOWNS.slice()));
       var gs = GOWNS.map(function (c, i) { return { id: i, gown: c, mask: 'porc', glove: null, target: i === 0 }; });
       gs[0].gown = '#e8e2d2';
       if (rd === 0) { gs[0].mask = 'metal'; gs[3].mask = 'gold'; gs[5].mask = 'gold'; }
@@ -425,28 +427,28 @@ var MTGames3 = (function () {
       var pips = ROUNDS.map(function (x, i) { return '<i class="' + (i < round ? 'done' : i === round ? 'on' : '') + '"></i>'; }).join('');
       S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center"><span class="tsg-clue">' + R.clue + '</span><span class="tsg-pips">' + pips + '</span></div>' +
         '<div class="tsg-stage"><div class="tsg-ball">' + gs.map(function (g) {
-          var late = round === 2 && g.id === 4;
-          return '<button class="tsg-guest' + (round === 2 && g.target ? ' proud' : '') + (late ? ' late' : '') + '" type="button" data-id="' + g.id + '" aria-label="Tamu bertopeng">' + guestSvg(g, round) + '</button>';
-        }).join('') + '</div></div><div class="tsg-msg">' + (round === 2 ? 'Gamelan istana berhenti. Pengeras suara corong berderak: <b>"Lagu kebesaran!"</b>' : 'Ketuk tamu yang cocok dengan petunjuk.') + '</div>';
+          var late = round === BOW && g.id === 4;
+          return '<button class="tsg-guest' + (round === BOW && g.target ? ' proud' : '') + (late ? ' late' : '') + '" type="button" data-id="' + g.id + '" aria-label="Tamu bertopeng">' + guestSvg(g, round) + '</button>';
+        }).join('') + '</div></div><div class="tsg-msg">' + (round === BOW ? (opts.bowMsg || 'Gamelan istana berhenti. Pengeras suara corong berderak: <b>"Lagu kebesaran!"</b>') : 'Ketuk tamu yang cocok dengan petunjuk.') + '</div>';
       var ball = S.body.querySelector('.tsg-ball'), msg = S.body.querySelector('.tsg-msg');
-      if (round === 2) S.timers.push(setTimeout(function () { ball.classList.add('bow'); au('page'); }, REDUCE ? 200 : 1500));
+      if (round === BOW) S.timers.push(setTimeout(function () { ball.classList.add('bow'); au('page'); }, REDUCE ? 200 : 1500));
       ball.querySelectorAll('.tsg-guest').forEach(function (b) {
         b.onclick = function () {
-          if (round === 2 && !ball.classList.contains('bow')) { msg.innerHTML = 'Tunggu lagu kebesarannya dimulai, Kapten.'; return; }
+          if (round === BOW && !ball.classList.contains('bow')) { msg.innerHTML = opts.bowWait || 'Tunggu lagu kebesarannya dimulai, Kapten.'; return; }
           var id = +b.getAttribute('data-id');
           if (id === 0) {
             b.classList.add('yes'); au('coin');
             msg.className = 'tsg-msg good';
-            msg.innerHTML = ['Topeng itu bukan porselen. <b>Logam</b>, dengan paku kecil di pipinya.', 'Di ujung jari sarung tangan putih itu: <b>noda cat perunggu</b>.', 'Satu orang tetap berdiri tegak saat semua kepala tertunduk. <b>Pria tinggi bertopeng perunggu.</b>'][round];
+            msg.innerHTML = (ROUNDS[round].ok) || ['Topeng itu bukan porselen. <b>Logam</b>, dengan paku kecil di pipinya.', 'Di ujung jari sarung tangan putih itu: <b>noda cat perunggu</b>.', 'Satu orang tetap berdiri tegak saat semua kepala tertunduk. <b>Pria tinggi bertopeng perunggu.</b>'][round];
             S.timers.push(setTimeout(function () {
               round++; miss = 0;
               if (round < ROUNDS.length) render();
               else {
                 au('success');
                 S.body.innerHTML = '<div class="tsg-stage" style="display:grid;place-items:center;padding:16px;background:radial-gradient(circle,#4a2a14,#120a06)">' +
-                  '<div style="width:min(260px,60vw)">' + guestSvg({ gown: '#e8e2d2', mask: 'metal', glove: { col: '#a8743a', side: 1 }, target: true }, 0) + '</div></div>' +
-                  '<div class="tsg-msg good">Ketiga petunjuk menunjuk satu orang: pria tinggi bertopeng <b>Garuda perunggu</b>. Ia tidak lari. Ia malah menoleh, dan mengangkat gelasnya ke arahmu.</div>';
-                finishBtn(S, 'Hampiri dia', { win: true, kind: 'pesta' });
+                  '<div style="width:min(260px,60vw)">' + guestSvg(opts.finalGuest || { gown: '#e8e2d2', mask: 'metal', glove: { col: '#a8743a', side: 1 }, target: true }, 0) + '</div></div>' +
+                  '<div class="tsg-msg good">' + (opts.finalText || 'Ketiga petunjuk menunjuk satu orang: pria tinggi bertopeng <b>Garuda perunggu</b>. Ia tidak lari. Ia malah menoleh, dan mengangkat gelasnya ke arahmu.') + '</div>';
+                finishBtn(S, opts.finalBtn || 'Hampiri dia', { win: true, kind: 'pesta' });
               }
             }, 1100));
           } else {

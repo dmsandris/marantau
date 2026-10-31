@@ -1,0 +1,474 @@
+<style>
+  /* ================= Tide v41 · Pasir Quest 12 + pengejaran (PS12) ================= */
+  .ps-deduksi { display: grid; gap: 8px; }
+  .ps-deduksi .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ps-deduksi .k { position: relative; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(120,90,50,.45); background: #fff8e8; color: #33230f; font-family: var(--font-title); letter-spacing: .04em; cursor: pointer; }
+  .ps-deduksi .k.x { color: #9a8a70; text-decoration: line-through; background: rgba(0,0,0,.04); cursor: default; }
+  .ps-deduksi .k.tebak { border-color: #a8231c; box-shadow: 0 0 0 2px rgba(168,35,28,.25); }
+  .ps-deduksi .k.tebak::after { content: '?'; position: absolute; right: -6px; top: -8px; width: 18px; height: 18px; border-radius: 50%; background: #a8231c; color: #fff; font-size: 12px; display: grid; place-items: center; }
+  .ps-deduksi .pin { font-size: .86em; color: #5a4628; line-height: 1.5; padding: 8px 10px; border-left: 3px solid #a8231c; background: rgba(255,255,255,.5); border-radius: 6px; }
+  .ps-surat { font-family: Georgia, serif; font-style: italic; line-height: 1.75; font-size: 1.02em; white-space: pre-line; }
+  .ps-pancing { position: fixed; inset: 0; z-index: 9200; background: radial-gradient(ellipse at 50% 30%, #f0c890, #7a5a30 70%, #2a1a0a); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; color: #2a1a0a; }
+  .ps-pancing h3 { margin: 0; font-family: var(--font-title); letter-spacing: .1em; }
+  .ps-pancing .bar { position: relative; width: min(520px, 92vw); height: 26px; border-radius: 14px; background: rgba(0,0,0,.25); overflow: hidden; }
+  .ps-pancing .zone { position: absolute; top: 0; bottom: 0; background: rgba(110,200,120,.55); }
+  .ps-pancing .mk { position: absolute; top: -4px; bottom: -4px; width: 6px; border-radius: 3px; background: #fff3d6; box-shadow: 0 0 6px #fff; }
+  .ps-pancing .prog { width: min(520px, 92vw); height: 10px; border-radius: 6px; background: rgba(0,0,0,.2); overflow: hidden; }
+  .ps-pancing .prog i { display: block; height: 100%; width: 0; background: #2a6a3a; }
+  .ps-pancing .msg { min-height: 2.6em; text-align: center; max-width: 520px; }
+  .ps-pancing button { min-width: 220px; min-height: 56px; touch-action: none; }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Pasir: mesin pengejaran Franziska + Quest 12 (modul PS12) — Batch 5
+ * Server: 0055. Lokasi Franziska tidak pernah dikirim; klien hanya menerima gosip, jejak, coretan manifes, dan "tersusul".
+ *   1 IKN berjaya · 2 Tedsky muda (Mercusuar, riak tedsky_lampu) · 3 Olah Jejak di dermaga IKN · 4 Pelabuhan Sudyrman
+ *   (Mata Pesta -> Janji Putih -> Surat Franzi #1; coco muda & Kopi Pahit; Miss Nansy) · 5 pengejaran penuh (Mas Karto,
+ *   Ulin muda) · 6 Akademi Laut Sudyrman (Syahbandar -> menara lonceng, kaca ketiga) · 7 selesai
+ * ===================================================================== */
+var PS12 = (function () {
+  if (!window.PS || !PS.K) return {};
+  var K = PS.K, esc = K.esc, btn = K.btn, on = K.on, actions = K.actions, speech = K.speech, narr = K.narr;
+  function p() { return PS.st(); }
+  function q() { var x = p(); return (x && x.q12) || null; }
+  function step() { var x = q(); return x ? (x.step || 0) : 0; }
+  function qd() { var x = q(); return (x && x.d) || {}; }
+  function kj() { var x = p(); return (x && x.kejar) || null; }
+  function lampau() { return K.era() === 'lampau'; }
+  function riak() { return (p() && p().riak) || {}; }
+  function barang() { return (p() && p().barang) || []; }
+  function city(id) { var c = (state.cities || []).filter(function (x) { return x.CityId === id; })[0]; return c ? c.Name : id; }
+  function call(a, ok, fail, b) { PS.call(a, ok, fail, b); }
+  function toast(t, k) { if (typeof showToast === 'function') showToast(t, k || 'info'); }
+  function reload() { if (typeof loadState === 'function') loadState(); }
+
+  /* ---------- tokoh ---------- */
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    NN = {
+      tedsky: { name: 'Kadet Tedsky', title: 'Juru lampu Menara IKN', ap: K.apOf('tedsky-muda-lampu', 'syahbandar', 0, { age: 0.12, facial: 0, head: 'none', hair: 1 }) },
+      coco: { name: 'Pemuda bertopi bowler', title: 'Pemilik kedai kopi', ap: K.apOf('coco-muda-sudyrman', 'bankir', 0, { head: 'bowler', age: 0.2, facial: 1, hair: 0 }) },
+      nansy: { name: 'Miss Nansy', title: 'Baru pulang memancing', ap: K.apOf('nansy-muda-sudyrman', 'saudagar', 1, { age: 0.15, hair: 3 }) },
+      karto: { name: 'Mas Karto', title: 'Warung pantai Joungjava', ap: K.apOf('karto-muda', 'lapau', 0, { age: 0.15, facial: 0, hair: 1, head: 'none' }) },
+      ulin: { name: 'Ulin', title: 'Penjaga mercusuar baru', ap: K.apOf('ulin-muda-bjorneo', 'pustakawan', 1, { age: 0.14, skin: 3, hair: 0, hairStyle: 0, eyes: 2, head: 'none' }) },
+      brandt: { name: 'Laksamana Tua Brandt', title: 'Komandan Akademi Laut Sudyrman', ap: K.apOf('brandt-akademi', 'syahbandar', 0, { age: 0.85, facial: 3 }) },
+      fz: K.N().franziskaReal
+    };
+    return NN;
+  }
+
+  /* ---------- mini game ---------- */
+  function g3(kind, opts, cb) { if (!window.MTGames3) { cb({ win: true }); return; } K.busy(true); MTGames3.open(kind, opts, function (r) { K.busy(false); cb(r || {}); }); }
+  function g1(kind, opts, cb) { if (!window.MTGames || !MTGames.open) { cb({ win: true }); return; } K.busy(true); MTGames.open(kind, opts, function (r) { K.busy(false); cb(r || {}); }); }
+
+  var DERMAGA_SVG = (function () {
+    var s = '<defs><linearGradient id="psdW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a3420"/><stop offset="1" stop-color="#1e140a"/></linearGradient></defs><rect width="1000" height="600" fill="url(#psdW)"/>';
+    for (var i = 0; i < 14; i++) s += '<rect x="0" y="' + (340 + i * 19) + '" width="1000" height="17" fill="' + (i % 2 ? '#6a4a2a' : '#5e4226') + '"/>';
+    s += '<rect x="80" y="230" width="150" height="120" fill="#7a5a34" stroke="#2a1a0a" stroke-width="4"/><rect x="250" y="270" width="110" height="80" fill="#6a4a2a" stroke="#2a1a0a" stroke-width="4"/>';
+    s += '<rect x="720" y="200" width="200" height="150" fill="#5a3e22" stroke="#2a1a0a" stroke-width="4"/><path d="M720 250h200M720 300h200" stroke="#2a1a0a" stroke-width="3"/>';
+    s += '<circle cx="560" cy="300" r="40" fill="#3a2a18" stroke="#1a1008" stroke-width="4"/><path d="M0 330 Q500 310 1000 330" stroke="#2a1a0a" stroke-width="3" fill="none"/>';
+    s += '<path d="M470 120 l12 40 h-24z" fill="#c9a450"/><rect x="466" y="160" width="8" height="180" fill="#3a2a18"/>';
+    return s;
+  })();
+  function jejakCfg(kota, tutorial) {
+    return {
+      kicker: esc(kota) + ' &middot; dermaga', title: 'Olah Jejak &middot; Perempuan Bergaun Putih',
+      intro: 'Dermaga ramai, tapi <b>lima jejak</b> tertinggal dari seorang perempuan tua bergaun putih. Lentera minyak terbatas: <b>ketukan sembarangan memboroskannya</b>.',
+      clues: [
+        { id: 'renda', x: 160, y: 300, r: 28, t: 'Sobekan renda putih', th: 'Renda putih tersangkut di sudut peti. <b>Payung renda.</b>' },
+        { id: 'tiket', x: 300, y: 300, r: 24, t: 'Karcis trem berlubang', th: 'Karcis trem ke Menara Lampu, dilubangi petugas tadi pagi.' },
+        { id: 'simpul', x: 560, y: 300, r: 30, t: 'Simpul tali yang rapi', th: 'Tali tambat diikat dengan <b>simpul pelaut</b>, rapi dan cepat. Bukan tangan pelukis.' },
+        { id: 'peta', x: 820, y: 260, r: 34, t: 'Coretan peta di peti', th: 'Seseorang menggambar <b>panah ke selatan</b> dengan kapur di tutup peti.' },
+        { id: 'pasir', x: 470, y: 380, r: 26, t: 'Pasir perak', th: 'Butir pasir <b>perak</b> di papan dermaga. Bukan pasir pantai mana pun.' }
+      ],
+      decoys: [{ x: 120, y: 470, r: 30, th: 'Jala nelayan yang dijemur. Bau ikan, bukan bau perempuan tua.' }, { x: 900, y: 480, r: 30, th: 'Tumpukan karung kopi dari selatan.' }, { x: 380, y: 520, r: 30, th: 'Bekas roda gerobak. Semua orang lewat sini.' }],
+      deduce: [{ q: 'Ke arah mana perempuan itu pergi?', opts: [
+        { t: 'Ke selatan, ke pelabuhan di seberang laut', ok: true, why: 'Panah kapur, karung kopi dari selatan, dan pasir perak di dermaga keberangkatan. <b>Ia berlayar ke selatan.</b>' },
+        { t: 'Ia masih di kota, naik trem lagi', why: 'Karcisnya sudah dilubangi dan dibuang. Ia tidak akan naik trem dua kali.' },
+        { t: 'Ia bersembunyi di gudang', why: 'Simpul tambatnya sudah dilepas. Kapalnya tidak lagi di sini.' }
+      ] }]
+    };
+  }
+  function jejakGame(kota, tutorial, cb) {
+    g3('jejak', { cfg: jejakCfg(kota, tutorial), sceneSvg: DERMAGA_SVG, warm: true, doneLine: 'Jejaknya mengarah keluar pelabuhan.' }, function (r) { if (r && r.win) cb(); });
+  }
+  var WHITE = { gown: '#f4f0e6', mask: 'porc', glove: null };
+  function pestaFz(kota, cb) {
+    g3('pesta', {
+      kicker: esc(kota) + ' &middot; 40 Tahun Lalu', title: 'Mata Pesta &middot; Perempuan Bergaun Putih', bowRound: 2,
+      bowMsg: 'Lonceng pelabuhan berdentang: <b>semua menunduk memberi salam pada bendera.</b>', bowWait: 'Tunggu lonceng pelabuhan, Kapten.',
+      rounds: [
+        { clue: 'Ronde 1 &middot; Gaun putih panjang berkerah tinggi', hint: 'Bukan krem, bukan kelabu. Putih tulang.', ok: 'Gaun <b>putih tulang</b>, kerahnya tinggi.' },
+        { clue: 'Ronde 2 &middot; Topeng porselen polos, tanpa emas', hint: 'Yang lain memakai hiasan emas atau logam.', ok: 'Porselen <b>polos</b>. Tanpa hiasan apa pun.' },
+        { clue: 'Ronde 3 &middot; Satu-satunya yang tidak menunduk', hint: 'Orang yang tidak mengakui bendera zaman ini.', ok: 'Semua menunduk. Satu orang tetap tegak, <b>menatap laut</b>.' }
+      ],
+      guests: function (rd, G) {
+        var gs = G.map(function (c, i) { return { id: i, gown: c, mask: i % 3 ? 'gold' : 'metal', glove: null, target: i === 0 }; });
+        gs[0] = Object.assign({ id: 0, target: true }, WHITE);
+        if (rd === 0) { gs[3] = { id: 3, gown: '#e8dcc0', mask: 'porc', glove: null }; }
+        if (rd >= 1) { gs[3] = { id: 3, gown: '#f2ede0', mask: 'gold', glove: null }; gs[5] = { id: 5, gown: '#efe8da', mask: 'metal', glove: null }; }
+        return gs;
+      },
+      finalGuest: Object.assign({ target: true }, WHITE),
+      finalText: 'Gaun putih tulang, topeng porselen polos, dan sepasang mata yang tidak pernah menunduk. <b>Franziska.</b>',
+      finalBtn: 'Hampiri dia'
+    }, function (r) { if (r && r.win) cb(); });
+  }
+  // Pancing Fajar (tarik-ulur) untuk Miss Nansy
+  function pancing(cb) {
+    K.busy(true);
+    var ov = document.createElement('div'); ov.className = 'ps-pancing';
+    ov.innerHTML = '<h3>Pancing Fajar &middot; Karang Sudyrman</h3><div class="msg"><b>Miss Nansy:</b> "Tahan untuk menggulung, lepas untuk mengulur. Jaga tegangan di <b>hijau</b>. Ikan karang ini keras kepala."</div>' +
+      '<div class="bar"><div class="zone"></div><div class="mk"></div></div><div class="prog"><i></i></div><button class="btn btn-gold hold" type="button">Tahan untuk menggulung</button><button class="btn btn-ghost-ink" type="button" data-x>Nanti dulu</button>';
+    document.body.appendChild(ov);
+    var zone = ov.querySelector('.zone'), mk = ov.querySelector('.mk'), pg = ov.querySelector('.prog i'), msg = ov.querySelector('.msg'), b = ov.querySelector('.hold');
+    var T = 0.5, P = 0, hold = false, t = 0, last = 0, out = 0, done = false, z0 = 0.35, zw = 0.3;
+    function down(e) { e.preventDefault(); hold = true; } function up() { hold = false; }
+    b.addEventListener('pointerdown', down); ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { b.addEventListener(ev, up); });
+    function key(e) { if (e.key === ' ') { e.preventDefault(); hold = e.type === 'keydown'; } }
+    document.addEventListener('keydown', key); document.addEventListener('keyup', key);
+    function end(win) {
+      if (done) return; done = true; document.removeEventListener('keydown', key); document.removeEventListener('keyup', key);
+      msg.innerHTML = win ? '<b>Miss Nansy:</b> "Hah! Kau menariknya seperti orang yang sudah lahir di laut. Siapa namamu? Aku tulis di bukuku."' : '<b>Miss Nansy:</b> "Talinya putus. Tak apa, ikan itu akan menunggu besok pagi."';
+      b.remove(); ov.querySelector('[data-x]').textContent = 'Lanjut';
+      K.au(win ? 'victory' : 'splash'); ov._win = win;
+    }
+    ov.querySelector('[data-x]').onclick = function () { done = true; ov.remove(); K.busy(false); cb(!!ov._win); };
+    function loop(ts) {
+      if (!ov.isConnected) return;
+      var dt = last ? Math.min(0.05, (ts - last) / 1000) : 0.016; last = ts; t += dt;
+      if (!done) {
+        var pull = 0.18 * Math.sin(t * 1.7) + 0.12 * Math.sin(t * 4.3 + 1);
+        T += ((hold ? 0.55 : -0.45) + pull) * dt; T = Math.max(-0.05, Math.min(1.05, T));
+        z0 = 0.35 + Math.sin(t * 0.6) * 0.12;
+        var inZ = T >= z0 && T <= z0 + zw;
+        P += (inZ ? 0.075 : -0.03) * dt * 1.4; P = Math.max(0, Math.min(1, P));
+        out = (T > 1 || T < 0) ? out + dt : 0;
+        if (out > 0.6) end(false);
+        if (P >= 1) end(true);
+        if (t > 45) end(false);
+      }
+      zone.style.left = (z0 * 100) + '%'; zone.style.width = (zw * 100) + '%'; mk.style.left = (Math.max(0, Math.min(1, T)) * 100) + '%'; pg.style.width = (P * 100) + '%';
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- Babak 1–2 ---------- */
+  function babak1() {
+    K.markSeen('lampau1'); K.markSeen('q12b1');
+    var w = K.modalWrap('sun', 'IKN', '40 Tahun Lalu');
+    w.innerHTML = narr('Kota yang lampunya sampai ke laut', '<p>Menara-menara IKN berdiri utuh. Trem berderit di sepanjang dermaga. Garuda perunggu di alun-alun masih baru, berkilau seperti emas. Kapal-kapal dari benua selatan bersandar berderet.</p><p>Di puncak <b>Menara Lampu</b>, seorang kadet muda sedang menggosok lensa raksasa.</p><p class="muted small">Pasar zaman ini menolak koinmu. Hanya Pustaka Agung, Dok Garuda, dan galangan yang menerima emas ditimbang.</p>', actions(btn('ok', 'sun', 'Turun ke dermaga')), 'sun');
+    on(w, '[data-ps=ok]', function (b) { call(['mulai12'], function () { K.close(); toast('Seorang kadet muda di Menara Lampu.'); }, null, b); });
+  }
+  function tedsky() {
+    var w = K.modalWrap('sun', 'Menara Lampu', 'IKN, 40 Tahun Lalu');
+    K.pages(w, N().tedsky, [
+      { narr: 'Di puncak menara', icon: 'sun', t: '<p>Seorang kadet berseragam putih polos, tanpa satu medali pun. Tangannya belepotan minyak lampu.</p>' },
+      '"Lampu ini tidak boleh padam, Kapten. Selama lampu ini menyala, setiap kapal di laut tahu jalan pulang."',
+      '"Kalau aku jadi jendral nanti, aku akan menjaganya seumur hidup." <i>(ia tertawa kecil)</i> "Teman sekelasku bilang aku terlalu serius. <b>Slaus yang terlalu jujur, dan Franzi yang terlalu berani.</b> Mereka berdua lebih aneh dariku."',
+      '"Ada kapal tersesat di luar sana. Bantu aku mengarahkan sinarnya?"'
+    ], btn('lensa', 'sun', 'Bersihkan lensa') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', K.close);
+      on(w2, '[data-ps=lensa]', function () { K.close(); mercusuar(); });
+    }, 'Juru lampu Menara IKN');
+  }
+  function mercusuar() {
+    g1('mercusuar', {
+      kicker: 'Menara Lampu · IKN, 40 Tahun Lalu', title: 'Sandi Mercusuar', npc: N().tedsky, guideName: 'Tedsky muda',
+      allies: ['Kapal nelayan', 'Kapal kopi', 'Jung dagang', 'Kapal kadet', 'Kapal pos'], lengths: [4, 5, 5, 6, 6],
+      finalA: 'Lampu IKN menyala sampai ke laut!', finalB: 'Semua kapal tersesat menemukan jalan pulang',
+      introCard: { kicker: 'Menara Lampu · IKN', title: 'Sandi Mercusuar', quote: 'Ikuti kilatanku, lalu ulangi. Kapal-kapal itu akan menjawab.', who: 'Kadet Tedsky' },
+      winCard: { kicker: 'Menara Lampu · 40 Tahun Lalu', title: 'Jalan Pulang', quote: 'Lihat? Selama lampu ini menyala, tak ada yang tersesat.', who: 'Kadet Tedsky' }
+    }, function (r) { if (r && r.win) tedskyPilih(); });
+  }
+  function tedskyPilih() {
+    var w = K.modalWrap('sun', 'Menara Lampu', 'IKN, 40 Tahun Lalu');
+    w.innerHTML = speech(N().tedsky, '"Terima kasih, Kapten. Kau bicara seperti orang yang pernah melihat lampu ini dari jauh sekali."',
+      actions(btn('padam', null, '"Lampu ini akan padam. Tapi suatu hari akan menyala lagi." <small>(masa depan)</small>', false) + btn('jaga', null, '"Jaga baik-baik."', false)), 'Juru lampu Menara IKN');
+    ['padam', 'jaga'].forEach(function (k) {
+      on(w, '[data-ps=' + k + ']', function (b) {
+        call(['tedsky12', k], function () {
+          w.innerHTML = speech(N().tedsky, k === 'padam' ? '<i>Tedsky diam lama sekali, menatap lensa.</i> "Padam? Lampu ini?" <i>Ia memaksakan senyum.</i> "Kalau begitu aku akan menyalakannya lagi. Bawa ini, Kapten."' : '<i>Tedsky memberi hormat dengan tangan berminyak.</i> "Seumur hidup, Kapten. Ini, bawa catatanku."',
+            '<p class="muted small"><i>' + (k === 'padam' ? 'Kaca waktu di sakumu bergetar. ' : '') + 'Didapat: buku <b>Almanak Lampu IKN</b> (pelayaran malam lebih cepat).</i></p>' + actions(btn('ok', null, 'Tutup', false)), 'Juru lampu Menara IKN') + journal();
+          on(w, '[data-ps=ok]', K.close);
+        }, null, b);
+      });
+    });
+  }
+
+  /* ---------- Babak 3: jejak pertama ---------- */
+  function babak3() {
+    K.markSeen('q12b3');
+    var w = K.modalWrap('cup', 'Gosip Dermaga', 'IKN, 40 Tahun Lalu');
+    w.innerHTML = narr('Kata orang', '<p>"Ada perempuan beruban naik trem ke menara tadi pagi. Aneh, katanya ia mencari kadet bernama <b>Slaus</b>."</p><p>"Lalu ia buru-buru ke dermaga. Kapalnya putih, ramping, layarnya terlipat seperti surat."</p>', actions(btn('jejak', 'eye', 'Periksa dermaga') + btn('later', null, 'Nanti dulu', false)), 'cup');
+    on(w, '[data-ps=later]', K.close);
+    on(w, '[data-ps=jejak]', function () { K.close(); jejakGame('IKN', true, function () { call(['jejak12'], function () { reload(); setTimeout(function () { deduksi(true); }, 900); }); }); });
+  }
+
+  /* ---------- Papan Deduksi ---------- */
+  function tebakGet() { return K.memGet('tebak') || {}; }
+  function deduksi(tutorial) {
+    var k = kj() || {}, j = k.jejak, w = K.modalWrap('map', 'Papan Deduksi', 'Papan Benang');
+    var tb = tebakGet();
+    var h = '<div class="ps-deduksi">';
+    if (k.gosip && step() >= 5) h += '<div class="pin"><b>Gosip:</b> perempuan bergaun putih terakhir terlihat di <b>' + esc(k.gosip) + '</b>.</div>';
+    if (k.besok) h += '<div class="pin">Kabarnya ia baru akan berlayar lagi <b>besok</b>.</div>';
+    if (j && j.kand) {
+      h += '<div class="pin"><b>Jejak dari ' + esc(city(j.from)) + ':</b> ' + (j.segar ? 'masih segar.' : '<i>sudah dingin. Ia sudah pindah lagi.</i>') + '</div><div class="row">' +
+        j.kand.map(function (c) { var x = (j.coret || []).indexOf(c) >= 0; return '<span class="k' + (x ? ' x' : '') + (tb[c] && !x ? ' tebak' : '') + '" data-c="' + esc(c) + '">' + esc(city(c)) + '</span>'; }).join('') + '</div>';
+      if (j.segar && !j.manifes && lampau()) h += '<p class="muted small">Syahbandar pelabuhan mana pun bisa menunjukkan manifes kapal hari ini untuk mencoret satu kemungkinan.</p>';
+    } else h += '<p class="muted small">Belum ada jejak. Datangi pelabuhan yang baru ia tinggalkan dan periksa dermaganya.</p>';
+    h += '</div>';
+    var bb = (j && j.segar && !j.manifes && lampau() && K.docked() ? btn('manifes', 'scroll', 'Periksa manifes Syahbandar') : '') + btn('ok', null, tutorial ? 'Mengerti' : 'Tutup', false);
+    w.innerHTML = narr(tutorial ? 'Papan Deduksi' : 'Tempat yang mungkin', (tutorial ? '<p>Sematkan gosip dan jejak di sini. Ketuk satu tempat untuk menandai tebakanmu. Papan tidak memberi jawaban; ia hanya mencoret yang mustahil.</p>' : '') + h, actions(bb), 'map', 'paper');
+    w.querySelectorAll('[data-c]').forEach(function (el) { el.onclick = function () { if (el.classList.contains('x')) return; var t = tebakGet(), c = el.getAttribute('data-c'); t = {}; t[c] = 1; K.memSet('tebak', t); deduksi(tutorial); }; });
+    on(w, '[data-ps=ok]', K.close);
+    on(w, '[data-ps=manifes]', function () { K.close(); manifes(); });
+  }
+  var MANIF_STEPS = ['Kapal-kapal lewat di depan <b>teropong</b>. Satu di antaranya <b>tidak sesuai manifes</b> hari ini.',
+    'Bandingkan dengan <b>Buku Manifes</b>: lambang bendera, jumlah tiang, cat lambung, atau burung di tiang.',
+    '<b>Klik</b> kapal yang dicurigai. Arahkan mouse untuk <b>teropong pembesar</b>.',
+    '3 ronde, makin sulit. Salah tunjuk lebih dari 2 kali &rarr; ronde diulang.'];
+  function manifes() {
+    g1('syahbandar', {
+      kicker: (state.city ? state.city.Name : '') + ' · Kantor Syahbandar', title: 'Manifes Syahbandar', maxMistakes: 2,
+      introCard: { kicker: (state.city ? esc(state.city.Name) : '') + ' &middot; Kantor Syahbandar', steps: MANIF_STEPS, title: 'Manifes Syahbandar', quote: 'Kapal putih ramping? Bantu aku memeriksa konvoi hari ini, nanti kutunjukkan buku manifesku.', who: 'Syahbandar' },
+      winCard: { kicker: 'Manifes dibuka', title: 'Satu Kemungkinan Gugur', quote: 'Kapal putih itu tidak tercatat menuju salah satu tempat di daftarmu.', who: 'Syahbandar', cta: 'Lihat Papan Deduksi' }
+    }, function (r) { if (r && r.win) call(['manifes'], function (x) { if (x.coret) toast('Manifes: ' + city(x.coret) + ' dicoret.', 'success'); deduksi(false); }); });
+  }
+
+  /* ---------- tersusul ---------- */
+  function tersusul() {
+    var c = state.city ? state.city.Name : '';
+    var w = K.modalWrap('eye', 'Perempuan Bergaun Putih', c);
+    w.innerHTML = narr('Ia di sini', '<p>Di antara keramaian ' + esc(c) + ', sebuah payung renda putih bergerak pelan. <b>Franziska.</b></p>', actions(btn('pesta', 'eye', 'Cari di keramaian') + btn('later', null, 'Nanti dulu', false)), 'eye');
+    on(w, '[data-ps=later]', K.close);
+    on(w, '[data-ps=pesta]', function () {
+      K.close();
+      pestaFz(c, function () {
+        call(['pesta_fz'], function () {
+          var w2 = K.modalWrap('ship', 'Janji Putih', c);
+          w2.innerHTML = speech(N().fz, step() === 4 ? '"Kau keras kepala, Kapten. Slaus juga begitu, dulu." <i>Ia berbalik dan berlari ke dermaga lebih cepat dari perempuan seusianya.</i>' : '"Lagi?" <i>Payung rendanya menutup. Ia berlari ke dermaga.</i>',
+            '<p class="muted small"><b>Janji Putih</b> membentangkan layar. Berlayarlah, ke mana pun: ia akan mencegatmu di laut.</p>' + actions(btn('sail', 'ship', 'Kejar ke laut') + btn('ok', null, 'Tutup', false)), 'Penumpang bergaun putih');
+          on(w2, '[data-ps=ok]', K.close); on(w2, '[data-ps=sail]', function () { K.close(); openPanel('setsail'); });
+        });
+      });
+    });
+  }
+  var SURAT = {
+    1: { from: 'Franzi', to: 'Slaus yang terlalu jujur', t: 'Slaus yang terlalu jujur,\n\nHari ini Laksamana Brandt menghukummu lagi karena menolak menembak perahu nelayan yang tersesat. Kau bilang aturan dibuat untuk melindungi yang lemah, bukan untuk menakuti mereka.\n\nAku tertawa waktu itu. Maaf. Aku tertawa karena aku bangga.\n\nBesok aku melukis peta selatan di dinding menara lonceng. Datanglah. Bawa bukumu yang membosankan itu.\n\n— Franzi' }
+  };
+  function surat(n) {
+    K.markSeen('surat:' + n);
+    var S = SURAT[n]; if (!S) return;
+    var w = K.modalWrap('scroll', 'Surat Franzi #' + n, 'Jatuh dari Janji Putih');
+    w.innerHTML = narr('Kertas kuning, tinta pudar', '<div class="ps-surat">' + esc(S.t) + '</div>', actions(btn('ok', null, 'Simpan', false)), 'scroll', 'paper');
+    on(w, '[data-ps=ok]', function () { K.close(); setTimeout(function () { try { scenes(); } catch (e) { } }, 900); });
+  }
+
+  /* ---------- Pelabuhan Sudyrman: coco muda & Miss Nansy ---------- */
+  function kedaiKopi() {
+    var w = K.modalWrap('coffee', 'Kedai Kopi', 'Pelabuhan Sudyrman');
+    var punya = barang().indexOf('kopi_pahit') >= 0, n = riak().nansy_buku;
+    K.pages(w, N().coco, [
+      '"Kapten mau kopi? Yang pahit untuk yang sedang rindu, yang manis untuk yang sedang menunggu. Kapten yang mana?"',
+      { n: N().nansy, t: n ? '"Namamu sudah di bukuku, Kapten. Jangan sampai aku menulisnya dua kali."' : '"Kau pelaut? Besok fajar ikut aku ke karang. Ada ikan yang belum pernah mau naik untuk siapa pun."', title: 'Istri pemilik kedai' }
+    ], (punya ? '' : btn('kopi', 'coffee', 'Kopi pahit (500 gold, emas ditimbang)')) + (n ? '' : btn('nansy', 'fish', 'Ikut memancing')) + btn('ok', null, 'Tutup', false), function (w2) {
+      on(w2, '[data-ps=ok]', K.close);
+      on(w2, '[data-ps=kopi]', function (b) { call(['kopi12'], function () { toast('Sekantong Kopi Pahit Sudyrman di palkamu.', 'success'); kedaiKopi(); }, null, b); });
+      on(w2, '[data-ps=nansy]', function () { K.close(); pancing(function (win) { if (win) call(['nansy12', 'ok'], function () { toast('Miss Nansy menulis namamu di buku pancingnya.', 'success'); }); }); });
+    }, 'Pemilik kedai kopi');
+  }
+  /* ---------- Mas Karto & Ulin muda ---------- */
+  function karto() {
+    var w = K.modalWrap('cup', 'Warung Pantai', 'Joungjava, 40 Tahun Lalu'), punya = barang().indexOf('kopi_pahit') >= 0;
+    K.pages(w, N().karto, ['"Kopi manis, Kapten? Gulanya tiga sendok. Hidup sudah pahit, kopinya jangan."'],
+      (punya ? btn('beri', 'coffee', 'Berikan Kopi Pahit Sudyrman') : '') + btn('tidak', null, 'Biarkan saja', false), function (w2) {
+        ['beri', 'tidak'].forEach(function (k) {
+          on(w2, '[data-ps=' + k + ']', function (b) {
+            call(['karto12', k], function () {
+              w2.innerHTML = speech(N().karto, k === 'beri' ? '<i>Mas Karto menyeruput, tersedak, lalu diam.</i> "...Lagi. Satu lagi. Dari mana ini?"' : '"Manis itu obat, Kapten. Hah!"', actions(btn('ok', null, 'Tutup', false)), 'Warung pantai Joungjava');
+              on(w2, '[data-ps=ok]', K.close);
+            }, null, b);
+          });
+        });
+      }, 'Warung pantai Joungjava');
+  }
+  function ulin() {
+    var w = K.modalWrap('sun', 'Mercusuar', 'Bjorneo, 40 Tahun Lalu');
+    K.pages(w, N().ulin, ['"Aku penjaga mercusuar baru. Kata orang tua-tua, penjaga harus punya teka-teki untuk menguji pelaut. Aku belum punya satu pun."'],
+      btn('beri', null, 'Berikan teka-teki jangkar <small>(dari masa depan)</small>', false) + btn('tidak', null, '"Kau akan menemukannya sendiri."', false), function (w2) {
+        ['beri', 'tidak'].forEach(function (k) {
+          on(w2, '[data-ps=' + k + ']', function (b) {
+            call(['ulin12', k], function () {
+              w2.innerHTML = speech(N().ulin, k === 'beri' ? '"Jangkar yang menahan kapal di waktunya... Bagus sekali! Akan kupakai seumur hidup."' : '"Kalau begitu aku akan mencarinya. Pelan-pelan."', (k === 'beri' ? '<p class="muted small"><i>Kaca waktu bergetar.</i></p>' : '') + actions(btn('ok', null, 'Tutup', false)), 'Penjaga mercusuar baru');
+              on(w2, '[data-ps=ok]', K.close);
+            }, null, b);
+          });
+        });
+      }, 'Penjaga mercusuar baru');
+  }
+
+  /* ---------- Babak 6: Akademi ---------- */
+  function akademi() {
+    var w = K.modalWrap('flag', 'Akademi Laut Sudyrman', '40 Tahun Lalu');
+    K.pages(w, N().brandt, [
+      { narr: 'Gerbang benteng', icon: 'flag', t: '<p>Benteng putih di tebing. Kadet berbaris di lapangan. Penjaga gerbang hanya membiarkan masuk <b>pengantar perbekalan</b> yang membawa surat izin pelabuhan.</p>' },
+      '"Perbekalan? Tunjukkan surat izinmu, Kapten. Akademi ini tidak menerima tamu."'
+    ], btn('izin', 'scroll', 'Siapkan surat izin') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', K.close);
+      on(w2, '[data-ps=izin]', function () {
+        K.close();
+        g1('syahbandar', {
+          kicker: 'Akademi Laut Sudyrman · Gerbang', title: 'Mata Syahbandar · Surat Izin', maxMistakes: 2, npc: N().brandt,
+          introCard: { kicker: 'Akademi Laut Sudyrman &middot; Gerbang', steps: MANIF_STEPS, title: 'Surat Izin Pelabuhan', quote: 'Konvoi perbekalan hari ini panjang. Tunjukkan mana yang palsu, baru kupercaya suratmu.', who: 'Laksamana Tua Brandt', cta: 'Periksa konvoi' },
+          winCard: { kicker: 'Gerbang dibuka', title: 'Diantar dengan Sangat Rapi', quote: 'Mata yang bagus. Masuklah. Jangan dekati menara lonceng; kadet-kadet itu sedang bermain.', who: 'Laksamana Tua Brandt', cta: 'Masuk' }
+        }, function (r) {
+          if (!r || !r.win) return;
+          call(['akademi12'], function () {
+            K.cine('ps_lonceng', [
+              { phase: 0, t: 'Lonceng Akademi berdentang tepat pada jamnya. Kadet-kadet berbaris di lapangan.' },
+              { phase: 1, t: 'Di menara lonceng, seorang kadet perempuan <b>melukis peta di dinding</b>. Seorang kadet lelaki membacakan aturan akademi... lalu <b>tertawa</b>.' },
+              { phase: 1, t: '<i>Satu-satunya kali Satnislaus tertawa di seluruh Marantau.</i>' },
+              { phase: 2, t: 'Seseorang berdiri di sampingmu. Payung renda. <b>Franziska.</b> Kali ini ia tidak kabur.<br><b>Franziska:</b> "Lihat dia. Itu lelaki yang kau tenggelamkan. Ia dulu tertawa seperti itu."' },
+              { phase: 2, t: '<b>Franziska:</b> "Slaus yang di zamanmu tidak tertawa. Slaus yang kuselamatkan juga tidak. <b>Aku hanya perlu menemukan malam yang tepat.</b>"' },
+              { phase: 3, t: 'Ia pergi tanpa pertempuran. <b>Kaca ketiga retak.</b>' }
+            ], function () { selesai(); }, { noSkip: false, endLabel: 'Lanjut' });
+          });
+        });
+      });
+    }, 'Komandan Akademi Laut Sudyrman');
+  }
+  function selesai() {
+    var w = K.modalWrap('flag', 'Akademi Laut Sudyrman', '40 Tahun Lalu');
+    w.innerHTML = speech(N().brandt, '"Perbekalanmu diantar dengan sangat rapi, Kapten. Akademi membayar dengan emas, bukan janji."', '<p class="muted small"><i>Diterima: 120.000 gold.</i></p>' + actions(btn('papan', 'map', 'Papan Benang') + btn('ok', null, 'Tutup', false)), 'Komandan Akademi Laut Sudyrman') + journal();
+    on(w, '[data-ps=ok]', K.close); on(w, '[data-ps=papan]', function () { PS.papan(false); });
+    try { metaMax_('pslampu', 1); } catch (e) { }
+  }
+
+  /* ---------- jurnal ---------- */
+  function objective() {
+    var s = step(), k = kj() || {};
+    if (s === 1) return '<i>"Kota yang lampunya sampai ke laut."</i> Turun ke dermaga <b>IKN</b>.';
+    if (s === 2) return 'Seorang kadet muda di <b>Menara Lampu IKN</b>.';
+    if (s === 3) return '<i>"Ada perempuan beruban naik trem ke menara tadi pagi."</i> Periksa dermaga <b>IKN</b>.';
+    if (s === 4) return 'Jejaknya mengarah ke selatan: <b>Pelabuhan Sudyrman</b>, di benua yang tak pernah ada di petamu.';
+    if (s === 5) return 'Kejar Franziska di pulau-pulau 40 Tahun Lalu. Dengarkan gosip, periksa dermaga yang baru ia tinggalkan, cocokkan manifes Syahbandar.' + (k.gosip ? ' <i>Terakhir terlihat di <b>' + esc(k.gosip) + '</b>.</i>' : k.besok ? ' <i>Ia baru berlayar lagi besok.</i>' : '');
+    if (s === 6) return '<i>"Kalau kau mau tahu siapa dia, datanglah ke Akademi!"</i> <b>Akademi Laut Sudyrman</b>.';
+    if (s >= 7) return '<i>"Aku hanya perlu menemukan malam yang tepat."</i>';
+    return '';
+  }
+  function journal() {
+    if (step() < 1) return '';
+    return '<div class="qg-journal"><div class="qg-jh">' + ic('sun') + ' <b>Kota yang Lampunya Sampai ke Laut</b></div><div class="qg-obj">' + ic('scroll') + ' <b>Catatan terakhirmu:</b><br>' + objective() + '</div></div>';
+  }
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks' || step() < 1) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.ps12-j')) return;
+    var d = document.createElement('div'); d.className = 'ps12-j'; d.innerHTML = journal();
+    var b = '', s = step(), k = kj();
+    if (s < 4 || s > 5) k = null;   // pengejaran Quest 13 punya jurnalnya sendiri (PS13)
+    if (k) b += btn('ded', 'map', 'Papan Deduksi', false);
+    if (lampau() && K.docked() && k && k.baruPergi && !(k.jejak && k.jejak.segar && k.jejak.from === K.cid())) b += btn('jej', 'eye', 'Periksa dermaga');
+    if (lampau() && K.docked() && k && k.susul === 'ada') b += btn('sus', 'eye', 'Cari Franziska');
+    if (s === 2 && K.cid() === 'ikn' && lampau()) b += btn('ted', 'sun', 'Menara Lampu');
+    if (s === 3 && K.cid() === 'ikn' && lampau()) b += btn('b3', 'eye', 'Periksa dermaga');
+    if (b) d.querySelector('.qg-journal').insertAdjacentHTML('beforeend', actions(b));
+    var box = c.querySelector('.ps-wrap'); if (box) box.appendChild(d); else { var w = K.insert(''); if (w) w.appendChild(d); }
+    on(d, '[data-ps=ded]', function () { deduksi(false); }); on(d, '[data-ps=jej]', jejakSini); on(d, '[data-ps=sus]', tersusul);
+    on(d, '[data-ps=ted]', tedsky); on(d, '[data-ps=b3]', babak3);
+  });
+  function jejakSini() {
+    var c = state.city ? state.city.Name : '';
+    jejakGame(c, false, function () { call(['jejak'], function () { deduksi(false); }); });
+  }
+
+  /* ---------- hotspot & panel ---------- */
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (p() && lampau() && K.docked()) {
+        var s = step(), c = K.cid();
+        if (panel === 'ps_menara' && c === 'ikn' && s === 2) { tedsky(); return; }
+        if (panel === 'ps_kopi' && c === 'sudyrman_pelabuhan' && s >= 4 && s <= 6) { kedaiKopi(); return; }
+        if (panel === 'ps_akademi' && c === 'sudyrman_akademi' && s === 6) { akademi(); return; }
+        if (panel === 'tavern' && c === 'joungjava' && (s === 5 || s === 6) && !riak().karto_kopi) { karto(); return; }
+        if (panel === 'tavern' && c === 'bjorneo' && (s === 5 || s === 6) && !riak().ulin_teka) { ulin(); return; }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments), k = kj();
+      if (!k || !out || !out.length) return out;
+      if (k.gosip) out[0] = 'Perempuan tua bergaun putih terlihat di ' + k.gosip + '. Kapalnya putih, layarnya terlipat seperti surat.';
+      else if (k.besok) out[0] = 'Kapal putih ramping itu buang sauh di suatu teluk. Katanya baru berlayar lagi besok.';
+      return out;
+    };
+  }
+  wrap_('renderScene', function () {
+    var box = document.getElementById('cityTypeFlavor'), s = step(), k = kj(); if (!box || !p() || !K.docked() || !lampau()) return;
+    var lbl = '';
+    if (s === 2) lbl = 'Menara Lampu';
+    if (s === 3) lbl = 'Dermaga IKN';
+    if (s === 4) lbl = 'Pelabuhan Sudyrman';
+    if (s === 5 && k) lbl = k.susul === 'ada' ? 'Franziska di sini!' : k.susul === 'kabur' ? 'Kejar ke laut' : k.baruPergi ? 'Jejak segar' : k.gosip ? 'Terlihat: ' + k.gosip : 'Besok';
+    if (s === 6) lbl = 'Akademi';
+    if (!lbl) return;
+    var chip = '<span class="chip ps-chip">' + ic('eye') + esc(lbl) + '</span>';
+    var row = box.querySelector('.loc-chips'); if (row) row.insertAdjacentHTML('afterbegin', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+  });
+
+  /* ---------- Papan Benang: simpul ---------- */
+  K.nodeHooks.push(function () {
+    if (step() < 7) return [];
+    return [{ sk: 'menara', n: 'Akademi', a: 'Slaus muda tertawa di menara lonceng.', b: 'Franziska mencari "malam yang tepat". Kaca ketiga retak.', mark: 'red' }];
+  });
+
+  /* ---------- Tanda Jasa ---------- */
+  var achPushed = false;
+  function pushAch() {
+    if (achPushed || !p() || typeof ACH === 'undefined' || !ACH.push) return;
+    achPushed = true;
+    ACH.push({ id: 'ps_lampu', t: 3, ic: 'sun', n: 'Lampu Sampai ke Laut', d: 'Melihat kota yang lampunya sampai ke tengah laut.', ps: true, g: function (m) { return [m.c.pslampu || 0, 1]; } },
+      { id: 'ps_benua', t: 2, ic: 'map', n: 'Tamu Benua Selatan', d: 'Merapat di benua yang tak pernah ada di petamu.', ps: true, g: function (m) { return [m.c.psbenua || 0, 1]; } });
+  }
+
+  /* ---------- adegan otomatis ---------- */
+  function scenes() {
+    if (!p() || !lampau() || !K.docked()) return;
+    pushAch();
+    var s = step(), c = K.cid(), k = kj() || {};
+    if (/^sudyrman_/.test(c)) { try { metaMax_('psbenua', 1); } catch (e) { } }
+    if (s >= 7) { try { metaMax_('pslampu', 1); } catch (e) { } }
+    if (s === 1 && c === 'ikn' && !K.seen('q12b1')) { if (currentPanel) K.close(); babak1(); return; }
+    if (s === 3 && c === 'ikn' && !K.seen('q12b3')) { if (currentPanel) K.close(); babak3(); return; }
+    if (s >= 5 && qd().surat1 && !K.seen('surat:1')) { if (currentPanel) K.close(); surat(1); return; }
+    if (s >= 4 && s <= 5 && k.susul === 'ada' && !K.seen('susul:' + c + ':' + (k.n || 0) + ':' + (s))) { K.markSeen('susul:' + c + ':' + (k.n || 0) + ':' + s); if (currentPanel) K.close(); tersusul(); return; }
+    if (s === 5 && k.baruPergi && !(k.jejak && k.jejak.segar && k.jejak.from === K.cid()) && !K.seen('pergi:' + c + ':' + Math.floor(Date.now() / 600000))) {
+      K.markSeen('pergi:' + c + ':' + Math.floor(Date.now() / 600000));
+      var w = K.modalWrap('eye', 'Jejak Segar', state.city ? state.city.Name : '');
+      w.innerHTML = narr('Ia baru saja pergi', '<p>Kata kuli dermaga, perempuan tua bergaun putih <b>baru saja berlayar</b> dari sini. Bekas tambatnya masih basah.</p>', actions(btn('jej', 'eye', 'Periksa dermaga') + btn('later', null, 'Nanti dulu', false)), 'eye');
+      on(w, '[data-ps=later]', K.close); on(w, '[data-ps=jej]', function () { K.close(); jejakSini(); });
+      return;
+    }
+    if (s === 6 && !K.seen('q12akademi')) { K.markSeen('q12akademi'); toast('"Datanglah ke Akademi!" Akademi Laut Sudyrman, di Benua Sudyrman.'); }
+  }
+  wrap_('applyFreshState_', function () {
+    if (!p()) return;
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !p()) return;
+      var ov = document.getElementById('modalOverlay');
+      if (K.busyUi() || (ov && ov.classList.contains('open'))) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { scenes(); } catch (e) { console.warn('[PS12] scenes', e); }
+    }, 2300);
+  });
+
+  return { step: step, deduksi: deduksi, tersusul: tersusul, surat: surat, _tedsky: tedsky, _mercusuar: mercusuar, _b3: babak3, _kopi: kedaiKopi, _pancing: pancing, _karto: karto, _ulin: ulin, _akademi: akademi, _jejak: jejakSini, _manifes: manifes };
+})();
+</script>

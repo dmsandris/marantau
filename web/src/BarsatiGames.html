@@ -527,12 +527,14 @@ var MTGames = (function () {
     /** Intro standar: tombol Mulai & Keluar */
     intro: function (o, start) {
       var S = this;
+      if (S.opts && S.opts.introCard && !S._icMerged) { S._icMerged = true; o = Object.assign({}, o, S.opts.introCard); }   // Tide v41: teks pembuka bisa diganti
       o.buttons = [{ label: o.cta || 'Mulai', primary: true, onClick: function () { S.hideCard(); start(); } }];
       S.card(o);
     },
     /** Menang: kartu emas lalu "Lanjutkan" menutup overlay & memanggil cb. */
     win: function (res, o) {
       var S = this; if (S.done) return;
+      if (S.opts && S.opts.winCard) o = Object.assign({}, o || {}, S.opts.winCard);   // Tide v41: kartu menang bisa diganti
       S.won = res; res.win = true; res.cancelled = false;
       au('victory'); vib([40, 60, 80]);
       o = o || {}; o.cls = 'ok ' + (o.cls || '');
@@ -1367,7 +1369,7 @@ var MTGames = (function () {
       }
       function show(delay) {
         G.phase = 'show'; G.si = 0; G.timer = -(delay || 0.6); prog();
-        status('Perhatikan&hellip;', 'Nenek Ulin menyalakan sandi &middot; ' + LENS[G.round] + ' kilatan');
+        status('Perhatikan&hellip;', (opts.guideName || 'Nenek Ulin') + ' menyalakan sandi &middot; ' + LENS[G.round] + ' kilatan');
       }
       function onDur() { return [0.5, 0.45, 0.41, 0.37, 0.34][G.round] || 0.34; }
       function gapDur() { return [0.22, 0.2, 0.17, 0.15, 0.14][G.round] || 0.14; }
@@ -1378,7 +1380,7 @@ var MTGames = (function () {
         if (G.seq[G.ii] !== i) {
           G.phase = 'wrong'; G.mistakes++; G.shake = 1; S.fail({ round: G.round + 1 });
           AX.buzz(0.05); au('error'); vib([60, 40, 60]); prog();
-          status('Sandi keliru', 'Nenek Ulin mengulang urutan ronde ini');
+          status('Sandi keliru', (opts.guideName || 'Nenek Ulin') + ' mengulang urutan ronde ini');
           S.msg('&ldquo;Pelan-pelan, Nak. Lihat lagi.&rdquo;', 'bad', 1800);
           S.later(function () { show(0.3); }, 1500);
           return;
@@ -1401,7 +1403,7 @@ var MTGames = (function () {
       }
       function finale() {
         G.phase = 'final'; G.fireT = S.t; prog();
-        status('Api Bjorneo menyala!', 'Jawaban keenam dari gunung api');
+        status(opts.finalA || 'Api Bjorneo menyala!', opts.finalB || 'Jawaban keenam dari gunung api');
         AX.gong(65, 0.32); au('horn'); S.later(function () { AX.shimmer(); au('achieve'); }, 900);
         S.later(winNow, 3600);
       }
@@ -1586,10 +1588,10 @@ var MTGames = (function () {
       S.intro({
         face: gov, kicker: 'Puncak Mercusuar &middot; Bjorneo', title: 'Sandi Mercusuar',
         quote: 'Kalau mereka sungguh bersamamu, mereka akan menjawab cahaya kita.', who: govWho,
-        steps: ['<b>Nenek Ulin</b> menyalakan urutan kilatan di lensa mercusuar &mdash; <b>merah, hijau, biru, kuning</b> &mdash; tiap warna bernada gamelan.',
+        steps: ['<b>' + esc(opts.guideName || 'Nenek Ulin') + '</b> menyalakan urutan kilatan di lensa mercusuar &mdash; <b>merah, hijau, biru, kuning</b> &mdash; tiap warna bernada gamelan.',
           'Ulangi urutannya dengan <b>mengetuk lensa</b> yang sesuai.',
-          '5 ronde, urutan bertambah panjang: <b>4 &rarr; 8 kilatan</b>. Tiap ronde berhasil, satu armada sekutu menjawab dari cakrawala.',
-          'Keliru? Nenek Ulin mengulang urutan ronde itu &mdash; tanpa batas.'],
+          ROUNDS + ' ronde, urutan bertambah panjang: <b>' + LENS[0] + ' &rarr; ' + LENS[ROUNDS - 1] + ' kilatan</b>. Tiap ronde berhasil, satu ' + (opts.guideName ? 'kapal' : 'armada sekutu') + ' menjawab dari cakrawala.',
+          'Keliru? ' + esc(opts.guideName || 'Nenek Ulin') + ' mengulang urutan ronde itu &mdash; tanpa batas.'],
         controls: { desk: ['Klik lensa', '<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> warna'], touch: ['Ketuk lensa berwarna'] },
         cta: 'Nyalakan lensa'
       }, function () { S.msg('&ldquo;Lihat cahayanya, Nak. Laut hanya menjawab sandi yang diulang dengan benar.&rdquo;', 'good', 2600); begin(); });
@@ -1997,13 +1999,16 @@ var MTGames = (function () {
       function showFail() {
         if (G.storm) G.storm.set(0.06);
         au('defeat');
-        S.card({ cls: 'bad', seal: SEAL, kicker: 'Gagal &middot; ' + Math.round(clamp(G.s / S_TOT, 0, 1) * 100) + '% perjalanan', title: 'Terlempar Keluar Pusaran!',
-          quote: 'Arus melemparkan kapalmu ke tepi badai. Kondisi kapal sedikit berkurang &mdash; jalur cahaya mahkota masih menunggu.', who: 'Pusaran Bjorneo',
+        var FC = opts.failCard || {};
+        S.card({ cls: 'bad', seal: SEAL, kicker: 'Gagal &middot; ' + Math.round(clamp(G.s / S_TOT, 0, 1) * 100) + '% perjalanan', title: FC.title || 'Terlempar Keluar Pusaran!',
+          quote: FC.quote || 'Arus melemparkan kapalmu ke tepi badai. Kondisi kapal sedikit berkurang &mdash; jalur cahaya mahkota masih menunggu.', who: FC.who || 'Pusaran Bjorneo',
           stats: [['Lingkaran', Math.min(LOOPS, Math.floor(phiAt(G.s) / 6.2832) + 1) + ' / ' + LOOPS], ['Benturan', String(G.hits)]],
           buttons: [{ label: 'Coba lagi', primary: true, onClick: function () { S.hideCard(); G.failShown = false; begin(); } }, { label: 'Keluar', cls: 'btn-lg btn-ghost', onClick: function () { S.exit(); } }] });
       }
       function winNow() {
         var perfect = G.hits === 0;
+        var WC = opts.winCard;
+        if (WC) { S.win({ perfect: perfect, score: Math.max(0, 1000 - G.hits * 250), hits: G.hits, time: Math.round(G.time) }, { seal: SEAL, kicker: WC.kicker || 'Lolos Arus Pusaran', title: WC.title, badge: perfect ? 'Sempurna &middot; tanpa benturan' : null, quote: WC.quote, who: WC.who, stats: [['Benturan', String(G.hits)], ['Waktu', fmt(G.time)]], cta: WC.cta }); return; }
         S.win({ perfect: perfect, score: Math.max(0, 1000 - G.hits * 250), hits: G.hits, time: Math.round(G.time) }, {
           seal: SEAL, kicker: 'Lolos Arus Pusaran', title: 'Gerbang Benteng Terbuka',
           badge: perfect ? 'Sempurna &middot; tanpa benturan' : null,
@@ -2014,15 +2019,17 @@ var MTGames = (function () {
         });
       }
       S.progress(S.pips(LOOPS, [], 0));
+      var IC = opts.introCard || {};
+      if (opts.celah) S.root.classList.add('mtg-celah');
       S.intro({
-        seal: SEAL, kicker: 'Pusaran Bjorneo &middot; The Maelstrom', title: 'Arus Pusaran',
-        quote: 'Mahkota sudah kembali ke laut. Ikuti cahayanya &mdash; laut hanya membuka jalan sekali.', who: 'Nenek Ulin',
-        steps: ['Kapalmu terseret <b>spiral pusaran</b>: 3 lingkaran menuju pusat (&plusmn;1 menit).',
+        seal: SEAL, kicker: IC.kicker || 'Pusaran Bjorneo &middot; The Maelstrom', title: IC.title || 'Arus Pusaran',
+        quote: IC.quote || 'Mahkota sudah kembali ke laut. Ikuti cahayanya &mdash; laut hanya membuka jalan sekali.', who: IC.who || 'Nenek Ulin',
+        steps: IC.steps || ['Kapalmu terseret <b>spiral pusaran</b>: 3 lingkaran menuju pusat (&plusmn;1 menit).',
           'Tetap di <b>jalur cahaya mahkota</b> (lajur emas). Terlalu lama di luar = dihantam arus liar.',
           'Hindari <b>puing hanyut</b> dan <b>lingkaran petir biru</b> &mdash; menyambar &plusmn;1 detik setelah berkedip.',
           '<b>Tarikan pusat</b> makin kuat di lingkaran dalam. 3 nyawa. Lolos tanpa benturan = <b>sempurna</b>.'],
         controls: { desk: ['<kbd>A</kbd>/<kbd>&larr;</kbd> menjauhi pusat', '<kbd>D</kbd>/<kbd>&rarr;</kbd> ke arah pusat'], touch: ['Tahan sisi <b>kiri</b> / <b>kanan</b> layar'] },
-        cta: 'Masuki pusaran'
+        cta: IC.cta || 'Masuki pusaran'
       }, begin);
 
       return {

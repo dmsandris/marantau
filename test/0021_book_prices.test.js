@@ -2,7 +2,7 @@
 const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } };
 (async () => {
   const H = await require('./harness').create();
-  const rows = await H.sql(`select book_id, tier, price::int p from game.book_catalog where source <> 'quest'`);
+  const rows = await H.sql(`select book_id, tier, price::int p from game.book_catalog where source not in ('quest', 'ps_pustaka', 'ps_cerita')`);
   const R = { I: [300, 1500], II: [2000, 9000], III: [10000, 35000], IV: [40000, 70000], V: [80000, 160000], VI: [78000, 500000] };
   for (const r of rows) assert(R[r.tier] && r.p >= R[r.tier][0] && r.p <= R[r.tier][1], 'harga di luar rentang tier: ' + JSON.stringify(r));
   for (const t of Object.keys(R)) {

@@ -1,0 +1,845 @@
+<style>
+  /* ================= Tide v41 · Pasir (PS) ================= */
+  #mtGmPanel .ps-gm .ps-tones { display: flex; flex-wrap: wrap; gap: 6px; }
+  #mtGmPanel .ps-gm .ps-tones button { padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(79,51,30,.35); background: #fff8e8; color: #33230f; cursor: pointer; font: inherit; font-size: 12px; }
+  #mtGmPanel .ps-gm .ps-tones button.on { background: #4f331e; color: #ffe7a3; border-color: #4f331e; }
+  #mtGmPanel .ps-gm .ps-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 12px; }
+  #mtGmPanel .ps-gm .ps-row input, #mtGmPanel .ps-gm .ps-row select { width: auto; min-width: 64px; }
+  #mtGmPanel .ps-gm .ps-row button { padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(79,51,30,.35); background: #fff8e8; cursor: pointer; font: inherit; font-size: 12px; }
+  #mtGmPanel .ps-gm .ps-st { font-size: 12px; color: #6b5a3a; margin-top: 6px; }
+  .ps-wrap { display: grid; gap: 12px; margin: 6px 0 12px; }
+  .ps-narr { padding: 14px 16px; border-radius: 14px; background: linear-gradient(180deg, #fffaf0, #efe2c6); border: 1px solid rgba(120,100,60,.4); color: #3a2a16; line-height: 1.62; animation: qgIn .45s var(--ease-spring); }
+  .ps-narr .tn-k { font-family: var(--font-title); letter-spacing: .14em; text-transform: uppercase; font-size: .7em; color: #6b5a3a; display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .ps-narr .tn-k .ico { width: 14px; height: 14px; }
+  .ps-narr p { margin: 0 0 8px; } .ps-narr p:last-child { margin-bottom: 0; }
+  .ps-narr.cold { background: linear-gradient(180deg, #eef2f6, #cfd8e2); border-color: rgba(70,90,120,.45); color: #1e2a36; } .ps-narr.cold .tn-k { color: #4a5a6e; } .ps-narr.cold b { color: #14202c; }
+  .ps-narr.night { background: radial-gradient(ellipse at 50% 0%, #1a1e36, #08080e); border-color: rgba(232,195,90,.35); color: #ece4d2; } .ps-narr.night .tn-k { color: #f0cf78; } .ps-narr.night b { color: #ffe7a3; }
+  .ps-narr.paper { background: #efe6d2; border-color: rgba(60,40,20,.35); color: #2b2218; font-family: Georgia, serif; }
+  .qg-card.ps-cold { background: linear-gradient(180deg, #f2f5f8, #d6dee6); border-color: rgba(70,90,120,.45); box-shadow: 0 0 0 3px rgba(120,150,180,.15), 0 8px 20px rgba(20,30,40,.2); }
+  .ps-catatan { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .ps-catatan canvas { width: 100%; aspect-ratio: 3 / 2; display: block; border-radius: 4px; }
+  .ps-catatan .it { position: relative; }
+  .ps-catatan .it b { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(239,230,210,.92); color: #2b2218; font: 700 11px "Cinzel", Georgia, serif; letter-spacing: .06em; }
+  .ps-catatan .it.got::after { content: '✓'; position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: #2a6a3a; color: #fff; font-weight: 700; }
+  .ps-bukti { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .ps-bukti span { padding: 3px 10px; border-radius: 999px; font-size: .8em; background: rgba(60,40,20,.08); border: 1px solid rgba(60,40,20,.2); color: #4a3420; }
+  .ps-bukti span.got { background: rgba(42,106,58,.15); border-color: rgba(42,106,58,.45); color: #1e4a2a; }
+  .chip.ps-chip { background: rgba(200,214,228,.22); border-color: rgba(200,214,228,.5); color: #e8eef4; }
+  .ps-papan { position: relative; border-radius: 6px; overflow: hidden; background: #efe6d2; box-shadow: inset 0 0 50px rgba(120,90,50,.25); }
+  .ps-papan canvas { display: block; width: 100%; height: 300px; cursor: pointer; }
+  .ps-papan-info { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.6); border: 1px solid rgba(60,40,20,.25); color: #2b2218; font-size: .9em; line-height: 1.5; min-height: 3.2em; }
+  .ps-papan-info .asli { color: #2a5a3a; } .ps-papan-info .baru { color: #7a1a12; }
+  .ps-cap-choice { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  .ps-cap-choice .btn { min-width: 140px; }
+  @media (max-width: 640px) { .ps-catatan { grid-template-columns: 1fr 1fr; gap: 6px; } .ps-papan canvas { height: 240px; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Pasir (modul PS)
+ * Server: 0050 (dasar), 0051 (potret harta), 0052 (Quest 10). Endpoint api_pasir; key 'pasir' di
+ *   getGameState HANYA ada bila Saga ini terbuka untuk pemain (atau GM).
+ * Quest 10 "Penumpang Bergaun Putih":
+ *   1 festival IKN (Mata Pesta) -> titipan | 2 antar | 3 sinematik geladak (jawab_malam) | 4 tiba & pisah |
+ *   5 bebas -> set sail memicu lonceng | 6 999 anak tangga -> curi | 7 Benang yang Putus -> paham |
+ *   8 Hari Pertama -> catatan | 9 Tur Bukti | 10 Paman Ocid | 11 selesai
+ * Sinematik: CinemaPasir.html (MTPS). Wajah kota Zaman Keadilan: PasirKota.html (PK). Nada warna: PasirEra.html (PE).
+ * ⚠️ Tidak ada kalimat apa pun yang menyiratkan harta akan kembali.
+ * ===================================================================== */
+var PS = (function () {
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function st() { return (window.state && state.pasir) || null; }
+  function q10() { var p = st(); return (p && p.q10) || null; }
+  function step() { var q = q10(); return q ? (q.step || 0) : 0; }
+  function qd() { var q = q10(); return (q && q.d) || {}; }
+  function era() { var p = st(); return p ? p.era : 'kini'; }
+  function adil() { return era() === 'keadilan'; }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function uname() { return (state && (state.username || (state.player && state.player.characterName))) || 'x'; }
+  function capName() { var n = (state && state.player && state.player.characterName) || 'Kapten'; return /^kapten\s/i.test(n) ? n : 'Kapten ' + n; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function au(n) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n); } catch (e) { } }
+  var SEEN_MEM = {};
+  function seenKey(k) { return 'ps:' + uname() + ':' + k; }
+  function seen(k) { try { return localStorage.getItem(seenKey(k)) === '1'; } catch (e) { return !!SEEN_MEM[k]; } }
+  function markSeen(k) { SEEN_MEM[k] = 1; try { localStorage.setItem(seenKey(k), '1'); } catch (e) { } }
+  function memGet(k) { try { return JSON.parse(localStorage.getItem(seenKey(k)) || 'null'); } catch (e) { return null; } }
+  function memSet(k, v) { try { localStorage.setItem(seenKey(k), JSON.stringify(v)); } catch (e) { } }
+
+  /* ---------- server ---------- */
+  var prevTone = null;
+  function call(args, ok, fail, btn) {
+    if (btn) btn.disabled = true;
+    var r = google.script.run
+      .withSuccessHandler(function (x) {
+        if (x && x.pasir !== undefined) adopt(x.pasir);
+        if (x && x.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(x.newGold); renderSidebar(); } catch (e) { } }
+        if (ok) try { ok(x || {}); } catch (e) { console.warn('[PS]', args[0], e); }
+      })
+      .withFailureHandler(function (e) { if (btn) btn.disabled = false; if (fail) fail(e); else if (typeof showToast === 'function') showToast((e && e.message) || String(e), 'error'); });
+    r.api_pasir.apply(r, args);
+  }
+  function adopt(p) {
+    if (!window.state) return;
+    if (p) state.pasir = p; else delete state.pasir;
+    apply();
+  }
+  function apply() {
+    var p = st(), tone = p ? p.tone : 'kini';
+    try { PE.set(tone); } catch (e) { }
+    if (prevTone !== null && prevTone !== tone && typeof renderScene === 'function') { try { renderScene(); } catch (e) { } }
+    prevTone = tone;
+    gmTool();
+    pushAch();
+    gates();
+  }
+
+  /* ---------- tokoh ---------- */
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    var BN = {}, TN = {};
+    try { BN = window.BX && BX.N ? BX.N() : {}; } catch (e) { BN = {}; }
+    try { TN = window.TS && TS.N ? TS.N() : {}; } catch (e) { TN = {}; }
+    NN = {
+      franziska: { name: 'Nyonya Z.', title: 'Pelukis peta', ap: apOf('franziska-janji-putih', 'saudagar', 1, { age: 0.9, hair: 7, head: 'none', neck: 'pearls', ear: 'pearl', facial: 0 }) },
+      franziskaReal: { name: 'Franziska', title: 'Penumpang bergaun putih', ap: apOf('franziska-janji-putih', 'saudagar', 1, { age: 0.9, hair: 7, head: 'none', neck: 'pearls', ear: 'pearl', facial: 0 }) },
+      euis: BN.euis || { name: 'Teh Euis', title: 'Penjaga Perpustakaan Rakyat', ap: apOf('euis', 'saudagar', 1) },
+      dwi: BN.dwi || { name: "dwi de'clown", title: 'Pelukis', ap: apOf('dwi', 'lapau', 0), clown: true },
+      ocid: TN.ocid || { name: 'Paman Ocid', title: 'Penjaga Arsip & Jam Agung', ap: apOf('ocid-kubah-arsip', 'pustakawan', 0, { age: 0.9, head: 'blangkon', eye: 'glasses', facial: 3 }) },
+      coco: TN.coco || { name: 'coco epan', title: 'Penjaga Kedai Rantau', ap: apOf('joungjava|bankir', 'bankir', 0, { head: 'bowler', eye: 'monocle', item: 'pipe', age: 0.86 }) },
+      chafik: BN.chafik || { name: 'Chafik', title: 'Putra kecil Uda Gala', ap: apOf('chafik-kecil', 'lapau', 0, { head: 'none', facial: 0, hair: 0, hairStyle: 3, skin: 2, age: 0, outfit: 'kemeja' }) },
+      zafa: Object.assign({}, BN.zafa || { name: 'zafachmie', ap: apOf('zafa', 'pustakawan', 0), fat: true }, { title: 'Penjaga Arsip Gelap' }),
+      tedsky: Object.assign({}, BN.tedsky || { name: 'Jendral Tedsky', ap: apOf('tedsky', 'syahbandar', 0), medals: true }, { title: 'Gubernur IKN' })
+    };
+    return NN;
+  }
+  function face(n) {
+    if (n.kind && window.MTBX && typeof MTBX.face === 'function') { try { var b = MTBX.face(n.kind); if (b) return b; } catch (e) { } }
+    if (n.svg) return n.svg;
+    return MTFace.svg(n.ap, { bgColors: adil() ? ['#4a5868', '#141c26'] : ['#3a3448', '#0e0c14'], fat: n.fat, clown: n.clown, medals: n.medals });
+  }
+  function speech(n, text, extra, title, cls) {
+    return '<div class="qg-card' + (cls ? ' ' + cls : (adil() ? ' ps-cold' : '')) + '"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc(n.name) + ' <span>&middot; ' + esc(title || n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function narr(kicker, text, extra, icon, cls) {
+    return '<div class="ps-narr ' + (cls || (adil() ? 'cold' : '')) + '"><div class="tn-k">' + ic(icon || 'scroll') + esc(kicker || '') + '</div>' + text + (extra || '') + '</div>';
+  }
+  function actions(btns) { return '<div class="qg-actions">' + btns + '</div>'; }
+  function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
+  function btn(k, icon, label, gold) { return '<button class="btn ' + (gold === false ? 'btn-ghost-ink' : 'btn-gold') + '" data-ps="' + k + '">' + (icon ? ic(icon) + '&nbsp; ' : '') + label + '</button>'; }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function showModal(html) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function modalWrap(icon, title, sub) {
+    showModal(panelHeader_(icon, title, sub));
+    var c = document.getElementById('modalContent'), w = document.createElement('div'); w.className = 'ps-wrap';
+    var ph = c.querySelector('.ph'); if (ph && ph.parentNode) ph.parentNode.insertBefore(w, ph.nextSibling); else c.appendChild(w);
+    return w;
+  }
+  function close() { if (typeof closeModal === 'function') closeModal(); }
+  function insert(html) {
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.ps-wrap')) return null;
+    var anchor = c.querySelector('.npc') || c.querySelector('.ph');
+    var w = document.createElement('div'); w.className = 'ps-wrap'; w.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(w, anchor.nextSibling); else c.insertBefore(w, c.firstChild);
+    return w;
+  }
+  function pages(w, n, list, lastBtns, bind, title) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], who = (pg && pg.n) || n, txt = (pg && pg.t) || pg;
+      var nav = actions(last ? lastBtns : btn('next', null, 'Lanjut')) + dots(i, list.length);
+      w.innerHTML = pg && pg.narr ? narr(pg.narr, txt, nav, pg.icon, pg.cls) : speech(who, txt, nav, pg && pg.title ? pg.title : (who === n ? title : null));
+      au('page');
+      if (!last) on(w, '[data-ps=next]', function () { i++; show(); }); else if (bind) bind(w);
+    }
+    show();
+  }
+
+  /* ---------- sinematik bertakarir (MTCine + takarir, ctl.i = slide) ---------- */
+  var flowBusy = false, gameOpen = false;
+  function busyUi() { return flowBusy || gameOpen || (typeof combatSceneOpen !== 'undefined' && combatSceneOpen) || !!document.querySelector('.qt-cine, .psb, .psi, .mtg.on, .tsg.on, .bx-credits'); }
+  function cine(kind, slides, cb, opts) {
+    opts = opts || {};
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    flowBusy = true;
+    var ctl = { i: 0 }, finished = false;
+    var ov = document.createElement('div'); ov.className = 'qt-cine ps-cine';
+    ov.innerHTML = '<canvas></canvas>' + (opts.noSkip ? '' : '<button class="ts-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button>') +
+      '<div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind, { ctl: ctl, vis: opts.vis, solo: opts.solo, data: opts.data }) || stop; } catch (e) { console.warn('[PS] cine', e); }
+    var txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.ts-skip');
+    function slideOf(i) { var s = slides[i]; return typeof s === 'string' ? { t: s } : s; }
+    function show() {
+      var s = slideOf(cur);
+      ctl.i = s.phase != null ? s.phase : cur;
+      txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = s.t; txt.classList.add('in');
+      b.parentNode.style.display = '';
+      b.innerHTML = cur < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : (opts.endLabel || 'Selesai');
+      var old = ov.querySelector('.ps-cap-choice'); if (old) old.remove();
+      if (s.choice) {
+        b.parentNode.style.display = 'none';
+        var ch = document.createElement('div'); ch.className = 'ps-cap-choice';
+        ch.innerHTML = s.choice.map(function (c, k) { return '<button class="btn ' + (k ? 'btn-ghost-ink' : 'btn-gold') + '" data-k="' + k + '">' + c.label + '</button>'; }).join('');
+        txt.parentNode.appendChild(ch);
+        ch.querySelectorAll('button').forEach(function (bb) { bb.onclick = function () { var c = s.choice[+bb.getAttribute('data-k')]; ch.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); au('page'); if (c.pick) c.pick(function () { nextSlide(); }); else nextSlide(); }; });
+      }
+      if (opts.onSlide) try { opts.onSlide(cur); } catch (e) { }
+    }
+    var cur = 0;
+    function nextSlide() { if (++cur < slides.length) show(); else finish(); }
+    function finish() {
+      if (finished) return; finished = true;
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      flowBusy = false;
+      if (cb) setTimeout(cb, 60);
+    }
+    function onKey(e) { if (e.key === 'Escape' && !opts.noSkip && !slideOf(cur).choice) { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    b.onclick = function () { au('page'); nextSlide(); };
+    if (skip) { skip.onclick = function () { if (slides.some(function (s) { return s && s.choice; }) && !opts.skipOk) { while (cur < slides.length - 1 && !slideOf(cur).choice) cur++; show(); return; } au('page'); finish(); }; setTimeout(function () { skip.classList.add('on'); }, 1500); }
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    ctl.i = slideOf(0).phase != null ? slideOf(0).phase : 0;
+    setTimeout(function () { if (!finished) show(); }, 900);
+  }
+  function game3(kind, opts, cb) {
+    function fin(res) { gameOpen = false; try { cb(res || { cancelled: true }); } catch (e) { console.warn('[PS] game', e); } }
+    if (window.MTGames3 && MTGames3.open) { gameOpen = true; try { MTGames3.open(kind, opts || {}, fin); return; } catch (e) { gameOpen = false; } }
+    fin({ win: true, kind: kind });
+  }
+
+  /* =====================================================================
+   * BABAK 1 — Festival di Bawah Menara (IKN, malam)
+   * ===================================================================== */
+  function festival() {
+    markSeen('festival');
+    if (currentPanel) close();
+    cine('ps_festival', [
+      'Malam di IKN. <b>Menara Cahaya</b> menyala, sinarnya sampai ke tengah laut.',
+      'Lampion bergoyang di atas dermaga. Garuda perunggu berkilau bersih. Anak-anak Kamp Pemulung menari mengikuti genderang festival.',
+      'Di antara keramaian, seorang perempuan tua bergaun putih berdiri diam, <b>menatap menara</b>.'
+    ], euisAsk);
+  }
+  function euisAsk() {
+    var n = N(), w = modalWrap('sun', 'Festival Restorasi', 'IKN, malam');
+    pages(w, n.euis, [
+      '"Kapten! Syukurlah kau di sini."',
+      '"dwi hilang di keramaian. Katanya mau menggambar kembang api, lalu menghilang begitu saja. Tolong carikan dia, ya? Mataku sudah tak kuat melihat seribu topeng."'
+    ], btn('pesta', 'eye', 'Cari dwi') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', close);
+      on(w2, '[data-ps=pesta]', function () { close(); pesta(); });
+    }, 'Penjaga Perpustakaan Rakyat');
+  }
+  function pesta() {
+    var WHITE = { gown: '#f4f0e6', mask: 'porc', glove: null, target: false };
+    game3('pesta', {
+      kicker: 'IKN &middot; Festival Restorasi', title: 'Mata Pesta &middot; Mencari dwi',
+      bowRound: 2, bowMsg: 'Genderang berhenti. Lagu Garuda dimainkan: <b>semua membungkuk hormat.</b>', bowWait: 'Tunggu lagu Garuda dimulai, Kapten.',
+      rounds: [
+        { clue: 'Ronde 1 &middot; Topeng emas, yang paling mencolok', hint: 'Bukan porselen putih, bukan logam buram. Emas.', ok: 'Topeng <b>emas</b>. dwi memang tidak pernah memilih yang biasa.' },
+        { clue: 'Ronde 2 &middot; Sarung tangan bernoda cat merah', hint: 'Pelukis selalu membawa catnya ke mana-mana. Merah, bukan perunggu.', ok: 'Di ujung jarinya: <b>noda cat merah</b>, masih basah.' },
+        { clue: 'Ronde 3 &middot; Satu-satunya yang tidak membungkuk', hint: 'Pelukis yang sedang menggambar lupa segalanya. Perhatikan siapa yang tetap tegak.', ok: 'Semua kepala tertunduk. Satu orang tetap tegak, <b>sibuk menggambar</b>.' }
+      ],
+      guests: function (rd, G) {
+        var gs = G.map(function (c, i) { return { id: i, gown: c, mask: 'porc', glove: null, target: i === 0 }; });
+        gs[0].gown = '#7a1a2a';
+        gs[6] = Object.assign({ id: 6 }, WHITE);   // perempuan bergaun putih, selalu ada
+        if (rd === 0) { gs[0].mask = 'gold'; gs[2].mask = 'metal'; gs[4].mask = 'metal'; }
+        if (rd === 1) { gs[0].glove = { col: '#b3261e', side: 1 }; gs[2].glove = { col: '#a8743a', side: -1 }; gs[3].glove = { col: '#2a3a7a', side: 1 }; }
+        return gs;
+      },
+      finalGuest: { gown: '#7a1a2a', mask: 'gold', glove: { col: '#b3261e', side: 1 }, target: true },
+      finalText: 'Itu dia: topeng emas, cat merah di sarung tangan, dan sketsa kembang api di pangkuannya. <b>dwi de\'clown.</b>',
+      finalBtn: 'Hampiri dia'
+    }, function (res) {
+      if (!res || !res.win) return;
+      call(['pesta'], function () { franziskaMeet(); });
+    });
+  }
+  function franziskaMeet() {
+    var n = N(), w = modalWrap('sun', 'Festival Restorasi', 'IKN, malam');
+    pages(w, n.franziska, [
+      { n: n.dwi, t: '"Euis menyuruhmu? Ah. Aku cuma mau menggambar kembang api dari dekat. Maaf, Kapten."', title: 'Pelukis' },
+      { narr: 'Di tepi keramaian', icon: 'eye', cls: 'night', t: '<p>Saat kau berbalik, perempuan tua bergaun putih itu sudah berdiri di sampingmu. Rambutnya perak, disanggul rapi. Tangannya memegang payung renda dan sebuah gulungan kanvas.</p>' },
+      '"Kapten. Cahaya yang indah, bukan? Empat puluh tahun lalu cahaya ini terlihat dari rumah saya."',
+      '"Saya ingin melihat <b>Jam Agung</b> di Pulau em pe\'er de pe\'er sebelum mata saya terlalu tua. Kapal penumpang tidak berani ke sana."',
+      '"Saya bayar <b>20.000 gold</b>. Saya tidak banyak bicara di kapal. Saya janji."'
+    ], btn('terima', 'ship', 'Terima titipan') + btn('later', null, 'Nanti dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', function () { close(); showToast('Nyonya Z. masih menunggu di dermaga IKN.', 'info'); });
+      on(w2, '[data-ps=terima]', function (b) {
+        call(['terima'], function () {
+          w2.innerHTML = speech(n.franziska, '"Terima kasih, Kapten. Saya akan menunggu di geladak."', actions(btn('sail', 'ship', 'Buka peta berlayar') + btn('ok', null, 'Tutup', false))) + journal();
+          on(w2, '[data-ps=ok]', close); on(w2, '[data-ps=sail]', function () { close(); openPanel('setsail'); });
+        }, null, b);
+      });
+    }, 'Pelukis peta');
+  }
+
+  /* =====================================================================
+   * BABAK 2 — Pelayaran Panjang (satu sinematik geladak menutup seluruh pelayaran)
+   * ===================================================================== */
+  var holdArrive = false, arrivePending = false, geladakOn = false;
+  if (typeof window.arriveSmooth_ === 'function') {
+    var origArrive = window.arriveSmooth_;
+    window.arriveSmooth_ = function () {
+      if (holdArrive) { arrivePending = true; return; }
+      return origArrive.apply(this, arguments);
+    };
+  }
+  function geladak() {
+    if (geladakOn) return;
+    geladakOn = true; holdArrive = true;
+    if (currentPanel) close();
+    var n = N();
+    function release() {
+      geladakOn = false; holdArrive = false;
+      if (arrivePending) { arrivePending = false; try { window.arriveSmooth_(); } catch (e) { } }
+      else if (typeof loadState === 'function') loadState();
+    }
+    var jawabOk = !!qd().jawab;
+    cine('ps_geladak', [
+      { phase: 0, t: '<b>Senja, geladak tenang.</b> Nyonya Z. berdiri di pagar kapal, memandangi laut.' },
+      { phase: 0, t: '<b>Nyonya Z.:</b> "Kapal mana saja yang pernah kau tenggelamkan, Kapten?"<br><i>Kau menyebut beberapa nama. Saat kau menyebut <b>Absolute Justice</b>, ia diam sebentar.</i>' },
+      { phase: 0, t: '<b>Nyonya Z.:</b> "Ia memberi hormat sebelum tenggelam, katanya. <b>Kepada laut.</b>"' },
+      { phase: 1, t: '<b>Malam berbadai.</b> Hujan menampar layar. Talimu terlepas. Nyonya Z. menangkapnya dan <b>mengikat simpul dengan cepat dan rapi</b>, tanpa berpegangan.' },
+      { phase: 1, t: '<b>Nyonya Z.:</b> "Lukisan ini dulu dicuri dari seorang badut. Saya membelinya dari seorang <b>penjual peta berambut merah</b>." <i>Ia tidak membuka gulungannya.</i>' },
+      { phase: 2, t: '<b>Fajar.</b> Kubah em pe\'er de pe\'er tampak di cakrawala.' },
+      jawabOk ? { phase: 2, t: '<b>Nyonya Z.:</b> "Kapten, apa kau pernah ingin satu malam saja diulang?"' } :
+      { phase: 2, t: '<b>Nyonya Z.:</b> "Kapten, apa kau pernah ingin satu malam saja diulang?"', choice: [
+        { label: 'Pernah', pick: function (nx) { call(['jawab', 'pernah'], nx, function () { nx(); }); } },
+        { label: 'Tidak pernah', pick: function (nx) { call(['jawab', 'tidak'], nx, function () { nx(); }); } }
+      ] },
+      { phase: 2, t: '<i>Ia tersenyum tipis, lalu kembali menatap pulau itu.</i>' }
+    ], release, { skipOk: false, endLabel: 'Merapat' });
+  }
+  setInterval(function () {
+    if (!state || !state.voyage || !state.voyage.inTransit || busyUi()) return;
+    var v = state.voyage, s = step();
+    if ((s === 2 || s === 3) && v.destinationCityId === 'empeer_depeer' && !v._optimistic) {
+      var k = 'geladak:' + (v.departAt || v.etaSeconds || '');
+      if (!SEEN_MEM[k]) { SEEN_MEM[k] = 1; geladak(); }
+    }
+  }, 400);
+
+  /* =====================================================================
+   * BABAK 3 — Perpisahan, lalu lonceng Jam Agung saat set sail berikutnya
+   * ===================================================================== */
+  function pisah() {
+    markSeen('pisah');
+    var n = N(), w = modalWrap('anchor', 'Dermaga Protokol', "Pulau em pe'er de pe'er");
+    pages(w, n.franziska, [
+      { narr: 'Merapat', icon: 'anchor', t: '<p>Nyonya Z. turun dari kapalmu, membayar <b>20.000 gold</b> dalam kantong beludru, lalu membungkuk sedikit.</p>' },
+      '"Terima kasih, Kapten. Kau orang baik. <b>Jarang sekali orang baik bisa menjadi kapten.</b>"'
+    ], btn('a', null, '"Selamat menikmati jamnya, Nyonya."', false) + btn('b', null, '"Hati-hati di tangga, ada 999."', false) + btn('c', null, '"Sampai jumpa lagi."', false), function (w2) {
+      ['a', 'b', 'c'].forEach(function (k) {
+        on(w2, '[data-ps=' + k + ']', function (b) {
+          call(['pisah', k], function () {
+            w2.innerHTML = narr('Ia pergi', '<p>Nyonya Z. berjalan ke arah kota dengan payung rendanya. Tak lama, ia hilang di antara gedung-gedung protokol.</p>', actions(btn('ok', null, 'Tutup', false)), 'user');
+            on(w2, '[data-ps=ok]', close);
+          }, null, b);
+        });
+      });
+    }, 'Pelukis peta');
+  }
+  var origSail = window.doSetSail;
+  if (typeof origSail === 'function') {
+    window.doSetSail = function (cityId) {
+      var s = step();
+      if (s === 5 && cid() === 'empeer_depeer' && docked()) { if (currentPanel) close(); call(['jam'], function () { tangga(); }); return; }
+      if (s === 6) { if (currentPanel) close(); tangga(); return; }
+      var r = origSail.apply(this, arguments);
+      if (s === 2 && cityId === 'empeer_depeer') setTimeout(function () { call(['status']); }, 1500);
+      return r;
+    };
+  }
+  // potret tampilan sebelum dunia berubah (milik pemain sendiri, hanya untuk tayangan Benang)
+  function rememberBefore() {
+    try {
+      var cg = 0; (state.cargo || []).forEach(function (c) { cg += +c.qty || 0; });
+      memSet('benang', {
+        gold: state.player ? state.player.gold : 0, bank: state.bank ? (state.bank.bankBalance || 0) : 0,
+        ship: state.ship ? (state.ship.ShipName || state.ship.shipName) : '', vis: typeof shipVisual_ === 'function' ? shipVisual_() : null,
+        cities: (state.cities || []).map(function (c) { return { CityId: c.CityId, Name: c.Name, MapX: c.MapX, MapY: c.MapY }; }),
+        cargo: (state.ship && state.ship.CargoUsed) || cg, medals: kisahMedals()
+      });
+    } catch (e) { }
+  }
+  function tangga() {
+    var n = N(), nm = esc(capName());
+    rememberBefore();
+    cine('ps_tangga', [
+      { phase: 0, t: '<b>Lonceng Jam Agung berdentang sumbang</b> dari puncak bukit. Burung-burung terbang ke arah yang salah. Kapalmu masih tertambat.' },
+      { phase: 1, t: '<i>Beberapa menit sebelumnya.</i> Nyonya Z. menaiki <b>999 anak tangga</b>. Di puncak, <b>Paman Ocid</b> menyambutnya.<br><b>Paman Ocid:</b> "Selamat siang, Nyonya. Jam Agung tidak menerima tamu hari ini."' },
+      { phase: 1, t: '<b>Nyonya Z.:</b> "Saya teman <b>' + nm + '</b>. Ia yang mengantar saya ke sini. Katanya Paman orang paling ramah di pulau ini."<br><b>Paman Ocid:</b> "Teman ' + nm + '? Ah, masuklah. Kapten itu yang membuat jamku berdetak lagi."' },
+      { phase: 2, t: 'Mereka berjalan masuk, lorong demi lorong, di antara roda gigi raksasa, sampai ke <b>ruang Jam Agung</b>.' },
+      { phase: 3, t: 'Nyonya Z. membuka kanvasnya: <b>lukisan kiamat dwi yang hilang</b>. Peta laut berpusar dengan tujuh lingkaran.<br><b>Paman Ocid:</b> "Nyonya... lukisan apa itu?"' },
+      { phase: 4, t: 'Ia menempelkan kanvas ke muka jam. Roda-roda Jam Agung <b>berputar ke belakang</b>. Paman Ocid menarik tali lonceng darurat.<br><i>Kau berlari menaiki 999 anak tangga dan menerobos masuk tepat saat lingkar cahaya mengembang. Kau dan Paman Ocid berada di dalam lingkar.</i>' },
+      { phase: 5, t: 'Ia merebut <b>Kunci Jam Agung</b>. Di tangannya terbentuk jam pasir perak bertujuh kaca. <b>Satu kaca retak.</b><br><b>Franziska:</b> "Maaf, Kapten. Kau orang baik. Tapi kau juga alasan ia mati."' },
+      { phase: 6, t: '<b>Franziska:</b> "Satu malam. Hanya satu malam badai. Tidak ada yang akan terluka."<br><i>Ia lenyap dalam pusaran pasir. Lingkar jam meledak menjadi cahaya putih.</i>' }
+    ], function () {
+      call(['curi'], function () { benang(false); }, function (e) { showToast((e && e.message) || 'Gagal', 'error'); });
+    }, { noSkip: true, endLabel: 'Lanjut' });
+  }
+
+  /* =====================================================================
+   * BABAK 4 — Benang yang Putus (tayangan pertama wajib)
+   * ===================================================================== */
+  function benang(replay) {
+    var m = memGet('benang') || {};
+    flowBusy = true;
+    MTPS.benang({
+      name: (state && state.player && state.player.characterName) || 'Kapten', ship: m.ship || 'kapalmu', shipVis: m.vis, gold: m.gold != null ? m.gold : 5000,
+      bank: m.bank || 0, cargo: m.cargo || 0, wh: 0, cities: m.cities || [], medals: m.medals || 6, replay: !!replay
+    }, function () {
+      flowBusy = false;
+      if (replay) return;
+      call(['paham'], function () { if (typeof loadState === 'function') loadState(); });
+    });
+  }
+
+  /* =====================================================================
+   * BABAK 5 — Hari Pertama, Sekali Lagi (Sunda Empire)
+   * ===================================================================== */
+  function hariPertama() {
+    markSeen('hari1');
+    var w = modalWrap('anchor', 'Sunda Empire', 'Dermaga');
+    var sy = typeof npc_ === 'function' ? npc_('syahbandar') : { name: 'Syahbandar', title: 'Syahbandar', ap: MTFace.npc('sunda|syahbandar', 'syahbandar') };
+    pages(w, sy, [
+      { narr: 'Bangun', icon: 'anchor', t: '<p>Kau terbangun di geladak kapal kecil yang tertambat di dermaga <b>Sunda Empire</b>, tempat setiap kapten memulai.</p><p>Kapal ini <b>The Wandering Gull</b>. Di setiap tiang, berkibar <b>bendera putih</b>.</p>' },
+      '"Kapten baru? Selamat datang di Sunda Empire, wilayah Laksamana Agung. Daftarkan kapal, patuhi Keadilan, bayar pajak. Itu saja aturannya."',
+      { narr: 'Dunia yang sama, tapi bukan duniamu', icon: 'eye', t: '<p>Jalan-jalanlah di kota. Lihat sendiri siapa yang masih mengenalmu.</p><p>Di kabin kapalmu tergeletak sebuah buku bersampul lusuh: <b>Catatan Pelayaran</b>. Satu-satunya benda yang ikut terbawa dari lingkar jam.</p>' }
+    ], btn('cat', 'book', 'Buka Catatan Pelayaran') + btn('later', null, 'Lihat-lihat kota dulu', false), function (w2) {
+      on(w2, '[data-ps=later]', close);
+      on(w2, '[data-ps=cat]', function () { catatan(); });
+    }, 'Syahbandar Sunda');
+  }
+  var BUKTI = [
+    { k: 'skitraw', n: 'Skitraw', sk: 'gaul', t: 'Neon Gaul-Wash, Uda Gala melambai' },
+    { k: 'toogood', n: 'TooGood', sk: 'toogood', t: 'Asap terangkat, zafachmie menari' },
+    { k: 'ikn', n: 'IKN', sk: 'menara', t: 'Festival dan Menara Cahaya' },
+    { k: 'laut', n: 'Laut terbuka', sk: 'laut', t: 'Black Pearl di sisi kapalmu' }
+  ];
+  function catatanHtml() {
+    var b = qd().bukti || {};
+    return '<div class="ps-catatan">' + BUKTI.map(function (x) { return '<div class="it' + (b[x.k] ? ' got' : '') + '"><canvas data-sk="' + x.sk + '" width="600" height="400"></canvas><b>' + esc(x.n) + '</b></div>'; }).join('') + '</div>';
+  }
+  function paintCatatan(root) {
+    var m = memGet('benang') || {};
+    (root || document).querySelectorAll('.ps-catatan canvas[data-sk]').forEach(function (cv) {
+      var c = cv.getContext('2d'); try { MTPS.sketch(c, cv.getAttribute('data-sk'), 0, 0, cv.width, cv.height, { name: m.ship, vis: m.vis }); } catch (e) { }
+    });
+  }
+  function catatan() {
+    var w = modalWrap('book', 'Catatan Pelayaran', 'Milikmu');
+    w.innerHTML = narr('Halaman-halaman kosong', '<p>Hampir semua halamannya kosong. Hanya <b>empat sketsa arang</b> yang tersisa, berkedip samar seperti ingatan yang belum mau pergi.</p>' + catatanHtml(), actions(step() === 8 ? btn('simpan', 'compass', 'Datangi tempat-tempat ini') : btn('ok', null, 'Tutup', false)), 'book', 'paper');
+    paintCatatan(w);
+    on(w, '[data-ps=ok]', close);
+    on(w, '[data-ps=simpan]', function (b) { call(['catatan'], function () { w.insertAdjacentHTML('beforeend', journal()); b.remove(); showToast('Catatan baru di jurnalmu.', 'info'); }, null, b); });
+  }
+  // Kalimat Zaman Keadilan saat panel kota pertama kali dibuka
+  var LINES = {
+    bank: function () { return ['Bankir', '"Rekening atas nama ' + esc(capName()) + '? Tidak ada di buku kami. Mau membuka rekening baru?"']; },
+    tavern: function () { return ['Pemilik Lapau', '"Sejak Laksamana Agung memenangkan pertempuran pusaran, tak ada lagi bajak laut yang berani menang. Tak ada lagi yang berani apa pun."']; },
+    library: function () { return ['Pustakawan', '"Buku apa itu, Kapten? Tak pernah ada di rak kami." <i>Di dinding tergantung papan:</i> <b>KEADILAN MUTLAK &mdash; Laksamana Agung Satnislaus</b>.']; },
+    market: function () { return ['Saudagar', '"Pajak Keadilan sudah termasuk di harga, Kapten. Silakan, jangan menawar keras-keras."']; },
+    tasks: function () { return ['Syahbandar', '"Kapten baru? Daftarkan kapal, patuhi Keadilan, bayar pajak. Itu saja aturannya."']; }
+  };
+  function decorAdil() {
+    if (!adil() || !currentPanel) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.ps-wrap')) return;
+    if (currentPanel === 'kedai') {
+      var n = N(), first = !seen('kedai');
+      insert(speech(Object.assign({}, n.coco, { title: 'Penjaga Kedai Rantau' }), first ?
+        '"' + esc(capName()) + '. Langganan lama." <i>(menatap kapalmu lewat jendela)</i> "Kapalmu kenapa jadi polos begitu?"<br>"Aneh. Di bank, pegawai saya bilang tak ada rekening atas namamu. Tapi buku langganan Kedai ini saya tulis sendiri, Kapten. <b>Dan tulisan tangan saya tidak pernah bohong.</b>"' :
+        '"Rupa-rupa milikmu masih di lemari, Kapten. Pasang lagi kapan pun kau mau."', '', 'Penjaga Kedai Rantau', 'ps-cold'));
+      markSeen('kedai');
+      return;
+    }
+    var f = LINES[currentPanel]; if (!f) return;
+    var k = 'line:' + cid() + ':' + currentPanel; if (seen(k)) return;
+    markSeen(k);
+    var l = f(), who = typeof npc_ === 'function' ? npc_(currentPanel === 'tasks' ? 'syahbandar' : currentPanel === 'library' ? 'pustakawan' : currentPanel === 'tavern' ? 'lapau' : currentPanel === 'bank' ? 'bankir' : 'saudagar') : null;
+    if (who) insert(speech(who, l[1], '', l[0]));
+  }
+
+  /* =====================================================================
+   * BABAK 6 — Tur Bukti
+   * ===================================================================== */
+  var BUKTI_TXT = {
+    skitraw: ['gaul', 'Kau ingat neon <b>Gaul-Wash</b> di sini, dan Uda Gala yang melambai dari galangannya.'],
+    toogood: ['toogood', 'Kau ingat asap TooGood terangkat setelah dua puluh tahun, dan <b>zafachmie menari</b>.'],
+    ikn: ['menara', 'Kau ingat <b>Festival Restorasi</b> dan Menara Cahaya yang menyala sampai ke tengah laut.'],
+    laut: ['laut', 'Kau ingat <b>Black Pearl</b> berlayar di sisi kapalmu.']
+  };
+  function buktiScene(k, after) {
+    markSeen('bukti:' + k);
+    if (currentPanel) close();
+    var m = memGet('benang') || {}, t = BUKTI_TXT[k];
+    flowBusy = true;
+    if (k === 'laut') {
+      MTPS.ingat(t[0], t[1], { name: m.ship, vis: m.vis }, function () {
+        flowBusy = false;
+        cine('ps_adil', [
+          'Di cakrawala, sebuah kapal perang putih melintas. Utuh. Tanpa satu goresan pun. <b>Absolute Justice.</b>',
+          'Di kemudinya berdiri seorang lelaki berseragam putih. Kau mengenali wajahnya: <b>Uda Gala.</b>',
+          'Ia tidak menoleh.'
+        ], function () { journalToast(); if (after) after(); }, { vis: typeof shipVisual_ === 'function' ? shipVisual_() : null });
+      });
+      return;
+    }
+    MTPS.ingat(t[0], t[1], { name: m.ship, vis: m.vis }, function () {
+      flowBusy = false;
+      var n = N(), w;
+      if (k === 'skitraw') {
+        w = modalWrap('warehouse', 'Gudang Kosong', 'Skitraw');
+        pages(w, n.chafik, [
+          { narr: 'Sekarang', icon: 'eye', t: '<p>Di tempat Gaul-Wash seharusnya berdiri, hanya ada <b>gudang kosong</b> bertuliskan <b>"DISEWAKAN"</b>.</p><p>Di ujung dermaga, seorang anak kecil duduk. Kakinya belum sampai ke air.</p>' },
+          '"Kapten cari Abak? <b>Abak di kapal putih besar.</b> Pulangnya kapan-kapan."'
+        ], btn('ok', null, 'Tutup', false), function (w2) { w2.insertAdjacentHTML('beforeend', journal()); on(w2, '[data-ps=ok]', close); }, 'Putra kecil Uda Gala');
+      } else if (k === 'toogood') {
+        w = modalWrap('skull', 'Arsip Gelap', 'TooGood');
+        pages(w, n.zafa, [
+          { narr: 'Sekarang', icon: 'eye', t: '<p>Cerobong-cerobong TooGood <b>berasap lagi</b>. Benteng berbendera tengkorak. Tidak ada Black Pearl di Dok Kering.</p>' },
+          '"Kapten siapa? <b>Aku tidak pernah melihatmu.</b> Kalau mau ke arsip, bayar dulu ke penjaga pintu."'
+        ], btn('ok', null, 'Tutup', false), function (w2) { w2.insertAdjacentHTML('beforeend', journal()); on(w2, '[data-ps=ok]', close); }, 'Penjaga Arsip Gelap');
+      } else if (k === 'ikn') {
+        w = modalWrap('eye', 'Menara Pengawas', 'IKN');
+        pages(w, n.tedsky, [
+          { narr: 'Sekarang', icon: 'eye', t: '<p>Menara Cahaya kini <b>Menara Pengawas</b>, sorotnya putih dingin menyapu dermaga. Di bawahnya, papan baru:</p><p style="text-align:center;font-family:var(--font-title);letter-spacing:.08em"><b>PAJAK KEADILAN 100.000.000<br>TERIMA KASIH ATAS KEPATUHAN ANDA</b></p>' },
+          '"Kapten baru? Patuhi Keadilan dan kau tidak akan pernah melihatku dua kali."'
+        ], btn('ok', null, 'Tutup', false), function (w2) { w2.insertAdjacentHTML('beforeend', journal()); on(w2, '[data-ps=ok]', close); }, 'Gubernur IKN');
+      }
+    });
+  }
+  function journalToast() { setTimeout(function () { showToast('Catatan Pelayaran: satu sketsa lagi menemukan kenyataannya.', 'info'); }, 600); }
+
+  /* =====================================================================
+   * BABAK 7 — Lelaki Tua di Pustaka (Paman Ocid) + Papan Benang
+   * ===================================================================== */
+  function ocidScene() {
+    var n = N(), w = modalWrap('book', 'Pustaka Sunda', 'Sunda Empire');
+    pages(w, n.ocid, [
+      { narr: 'Di sudut pustaka', icon: 'book', t: '<p>Seorang lelaki tua compang-camping duduk di sudut pustaka, memeluk sebuah kotak jam kosong. Ia mengangkat wajahnya saat kau masuk.</p>' },
+      '"Kau juga ingat? Syukurlah. <b>Aku kira aku sudah gila.</b>"',
+      '"Kita berdua ada di dalam lingkar jam waktu ia memutarnya. Karena itu kita ingat. Dunia tidak."',
+      '"Dan dengar baik-baik: jam hanya bisa menghapus apa yang lahir dari kisahmu. <b>Kerja harianmu sendiri tak bisa disentuhnya.</b>"',
+      '"Mari kutunjukkan apa yang ia lakukan. Aku menggambarnya semalaman."'
+    ], btn('papan', 'map', 'Lihat Papan Benang'), function (w2) { on(w2, '[data-ps=papan]', function () { papan(true); }); }, 'Penjaga Jam Agung');
+  }
+  var NODES = [
+    { sk: 'badai', n: 'Tahun Badai Besar', a: 'Kapal hantu terdampar di Skitraw.', b: 'Kapal hantu ditarik Janji Putih.', mark: 'red' },
+    { sk: 'gaul', n: 'Gaul-Wash', a: 'Uda Gala membuka galangan.', b: 'Galangan tidak pernah ada. Gudang kosong "DISEWAKAN".' },
+    { sk: 'gap', n: 'Quest 1', a: 'Kau menenggelamkan Mr. GAP demi Kotak Hati.', b: 'Tak ada yang memintamu. Mr. GAP tetap berlayar.' },
+    { sk: 'toogood', n: 'Quest 2', a: 'TooGood merdeka, Black Pearl bangun.', b: 'TooGood tetap terbakar. Black Pearl tidur di gua.' },
+    { sk: 'marlya', n: 'Quest 3', a: 'Marlya bebas, M.A.R.I.E. dipadamkan.', b: 'Marlya tetap dirantai. M.A.R.I.E. tetap bertakhta.' },
+    { sk: 'pusaran', n: 'Quest 4', a: 'Black Pearl menabrak Absolute Justice. Satnislaus tenggelam.', b: 'Tidak ada Black Pearl, tidak ada armadamu. Satnislaus menang.' },
+    { sk: 'jabat', n: 'Saga 2', a: 'Dua tangan berjabat di teluk.', b: 'Tidak pernah terjadi.' },
+    { sk: 'menara', n: 'Hari ini', a: 'Festival Restorasi IKN.', b: 'Zaman Keadilan: Satnislaus Laksamana Agung. Restorasi menjadi Pajak Keadilan. Menara Cahaya menjadi Menara Pengawas.', mark: 'cold' }
+  ];
+  var nodeHooks = [];   // modul quest berikutnya menambah simpul (PS.nodeHooks.push(fn))
+  function allNodes() { var a = NODES.slice(); nodeHooks.forEach(function (f) { try { a = a.concat(f() || []); } catch (e) { } }); return a; }
+  function papan(tutorial) {
+    var NODES = allNodes();
+    var w = modalWrap('map', 'Papan Benang', tutorial ? 'Gambar Paman Ocid' : 'Jurnalmu');
+    var m = memGet('benang') || {};
+    w.innerHTML = '<div class="ps-papan"><canvas></canvas></div><div class="ps-papan-info">Ketuk satu simpul di benang.</div>' +
+      actions((tutorial ? btn('lanjut', null, 'Lanjut') : '') + btn('ulang', 'eye', 'Tonton ulang: Benang yang Putus', !tutorial ? undefined : false) + (tutorial ? '' : btn('ok', null, 'Tutup', false)));
+    var cv = w.querySelector('canvas'), info = w.querySelector('.ps-papan-info'), sel = -1, boxes = [];
+    function draw() {
+      var r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = r.width | 0, Hh = r.height | 0;
+      cv.width = W * dpr; cv.height = Hh * dpr;
+      var c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      MTPS.paper(c, 0, 0, W, Hh, 'rgba(60,40,20,.06)');
+      var n = NODES.length, cols = W < 560 ? 4 : (n > 8 ? 5 : n), rows = Math.ceil(n / cols), mx = 14, gap = (W - mx * 2) / cols;
+      var cw = Math.min(gap * 0.86, 150), ch = cw * 0.66, rowH = (Hh - 10) / rows, fs = Math.max(9, Math.min(11, gap / 9));
+      boxes = [];
+      for (var r = 0; r < rows; r++) {
+        var ty = r * rowH + Math.min(rowH * 0.16, 30);
+        c.strokeStyle = '#a8231c'; c.lineWidth = 3; c.lineCap = 'round';
+        if (r === 0) { c.beginPath(); c.moveTo(mx, ty); c.lineTo(mx + gap * 0.5 + 10, ty + 8); c.stroke(); c.beginPath(); c.moveTo(mx + gap * 0.5 + 22, ty + 14); c.quadraticCurveTo(mx + gap, ty, W - mx, ty); c.stroke(); }
+        else { c.beginPath(); c.moveTo(mx, ty); c.lineTo(W - mx, ty); c.stroke(); }
+      }
+      NODES.forEach(function (nd, i) {
+        var col = i % cols, row = Math.floor(i / cols), ty = row * rowH + Math.min(rowH * 0.16, 30);
+        var x = mx + gap * (col + 0.5) - cw / 2, y = ty + 16 + (col % 2) * ch * 0.3;
+        MTPS.sketch(c, nd.sk, x, y, cw, ch, { name: i > 0 && i < 7 ? m.ship : null, vis: m.vis, pin: true, sepia: i === 0, cold: nd.mark === 'cold' ? 1 : 0 });
+        if (i > 0 && i < 7) { c.strokeStyle = 'rgba(30,24,18,.8)'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(x + 4, y + 6); c.lineTo(x + cw - 4, y + ch - 6); c.moveTo(x + cw - 4, y + 6); c.lineTo(x + 4, y + ch - 6); c.stroke(); }
+        if (nd.mark === 'red') { c.strokeStyle = '#a8231c'; c.lineWidth = 3; c.strokeRect(x - 3, y - 3, cw + 6, ch + 6); }
+        if (sel === i) { c.strokeStyle = '#c9a450'; c.lineWidth = 3; c.strokeRect(x - 5, y - 5, cw + 10, ch + 10); }
+        c.font = '700 ' + fs + 'px "Cinzel", Georgia, serif'; c.fillStyle = '#2b2218'; c.textAlign = 'center';
+        var words = String(nd.n).split(' '), lines = [], cur = '';
+        words.forEach(function (wd) { var t2 = cur ? cur + ' ' + wd : wd; if (c.measureText(t2).width > gap - 4 && cur) { lines.push(cur); cur = wd; } else cur = t2; });
+        lines.push(cur);
+        lines.forEach(function (ln, k) { c.fillText(ln, x + cw / 2, y + ch + 13 + k * (fs + 2)); });
+        boxes.push([x, y, cw, ch + 18]);
+      });
+    }
+    function pick(ev) {
+      var r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+      boxes.forEach(function (b, i) { if (x >= b[0] && x <= b[0] + b[2] && y >= b[1] && y <= b[1] + b[3]) sel = i; });
+      if (sel >= 0) { var nd = NODES[sel]; info.innerHTML = '<b>' + esc(nd.n) + '</b><br><span class="asli">Dunia asli: ' + esc(nd.a) + '</span><br><span class="baru">Dunia sekarang: ' + esc(nd.b) + '</span>'; au('page'); }
+      draw();
+    }
+    cv.addEventListener('click', pick);
+    setTimeout(draw, 30);
+    on(w, '[data-ps=ok]', close);
+    on(w, '[data-ps=ulang]', function () { close(); benang(true); });
+    on(w, '[data-ps=lanjut]', function () { ocidEnd(); });
+  }
+  function ocidEnd() {
+    var n = N(), w = modalWrap('book', 'Pustaka Sunda', 'Sunda Empire');
+    pages(w, n.ocid, [
+      '"Perempuan itu memakai jam yang kujaga dua puluh tahun. Aku ingin jamku kembali. Kau ingin duniamu kembali."',
+      '"Tapi aku harus jujur, Kapten: <b>aku tidak tahu apakah itu mungkin.</b>"',
+      '"Kumpulkan modal. Kapal sekecil itu tak akan bisa membawa kita ke mana pun. Aku akan mencari jalan pulang ke pulauku. Kalau sudah ketemu, aku kirim surat."'
+    ], btn('ok', null, 'Tutup', false), function (w2) {
+      on(w2, '[data-ps=ok]', function (b) { call(['ocid'], function () { close(); showToast('Seorang penjaga jam tanpa jam. Seorang kapten tanpa kisah. Lumayan untuk permulaan.', 'info'); }, null, b); });
+    }, 'Penjaga Jam Agung');
+  }
+
+  /* =====================================================================
+   * JURNAL (samar, "Catatan terakhirmu")
+   * ===================================================================== */
+  function objective() {
+    var k = step(), d = qd(), b = d.bukti || {};
+    if (k === 1) return d.pesta ? '<i>"Seorang perempuan tua ingin melihat jam yang pernah berhenti."</i> Ia menunggu di dermaga <i>kota yang lampunya sampai ke laut</i>.' : '<i>"Di bawah menara yang menyala, seseorang hilang di antara seribu topeng."</i>';
+    if (k === 2 || k === 3) return '<i>"Seorang perempuan tua ingin melihat jam yang pernah berhenti. Bayarannya terlalu besar untuk seorang pelukis."</i> Pulau <i>seribu anak tangga</i>.';
+    if (k === 4 || k === 5) return '<i>"Ia sudah sampai. Kau bebas berdagang di pulau seribu tangga."</i>';
+    if (k === 6 || k === 7) return '<i>"Lonceng berdentang sumbang."</i>';
+    if (k === 8) return '<i>"Dunia ini tidak salah. Hanya saja ia bukan duniamu."</i> Periksa kabin kapalmu.';
+    if (k === 9) return '<i>"Dunia ini tidak salah. Hanya saja ia bukan duniamu."</i> Datangi <b>Skitraw</b>, <b>TooGood</b>, dan <b>IKN</b>. Lihat sendiri apa yang berubah.' +
+      '<div class="ps-bukti">' + BUKTI.map(function (x) { return '<span class="' + (b[x.k] ? 'got' : '') + '">' + (b[x.k] ? '&#10003; ' : '') + esc(x.n) + '</span>'; }).join('') + '</div>';
+    if (k === 10) return '<i>"Empat sketsa, empat kenyataan."</i> Seseorang yang juga ingat menunggumu di <b>Pustaka Sunda</b>.';
+    if (k >= 11) return '<i>"Seorang penjaga jam tanpa jam. Seorang kapten tanpa kisah."</i> Kumpulkan modal. Paman Ocid akan mengirim surat.';
+    return '';
+  }
+  function journal() {
+    var k = step(); if (k < 1) return '';
+    var o = objective(); if (!o) return '';
+    return '<div class="qg-journal"><div class="qg-jh">' + ic('compass') + ' <b>Penumpang Bergaun Putih</b></div><div class="qg-obj">' + ic('scroll') + ' <b>Catatan terakhirmu:</b><br>' + o + '</div>' +
+      (k >= 8 ? actions(btn('jcat', 'book', 'Catatan Pelayaran', false) + (k >= 11 ? btn('jpapan', 'map', 'Papan Benang', false) : '')) : '') + '</div>';
+  }
+  function decorTasks() {
+    if (currentPanel !== 'tasks' || step() < 1) return;
+    var w = insert(journal()); if (!w) return;
+    on(w, '[data-ps=jcat]', function () { catatan(); });
+    on(w, '[data-ps=jpapan]', function () { papan(false); });
+    if (step() === 1 && qd().pesta && cid() === 'ikn' && docked()) {
+      w.insertAdjacentHTML('beforeend', actions(btn('jz', 'user', 'Temui Nyonya Z.')));
+      on(w, '[data-ps=jz]', function () { franziskaMeet(); });
+    }
+    if (step() === 1 && !qd().pesta && cid() === 'ikn' && docked()) {
+      w.insertAdjacentHTML('beforeend', actions(btn('jf', 'eye', 'Cari dwi di festival')));
+      on(w, '[data-ps=jf]', function () { close(); pesta(); });
+    }
+  }
+  function decorSail() {
+    var k = step(), note = '';
+    if (k === 2) note = '<b>Titipan Penumpang.</b> Nyonya Z. ingin ke Pulau em pe\'er de pe\'er.';
+    if (k === 9) { var b = qd().bukti || {}; note = '<b>Catatan Pelayaran.</b> Belum dilihat: ' + BUKTI.filter(function (x) { return !b[x.k] && x.k !== 'laut'; }).map(function (x) { return esc(x.n); }).join(', ') + (b.laut ? '' : ' &middot; dan sesuatu di laut terbuka'); }
+    if (!note) return;
+    var c = document.getElementById('modalContent'), anchor = c && (c.querySelector('.npc') || c.querySelector('.ph'));
+    if (anchor && !c.querySelector('.ps-sailnote')) { var d = document.createElement('div'); d.className = 'ps-sailnote qg-callout'; d.innerHTML = '<div class="qg-callout-ico">' + ic('compass') + '</div><div>' + note + '</div><span></span>'; anchor.parentNode.insertBefore(d, anchor.nextSibling); }
+  }
+
+  /* =====================================================================
+   * Pembungkus inti
+   * ===================================================================== */
+  wrap_('setModal_', function () {
+    try { if (currentPanel === 'tasks') decorTasks(); } catch (e) { console.warn('[PS] tasks', e); }
+    try { decorAdil(); } catch (e) { console.warn('[PS] adil', e); }
+  });
+  wrap_('renderSetSailWith_', function () { try { decorSail(); } catch (e) { } });
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (st() && docked()) {
+        if (panel === 'ps_gudang' && cid() === 'skitraw') {
+          var w = modalWrap('warehouse', 'Gudang Kosong', 'Skitraw');
+          w.innerHTML = narr('DISEWAKAN', '<p>Pintu gudang tergembok. Lewat celah papannya, kau melihat lantai berdebu dan seutas tali jemuran yang tidak pernah dipakai.</p>', actions(btn('ok', null, 'Tutup', false)), 'warehouse');
+          on(w, '[data-ps=ok]', close); return;
+        }
+        if (panel === 'library' && cid() === 'sunda_empire' && step() === 10) { ocidScene(); return; }
+        if (panel === 'pacu' && adil()) {
+          var w2 = modalWrap('trophy', 'Pacu Dagang', 'Buku Besar Saudagar');
+          w2.innerHTML = narr('Ditolak', '<p>"Pacu Dagang kini diselenggarakan <b>Dewan Pajak Keadilan</b>. Hanya saudagar terdaftar yang boleh ikut. Nama Kapten tidak ada di daftar."</p>', actions(btn('ok', null, 'Tutup', false)), 'trophy');
+          on(w2, '[data-ps=ok]', close); return;
+        }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  // NPC: Uda Gala tidak ada di Skitraw zaman ini
+  var origNpc = window.npc_;
+  if (typeof origNpc === 'function') window.npc_ = function (role) {
+    if (adil() && cid() === 'skitraw' && role === 'tukang') { return { name: 'Pak Rusdi', title: 'Tukang perahu', ap: MTFace.npc('skitraw|tukang-adil', 'tukang', 0) }; }
+    return origNpc.apply(this, arguments);
+  };
+  var origNpcToast = window.showNpcToast_;
+  if (typeof origNpcToast === 'function') window.showNpcToast_ = function (role, text) {
+    if (adil() && role === 'syahbandar') text = 'Kapten baru? Daftarkan kapal, patuhi Keadilan, bayar pajak.';
+    return origNpcToast.call(this, role, text);
+  };
+  var POOL = [
+    'Sejak Laksamana Agung memenangkan pertempuran pusaran, tak ada lagi bajak laut yang berani menang. Tak ada lagi yang berani apa pun.',
+    'Pajak Keadilan naik lagi. Tak ada yang mengeluh. Mengeluh juga kena pajak.',
+    'Kapal putih besar itu lewat lagi semalam. Juru mudinya orang Skitraw, katanya.',
+    'Ssst. Jangan sebut nama bajak laut keras-keras di dermaga.',
+    'Gudang di Skitraw itu sudah lama disewakan. Tak ada yang mau. Entah kenapa.'
+  ];
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments);
+      if (!adil() || !out || !out.length) return out;
+      out[Math.floor(Math.random() * out.length)] = POOL[Math.floor(Math.random() * POOL.length)];
+      return out;
+    };
+  }
+  if (typeof window.walkerLine_ === 'function') {
+    var origWalker = window.walkerLine_;
+    window.walkerLine_ = function () {
+      if (adil() && Math.random() < 0.45) return ['Ssst.', 'Patuhi Keadilan.', 'Jangan menatap kapal putih itu.', 'Pajak dulu, bicara kemudian.'][Math.floor(Math.random() * 4)];
+      return origWalker.apply(this, arguments);
+    };
+  }
+  wrap_('renderScene', function () {
+    var k = step(), box = document.getElementById('cityTypeFlavor'); if (!box || !st() || !docked()) return;
+    var chip = '';
+    if (k === 9) { var b = qd().bukti || {}, n = BUKTI.filter(function (x) { return b[x.k]; }).length, nx = BUKTI.filter(function (x) { return !b[x.k] && x.k !== 'laut'; })[0]; chip = '<span class="chip ps-chip">' + ic('book') + 'Bukti ' + n + '/4' + (nx ? ' &middot; ' + esc(nx.n) : '') + '</span>'; }
+    if (k === 10) chip = '<span class="chip ps-chip">' + ic('book') + 'Pustaka Sunda</span>';
+    if (!chip) return;
+    var row = box.querySelector('.loc-chips'); if (row) row.insertAdjacentHTML('afterbegin', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+  });
+  function gates() {
+    // Pacu Dagang tetap tampil di menu, tapi menolak dengan alasan cerita
+    var mb = document.querySelector('#menuList .btn[data-panel=pacu]');
+    if (mb && adil()) mb.hidden = false;
+  }
+
+  /* ---------- Tanda Jasa ---------- */
+  var KISAH = { gala_quest: 1, toogood_quest: 1, black_pearl: 1, marlya: 1, warwerwor: 1, gr_tangan: 1, gr_tiang: 1, gr_garuda: 1 };
+  function isKisah(id) { return !!KISAH[id] || /^(bx|cb|kp|ts|lt|dt)_/.test(id); }
+  function kisahMedals() { try { var m = metaGet_(); return ACH.filter(function (a) { return isKisah(a.id) && m.u[a.id]; }).length; } catch (e) { return 6; } }
+  var achPushed = false;
+  function pushAch() {
+    if (achPushed || !st() || typeof ACH === 'undefined' || !ACH.push) return;
+    achPushed = true;
+    ACH.push(
+      { id: 'ps_ingat', t: 3, ic: 'eye', n: 'Yang Masih Ingat', d: 'Bertemu satu-satunya orang lain yang masih ingat.', ps: true, g: function (m) { return [m.c.psingat || 0, 1]; } },
+      { id: 'ps_tetap', t: 2, ic: 'ship', n: 'Yang Tetap Bersamamu', d: 'Pasang kembali rupa kapal yang tidak ikut hilang.', ps: true, g: function (m) { return [m.c.pstetap || 0, 1]; } }
+    );
+  }
+  if (typeof window.achSectionHtml_ === 'function') {
+    window.achSectionHtml_ = function () {
+      var m = metaGet_(), hideK = adil();
+      var list = ACH.filter(function (a) { if (a.ps && !m.u[a.id]) return false; if (hideK && isKisah(a.id)) return false; return true; });
+      var n = list.filter(function (a) { return m.u[a.id]; }).length;
+      return '<div id="achSection"><div class="scroll-divider">Tanda Jasa &middot; ' + n + '/' + list.length + '</div><div class="ach-grid">' +
+        list.map(function (a) {
+          var got = !!m.u[a.id], g = a.g(m), pct = Math.min(100, Math.round(g[0] / g[1] * 100)), hid = a.secret && !got;
+          return '<div class="ach-card' + (got ? ' got' : '') + '" title="' + esc_(hid ? 'Tanda Jasa rahasia.' : a.d) + '"><div class="ach-medal t' + a.t + '">' + ic(got ? a.ic : 'lock') + '</div>' +
+            '<div class="ach-body"><b>' + esc_(hid ? '???' : a.n) + '</b><span>' + esc_(hid ? 'Tanda Jasa rahasia.' : a.d) + '</span>' +
+            (got ? '<em>' + ic('check') + 'Hari ' + esc_(m.u[a.id]) + '</em>' : hid ? '' : (g[1] > 1 ? '<div class="ach-prog"><i style="width:' + pct + '%"></i></div><em>' + formatGold(Math.min(g[0], g[1])) + ' / ' + formatGold(g[1]) + '</em>' : '')) +
+            '</div></div>';
+        }).join('') + '</div></div>';
+    };
+  }
+
+  /* =====================================================================
+   * Adegan otomatis saat state berubah
+   * ===================================================================== */
+  function scenes() {
+    var p = st(); if (!p || !p.q10) return;
+    var k = step(), c = cid(), d = qd();
+    if (k >= 11) { try { metaMax_('psingat', 1); } catch (e) { } }
+    if (adil() && state.shipVisual && state.shipVisual.kd && Object.keys(state.shipVisual.kd).length) { try { metaMax_('pstetap', 1); } catch (e) { } }
+    if (!docked()) return;
+    if (k === 1 && c === 'ikn' && !seen('festival')) { festival(); return; }
+    if (k === 4 && c === 'empeer_depeer' && !seen('pisah')) { if (currentPanel) close(); pisah(); return; }
+    if (k === 6) { if (currentPanel) close(); tangga(); return; }
+    if (k === 7) { if (currentPanel) close(); benang(false); return; }
+    if (k === 8 && c === 'sunda_empire' && !seen('hari1')) { if (currentPanel) close(); hariPertama(); return; }
+    if (k === 9 || k === 10) {
+      var b = d.bukti || {};
+      if (b.laut && !seen('bukti:laut')) { buktiScene('laut', function () { setTimeout(scenes, 400); }); return; }
+      if (b[c] && !seen('bukti:' + c)) { buktiScene(c); return; }
+    }
+    if (k === 10 && c === 'sunda_empire' && !seen('ocidHint')) { markSeen('ocidHint'); setTimeout(function () { showToast('Seorang lelaki tua compang-camping menunggumu di Pustaka.', 'info'); }, 1200); }
+  }
+  wrap_('applyFreshState_', function () {
+    apply();
+    if (!st()) return;
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !st()) return;
+      if (busyUi() || (document.getElementById('modalOverlay') && document.getElementById('modalOverlay').classList.contains('open') && step() !== 6 && step() !== 7)) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { scenes(); } catch (e) { console.warn('[PS] scenes', e); }
+    }, 1700);
+  });
+
+  /* ---------- Alat uji GM (hanya muncul bila server mengirim bendera gm) ---------- */
+  function gmTool() {
+    var p = st(), box = document.querySelector('#mtGmPanel .mtp-box');
+    var sec = box && box.querySelector('.ps-gm');
+    if (!p || !p.gm || !box) { if (sec) sec.remove(); return; }
+    if (!sec) {
+      sec = document.createElement('div'); sec.className = 'ps-gm';
+      var hint = box.querySelector('.mtp-hint'); box.insertBefore(sec, hint || null);
+      sec.addEventListener('click', function (ev) {
+        var b = ev.target.closest('button[data-ps]'); if (!b) return;
+        var k = b.getAttribute('data-ps');
+        if (k === 'era') return gm(['era', b.getAttribute('data-v')]);
+        if (k === 'celah') return PE.celah(2400);
+        if (k === 'retak') return gm(['retak', sec.querySelector('[data-in=retak]').value]);
+        if (k === 'kaca') return gm(['kaca', sec.querySelector('[data-in=kaca]').value]);
+        if (k === 'langkah') return gm(['langkah', sec.querySelector('[data-in=q]').value, sec.querySelector('[data-in=n]').value], true);
+        if (k === 'reset' && confirm('Hapus semua data uji Pasir untuk akunmu?')) { try { Object.keys(localStorage).forEach(function (x) { if (x.indexOf('ps:' + uname() + ':') === 0) localStorage.removeItem(x); }); } catch (e) { } return gm(['reset'], true); }
+        if (k === 'ambil' && confirm('Ambil SEMUA harta akunmu ke potret (uji)? Bisa dikembalikan dengan Pulih.')) { rememberBefore(); return gm(['ambil'], true); }
+        if (k === 'pulih') return gm(['pulih'], true);
+        if (k === 'jangkar') return gm(['jangkar'], true);
+        if (k === 'sudyrman') return gm(['sudyrman', st().sudyrman ? '0' : '1'], true);
+        if (k === 'tutup') return gm(['tutup', '1'], true);
+        if (k === 'benang') { document.getElementById('mtGmPanel').classList.remove('open'); return benang(true); }
+      });
+    }
+    var tones = (p.eras || []).map(function (e) {
+      return '<button type="button" data-ps="era" data-v="' + esc(e.era) + '" class="' + (e.era === p.era ? 'on' : '') + '">' + esc(e.tone) + '</button>';
+    }).join('');
+    var q = p.q || {};
+    sec.innerHTML = '<h4>Uji Pasir</h4>' +
+      '<div class="ps-tones">' + tones + '<button type="button" data-ps="celah">celah</button><button type="button" data-ps="benang">benang</button></div>' +
+      '<div class="ps-row">Retak <input type="number" min="0" max="100" data-in="retak" value="' + (p.retak || 0) + '"><button type="button" data-ps="retak">Set</button>' +
+      ' Kaca <input type="number" min="0" max="' + (p.kacaMax || 7) + '" data-in="kaca" value="' + (p.kaca || 0) + '"><button type="button" data-ps="kaca">Set</button></div>' +
+      '<div class="ps-row">Langkah <select data-in="q">' + ['10', '11', '12', '13', '14'].map(function (k) { return '<option value="ps' + k + '">' + k + ' (' + (q[k] || 0) + ')</option>'; }).join('') +
+      '</select><input type="number" min="0" data-in="n" value="0"><button type="button" data-ps="langkah">Set</button><button type="button" data-ps="reset">Reset</button></div>' +
+      '<div class="ps-row">Harta <button type="button" data-ps="ambil">Ambil</button><button type="button" data-ps="pulih">Pulih</button> &middot; <button type="button" data-ps="jangkar">Jangkar siap</button></div>' +
+      '<div class="ps-row">Lampau <button type="button" data-ps="sudyrman">Sudyrman ' + (p.sudyrman ? 'tutup' : 'buka') + '</button><button type="button" data-ps="tutup">Tutup masa lalu</button></div>' +
+      '<div class="ps-st">Nada: <b>' + esc(p.tone) + '</b> &middot; retak ' + (p.retak || 0) + ' &middot; kaca ' + (p.kaca || 0) + '/' + (p.kacaMax || 7) + ' &middot; Q10 langkah ' + (q['10'] || 0) + ' &middot; Q11 langkah ' + (q['11'] || 0) + '</div>';
+  }
+  function gm(args, reload) {
+    call(['gm'].concat(args), function () {
+      if (typeof showToast === 'function') showToast('Uji Pasir: tersimpan', 'success');
+      if (reload && typeof loadState === 'function') try { loadState(); } catch (e) { location.reload(); }
+    });
+  }
+  document.addEventListener('click', function (ev) { if (ev.target && ev.target.id === 'mtGmBtn') setTimeout(gmTool, 0); }, true);
+
+  return { st: st, call: call, adopt: adopt, journal: journal, papan: papan, benang: benang, _festival: festival, _geladak: geladak, _tangga: tangga, _hari: hariPertama, _catatan: catatan, _bukti: buktiScene, _ocid: ocidScene,
+    // pembantu untuk modul quest berikutnya (PasirQ11.html, dst.)
+    K: { N: N, face: face, speech: speech, narr: narr, actions: actions, dots: dots, btn: btn, on: on, showModal: showModal, modalWrap: modalWrap, close: close, insert: insert, pages: pages,
+      cine: cine, busyUi: busyUi, busy: function (b) { flowBusy = !!b; }, seen: seen, markSeen: markSeen, memGet: memGet, memSet: memSet, esc: esc, au: au, apOf: apOf,
+      capName: capName, cid: cid, docked: docked, era: era, adil: adil, uname: uname, nodeHooks: nodeHooks } };
+})();
+</script>

@@ -1,0 +1,1429 @@
+<style>
+  /* ================= Tide v41 · Sinematik Pasir (MTPS) ================= */
+  .psb { position: fixed; inset: 0; z-index: 9100; background: #120f0b; opacity: 0; transition: opacity .7s; }
+  .psb.show { opacity: 1; } .psb.out { opacity: 0; transition: opacity .5s; }
+  .psb canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .psb-cap { position: absolute; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(820px, calc(100% - 28px));
+    padding: 16px 22px; border-radius: 14px; background: rgba(14,11,8,.82); border: 1px solid rgba(232,191,85,.35); color: #f6eedb; text-align: center;
+    font-family: Georgia, serif; font-size: clamp(17px, 2.3vw, 24px); line-height: 1.45; }
+  .psb-cap .t { min-height: 2.9em; display: flex; align-items: center; justify-content: center; opacity: 0; }
+  .psb-cap .t.in { animation: psbIn .9s ease forwards; }
+  .psb-cap .t b { color: #ffd98a; font-weight: 700; }
+  .psb-cap .t.big { font-size: 1.18em; }
+  .psb-cap .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px; }
+  .psb-cap .dots { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; flex: 1; } @media (max-width: 520px) { .psb-cap .dots { gap: 3px; } .psb-cap .dots i { width: 4px; height: 4px; } } .psb-cap .dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(240,207,120,.25); } .psb-cap .dots i.on { background: #f0cf78; }
+  .psb-cap .nx { font: 600 13px "Cinzel", Georgia, serif; letter-spacing: .08em; padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(232,191,85,.55); background: rgba(232,191,85,.12); color: #ffe7a3; cursor: pointer; white-space: nowrap; flex: none; opacity: .25; pointer-events: none; transition: opacity .4s; }
+  .psb-cap .nx.on { opacity: 1; pointer-events: auto; }
+  .psb-skip { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 14px; font: 600 12px "Cinzel", Georgia, serif; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(232,191,85,.45); background: rgba(10,8,6,.6); color: #f0cf78; cursor: pointer; }
+  .psb-sum { position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; opacity: 0; transition: opacity .8s; pointer-events: none; }
+  .psb-sum.on { opacity: 1; pointer-events: auto; }
+  .psb-sum .card { width: min(560px, 100%); padding: 22px 24px; border-radius: 6px; color: #2b2218; background: #efe6d2;
+    box-shadow: 0 18px 60px rgba(0,0,0,.6), inset 0 0 60px rgba(120,90,50,.25); font-family: Georgia, serif; line-height: 1.55; position: relative; }
+  .psb-sum .card::before { content: ''; position: absolute; left: 0; right: 0; top: 24px; height: 2px; background: #a8231c; opacity: .8; }
+  .psb-sum h3 { margin: 18px 0 10px; font-family: "Cinzel", Georgia, serif; letter-spacing: .06em; font-size: 1.15em; color: #3a2a18; }
+  .psb-sum ol { margin: 0 0 14px; padding-left: 22px; font-size: 1.04em; } .psb-sum li { margin: 6px 0; } .psb-sum li b { color: #7a1a12; }
+  .psb-sum button { display: block; width: 100%; padding: 12px; border-radius: 10px; border: 0; cursor: pointer; font: 700 15px "Cinzel", Georgia, serif; letter-spacing: .08em;
+    background: linear-gradient(180deg, #e9c46a, #b8862a); color: #2a1a06; }
+  @keyframes psbIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .psi { position: fixed; inset: 0; z-index: 9050; pointer-events: auto; opacity: 0; transition: opacity .6s; }
+  .psi.show { opacity: 1; } .psi.out { opacity: 0; transition: opacity 1.2s; }
+  .psi canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .psi .lbl { position: absolute; left: 50%; top: max(18px, env(safe-area-inset-top)); transform: translateX(-50%); padding: 6px 16px; border-radius: 999px;
+    font: 700 12px "Cinzel", Georgia, serif; letter-spacing: .22em; text-transform: uppercase; color: #3a2a18; background: rgba(239,230,210,.92); border: 1px solid rgba(60,40,20,.35); }
+  .psi .tx { position: absolute; left: 50%; bottom: max(26px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(640px, calc(100% - 32px)); text-align: center;
+    padding: 12px 18px; border-radius: 12px; background: rgba(239,230,210,.94); color: #2b2218; font-family: Georgia, serif; font-size: 1.05em; line-height: 1.5; border: 1px solid rgba(60,40,20,.3); }
+  @media (prefers-reduced-motion: reduce) { .psb, .psi, .psb-cap .t.in { transition: none !important; animation: none !important; opacity: 1; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Sinematik Pasir (MTPS)
+ *   MTCine kinds : ps_festival · ps_geladak · ps_tangga (opts.solo) · ps_adil · ps_hantu · ps_peta · ps_benua · ps_lonceng · ps_aula · ps_tujuh · ps_pasang · ps_kejauhan · ps_tenggelam · ps_epilog · ps_credits3   (opts.ctl = { i: slide })
+ *   MTPS.benang(o, done)    "Benang yang Putus" (o: { name, ship, shipVis, gold, cities, bank, cargo, wh, medals, replay })
+ *   MTPS.ingat(kind, text, o, done)   kartu "Ingatanmu": sketsa arang yang luntur ke pemandangan sekarang
+ *   MTPS.sketch(ctx, kind, x, y, w, h, o)   satu sketsa arang (dipakai juga Papan Benang)
+ * Tiga gaya yang tidak boleh tertukar: sketsa arang = kisahmu (ingatan) · sepia = masa lalu sungguhan ·
+ * biru baja = dunia yang sekarang.
+ * ===================================================================== */
+var MTPS = (function () {
+  var U = MTUtil, CH = MTCine.H;
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function sm(a, b, t) { return U.smooth(clamp((t - a) / (b - a), 0, 1)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function au(n) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n); } catch (e) { } }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function hs(n) { var x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+
+  /* ================= kertas & arang ================= */
+  var paperCv = null, hatchCv = null;
+  function paperTex() {
+    if (paperCv) return paperCv;
+    paperCv = document.createElement('canvas'); paperCv.width = paperCv.height = 256;
+    var g = paperCv.getContext('2d'), d = g.createImageData(256, 256), r = U.rng(77);
+    for (var i = 0; i < d.data.length; i += 4) {
+      var v = 228 + (r() - 0.5) * 22, fib = r() < 0.004 ? -40 : 0;
+      d.data[i] = v + 11 + fib; d.data[i + 1] = v + 2 + fib; d.data[i + 2] = v - 18 + fib; d.data[i + 3] = 255;
+    }
+    g.putImageData(d, 0, 0);
+    return paperCv;
+  }
+  function hatchTex() {
+    if (hatchCv) return hatchCv;
+    hatchCv = document.createElement('canvas'); hatchCv.width = hatchCv.height = 48;
+    var g = hatchCv.getContext('2d'); g.strokeStyle = 'rgba(40,32,24,.5)'; g.lineWidth = 0.8;
+    for (var k = -48; k < 96; k += 5) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 48, 48); g.stroke(); }
+    return hatchCv;
+  }
+  function paper(ctx, x, y, w, h, tint) {
+    ctx.save(); ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.fillRect(x, y, w, h);
+    if (tint) { ctx.fillStyle = tint; ctx.fillRect(x, y, w, h); }
+    ctx.restore();
+  }
+  // garis arang: dua lapis bergetar
+  function line(ctx, pts, w, a, seed) {
+    for (var pass = 0; pass < 2; pass++) {
+      ctx.beginPath();
+      for (var i = 0; i < pts.length; i++) {
+        var j = (hs(seed + i * 7 + pass * 31) - 0.5) * w * 0.9, k = (hs(seed + i * 13 + pass * 17) - 0.5) * w * 0.9;
+        if (i === 0) ctx.moveTo(pts[i][0] + j, pts[i][1] + k); else ctx.lineTo(pts[i][0] + j, pts[i][1] + k);
+      }
+      ctx.strokeStyle = 'rgba(38,31,24,' + (a * (pass ? 0.55 : 1)).toFixed(3) + ')'; ctx.lineWidth = w * (pass ? 0.6 : 1); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+  }
+  function blot(ctx, x, y, rx, ry, a) {
+    ctx.save(); ctx.fillStyle = 'rgba(38,31,24,' + a + ')'; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.3); ctx.fill(); ctx.restore();
+  }
+  function hatch(ctx, a) { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = ctx.createPattern(hatchTex(), 'repeat'); ctx.fillRect(-2000, -2000, 4000, 4000); ctx.restore(); }
+
+  /* ================= tokoh sederhana ================= */
+  // o: { gown, coat, hair, kid, parasol, wave, helm, uniform, big, arm }
+  function person(ctx, x, y, h, o, col) {
+    o = o || {}; col = col || '#2b2620';
+    var s = h / 100;
+    ctx.save(); ctx.translate(x, y); ctx.scale(s * (o.flip ? -1 : 1), s);
+    ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    var bw = o.big ? 26 : 16;
+    if (o.gown) { ctx.beginPath(); ctx.moveTo(-bw * 1.2, 0); ctx.quadraticCurveTo(-bw * 0.6, -40, -bw * 0.5, -64); ctx.lineTo(bw * 0.5, -64); ctx.quadraticCurveTo(bw * 0.6, -40, bw * 1.2, 0); ctx.closePath(); ctx.fill(); }
+    else {
+      ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(-3, -34); ctx.moveTo(5, 0); ctx.lineTo(3, -34); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-bw * 0.6, -34); ctx.lineTo(-bw * 0.55, -66); ctx.lineTo(bw * 0.55, -66); ctx.lineTo(bw * 0.6, -34); ctx.closePath(); ctx.fill();
+    }
+    ctx.lineWidth = 5;
+    if (o.wave) { ctx.beginPath(); ctx.moveTo(bw * 0.5, -62); ctx.lineTo(bw * 0.5 + 14, -86); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-bw * 0.5, -62); ctx.lineTo(-bw * 0.5 - 8, -36); ctx.stroke(); }
+    else if (o.helm) { ctx.beginPath(); ctx.moveTo(bw * 0.5, -60); ctx.lineTo(bw * 0.5 + 14, -52); ctx.moveTo(-bw * 0.5, -60); ctx.lineTo(-bw * 0.5 + 2, -48); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.moveTo(bw * 0.5, -62); ctx.lineTo(bw * 0.5 + 4, -34); ctx.moveTo(-bw * 0.5, -62); ctx.lineTo(-bw * 0.5 - 4, -34); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(0, -76, o.big ? 11 : 9, 0, 6.3); ctx.fill();
+    if (o.bun) { ctx.beginPath(); ctx.arc(0, -88, 5, 0, 6.3); ctx.fill(); }
+    if (o.hat === 'iket') { ctx.fillRect(-10, -86, 20, 5); }
+    if (o.hat === 'kapten') { ctx.fillRect(-12, -86, 24, 4); ctx.fillRect(-8, -92, 16, 6); }
+    if (o.parasol) { ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-bw * 0.5 - 4, -36); ctx.lineTo(-bw * 0.5 - 10, -104); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-bw * 0.5 - 34, -100); ctx.quadraticCurveTo(-bw * 0.5 - 10, -128, -bw * 0.5 + 14, -100); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+  }
+
+  /* ================= kapal ================= */
+  var SKETCH_SHIP = { hull: '#4f4942', trim: '#8a8278', sail: '#ebe4d4', flag: '#3a3530', emblemColor: '#ebe4d4', pennant: '#6a645c', kd: null };
+  var WHITE_SHIP = { hull: '#e9e4d8', trim: '#c9a450', sail: '#f7f4ec', flag: '#f7f4ec', emblemColor: '#c9a450', pennant: '#f7f4ec', masts: 3, emblem: 'crest', ports: 7, gilded: true, kd: null };
+  var JANJI_PUTIH = { hull: '#efe9dc', trim: '#b9b1a0', sail: '#f8f5ee', flag: '#f8f5ee', emblemColor: '#b9b1a0', pennant: '#f8f5ee', masts: 2, ports: 3, kd: null };
+  function shipOpts(vis, extra) {
+    var o = {};
+    try { o = MTShip.fromVisual(vis || {}); } catch (e) { o = {}; }
+    for (var k in (extra || {})) o[k] = extra[k];
+    return o;
+  }
+  function ship(ctx, x, y, s, o) { try { MTShip.draw(ctx, x, y, s, o); } catch (e) { } }
+
+  /* ================= SKETSA (kartu kisah) =================
+   * Satuan desain 300 x 200. o: { name (nama kapal pemain), vis (shipVisual), t, sepia, cold } */
+  function water(ctx, y, a) { line(ctx, [[0, y], [60, y + 2], [140, y - 1], [220, y + 2], [300, y]], 1.6, a || 0.6, y * 3); for (var i = 0; i < 6; i++) line(ctx, [[20 + i * 48, y + 12 + (i % 2) * 6], [44 + i * 48, y + 12 + (i % 2) * 6]], 1, 0.35, i * 11 + y); }
+  function myShip(ctx, x, y, s, o, dir) { ship(ctx, x, y, s, shipOpts(o.vis, Object.assign({}, SKETCH_SHIP, { dir: dir || -1, t: o.t || 0 }))); }
+  function shipTag(ctx, x, y, name) {
+    if (!name) return;
+    ctx.save(); ctx.font = 'italic 11px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(38,31,24,.85)'; ctx.fillText('« ' + name + ' »', x, y); ctx.restore();
+  }
+  var SK = {
+    gaul: function (ctx, o) {
+      water(ctx, 150);
+      line(ctx, [[20, 146], [20, 70], [150, 70], [150, 146]], 2.2, 0.9, 11);
+      line(ctx, [[14, 70], [85, 44], [156, 70]], 2, 0.9, 12);
+      ctx.save(); ctx.font = 'bold 18px "Pirata One", Georgia, serif'; ctx.fillStyle = 'rgba(38,31,24,.9)'; ctx.textAlign = 'center'; ctx.fillText('Gaul-Wash', 85, 66); ctx.restore();
+      line(ctx, [[34, 100], [70, 100], [70, 146]], 1.4, 0.6, 13); hatch(ctx, 0.0);
+      person(ctx, 112, 146, 46, { wave: true, hat: 'iket' });
+      myShip(ctx, 236, 152, 0.62, o);
+    },
+    gap: function (ctx, o) {
+      water(ctx, 150);
+      ctx.save(); ctx.translate(96, 150); ctx.rotate(0.38); ship(ctx, 0, 0, 0.6, Object.assign({}, SKETCH_SHIP, { hull: '#2a2622', sail: '#9a948a', dir: 1, damage: 0.8 })); ctx.restore();
+      for (var i = 0; i < 6; i++) blot(ctx, 70 + i * 9, 80 - i * 9, 12 + i * 2, 8 + i, 0.12);
+      line(ctx, [[60, 112], [72, 92], [84, 108], [94, 84], [104, 110]], 1.8, 0.8, 21);
+      myShip(ctx, 236, 152, 0.62, o);
+      for (var k = 0; k < 3; k++) blot(ctx, 196 - k * 12, 130 - k * 4, 8, 6, 0.15);
+    },
+    toogood: function (ctx, o) {
+      water(ctx, 156);
+      for (var c = 0; c < 4; c++) { var cx = 40 + c * 34; line(ctx, [[cx, 150], [cx, 70 + c * 6], [cx + 12, 70 + c * 6], [cx + 12, 150]], 2, 0.85, 31 + c); }
+      for (var s2 = 0; s2 < 9; s2++) blot(ctx, 60 + s2 * 14, 40 - s2 * 2, 16, 7, 0.06);
+      for (var r = 0; r < 7; r++) line(ctx, [[150, 30], [150 + Math.cos(r * 0.45 - 1.4) * 60, 30 + Math.sin(r * 0.45 - 1.4) * 60 + 60]], 0.9, 0.35, 41 + r);
+      person(ctx, 200, 152, 52, { big: true, wave: true });
+      myShip(ctx, 262, 160, 0.42, o);
+    },
+    marlya: function (ctx, o) {
+      water(ctx, 160);
+      person(ctx, 150, 150, 62, { gown: true, wave: true });
+      line(ctx, [[100, 132], [112, 128], [122, 134]], 2.4, 0.9, 51); line(ctx, [[178, 134], [188, 128], [200, 132]], 2.4, 0.9, 52);
+      for (var g = 0; g < 10; g++) line(ctx, [[150, 72], [150 + Math.cos(g * 0.63) * 46, 72 + Math.sin(g * 0.63) * 46]], 0.8, 0.3, 53 + g);
+      myShip(ctx, 256, 166, 0.42, o);
+    },
+    pusaran: function (ctx, o) {
+      for (var k = 0; k < 5; k++) { ctx.beginPath(); ctx.ellipse(150, 140, 120 - k * 22, 40 - k * 7, 0, 0.3 + k, 5.6 + k); ctx.strokeStyle = 'rgba(38,31,24,.5)'; ctx.lineWidth = 1.2; ctx.stroke(); }
+      ctx.save(); ctx.translate(150, 132); ctx.rotate(-0.42); ship(ctx, 0, 0, 0.66, Object.assign({}, SKETCH_SHIP, { hull: '#d8d2c4', sail: '#f2ece0', dir: 1, damage: 0.6 })); ctx.restore();
+      ship(ctx, 66, 142, 0.5, Object.assign({}, SKETCH_SHIP, { hull: '#1e1b18', sail: '#5a554e', dir: 1 }));
+      myShip(ctx, 250, 150, 0.46, o);
+      ctx.save(); ctx.font = 'italic 10px Georgia, serif'; ctx.fillStyle = 'rgba(38,31,24,.8)'; ctx.fillText('Absolute Justice', 26, 40); ctx.restore();
+    },
+    jabat: function (ctx, o) {
+      water(ctx, 166);
+      line(ctx, [[96, 150], [150, 126], [204, 150], [150, 168], [96, 150]], 2.2, 0.85, 61);
+      line(ctx, [[110, 120], [138, 104], [150, 106]], 5, 0.9, 62); line(ctx, [[190, 120], [162, 104], [150, 106]], 5, 0.9, 63);
+      for (var g = 0; g < 12; g++) line(ctx, [[150, 104], [150 + Math.cos(g * 0.52) * 38, 104 + Math.sin(g * 0.52) * 30]], 0.8, 0.3, 64 + g);
+      myShip(ctx, 256, 170, 0.4, o);
+      ship(ctx, 40, 170, 0.34, Object.assign({}, SKETCH_SHIP, { dir: 1 }));
+    },
+    menara: function (ctx, o) {
+      water(ctx, 160);
+      line(ctx, [[120, 156], [130, 44], [150, 44], [160, 156]], 2.4, 0.9, 71);
+      line(ctx, [[126, 44], [140, 28], [154, 44]], 2.2, 0.9, 72);
+      if (o.cold) {
+        ctx.save(); ctx.fillStyle = 'rgba(230,240,250,.5)'; ctx.beginPath(); ctx.moveTo(140, 36); ctx.lineTo(300, 10); ctx.lineTo(300, 60); ctx.closePath(); ctx.fill(); ctx.restore();
+        for (var f = 0; f < 4; f++) { line(ctx, [[30 + f * 70, 150], [30 + f * 70, 110]], 1.2, 0.8, 80 + f); ctx.save(); ctx.fillStyle = '#f4f6f8'; ctx.fillRect(30 + f * 70, 110, 22, 13); ctx.strokeStyle = 'rgba(38,31,24,.7)'; ctx.strokeRect(30 + f * 70, 110, 22, 13); ctx.restore(); }
+      } else {
+        for (var b = 0; b < 3; b++) line(ctx, [[140, 36], [300, 14 + b * 20]], 0.9, 0.45, 73 + b);
+        for (var l = 0; l < 8; l++) blot(ctx, 30 + l * 13, 118 + Math.sin(l) * 4, 3, 4, 0.5);
+        myShip(ctx, 240, 166, 0.46, o);
+      }
+    },
+    badai: function (ctx, o) {
+      line(ctx, [[0, 150], [80, 146], [150, 152], [300, 150]], 2, 0.8, 91);
+      line(ctx, [[40, 150], [44, 98]], 2, 0.8, 92); line(ctx, [[44, 98], [22, 106]], 1.5, 0.7, 93); line(ctx, [[44, 98], [64, 104]], 1.5, 0.7, 94);
+      person(ctx, 96, 150, 40, { hat: 'iket' });
+      ship(ctx, 220, 150, 0.5, Object.assign({}, SKETCH_SHIP, { hull: '#7a746a', sail: '#cfc8b8', dir: -1, furl: 0.6 }));
+      for (var r = 0; r < 18; r++) line(ctx, [[r * 17, 10 + (r % 3) * 9], [r * 17 - 6, 30 + (r % 3) * 9]], 0.8, 0.3, 95 + r);
+    },
+    // Tide v41 Batch 3: simpul baru di Papan Benang
+    badai2: function (ctx, o) {
+      SK.badai(ctx, o);
+      ship(ctx, 286, 140, 0.42, Object.assign({}, SKETCH_SHIP, { hull: '#d8d2c4', sail: '#f2ece0', dir: -1 }));
+      line(ctx, [[262, 126], [240, 120], [226, 130]], 1.2, 0.8, 131);
+      myShip(ctx, 150, 168, 0.3, o, 1);
+    },
+    tanya: function (ctx, o) {
+      water(ctx, 160);
+      for (var b = 0; b < 6; b++) line(ctx, [[30 + b * 22, 156], [30 + b * 22, 100 - (b % 3) * 18]], 2, 0.75, 141 + b);
+      line(ctx, [[180, 156], [190, 50], [204, 50], [214, 156]], 2.2, 0.85, 150);
+      for (var l = 0; l < 4; l++) line(ctx, [[198, 46], [300, 30 + l * 22]], 0.8, 0.4, 151 + l);
+      ctx.save(); ctx.font = 'bold 64px Georgia, serif'; ctx.fillStyle = 'rgba(120,26,18,.7)'; ctx.textAlign = 'center'; ctx.fillText('?', 112, 70); ctx.restore();
+    },
+    laut: function (ctx, o) {
+      water(ctx, 150);
+      ship(ctx, 96, 152, 0.62, Object.assign({}, SKETCH_SHIP, { hull: '#1e1b18', sail: '#5a554e', dir: 1 }));
+      myShip(ctx, 220, 154, 0.58, o);
+    }
+  };
+  // Satu kartu sketsa. o.burn 0..1 (terbakar dari kiri), o.cold 0..1 (membeku biru baja), o.sepia, o.alpha, o.pin
+  function sketch(ctx, kind, x, y, w, h, o) {
+    o = o || {};
+    var f = SK[kind]; if (!f) return;
+    ctx.save();
+    ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+    ctx.translate(x, y);
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 5;
+    var burnX = (o.burn || 0) * (w + 30) - 15;
+    ctx.beginPath();
+    if (o.burn) {
+      ctx.moveTo(burnX, 0);
+      for (var yy = 0; yy <= h; yy += h / 12) ctx.lineTo(burnX + (hs(yy * 0.37 + 3) - 0.5) * 28, yy);
+      ctx.lineTo(w, h); ctx.lineTo(w, 0); ctx.closePath();
+    } else ctx.rect(0, 0, w, h);
+    ctx.fillStyle = '#efe6d2'; ctx.fill(); ctx.shadowColor = 'transparent';
+    ctx.clip();
+    paper(ctx, 0, 0, w, h, o.sepia ? 'rgba(150,100,40,.28)' : null);
+    ctx.save(); ctx.scale(w / 300, h / 200); f(ctx, o); ctx.restore();
+    hatch(ctx, 0.05);
+    if (o.cold) {
+      ctx.fillStyle = 'rgba(60,92,126,' + (0.55 * o.cold).toFixed(3) + ')'; ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(220,236,250,' + (0.5 * o.cold).toFixed(3) + ')'; ctx.lineWidth = 1;
+      for (var c = 0; c < 9; c++) { ctx.beginPath(); ctx.moveTo(hs(c) * w, 0); ctx.lineTo(hs(c + 9) * w, h * hs(c + 3)); ctx.lineTo(hs(c + 5) * w, h); ctx.stroke(); }
+    }
+    if (o.name) { ctx.save(); ctx.scale(w / 300, h / 200); shipTag(ctx, 236, 190, o.name); ctx.restore(); }
+    ctx.restore();
+    ctx.save(); ctx.translate(x, y); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+    if (!o.burn) { ctx.strokeStyle = 'rgba(38,31,24,.55)'; ctx.lineWidth = 1.2; ctx.strokeRect(0.5, 0.5, w - 1, h - 1); }
+    if (o.burn && o.burn < 1) {
+      // bara di tepi yang terbakar
+      ctx.globalCompositeOperation = 'lighter';
+      for (var e = 0; e <= 12; e++) {
+        var ey = e * h / 12, ex = burnX + (hs(ey * 0.37 + 3) - 0.5) * 28, fl = 0.6 + Math.sin((o.t || 0) * 9 + e) * 0.4;
+        var g = ctx.createRadialGradient(ex, ey, 0, ex, ey, 16 * fl + 6);
+        g.addColorStop(0, 'rgba(255,190,90,.9)'); g.addColorStop(0.4, 'rgba(230,90,30,.5)'); g.addColorStop(1, 'rgba(120,30,10,0)');
+        ctx.fillStyle = g; ctx.fillRect(ex - 24, ey - 24, 48, 48);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (o.pin) { ctx.fillStyle = '#7a1a12'; ctx.beginPath(); ctx.arc(w / 2, 4, 5, 0, 6.3); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.beginPath(); ctx.arc(w / 2 - 1.5, 2.5, 1.6, 0, 6.3); ctx.fill(); }
+    ctx.restore();
+  }
+
+  /* ================= MTCine: ps_festival ================= */
+  MTCine.register('ps_festival', function (opts) {
+    var P = new CH.Particles(), fw = 0, r = U.rng(5);
+    var crowd = []; for (var i = 0; i < 46; i++) crowd.push({ x: r(), h: 0.6 + r() * 0.5, ph: r() * 6 });
+    function draw(ctx, W, H, t, dt) {
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#060a1c'); g.addColorStop(0.6, '#1a1838'); g.addColorStop(1, '#2a1a2a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var hy = H * 0.66;
+      // gedung & garuda
+      ctx.fillStyle = '#0d1020'; for (var b = 0; b < 9; b++) { var bx = W * (0.05 + b * 0.1), bh = H * (0.18 + hs(b) * 0.22); ctx.fillRect(bx, hy - bh, W * 0.06, bh); }
+      CH.garudaSil(ctx, W * 0.24, hy, H * 0.38, '#b8862a');
+      // menara cahaya
+      var tx = W * 0.72, top = H * 0.16;
+      ctx.fillStyle = '#20222c'; ctx.beginPath(); ctx.moveTo(tx - W * 0.02, hy); ctx.lineTo(tx - W * 0.012, top); ctx.lineTo(tx + W * 0.012, top); ctx.lineTo(tx + W * 0.02, hy); ctx.closePath(); ctx.fill();
+      var a = Math.sin(t * 0.5) * 0.8 + Math.PI;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      var len = W * 1.1, bg = ctx.createLinearGradient(tx, top, tx + Math.cos(a) * len, top + Math.sin(a) * len * 0.3);
+      bg.addColorStop(0, 'rgba(255,236,170,.55)'); bg.addColorStop(1, 'rgba(255,236,170,0)');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(tx, top); ctx.lineTo(tx + Math.cos(a - 0.06) * len, top + Math.sin(a - 0.06) * len * 0.3); ctx.lineTo(tx + Math.cos(a + 0.06) * len, top + Math.sin(a + 0.06) * len * 0.3); ctx.closePath(); ctx.fill();
+      var hg = ctx.createRadialGradient(tx, top, 0, tx, top, W * 0.06); hg.addColorStop(0, 'rgba(255,240,190,.9)'); hg.addColorStop(1, 'rgba(255,200,120,0)'); ctx.fillStyle = hg; ctx.fillRect(tx - W * 0.06, top - W * 0.06, W * 0.12, W * 0.12);
+      ctx.restore();
+      // untaian lampion melengkung di atas dermaga
+      for (var s = 0; s < 3; s++) {
+        var x0 = W * (-0.05 + s * 0.35), x1 = x0 + W * 0.5, y0 = H * (0.34 + s * 0.07), sag = H * 0.06;
+        ctx.strokeStyle = 'rgba(40,30,20,.8)'; ctx.lineWidth = 1; ctx.beginPath();
+        for (var k = 0; k <= 20; k++) { var f = k / 20, lx = lerp(x0, x1, f), ly = y0 + Math.sin(f * Math.PI) * sag; if (k) ctx.lineTo(lx, ly); else ctx.moveTo(lx, ly); }
+        ctx.stroke();
+        for (var k2 = 1; k2 < 20; k2 += 2) {
+          var f2 = k2 / 20, lx2 = lerp(x0, x1, f2), ly2 = y0 + Math.sin(f2 * Math.PI) * sag + W * 0.008, fl = 0.75 + Math.sin(t * 4 + k2 + s) * 0.2;
+          ctx.fillStyle = 'rgba(255,' + (110 + s * 30) + ',60,' + fl.toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(lx2, ly2, W * 0.006, W * 0.008, 0, 0, 6.3); ctx.fill();
+        }
+      }
+      // laut & keramaian
+      ctx.fillStyle = '#0a0e1e'; ctx.fillRect(0, hy, W, H - hy);
+      crowd.forEach(function (c, i) {
+        var cx = c.x * W, ch = H * 0.07 * c.h, by = H * 0.76 + Math.sin(t * 3 + c.ph) * H * 0.004;
+        person(ctx, cx, by, ch, { wave: i % 5 === 0 }, '#05060c');
+      });
+      // perempuan bergaun putih, diam menatap menara
+      person(ctx, W * 0.62, H * 0.77, H * 0.12, { gown: true, bun: true, parasol: true, flip: true }, '#e8e2d4');
+      fw -= dt / 1000;
+      if (fw <= 0 && !REDUCE) { fw = 0.6 + Math.random() * 1.2; CH.burst(P, W * (0.1 + Math.random() * 0.8), H * (0.1 + Math.random() * 0.3), Math.max(1.1, Math.min(W, H) * 0.0035), CH.FW); }
+      P.run(ctx, dt);
+      CH.vignette(ctx, W, H, 0.45);
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  });
+
+  /* ================= MTCine: ps_geladak (senja -> badai -> fajar) ================= */
+  MTCine.register('ps_geladak', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, rain = [];
+    for (var i = 0; i < 160; i++) rain.push({ x: Math.random(), y: Math.random(), v: 0.6 + Math.random() * 0.6 });
+    var SKY = [['#f2a65a', '#c4564a', '#3a2440'], ['#1a1e26', '#2a303a', '#141820'], ['#f6d9a8', '#d9a6a0', '#6a7aa0']];
+    var SEA = ['#5a2e3a', '#1a222a', '#4a6a8a'];
+    function draw(ctx, W, H, t, dt) {
+      var i = clamp(ctl.i | 0, 0, 2); if (i !== lastI) { lastI = i; since = t; }
+      var k = sm(0, 1.2, t - since), s = SKY[i];
+      var g = ctx.createLinearGradient(0, 0, 0, H * 0.6); g.addColorStop(0, s[2]); g.addColorStop(0.65, s[1]); g.addColorStop(1, s[0]);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var hy = H * 0.56;
+      if (i === 0) { var sg = ctx.createRadialGradient(W * 0.3, hy, 0, W * 0.3, hy, H * 0.25); sg.addColorStop(0, 'rgba(255,220,150,.9)'); sg.addColorStop(1, 'rgba(255,160,90,0)'); ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H); }
+      if (i === 2) {
+        // em pe'er de pe'er di cakrawala: bukit, tangga zig-zag, kubah
+        ctx.fillStyle = 'rgba(60,60,90,' + (0.85 * k).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(W * 0.52, hy); ctx.quadraticCurveTo(W * 0.66, hy - H * 0.2, W * 0.8, hy); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.arc(W * 0.66, hy - H * 0.19, H * 0.035, Math.PI, 0); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,240,200,' + (0.5 * k).toFixed(3) + ')'; ctx.lineWidth = 1.2; ctx.beginPath();
+        for (var z = 0; z < 6; z++) { var zy = hy - z * H * 0.03; ctx.lineTo(W * (0.6 + (z % 2) * 0.1), zy); } ctx.stroke();
+      }
+      ctx.fillStyle = SEA[i]; ctx.fillRect(0, hy, W, H - hy);
+      for (var w = 0; w < 14; w++) { ctx.strokeStyle = 'rgba(255,255,255,' + (i === 1 ? 0.18 : 0.1) + ')'; ctx.lineWidth = 1; ctx.beginPath(); var wy = hy + (w + 1) * H * 0.02; ctx.moveTo(((w * 0.17 + t * 0.02) % 1) * W, wy); ctx.lineTo(((w * 0.17 + t * 0.02) % 1) * W + W * 0.08, wy); ctx.stroke(); }
+      var roll = i === 1 ? Math.sin(t * 1.4) * 0.04 : Math.sin(t * 0.6) * 0.01;
+      ctx.save(); ctx.translate(W / 2, H); ctx.rotate(roll); ctx.translate(-W / 2, -H);
+      // geladak
+      ctx.fillStyle = '#5a3a22'; ctx.beginPath(); ctx.moveTo(-W * 0.1, H); ctx.lineTo(-W * 0.1, H * 0.76); ctx.lineTo(W * 1.1, H * 0.74); ctx.lineTo(W * 1.1, H); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(30,18,10,.6)'; ctx.lineWidth = 2; for (var p = 0; p < 8; p++) { ctx.beginPath(); ctx.moveTo(-W * 0.1, H * (0.78 + p * 0.03)); ctx.lineTo(W * 1.1, H * (0.76 + p * 0.032)); ctx.stroke(); }
+      ctx.fillStyle = '#3a2414'; ctx.fillRect(-W * 0.1, H * 0.7, W * 1.2, H * 0.03);
+      for (var post = 0; post < 9; post++) ctx.fillRect(W * (post * 0.13 - 0.02), H * 0.7, W * 0.012, H * 0.06);
+      ctx.fillStyle = '#2a1a10'; ctx.fillRect(W * 0.12, 0, W * 0.035, H * 0.76);
+      // Nyonya Z.
+      var fx = W * 0.64, fy = H * 0.79;
+      person(ctx, fx, fy, H * 0.3, { gown: true, bun: true, parasol: i !== 1, flip: true, helm: i === 1 }, i === 1 ? '#d8d2c6' : '#efe8da');
+      if (i === 1) { ctx.strokeStyle = 'rgba(220,210,190,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(fx - H * 0.02, fy - H * 0.17); ctx.quadraticCurveTo(W * 0.4, H * 0.3, W * 0.15, H * 0.2); ctx.stroke(); }
+      // gulungan kanvas
+      if (i !== 1) { ctx.fillStyle = '#d8c8a0'; ctx.save(); ctx.translate(fx + H * 0.05, fy - H * 0.12); ctx.rotate(0.6); ctx.fillRect(-H * 0.008, -H * 0.05, H * 0.016, H * 0.1); ctx.restore(); }
+      ctx.restore();
+      if (i === 1 && !REDUCE) {
+        ctx.strokeStyle = 'rgba(200,210,220,.45)'; ctx.lineWidth = 1;
+        rain.forEach(function (d) { d.y += d.v * dt / 600; d.x -= dt / 4000; if (d.y > 1) { d.y = 0; d.x = Math.random() * 1.2; } ctx.beginPath(); ctx.moveTo(d.x * W, d.y * H); ctx.lineTo(d.x * W - W * 0.006, d.y * H + H * 0.03); ctx.stroke(); });
+        if (Math.sin(t * 1.7) > 0.985) { ctx.fillStyle = 'rgba(240,240,255,.55)'; ctx.fillRect(0, 0, W, H); }
+      }
+      CH.vignette(ctx, W, H, 0.4);
+      if (t < 0.9) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.9).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+
+  /* ================= MTCine: ps_tangga (lonceng -> 999 anak tangga -> ruang Jam Agung) ================= */
+  function gear(ctx, x, y, r, teeth, ang, col) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.fillStyle = col; ctx.beginPath();
+    for (var i = 0; i < teeth * 2; i++) { var rr = i % 2 ? r : r * 1.14, a = i / (teeth * 2) * Math.PI * 2; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fill(); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, 6.3); ctx.fill(); ctx.restore();
+  }
+  MTCine.register('ps_tangga', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, birds = [], spin = 0, SOLO = !!opts.solo;   // solo: hanya Paman Ocid (Jam Agung, Batch 3)
+    for (var i = 0; i < 14; i++) birds.push({ x: Math.random(), y: 0.2 + Math.random() * 0.3, v: 0.03 + Math.random() * 0.05, ph: Math.random() * 6 });
+    function room(ctx, W, H, t, lt, i) {
+      var g = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.max(W, H) * 0.7); g.addColorStop(0, '#3a2a18'); g.addColorStop(1, '#0c0806');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var dir = i >= 4 ? -1 : 1, sp = i >= 4 ? 1.6 + lt * 0.8 : 0.25;
+      spin += dir * sp * 0.016;
+      var S = Math.min(W, H);
+      gear(ctx, W * 0.18, H * 0.3, S * 0.12, 14, spin, '#6a4a22'); gear(ctx, W * 0.82, H * 0.32, S * 0.1, 12, -spin * 1.2, '#7a5a2a');
+      gear(ctx, W * 0.12, H * 0.78, S * 0.08, 10, -spin * 1.6, '#5a3e1c'); gear(ctx, W * 0.88, H * 0.76, S * 0.13, 16, spin * 0.9, '#6a4a22');
+      // muka jam
+      var cx = W / 2, cy = H * 0.44, R = S * 0.24;
+      ctx.fillStyle = '#e8d8b0'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#6a4a22'; ctx.lineWidth = S * 0.012; ctx.stroke();
+      for (var h = 0; h < 12; h++) { var a = h / 12 * Math.PI * 2; ctx.fillStyle = '#3a2a18'; ctx.fillRect(cx + Math.cos(a) * R * 0.84 - 2, cy + Math.sin(a) * R * 0.84 - 2, 4, 4); }
+      var hand = i >= 4 ? -lt * 6 : 0.2;
+      ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = S * 0.01; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(hand - 1.57) * R * 0.75, cy + Math.sin(hand - 1.57) * R * 0.75); ctx.stroke();
+      ctx.lineWidth = S * 0.014; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(hand * 0.2 - 0.6) * R * 0.5, cy + Math.sin(hand * 0.2 - 0.6) * R * 0.5); ctx.stroke();
+      if (SOLO && i >= 3) {
+        // roda gigi cadangan dipasang di muka jam; jam berdetak sekali
+        var gk = sm(0, 2.2, i === 3 ? lt : 9), gx2 = lerp(W * 0.7, cx + R * 0.32, gk), gy2 = lerp(H * 0.7, cy - R * 0.1, gk);
+        gear(ctx, gx2, gy2, S * 0.06, 12, spin * 3, '#d8b25a');
+        if (gk >= 1) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; var gg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.3); gg.addColorStop(0, 'rgba(255,220,140,' + (0.25 + 0.2 * Math.sin(t * 4)).toFixed(3) + ')'); gg.addColorStop(1, 'rgba(255,220,140,0)'); ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      }
+      if (i >= 3 && !SOLO) {
+        // kanvas peta waktu: tujuh lingkaran berpusar
+        var ka = sm(0, 1.5, i === 3 ? lt : 9);
+        ctx.save(); ctx.globalAlpha = ka * 0.92; ctx.translate(cx, cy);
+        ctx.fillStyle = 'rgba(30,24,18,.9)'; ctx.fillRect(-R * 1.05, -R * 0.7, R * 2.1, R * 1.4); ctx.strokeStyle = '#7a5a2a'; ctx.lineWidth = Math.max(4, S * 0.014); ctx.strokeRect(-R * 1.05, -R * 0.7, R * 2.1, R * 1.4);
+        for (var c = 0; c < 7; c++) { ctx.strokeStyle = 'rgba(232,196,106,' + (0.35 + c * 0.08) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 0, R * (0.95 - c * 0.12), R * (0.6 - c * 0.075), spin * (c % 2 ? 1 : -1) * 0.3, 0, 6.3); ctx.stroke(); }
+        ctx.restore();
+      }
+      // tokoh: Franziska & Paman Ocid
+      if (!SOLO) person(ctx, W * 0.33, H * 0.92, H * 0.3, { gown: true, bun: true, flip: false }, '#efe8da');
+      person(ctx, W * 0.7, H * 0.92, H * 0.26, { hat: 'iket', helm: i >= 4 }, '#2a2218');
+      if (i >= 4) {
+        // lingkar cahaya mengembang
+        var rr = S * (0.1 + Math.min(1.4, (i === 4 ? lt : 3) * 0.45));
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        var lg = ctx.createRadialGradient(cx, cy, rr * 0.7, cx, cy, rr); lg.addColorStop(0, 'rgba(255,230,160,0)'); lg.addColorStop(0.85, 'rgba(255,230,160,.5)'); lg.addColorStop(1, 'rgba(255,230,160,0)');
+        ctx.fillStyle = lg; ctx.fillRect(0, 0, W, H); ctx.restore();
+        if (!REDUCE) for (var q = 0; q < 30; q++) { var qa = q * 0.7 + t, qd = (q * 37 % 100) / 100 * rr; ctx.fillStyle = 'rgba(232,196,106,.8)'; ctx.fillRect(cx + Math.cos(qa) * qd, cy + Math.sin(qa) * qd, 2, 4); }
+      }
+      if (i >= 5 && !SOLO) {
+        // jam pasir perak tujuh kaca, satu retak
+        var hx = W * 0.33, hy = H * 0.5, hh = S * 0.16;
+        ctx.save(); ctx.translate(hx, hy);
+        ctx.strokeStyle = '#d8dce2'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke();
+        for (var k = 0; k < 7; k++) { var ka2 = k / 7 * Math.PI * 2; ctx.fillStyle = k === 0 ? 'rgba(255,255,255,.9)' : 'rgba(200,210,225,.6)'; ctx.beginPath(); ctx.arc(Math.cos(ka2) * hh * 0.75, Math.sin(ka2) * hh * 0.9, hh * 0.08, 0, 6.3); ctx.fill(); }
+        ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(hh * 0.68, -hh * 0.08); ctx.lineTo(hh * 0.8, hh * 0.05); ctx.lineTo(hh * 0.72, hh * 0.1); ctx.stroke();
+        ctx.fillStyle = '#e8eef4'; ctx.fillRect(-2, -hh * 0.5, 4, hh * 0.5 * (1 - (lt % 3) / 3));
+        ctx.restore();
+      }
+      if (i >= 6) { var wf = sm(0, 1.4, lt); ctx.fillStyle = 'rgba(255,255,255,' + wf.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    function draw(ctx, W, H, t, dt) {
+      var i = clamp(ctl.i | 0, 0, 6); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      if (i >= 2) { room(ctx, W, H, t, lt, i); CH.vignette(ctx, W, H, 0.5); return; }
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#9ab4cc'); g.addColorStop(1, '#e8d8b8'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // bukit, 999 anak tangga zig-zag, gedung berkubah
+      ctx.fillStyle = '#6a7a5a'; ctx.beginPath(); ctx.moveTo(0, H); ctx.quadraticCurveTo(W * 0.5, H * (i === 1 ? -0.1 : 0.12), W, H); ctx.closePath(); ctx.fill();
+      var top = i === 1 ? H * 0.12 : H * 0.28, kx = W * 0.5;
+      ctx.fillStyle = '#e8e0cc'; ctx.fillRect(kx - W * 0.08, top, W * 0.16, H * 0.12);
+      ctx.beginPath(); ctx.arc(kx, top, W * 0.06, Math.PI, 0); ctx.fillStyle = '#c9a450'; ctx.fill();
+      ctx.fillStyle = '#4a3a24'; ctx.fillRect(kx - W * 0.005, top - W * 0.09, W * 0.01, W * 0.03);
+      ctx.strokeStyle = '#d8ccb0'; ctx.lineWidth = Math.max(3, W * 0.006);
+      ctx.beginPath(); for (var z = 0; z < 9; z++) { var zy = H - z * (H - top - H * 0.12) / 8, zx = kx + (z % 2 ? 1 : -1) * W * (0.16 - z * 0.012); if (z === 0) ctx.moveTo(zx, zy); else ctx.lineTo(zx, zy); } ctx.stroke();
+      if (i === 0) {
+        // lonceng berdentang & burung terbang ke arah yang salah
+        var sw = Math.sin(t * 9) * 0.4;
+        ctx.save(); ctx.translate(kx, top - W * 0.07); ctx.rotate(sw); ctx.fillStyle = '#b8923a'; ctx.beginPath(); ctx.moveTo(-W * 0.015, 0); ctx.lineTo(W * 0.015, 0); ctx.lineTo(W * 0.022, W * 0.03); ctx.lineTo(-W * 0.022, W * 0.03); ctx.closePath(); ctx.fill(); ctx.restore();
+        ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.6;
+        birds.forEach(function (b, n) {
+          var bx = ((b.x + (n % 2 ? 1 : -1) * t * b.v) % 1 + 1) % 1 * W, by = (b.y + Math.sin(t * 3 + b.ph) * 0.02) * H, f = Math.sin(t * 14 + b.ph) * 4;
+          ctx.beginPath(); ctx.moveTo(bx - 7, by - f); ctx.lineTo(bx, by); ctx.lineTo(bx + 7, by - f); ctx.stroke();
+        });
+      } else {
+        // Franziska menaiki tangga, Paman Ocid di puncak
+        var k = sm(0, 6, lt), steps = 8, seg = Math.min(steps - 1, Math.floor(k * steps)), f2 = k * steps - seg;
+        function zpt(z) { return [kx + (z % 2 ? 1 : -1) * W * (0.16 - z * 0.012), H - z * (H - top - H * 0.12) / 8]; }
+        var a = zpt(seg), b = zpt(seg + 1), px = lerp(a[0], b[0], f2), py = lerp(a[1], b[1], f2);
+        person(ctx, px, py, H * 0.07, { gown: true, bun: true, parasol: true, flip: b[0] < a[0] }, '#f4efe4');
+        person(ctx, kx + W * 0.1, top + H * 0.12, H * 0.07, { hat: 'iket', wave: k > 0.8 }, '#2a2218');
+      }
+      CH.vignette(ctx, W, H, 0.35);
+      if (t < 0.8) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+
+  /* ================= MTCine: ps_adil (Absolute Justice melintas, Uda Gala di kemudi) ================= */
+  MTCine.register('ps_adil', function (opts) {
+    function draw(ctx, W, H, t, dt) {
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#9aa6b2'); g.addColorStop(0.55, '#c8ced4'); g.addColorStop(1, '#5a6a72');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var hy = H * 0.58; ctx.fillStyle = '#4a5a62'; ctx.fillRect(0, hy, W, H - hy);
+      for (var w = 0; w < 18; w++) { ctx.strokeStyle = 'rgba(230,236,240,.18)'; ctx.beginPath(); var wy = hy + (w + 1) * H * 0.022; ctx.moveTo(((w * 0.21 + t * 0.015) % 1) * W, wy); ctx.lineTo(((w * 0.21 + t * 0.015) % 1) * W + W * 0.07, wy); ctx.stroke(); }
+      var k = sm(0, 16, t), sx = lerp(W * 1.35, -W * 0.35, k), sy = hy + H * 0.06, s = Math.min(W * 0.0021, H * 0.0034);
+      ctx.save(); ctx.globalAlpha = 0.2; MTShip.draw(ctx, sx, sy + 3, s, Object.assign({}, WHITE_SHIP, { dir: -1, t: t, reflect: true })); ctx.restore();
+      MTShip.draw(ctx, sx, sy, s, Object.assign({}, WHITE_SHIP, { dir: -1, t: t, roll: Math.sin(t * 0.7) * 0.01 }));
+      // juru mudi berseragam putih di buritan
+      person(ctx, sx + s * 52, sy - s * 30, s * 26, { uniform: true, helm: true, hat: 'iket' }, '#f2f2ee');
+      // bendera putih
+      CH.waveFlag(ctx, sx - s * 6, sy - s * 140, s * 26, s * 14, t, '#f6f6f2');
+      // kapal pemain kecil di depan
+      ship(ctx, W * 0.2, H * 0.8, Math.min(W * 0.0011, H * 0.0018), shipOpts(opts.vis, { dir: 1, t: t }));
+      CH.vignette(ctx, W, H, 0.4);
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  });
+
+  /* ================= MTCine: ps_hantu (Skitraw, Tahun Badai Besar; Batch 3) =================
+   * ctl.i: 0 pantai & Gala muda · 1 kilat, kapal hantu hanyut · 2 Janji Putih melempar tali · 3 lambung putih tulang ·
+   *        4 Janji Putih menarik kapal hantu & lenyap, kaca kedua retak */
+  MTCine.register('ps_hantu', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, flash = 0, drops = [];
+    for (var i = 0; i < 140; i++) drops.push({ x: Math.random(), y: Math.random(), v: 0.6 + Math.random() * 0.6 });
+    function draw(ctx, W, H, t, dt) {
+      var i = clamp(ctl.i | 0, 0, 4); if (i !== lastI) { lastI = i; since = t; if (i === 1) flash = 1; }
+      var lt = t - since, S = Math.min(W * 0.0016, H * 0.0026);
+      if (Math.sin(t * 0.9) > 0.995 || (i === 1 && lt < 0.2)) flash = 1;
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1e150c'); g.addColorStop(0.62, '#4a3620'); g.addColorStop(1, '#2a1e10');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var hy = H * 0.6; ctx.fillStyle = '#3e2e1a'; ctx.fillRect(0, hy, W, H - hy);
+      for (var w = 0; w < 16; w++) { ctx.strokeStyle = 'rgba(230,200,150,.14)'; ctx.beginPath(); var wy = hy + (w + 1) * H * 0.022; ctx.moveTo(((w * 0.19 + t * 0.04) % 1) * W, wy); ctx.lineTo(((w * 0.19 + t * 0.04) % 1) * W + W * 0.06, wy); ctx.stroke(); }
+      // pantai Skitraw: pasir, rumah panggung, perahu bocor, Gala muda
+      ctx.fillStyle = '#5e4a2c'; ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, hy + H * 0.05); ctx.quadraticCurveTo(W * 0.24, hy - H * 0.02, W * 0.38, hy + H * 0.14); ctx.quadraticCurveTo(W * 0.42, hy + H * 0.3, W * 0.36, H); ctx.closePath(); ctx.fill();
+      for (var h = 0; h < 3; h++) { var hx = W * (0.03 + h * 0.08), hb = hy - H * 0.005 + h * H * 0.01; ctx.fillStyle = '#2e2214'; ctx.fillRect(hx, hb - H * 0.08, W * 0.06, H * 0.06); ctx.beginPath(); ctx.moveTo(hx - W * 0.008, hb - H * 0.08); ctx.lineTo(hx + W * 0.03, hb - H * 0.12); ctx.lineTo(hx + W * 0.068, hb - H * 0.08); ctx.closePath(); ctx.fill(); ctx.fillRect(hx + W * 0.005, hb - H * 0.02, 3, H * 0.03); ctx.fillRect(hx + W * 0.05, hb - H * 0.02, 3, H * 0.03); }
+      var bx = W * 0.2, by = hy + H * 0.09;
+      ctx.save(); ctx.translate(bx, by); ctx.rotate(-0.1); ctx.fillStyle = '#4a3420'; ctx.beginPath(); ctx.moveTo(-W * 0.05, -H * 0.012); ctx.quadraticCurveTo(0, H * 0.02, W * 0.05, -H * 0.012); ctx.lineTo(W * 0.045, -H * 0.02); ctx.lineTo(-W * 0.045, -H * 0.02); ctx.closePath(); ctx.fill(); ctx.restore();
+      person(ctx, bx + W * 0.07, by, H * 0.15, { hat: 'iket', wave: i === 0 && lt > 2.5, helm: i >= 1 }, '#22180c');
+      // kapal hantu
+      var gx = W * 0.72, gy = hy + H * 0.03, gs = S, ga = 0.75;
+      if (i === 0) { gx = W * 1.25; }
+      else if (i === 1) gx = lerp(W * 1.15, W * 0.72, sm(0, 5, lt));
+      else if (i === 3) { gx = W * 0.6; gs = S * 2.1; gy = hy + H * 0.12; ga = 0.95; }
+      else if (i === 4) gx = lerp(W * 0.72, W * 1.4, sm(0.6, 5.5, lt));
+      ctx.save(); ctx.globalAlpha = ga;
+      MTShip.draw(ctx, gx, gy, gs, { hull: '#e6decb', trim: '#b9b1a0', sail: '#efe6d2', flag: '#efe6d2', masts: 2, ports: 3, dir: -1, t: t, furl: i === 3 ? 0.85 : 0.6, roll: Math.sin(t * 1.3) * 0.05, kd: null });
+      ctx.restore();
+      if (i === 3) { // layar terlipat seperti surat
+        ctx.save(); ctx.strokeStyle = 'rgba(80,60,40,.6)'; ctx.lineWidth = 1.4;
+        for (var f = 0; f < 4; f++) { ctx.beginPath(); ctx.moveTo(gx - gs * 30 + f * gs * 14, gy - gs * 110); ctx.lineTo(gx - gs * 20 + f * gs * 14, gy - gs * 70); ctx.stroke(); }
+        ctx.restore();
+      }
+      // Janji Putih & Franziska
+      if (i === 2 || i === 4) {
+        var jx = i === 2 ? lerp(W * 1.3, W * 0.93, sm(0, 2, lt)) : lerp(W * 0.93, W * 1.5, sm(0.6, 5.5, lt)), jy = hy + H * 0.0;
+        MTShip.draw(ctx, jx, jy, S * 0.7, Object.assign({}, JANJI_PUTIH, { dir: -1, t: t }));
+        person(ctx, jx - S * 40, jy - S * 34, S * 28, { gown: true, bun: true, helm: true }, '#f4ecdc');
+        var rope = i === 2 ? sm(1.4, 2.6, lt) : 1;
+        if (rope > 0) { ctx.strokeStyle = 'rgba(244,236,220,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(jx - S * 46, jy - S * 40); var ex = lerp(jx - S * 46, gx + S * 30, rope), ey = lerp(jy - S * 40, gy - S * 20, rope); ctx.quadraticCurveTo((jx + ex) / 2, jy + H * 0.04, ex, ey); ctx.stroke(); }
+        // kapal pemain mengejar dari kiri
+        ship(ctx, i === 2 ? lerp(W * 0.3, W * 0.48, sm(0, 3, lt)) : W * 0.48 + lt * W * 0.012, hy + H * 0.24, S * 0.7, shipOpts(opts.vis, { dir: 1, t: t }));
+      }
+      if (i === 4) { // pusaran pasir & jam pasir dua retak
+        var k = sm(2.5, 5, lt);
+        if (k > 0) { ctx.save(); ctx.globalAlpha = k * 0.8; ctx.fillStyle = '#e8c46a'; for (var q = 0; q < 60; q++) { var qa = q * 0.6 + t * 3, qr = (q % 12) * W * 0.012 * (1 + k); ctx.fillRect(W * 0.9 + Math.cos(qa) * qr, hy - H * 0.05 + Math.sin(qa) * qr * 0.6, 2, 3); } ctx.restore(); }
+        var hk = sm(3.5, 5, lt);
+        if (hk > 0) {
+          var hx2 = W * 0.5, hy2 = H * 0.3, hh = Math.min(W, H) * 0.1;
+          ctx.save(); ctx.globalAlpha = hk; ctx.translate(hx2, hy2); ctx.strokeStyle = '#d8dce2'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke();
+          for (var c = 0; c < 7; c++) { var ca = c / 7 * Math.PI * 2; ctx.fillStyle = c < 2 ? 'rgba(255,255,255,.95)' : 'rgba(200,210,225,.55)'; ctx.beginPath(); ctx.arc(Math.cos(ca) * hh * 0.75, Math.sin(ca) * hh * 0.9, hh * 0.08, 0, 6.3); ctx.fill(); if (c < 2) { ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(Math.cos(ca) * hh * 0.75 - 3, Math.sin(ca) * hh * 0.9 - 3); ctx.lineTo(Math.cos(ca) * hh * 0.75 + 3, Math.sin(ca) * hh * 0.9 + 3); ctx.stroke(); } }
+          ctx.restore();
+        }
+      }
+      // hujan & kilat
+      if (!REDUCE) { ctx.strokeStyle = 'rgba(230,210,170,.32)'; ctx.lineWidth = 1; ctx.beginPath(); drops.forEach(function (d) { d.y += d.v * 0.03; d.x -= d.v * 0.008; if (d.y > 1) { d.y = 0; d.x = Math.random() * 1.2; } ctx.moveTo(d.x * W, d.y * H); ctx.lineTo(d.x * W + W * 0.006, d.y * H - H * 0.03); }); ctx.stroke(); }
+      if (flash > 0) { ctx.fillStyle = 'rgba(255,248,230,' + (flash * 0.55).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); flash = Math.max(0, flash - dt / 260); }
+      ctx.save(); ctx.globalAlpha = 0.08; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 40, hs(t + 1) * 40); ctx.fillRect(-60, -60, W + 120, H + 120); ctx.restore();
+      CH.vignette(ctx, W, H, 0.6);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(240,220,180,.8)'; ctx.textAlign = 'left'; ctx.fillText('SKITRAW · TAHUN BADAI BESAR', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.5 };
+  });
+
+  /* ================= MTCine: ps_peta (Paman Ocid menggambar jalur ke em pe'er de pe'er; Batch 3) =================
+   * opts.data = { cities: [{ id, name, x, y }], from, to }   ctl.i: 0 peta · 1 garis arang · 2 kabut tersibak */
+  MTCine.register('ps_peta', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, D = opts.data || {}, cities = D.cities || [];
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 2); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      paper(ctx, 0, 0, W, H, 'rgba(120,90,40,.12)');
+      var pad = Math.min(W, H) * 0.1, mw = W - pad * 2, mh = H * 0.62, im = 0.1;
+      var xs = cities.map(function (c) { return +c.x || 0; }), ys = cities.map(function (c) { return +c.y || 0; });
+      var mx = Math.max(100, Math.max.apply(null, xs.concat([100]))), my = Math.max(100, Math.max.apply(null, ys.concat([100])));
+      function P(c) { return [pad + mw * (im + (+c.x / mx) * (1 - im * 2)), pad * 0.6 + mh * (im + (+c.y / my) * (1 - im * 2))]; }
+      ctx.strokeStyle = 'rgba(60,40,20,.25)'; ctx.lineWidth = 1; ctx.strokeRect(pad, pad * 0.6, mw, mh);
+      var from = null, to = null;
+      cities.forEach(function (c) {
+        var p = P(c); if (c.id === D.from) from = p; if (c.id === D.to) { to = p; return; }
+        ctx.fillStyle = '#b8a678'; ctx.beginPath(); ctx.ellipse(p[0], p[1], mw * 0.028, mh * 0.03, 0, 0, 6.3); ctx.fill(); ctx.strokeStyle = 'rgba(60,40,20,.6)'; ctx.stroke();
+        ctx.font = Math.round(Math.max(10, mw * 0.016)) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2a18'; ctx.fillText(c.name, p[0], p[1] + mh * 0.065);
+      });
+      if (!to) to = [pad + mw * 0.82, pad * 0.6 + mh * 0.3];
+      if (!from) from = [pad + mw * 0.2, pad * 0.6 + mh * 0.6];
+      // kabut di sekitar tujuan
+      var fog = i < 2 ? 1 : 1 - sm(0.2, 2.6, lt);
+      if (i >= 2) {
+        var a = sm(0.8, 2.6, lt);
+        ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#b8a678'; ctx.beginPath(); ctx.ellipse(to[0], to[1], mw * 0.034, mh * 0.036, 0, 0, 6.3); ctx.fill(); ctx.strokeStyle = 'rgba(60,40,20,.7)'; ctx.stroke();
+        ctx.font = '700 ' + Math.round(Math.max(11, mw * 0.019)) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = '#4a2a10'; ctx.textAlign = 'center'; ctx.fillText(D.toName || "em pe'er de pe'er", to[0], to[1] + mh * 0.075); ctx.restore();
+      }
+      if (fog > 0.01) { ctx.save(); ctx.globalAlpha = fog; for (var f = 0; f < 9; f++) { var fx = to[0] + (hs(f) - 0.5) * mw * 0.16 + Math.sin(t * 0.4 + f) * 6, fy = to[1] + (hs(f + 4) - 0.5) * mh * 0.14; var gg = ctx.createRadialGradient(fx, fy, 0, fx, fy, mw * 0.06); gg.addColorStop(0, 'rgba(236,228,210,.95)'); gg.addColorStop(1, 'rgba(236,228,210,0)'); ctx.fillStyle = gg; ctx.fillRect(fx - mw * 0.07, fy - mw * 0.07, mw * 0.14, mw * 0.14); } ctx.restore(); }
+      // garis arang dari Sunda
+      var k = i === 0 ? 0 : i === 1 ? sm(0.3, 3.4, lt) : 1;
+      if (k > 0) {
+        var pts = [], n = 24;
+        for (var j = 0; j <= Math.round(n * k); j++) { var u = j / n; pts.push([lerp(from[0], to[0], u) + Math.sin(u * Math.PI) * mh * 0.08, lerp(from[1], to[1], u) - Math.sin(u * Math.PI * 2) * mh * 0.04]); }
+        if (pts.length > 1) { ctx.setLineDash([8, 6]); line(ctx, pts, 2.4, 0.85, 501); ctx.setLineDash([]); }
+        var tip = pts[pts.length - 1]; // arang di tangan
+        if (k < 1) { ctx.save(); ctx.translate(tip[0], tip[1]); ctx.rotate(-0.7); ctx.fillStyle = '#1e1810'; ctx.fillRect(-3, -26, 6, 26); ctx.restore(); }
+      }
+      CH.vignette(ctx, W, H, 0.35);
+      if (t < 0.8) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+
+  /* ================= MTCine: ps_benua ("Benua di Selatan"; Batch 4) =================
+   * opts.data = { cities: [{ id, name, x, y }], ports: [{ id, name, x, y }] }   ctl.i: 0 peta · 1 peta melebar, kabut · 2 benua muncul */
+  MTCine.register('ps_benua', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, D = opts.data || {}, cities = D.cities || [], ports = D.ports || [];
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 2); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      paper(ctx, 0, 0, W, H, 'rgba(150,100,30,.22)');
+      var all = cities.concat(ports), maxY = Math.max.apply(null, all.map(function (c) { return +c.y; }).concat([100]));
+      var zoom = i === 0 ? 0 : i === 1 ? sm(0, 3, lt) : 1;
+      var yMax = lerp(90, maxY + 10, zoom), pad = Math.min(W, H) * 0.08, mw = W - pad * 2, mh = H * 0.66;
+      function P(c) { return [pad + mw * (0.08 + (+c.x / 100) * 0.84), pad * 0.6 + mh * (0.06 + (+c.y / yMax) * 0.86)]; }
+      ctx.strokeStyle = 'rgba(80,50,20,.3)'; ctx.lineWidth = 1; ctx.strokeRect(pad, pad * 0.6, mw, mh);
+      cities.forEach(function (c) {
+        var p = P(c); ctx.fillStyle = '#b89a5a'; ctx.beginPath(); ctx.ellipse(p[0], p[1], mw * 0.026, mh * 0.026, 0, 0, 6.3); ctx.fill(); ctx.strokeStyle = 'rgba(70,44,16,.6)'; ctx.stroke();
+        ctx.font = Math.round(Math.max(10, mw * 0.015)) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2410'; ctx.fillText(c.name, p[0], p[1] + mh * 0.055);
+      });
+      // garis pantai benua di selatan
+      var reveal = i < 2 ? 0 : sm(0.3, 3.2, lt);
+      if (reveal > 0 && ports.length) {
+        var by = P({ x: 50, y: maxY - 6 })[1];
+        ctx.save(); ctx.globalAlpha = reveal;
+        ctx.fillStyle = 'rgba(150,120,60,.55)'; ctx.strokeStyle = 'rgba(70,44,16,.85)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(pad, pad * 0.6 + mh);
+        for (var k = 0; k <= 20; k++) { var u = k / 20; ctx.lineTo(pad + mw * u, by + Math.sin(u * 9 + 1) * mh * 0.03 + Math.sin(u * 23) * mh * 0.012); }
+        ctx.lineTo(pad + mw, pad * 0.6 + mh); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ports.forEach(function (c) { var p = P(c); ctx.fillStyle = '#7a2a12'; ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, 6.3); ctx.fill(); ctx.font = Math.round(Math.max(10, mw * 0.014)) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2410'; ctx.fillText(c.name, p[0], p[1] - 8); });
+        ctx.font = '700 ' + Math.round(Math.max(14, mw * 0.03)) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = '#9a6a10'; ctx.textAlign = 'center';
+        ctx.fillText('Benua Sudyrman', pad + mw / 2, pad * 0.6 + mh * 0.96);
+        ctx.restore();
+      }
+      // kabut di selatan
+      var fog = i === 0 ? 0 : i === 1 ? sm(0.5, 2.5, lt) : 1 - sm(0, 2.6, lt);
+      if (fog > 0.01) { ctx.save(); ctx.globalAlpha = fog; for (var f = 0; f < 14; f++) { var fx = pad + mw * hs(f), fy = pad * 0.6 + mh * (0.78 + hs(f + 3) * 0.2) + Math.sin(t * 0.5 + f) * 4; var g = ctx.createRadialGradient(fx, fy, 0, fx, fy, mw * 0.12); g.addColorStop(0, 'rgba(240,228,200,.95)'); g.addColorStop(1, 'rgba(240,228,200,0)'); ctx.fillStyle = g; ctx.fillRect(fx - mw * 0.12, fy - mw * 0.12, mw * 0.24, mw * 0.24); } ctx.restore(); }
+      ctx.save(); ctx.globalAlpha = 0.1; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 2) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.5);
+      if (t < 0.8) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+
+  /* ================= MTCine: ps_lonceng (Akademi Laut Sudyrman, menara lonceng; Batch 5) =================
+   * ctl.i: 0 lapangan & lonceng · 1 Franzi muda melukis peta, Slaus muda tertawa · 2 Franziska tua di sampingmu · 3 ia pergi, kaca ketiga */
+  MTCine.register('ps_lonceng', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0;
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 3); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#d8a860'); g.addColorStop(0.6, '#f0d8a0'); g.addColorStop(1, '#8a6a3a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // benteng putih & menara lonceng
+      var bx = W * 0.56, by = H * 0.68, bw = W * 0.16, bh = H * 0.58;
+      ctx.fillStyle = '#f2e6c8'; ctx.fillRect(W * 0.18, H * 0.62, W * 0.7, H * 0.2);
+      for (var c = 0; c < 14; c++) ctx.fillRect(W * 0.18 + c * W * 0.05, H * 0.6, W * 0.025, H * 0.03);
+      ctx.fillStyle = '#f6ecd4'; ctx.fillRect(bx, by - bh, bw, bh);
+      ctx.fillStyle = '#8a3a2a'; ctx.beginPath(); ctx.moveTo(bx - W * 0.01, by - bh); ctx.lineTo(bx + bw / 2, by - bh - H * 0.1); ctx.lineTo(bx + bw + W * 0.01, by - bh); ctx.closePath(); ctx.fill();
+      // ruang lonceng terbuka
+      var ox = bx + bw * 0.12, oy = by - bh + H * 0.06, ow = bw * 0.76, oh = H * 0.2;
+      ctx.fillStyle = '#5a3a1e'; ctx.fillRect(ox, oy, ow, oh);
+      var sw = Math.sin(t * 1.2) * 0.2;
+      ctx.save(); ctx.translate(ox + ow / 2, oy + oh * 0.12); ctx.rotate(sw); ctx.fillStyle = '#c9a450'; ctx.beginPath(); ctx.moveTo(-ow * 0.12, 0); ctx.lineTo(ow * 0.12, 0); ctx.lineTo(ow * 0.16, oh * 0.32); ctx.lineTo(-ow * 0.16, oh * 0.32); ctx.closePath(); ctx.fill(); ctx.restore();
+      if (i >= 1) {
+        // peta di dinding (Franzi melukis)
+        var k = sm(0, 3, i === 1 ? lt : 9);
+        ctx.strokeStyle = 'rgba(240,220,170,.9)'; ctx.lineWidth = 1.5; ctx.beginPath();
+        for (var p = 0; p <= 20 * k; p++) { var u = p / 20, x = ox + ow * (0.06 + u * 0.4), y = oy + oh * (0.5 + Math.sin(u * 9) * 0.12); if (p === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+        ctx.stroke();
+        person(ctx, ox + ow * 0.32, oy + oh, oh * 0.62, { gown: true, wave: true }, '#2a1a0e');           // Franzi muda
+        var laugh = Math.abs(Math.sin(t * 7)) * oh * 0.02;
+        person(ctx, ox + ow * 0.74, oy + oh - laugh, oh * 0.66, { hat: 'kapten' }, '#2a1a0e');           // Slaus muda
+        if (i === 1 && lt > 1.5) { ctx.fillStyle = 'rgba(60,30,10,.7)'; ctx.font = 'italic ' + Math.round(oh * 0.12) + 'px Georgia, serif'; ctx.fillText('ha ha', ox + ow * 0.8, oy + oh * 0.2); }
+      } else {
+        // kadet berbaris di lapangan
+        for (var r = 0; r < 10; r++) person(ctx, W * (0.24 + r * 0.03), H * 0.86, H * 0.08, { hat: 'kapten' }, '#3a2a18');
+      }
+      // latar depan: kau & Franziska tua di tebing
+      ctx.fillStyle = '#5a4428'; ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.84); ctx.quadraticCurveTo(W * 0.2, H * 0.8, W * 0.36, H); ctx.closePath(); ctx.fill();
+      person(ctx, W * 0.12, H * 0.9, H * 0.22, { hat: 'kapten' }, '#1e140a');
+      if (i >= 2) {
+        var a = i === 3 ? 1 - sm(0.5, 3, lt) : sm(0, 1.4, lt);
+        ctx.save(); ctx.globalAlpha = a; person(ctx, W * 0.2, H * 0.9, H * 0.23, { gown: true, bun: true, parasol: true }, '#f4ecdc'); ctx.restore();
+      }
+      if (i === 3) {
+        var hk = sm(1.5, 3, lt), hh = Math.min(W, H) * 0.08;
+        if (hk > 0) {
+          ctx.save(); ctx.globalAlpha = hk; ctx.translate(W * 0.5, H * 0.25); ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke();
+          for (var q = 0; q < 7; q++) { var qa = q / 7 * Math.PI * 2; ctx.fillStyle = q < 3 ? 'rgba(255,255,255,.95)' : 'rgba(120,100,70,.5)'; ctx.beginPath(); ctx.arc(Math.cos(qa) * hh * 0.75, Math.sin(qa) * hh * 0.9, hh * 0.08, 0, 6.3); ctx.fill(); }
+          ctx.restore();
+        }
+      }
+      ctx.save(); ctx.globalAlpha = 0.1; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 4) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.55);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(60,36,12,.8)'; ctx.fillText('AKADEMI LAUT SUDYRMAN · 40 TAHUN LALU', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
+  });
+
+
+  /* ================= MTCine: ps_aula (Pesta Keadilan di IKN, Zaman Keadilan; Batch 6) =================
+   * ctl.i: 0 aula putih, tamu berbaris · 1 Laksamana Agung di podium · 2 Franziska mendekatinya · 3 balkon malam · 4 balkon kosong, surat */
+  MTCine.register('ps_aula', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0;
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 4); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      if (i <= 2) {
+        var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#dfe4ea'); g.addColorStop(0.7, '#f4f6f8'); g.addColorStop(1, '#b9c2cc');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        // tiang-tiang putih & panji
+        for (var c = 0; c < 7; c++) {
+          var cx = W * (0.06 + c * 0.148);
+          ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(cx, H * 0.08, W * 0.035, H * 0.62);
+          ctx.fillStyle = 'rgba(150,160,175,.35)'; ctx.fillRect(cx + W * 0.028, H * 0.08, W * 0.007, H * 0.62);
+          if (c % 2 === 1) { ctx.fillStyle = '#f8f9fb'; ctx.beginPath(); ctx.moveTo(cx + W * 0.04, H * 0.12); ctx.lineTo(cx + W * 0.1, H * 0.12); ctx.lineTo(cx + W * 0.1, H * 0.36); ctx.lineTo(cx + W * 0.07, H * 0.32); ctx.lineTo(cx + W * 0.04, H * 0.36); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(120,130,150,.5)'; ctx.stroke(); }
+        }
+        ctx.fillStyle = '#c9d0d8'; ctx.fillRect(0, H * 0.7, W, H * 0.3);
+        // podium
+        var px = W * 0.5, py = H * 0.62;
+        ctx.fillStyle = '#eef1f4'; ctx.fillRect(px - W * 0.08, py, W * 0.16, H * 0.1); ctx.strokeStyle = 'rgba(100,110,130,.5)'; ctx.strokeRect(px - W * 0.08, py, W * 0.16, H * 0.1);
+        if (i >= 1) {
+          var up = i === 1 ? sm(0, 1.5, lt) : 1;
+          person(ctx, px, py + H * 0.02 - up * H * 0.02, H * 0.24, { hat: 'kapten', big: true, helm: i === 2 }, '#1c222c');
+          if (i === 1) { for (var m = 0; m < 4; m++) { ctx.fillStyle = '#c9a450'; ctx.beginPath(); ctx.arc(px - H * 0.02 + m * H * 0.012, py - H * 0.13, H * 0.005, 0, 6.3); ctx.fill(); } }
+        }
+        // tamu berseragam putih (barisan depan)
+        for (var r = 0; r < 12; r++) {
+          var gx = W * (0.05 + r * 0.082), gy = H * 0.96 + (r % 2) * H * 0.02;
+          if (Math.abs(gx - px) < W * 0.06) continue;
+          person(ctx, gx, gy, H * 0.2, { hat: r % 3 ? 'kapten' : null }, r % 4 === 0 ? '#5a6474' : '#3a4250');
+        }
+        if (i === 2) {
+          var fx = lerp(W * 0.2, px - W * 0.1, sm(0, 3, lt));
+          person(ctx, fx, H * 0.9, H * 0.25, { gown: true, bun: true }, '#f8f8f4');
+          ctx.strokeStyle = 'rgba(60,70,90,.6)'; ctx.lineWidth = 1.5; ctx.strokeRect(fx - H * 0.012, H * 0.9 - H * 0.21, H * 0.024, H * 0.012);
+        }
+        // musik militer: not balok
+        ctx.fillStyle = 'rgba(80,90,110,.35)';
+        for (var n = 0; n < 5; n++) { var nx = (W * 0.1 + n * W * 0.18 + t * 30) % W, ny = H * 0.2 + Math.sin(t * 2 + n) * H * 0.03; ctx.beginPath(); ctx.ellipse(nx, ny, 5, 4, -0.4, 0, 6.3); ctx.fill(); ctx.fillRect(nx + 4, ny - 18, 1.5, 18); }
+        CH.vignette(ctx, W, H, 0.3);
+      } else {
+        // balkon malam di atas laut IKN
+        var g2 = ctx.createLinearGradient(0, 0, 0, H); g2.addColorStop(0, '#0e1420'); g2.addColorStop(0.6, '#26324a'); g2.addColorStop(1, '#141a26');
+        ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
+        for (var st = 0; st < 60; st++) { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + 0.5 * hs(st + Math.floor(t * 2) * 0.01)).toFixed(2) + ')'; ctx.fillRect(hs(st) * W, hs(st + 9) * H * 0.5, 1.5, 1.5); }
+        ctx.fillStyle = '#1a2436'; ctx.fillRect(0, H * 0.58, W, H * 0.12);
+        for (var w = 0; w < 14; w++) { ctx.strokeStyle = 'rgba(200,220,255,.12)'; ctx.beginPath(); var wy = H * 0.6 + w * H * 0.008; ctx.moveTo(((w * 0.23 + t * 0.02) % 1) * W, wy); ctx.lineTo(((w * 0.23 + t * 0.02) % 1) * W + W * 0.08, wy); ctx.stroke(); }
+        // pagar balkon
+        ctx.fillStyle = '#d8dde4'; ctx.fillRect(0, H * 0.72, W, H * 0.03);
+        for (var b = 0; b < 20; b++) ctx.fillRect(b * W / 20, H * 0.75, W * 0.012, H * 0.12);
+        ctx.fillStyle = '#9aa4b0'; ctx.fillRect(0, H * 0.87, W, H * 0.13);
+        // jendela aula bercahaya di kiri
+        ctx.fillStyle = 'rgba(255,240,200,.35)'; ctx.fillRect(0, H * 0.1, W * 0.12, H * 0.62);
+        person(ctx, W * 0.3, H * 0.9, H * 0.26, { hat: 'kapten' }, '#0a0e16');
+        if (i === 3) person(ctx, W * 0.62, H * 0.9, H * 0.25, { gown: true, bun: true, helm: lt > 4 }, '#eceae2');
+        if (i === 4) {
+          var a = 1 - sm(0, 1.6, lt);
+          if (a > 0.01) { ctx.save(); ctx.globalAlpha = a; person(ctx, W * 0.62 + lt * W * 0.08, H * 0.9 - lt * H * 0.08, H * 0.25, { gown: true, bun: true }, '#eceae2'); ctx.restore(); }
+          var k = sm(1, 2.4, lt);
+          ctx.save(); ctx.globalAlpha = k; ctx.translate(W * 0.6, H * 0.93); ctx.rotate(-0.15); ctx.fillStyle = '#f2e6c8'; ctx.fillRect(-W * 0.03, -H * 0.015, W * 0.06, H * 0.03); ctx.strokeStyle = 'rgba(120,90,50,.7)'; ctx.strokeRect(-W * 0.03, -H * 0.015, W * 0.06, H * 0.03); ctx.restore();
+        }
+        CH.vignette(ctx, W, H, 0.6);
+      }
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = i <= 2 ? 'rgba(40,50,70,.8)' : 'rgba(220,230,245,.8)'; ctx.fillText(i <= 2 ? 'IKN · PESTA KEADILAN' : 'IKN · BALKON AULA', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
+  });
+
+  /* ================= MTCine: ps_tujuh ("Rahasia Tujuh Kaca"; Batch 6) =================
+   * ctl.i: 0 Janji Putih kosong hanyut di kabut waktu · 1 terdampar di Skitraw, Gala muda, papan GAUL-WASH · 2 tujuh kaca, enam retak
+   *        3 malam pusaran: Absolute Justice tenggelam, kaca ketujuh menyala */
+  function hourglass(ctx, x, y, hh, n, a, col) {
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.strokeStyle = col || '#3a2a18'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke();
+    for (var q = 0; q < 7; q++) {
+      var qa = q / 7 * Math.PI * 2 - Math.PI / 2, qx = Math.cos(qa) * hh * 0.8, qy = Math.sin(qa) * hh * 0.95;
+      ctx.fillStyle = q < n ? 'rgba(255,255,255,.95)' : 'rgba(200,170,90,.65)'; ctx.beginPath(); ctx.arc(qx, qy, hh * 0.085, 0, 6.3); ctx.fill();
+      if (q < n) { ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(qx - 3, qy - 3); ctx.lineTo(qx + 3, qy + 3); ctx.moveTo(qx + 2, qy - 4); ctx.lineTo(qx - 1, qy + 1); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+  MTCine.register('ps_tujuh', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, seen6 = false;
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 3); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since, S = Math.min(W * 0.0016, H * 0.0026);
+      if (i === 0) {
+        paper(ctx, 0, 0, W, H, 'rgba(150,100,30,.25)');
+        var hy = H * 0.62; ctx.fillStyle = 'rgba(120,90,50,.25)'; ctx.fillRect(0, hy, W, H - hy);
+        var gx = lerp(W * 0.85, W * 0.35, sm(0, 6, lt));
+        ctx.save(); ctx.globalAlpha = 0.55 + Math.sin(t * 1.4) * 0.15; MTShip.draw(ctx, gx, hy, S * 1.2, Object.assign({}, JANJI_PUTIH, { dir: -1, t: t, furl: 0.8, roll: Math.sin(t) * 0.06 })); ctx.restore();
+        for (var f = 0; f < 18; f++) { var fx = (hs(f) * W + t * 12 * (f % 3 + 1)) % W, fy = H * (0.4 + hs(f + 3) * 0.4); var fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, W * 0.1); fg.addColorStop(0, 'rgba(240,228,200,.6)'); fg.addColorStop(1, 'rgba(240,228,200,0)'); ctx.fillStyle = fg; ctx.fillRect(fx - W * 0.1, fy - W * 0.1, W * 0.2, W * 0.2); }
+        ctx.fillStyle = '#e8c46a'; for (var q = 0; q < 50; q++) { var qa = q * 0.7 + t * 1.5, qr = (q % 10) * W * 0.02; ctx.globalAlpha = 0.5; ctx.fillRect(gx + Math.cos(qa) * qr, hy - H * 0.1 + Math.sin(qa) * qr * 0.4, 2, 2); } ctx.globalAlpha = 1;
+      } else if (i === 1) {
+        paper(ctx, 0, 0, W, H, 'rgba(150,100,30,.3)');
+        var hy2 = H * 0.6; ctx.fillStyle = '#b89a62'; ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, hy2); ctx.quadraticCurveTo(W * 0.4, hy2 - H * 0.04, W * 0.6, hy2 + H * 0.1); ctx.lineTo(W * 0.6, H); ctx.closePath(); ctx.fill();
+        ctx.save(); ctx.globalAlpha = 0.8; MTShip.draw(ctx, W * 0.75, hy2 + H * 0.05, S * 1.1, Object.assign({}, JANJI_PUTIH, { dir: -1, t: 0, furl: 0.9, roll: 0.12 })); ctx.restore();
+        person(ctx, W * 0.45, hy2 + H * 0.14, H * 0.2, { hat: 'iket', wave: lt > 1 }, '#2a1a0c');
+        // papan GAUL-WASH muncul
+        var k = sm(1.5, 3.5, lt);
+        if (k > 0) {
+          ctx.save(); ctx.globalAlpha = k; ctx.fillStyle = '#6a4a2a'; ctx.fillRect(W * 0.12, hy2 - H * 0.2, 4, H * 0.24);
+          ctx.fillStyle = '#f2e2b8'; ctx.fillRect(W * 0.06, hy2 - H * 0.26, W * 0.2, H * 0.08); ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 2; ctx.strokeRect(W * 0.06, hy2 - H * 0.26, W * 0.2, H * 0.08);
+          ctx.font = '700 ' + Math.round(H * 0.04) + 'px "Cinzel", Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2410'; ctx.fillText('GAUL-WASH', W * 0.16, hy2 - H * 0.205); ctx.restore();
+        }
+      } else if (i === 2) {
+        paper(ctx, 0, 0, W, H, 'rgba(150,100,30,.2)');
+        if (lt > 2.2) seen6 = true;
+        var n = seen6 ? 6 : Math.min(6, Math.floor(sm(0, 2, lt) * 6 + 0.001));
+        hourglass(ctx, W * 0.5, H * 0.42, Math.min(W, H) * 0.2, n, 1);
+        ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.03) + 'px "Cinzel", Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(60,36,12,.8)'; ctx.fillText(n + ' / 7', W * 0.5, H * 0.75);
+      } else {
+        var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a0c14'); g.addColorStop(1, '#2a2030'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        var cx = W * 0.5, cy = H * 0.64;
+        for (var r = 0; r < 9; r++) { ctx.strokeStyle = 'rgba(200,190,230,' + (0.08 + r * 0.02).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(cx, cy, W * (0.05 + r * 0.05), H * (0.015 + r * 0.012), t * 0.6 + r, 0, 6.3); ctx.stroke(); }
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, cy + H * 0.02); ctx.clip(); ctx.translate(cx, cy + sm(0, 8, lt) * H * 0.06); ctx.rotate(-0.25 + Math.sin(t) * 0.04); MTShip.draw(ctx, 0, 0, S * 0.75, Object.assign({}, WHITE_SHIP, { dir: 1, t: t, roll: 0.2 })); ctx.restore();
+        var glow = 0.5 + Math.sin(t * 4) * 0.3, hx = W * 0.18, hy3 = H * 0.3, hh = Math.min(W, H) * 0.11;
+        hourglass(ctx, hx, hy3, hh, 6, 1, '#d8dce2');
+        ctx.save(); ctx.globalAlpha = glow; var qa = 6 / 7 * Math.PI * 2 - Math.PI / 2; var gg = ctx.createRadialGradient(hx + Math.cos(qa) * hh * 0.8, hy3 + Math.sin(qa) * hh * 0.95, 0, hx + Math.cos(qa) * hh * 0.8, hy3 + Math.sin(qa) * hh * 0.95, hh * 0.4); gg.addColorStop(0, 'rgba(255,240,200,.9)'); gg.addColorStop(1, 'rgba(255,240,200,0)'); ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H); ctx.restore();
+      }
+      ctx.save(); ctx.globalAlpha = 0.1; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 5) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.55);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = i === 3 ? 'rgba(220,220,240,.8)' : 'rgba(60,36,12,.8)'; ctx.textAlign = 'left'; ctx.fillText('ARSIP AKADEMI · TUJUH KACA', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
+  });
+
+  /* ================= MTCine: ps_pasang ("Malam Pasang Besar"; Batch 6) =================
+   * ctl.i: 0 tebing Akademi, laut tenang · 1 air naik ke lapangan · 2 lonceng berdentang sendiri · 3 Franziska di sampingmu · 4 ia pergi, benua hilang
+   * opts.data = { evak: true } -> kapal-kapal kecil berlayar menjauh */
+  MTCine.register('ps_pasang', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, D = opts.data || {}, rise = 0;
+    function draw(ctx, W, H, t, dt) {
+      var i = clamp(ctl.i | 0, 0, 4); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since;
+      var target = i === 0 ? 0 : i === 1 ? 0.45 : i === 2 ? 0.7 : i === 3 ? 0.8 : 1;
+      rise += (target - rise) * Math.min(1, (dt || 16) / 1000 * 0.6);
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#120e0a'); g.addColorStop(0.7, '#3a2a1a'); g.addColorStop(1, '#1a1208');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(240,220,170,.85)'; ctx.beginPath(); ctx.arc(W * 0.8, H * 0.16, Math.min(W, H) * 0.05, 0, 6.3); ctx.fill();
+      // benteng & menara lonceng
+      var bx = W * 0.5, by = H * 0.66, bw = W * 0.12, bh = H * 0.5;
+      ctx.fillStyle = '#c8b898'; ctx.fillRect(W * 0.3, H * 0.6, W * 0.5, H * 0.14);
+      ctx.fillStyle = '#d6c8a8'; ctx.fillRect(bx, by - bh, bw, bh);
+      ctx.fillStyle = '#6a2a1e'; ctx.beginPath(); ctx.moveTo(bx - W * 0.01, by - bh); ctx.lineTo(bx + bw / 2, by - bh - H * 0.08); ctx.lineTo(bx + bw + W * 0.01, by - bh); ctx.closePath(); ctx.fill();
+      var ox = bx + bw * 0.15, oy = by - bh + H * 0.05, ow = bw * 0.7, oh = H * 0.14;
+      ctx.fillStyle = '#2a1a0e'; ctx.fillRect(ox, oy, ow, oh);
+      var sw = i >= 2 ? Math.sin(t * 3) * 0.5 : Math.sin(t * 0.6) * 0.05;
+      ctx.save(); ctx.translate(ox + ow / 2, oy + oh * 0.12); ctx.rotate(sw); ctx.fillStyle = '#c9a450'; ctx.beginPath(); ctx.moveTo(-ow * 0.14, 0); ctx.lineTo(ow * 0.14, 0); ctx.lineTo(ow * 0.2, oh * 0.45); ctx.lineTo(-ow * 0.2, oh * 0.45); ctx.closePath(); ctx.fill(); ctx.restore();
+      if (i >= 2) { var ring = (lt * 0.8) % 1; ctx.strokeStyle = 'rgba(240,210,140,' + (0.6 * (1 - ring)).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ox + ow / 2, oy + oh * 0.3, ow * (0.5 + ring * 2.5), 0, 6.3); ctx.stroke(); }
+      // air naik
+      var wl = lerp(H * 0.8, H * 0.5, rise);
+      ctx.fillStyle = 'rgba(40,60,80,.88)'; ctx.fillRect(0, wl, W * 0.9, H - wl);
+      for (var w = 0; w < 18; w++) { ctx.strokeStyle = 'rgba(200,220,240,.18)'; ctx.beginPath(); var wy = wl + w * H * 0.015 + Math.sin(t * 2 + w) * 2; ctx.moveTo(((w * 0.17 + t * 0.05) % 1) * W * 0.9, wy); ctx.lineTo(((w * 0.17 + t * 0.05) % 1) * W * 0.9 + W * 0.07, wy); ctx.stroke(); }
+      if (D.evak && i >= 1) { for (var k = 0; k < 3; k++) { var sx = W * (0.08 + k * 0.07) - lt * W * 0.006 * (k + 1); MTShip.draw(ctx, sx, wl + H * 0.01, Math.min(W * 0.0016, H * 0.0026) * 0.22, Object.assign({}, SKETCH_SHIP, { dir: -1, t: t })); } }
+      // tebing di kanan: kau & Franziska
+      ctx.fillStyle = '#2a1e12'; ctx.beginPath(); ctx.moveTo(W, H); ctx.lineTo(W * 0.82, H); ctx.lineTo(W * 0.86, H * 0.7); ctx.quadraticCurveTo(W * 0.92, H * 0.64, W, H * 0.66); ctx.closePath(); ctx.fill();
+      person(ctx, W * 0.9, H * 0.68, H * 0.16, { hat: 'kapten' }, '#0e0a06');
+      if (i >= 3) { var a = i === 4 ? 1 - sm(0.5, 3, lt) : sm(0, 1.4, lt); ctx.save(); ctx.globalAlpha = a; person(ctx, W * 0.96, H * 0.67, H * 0.16, { gown: true, bun: true, parasol: true }, '#efe8da'); ctx.restore(); }
+      if (i === 4) { var hk = sm(1.5, 3.5, lt); if (hk > 0) hourglass(ctx, W * 0.5, H * 0.2, Math.min(W, H) * 0.08, 6, hk, '#e8dcc0'); }
+      if (!REDUCE) { ctx.strokeStyle = 'rgba(220,210,190,.18)'; ctx.lineWidth = 1; ctx.beginPath(); for (var d = 0; d < 60; d++) { var rx = (hs(d) * W + t * 40) % W, ry = (hs(d + 7) * H + t * 300) % H; ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry - 14); } ctx.stroke(); }
+      ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 6) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.6);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(240,220,180,.8)'; ctx.textAlign = 'left'; ctx.fillText('AKADEMI LAUT SUDYRMAN · MALAM PASANG BESAR', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
+  });
+
+
+  /* ================= Batch 7 · Quest 14 ================= */
+  function stormSky(ctx, W, H, t, sep) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, sep ? '#1a140c' : '#0c0f18'); g.addColorStop(0.6, sep ? '#3a2c1a' : '#1e2a3a'); g.addColorStop(1, sep ? '#20180e' : '#0e141e');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  function whirl(ctx, cx, cy, W, H, t, col) {
+    for (var r = 0; r < 10; r++) { ctx.strokeStyle = 'rgba(' + col + ',' + (0.06 + r * 0.02).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(cx, cy, W * (0.06 + r * 0.05), H * (0.014 + r * 0.01), 0, t * 0.7 + r, t * 0.7 + r + 4.6); ctx.stroke(); }
+  }
+  function flicker(t) { return Math.sin(t * 2.3) > 0.85 || Math.sin(t * 5.1 + 1) > 0.97; }
+
+  /* ps_kejauhan ("Kau di Kejauhan"): ctl.i 0 pusaran & pertempuran Quest 4 · 1 kapalmu yang dulu · 2 Janji Putih menuju Absolute Justice */
+  MTCine.register('ps_kejauhan', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, flash = 0;
+    function draw(ctx, W, H, t, dt) {
+      var i = clamp(ctl.i | 0, 0, 2); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since, S = Math.min(W * 0.0016, H * 0.0026), sep = !flicker(t);
+      stormSky(ctx, W, H, t, sep);
+      var hy = H * 0.6; ctx.fillStyle = sep ? '#2e2214' : '#16202c'; ctx.fillRect(0, hy, W, H - hy);
+      whirl(ctx, W * 0.5, hy + H * 0.08, W, H, t, sep ? '230,200,150' : '180,200,230');
+      // Absolute Justice terbelah, Black Pearl menabrak
+      var ax = W * 0.55, ay = hy + H * 0.05;
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(0.12 + Math.sin(t * 0.8) * 0.03); MTShip.draw(ctx, 0, 0, S * 1.1, Object.assign({}, WHITE_SHIP, { dir: -1, t: t, damage: 0.7 })); ctx.restore();
+      MTShip.draw(ctx, W * 0.34 + Math.sin(t) * 4, ay + H * 0.02, S * 0.9, { hull: '#1a1416', trim: '#6a1a1a', sail: '#2a2224', flag: '#111', masts: 3, dir: 1, t: t });
+      if (i >= 1) { // kapalmu yang dulu, jauh di kiri
+        var a = i === 1 ? sm(0, 1.5, lt) : 1;
+        ctx.save(); ctx.globalAlpha = a; ship(ctx, W * 0.14, ay + H * 0.06, S * 0.6, shipOpts(opts.vis, { dir: 1, t: t })); ctx.restore();
+        if (i === 1) { ctx.strokeStyle = 'rgba(240,220,170,' + (0.6 * a).toFixed(2) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(W * 0.14, ay + H * 0.0, Math.min(W, H) * 0.09, 0, 6.3); ctx.stroke(); }
+      }
+      if (i === 2) {
+        var jx = lerp(W * 1.1, W * 0.74, sm(0, 4, lt));
+        MTShip.draw(ctx, jx, ay + H * 0.03, S * 0.7, Object.assign({}, JANJI_PUTIH, { dir: -1, t: t }));
+        person(ctx, jx - S * 40, ay - S * 30, S * 28, { gown: true, bun: true }, '#f4ecdc');
+      }
+      if (Math.sin(t * 1.7) > 0.993) flash = 1;
+      if (flash > 0) { ctx.fillStyle = 'rgba(255,248,230,' + (flash * 0.5).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); flash = Math.max(0, flash - (dt || 16) / 260); }
+      if (!REDUCE) { ctx.strokeStyle = 'rgba(230,210,170,.25)'; ctx.lineWidth = 1; ctx.beginPath(); for (var r = 0; r < 70; r++) { var rx = (hs(r) * W + t * 60) % W, ry = (hs(r + 4) * H + t * 380) % H; ctx.moveTo(rx, ry); ctx.lineTo(rx - 4, ry - 16); } ctx.stroke(); }
+      ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 7) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.6);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(240,220,180,.8)'; ctx.fillText('MALAM PUSARAN', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
+  });
+
+  /* ps_tenggelam (Geladak yang Tenggelam): ctl.i 0 geladak miring, Satnislaus & Franziska · 1 percakapan · 2 jam pasir dibalik, pasir perak terbang · 3 hormat, kapal tenggelam */
+  MTCine.register('ps_tenggelam', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, sand = [];
+    for (var k = 0; k < 160; k++) sand.push({ a: Math.random() * 6.3, r: Math.random(), v: 0.5 + Math.random() });
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 3); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since, sep = !flicker(t);
+      stormSky(ctx, W, H, t, sep);
+      var tilt = 0.12 + (i === 3 ? sm(0, 5, lt) * 0.25 : 0), sink = i === 3 ? sm(1, 6, lt) * H * 0.25 : 0;
+      ctx.save(); ctx.translate(W * 0.5, H * 0.7 + sink); ctx.rotate(tilt);
+      ctx.fillStyle = sep ? '#c8b896' : '#d8dde4'; ctx.fillRect(-W * 0.6, 0, W * 1.2, H * 0.06);
+      ctx.fillStyle = sep ? '#8a7a5a' : '#9aa4b0'; ctx.fillRect(-W * 0.6, H * 0.06, W * 1.2, H * 0.4);
+      for (var b = 0; b < 14; b++) ctx.fillRect(-W * 0.55 + b * W * 0.08, -H * 0.08, W * 0.01, H * 0.08);
+      ctx.fillRect(-W * 0.6, -H * 0.09, W * 1.2, H * 0.015);
+      ctx.fillStyle = '#5a4a32'; ctx.fillRect(W * 0.2, -H * 0.6, W * 0.02, H * 0.6);
+      person(ctx, -W * 0.05, 0, H * 0.26, { hat: 'kapten', big: true, helm: i === 3 && lt > 1, wave: false }, '#14100c');            // Satnislaus
+      var fx = i === 0 ? lerp(W * 0.35, W * 0.12, sm(0, 3, lt)) : W * 0.12;
+      person(ctx, fx, 0, H * 0.24, { gown: true, bun: true, wave: i === 2 && lt < 2 }, '#efe8da');                                   // Franziska
+      ctx.restore();
+      // kapalmu di kejauhan
+      ship(ctx, W * 0.12, H * 0.58, Math.min(W * 0.0016, H * 0.0026) * 0.45, shipOpts(opts.vis, { dir: 1, t: t }));
+      if (i === 2) { // jam pasir dibalik, pasir perak terbang ke langit
+        var hx = W * 0.62, hy2 = H * 0.5 - sm(0, 1.5, lt) * H * 0.08, hh = Math.min(W, H) * 0.06, rot = sm(0.5, 1.8, lt) * Math.PI;
+        ctx.save(); ctx.translate(hx, hy2); ctx.rotate(rot); ctx.strokeStyle = '#e8dcc0'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke(); ctx.restore();
+        var k2 = sm(1.8, 6, lt);
+        if (k2 > 0) sand.forEach(function (p) { var x = hx + Math.cos(p.a + t * p.v) * p.r * W * 0.4 * k2, y = hy2 - k2 * H * 0.6 * p.r * p.v + Math.sin(p.a) * 20; ctx.fillStyle = 'rgba(225,230,240,' + (0.9 - k2 * 0.5).toFixed(2) + ')'; ctx.fillRect(x, y, 2, 2); });
+      }
+      if (i === 3) { ctx.fillStyle = 'rgba(30,40,50,' + (0.4 * sm(2, 6, lt)).toFixed(2) + ')'; ctx.fillRect(0, H * 0.72, W, H * 0.28); }
+      if (!REDUCE) { ctx.strokeStyle = 'rgba(230,210,170,.22)'; ctx.lineWidth = 1; ctx.beginPath(); for (var r = 0; r < 60; r++) { var rx = (hs(r) * W + t * 50) % W, ry = (hs(r + 8) * H + t * 360) % H; ctx.moveTo(rx, ry); ctx.lineTo(rx - 4, ry - 15); } ctx.stroke(); }
+      ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 8) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      CH.vignette(ctx, W, H, 0.6);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(240,220,180,.8)'; ctx.fillText('ABSOLUTE JUSTICE · GELADAK YANG TENGGELAM', W * 0.04, H * 0.07); ctx.restore();
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1.2 };
+  });
+
+  /* ps_epilog: ctl.i 0 Jam Agung · 1 Menara Cahaya IKN · 2 Warung Pantai Joungjava · 3 Mercusuar Bjorneo · 4 Javasche Bank
+   *            5 Karang Sudyrman · 6 Black's Alley · 7 nasib Franziska · 8 Dermaga Skitraw · 9 kutipan akhir
+   * opts.data = { riak, name, nasib } */
+  MTCine.register('ps_epilog', function (opts) {
+    var ctl = opts.ctl || { i: 0 }, lastI = -1, since = 0, D = opts.data || {}, R = D.riak || {};
+    var TITLE = ['JAM AGUNG · EM PE’ER DE PE’ER', 'MENARA CAHAYA · IKN', 'WARUNG PANTAI · JOUNGJAVA', 'MERCUSUAR · BJORNEO', 'JAVASCHE BANK · JOUNGJAVA', 'KARANG SUDYRMAN', "BLACK'S ALLEY · TOOGOOD", '', 'DERMAGA · SKITRAW', ''];
+    function sky(ctx, W, H, top, bot) { var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, top); g.addColorStop(1, bot); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+    function sea(ctx, W, H, y, col, t) { ctx.fillStyle = col; ctx.fillRect(0, y, W, H - y); for (var w = 0; w < 12; w++) { ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); var wy = y + w * H * 0.02; ctx.moveTo(((w * 0.21 + t * 0.03) % 1) * W, wy); ctx.lineTo(((w * 0.21 + t * 0.03) % 1) * W + W * 0.07, wy); ctx.stroke(); } }
+    function draw(ctx, W, H, t) {
+      var i = clamp(ctl.i | 0, 0, 9); if (i !== lastI) { lastI = i; since = t; }
+      var lt = t - since, S = Math.min(W * 0.0016, H * 0.0026), F = H * 0.24;
+      if (i === 0) { // Jam Agung: roda berputar, Paman Ocid mengunci kotak kaca berisi jam pasir kosong
+        sky(ctx, W, H, '#c89a5a', '#5a3a1a');
+        for (var g = 0; g < 4; g++) { var gx = W * (0.15 + g * 0.22), gy = H * (0.3 + (g % 2) * 0.12), gr = Math.min(W, H) * (0.08 + (g % 2) * 0.04); ctx.save(); ctx.translate(gx, gy); ctx.rotate(t * (g % 2 ? -0.4 : 0.5)); ctx.strokeStyle = 'rgba(70,44,16,.75)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, gr, 0, 6.3); ctx.stroke(); for (var tth = 0; tth < 12; tth++) { ctx.rotate(Math.PI / 6); ctx.fillStyle = 'rgba(70,44,16,.75)'; ctx.fillRect(gr - 2, -4, 10, 8); } ctx.restore(); }
+        ctx.fillStyle = '#4a3018'; ctx.fillRect(0, H * 0.8, W, H * 0.2);
+        ctx.strokeStyle = 'rgba(240,230,210,.8)'; ctx.lineWidth = 2; ctx.strokeRect(W * 0.55, H * 0.58, W * 0.12, H * 0.22);
+        var hh = Math.min(W, H) * 0.05; ctx.save(); ctx.translate(W * 0.61, H * 0.69); ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-hh * 0.4, -hh); ctx.lineTo(hh * 0.4, -hh); ctx.lineTo(0, 0); ctx.lineTo(hh * 0.4, hh); ctx.lineTo(-hh * 0.4, hh); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke(); ctx.restore();
+        person(ctx, W * 0.45, H * 0.82, F, { hat: 'iket', wave: lt > 2 && lt < 4 }, '#2a1a0c');
+      } else if (i === 1) { // Menara Cahaya IKN
+        sky(ctx, W, H, '#0c1424', '#1e2c44'); sea(ctx, W, H, H * 0.66, '#14203a', t);
+        var padam = R.tedsky_lampu === 'padam';
+        ctx.fillStyle = '#e8e0cc'; ctx.fillRect(W * 0.62, H * 0.12, W * 0.06, H * 0.56);
+        if (padam) { var bg = ctx.createLinearGradient(W * 0.65, H * 0.15, 0, H * 0.4); bg.addColorStop(0, 'rgba(255,240,190,.8)'); bg.addColorStop(1, 'rgba(255,240,190,0)'); ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(W * 0.65, H * 0.15); ctx.lineTo(0, H * 0.25 + Math.sin(t) * H * 0.05); ctx.lineTo(0, H * 0.45 + Math.sin(t) * H * 0.05); ctx.closePath(); ctx.fill(); }
+        ctx.fillStyle = 'rgba(255,240,190,.95)'; ctx.beginPath(); ctx.arc(W * 0.65, H * 0.15, Math.min(W, H) * 0.025, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#8a6a2a'; ctx.beginPath(); ctx.moveTo(W * 0.4, H * 0.7); ctx.lineTo(W * 0.46, H * 0.52); ctx.lineTo(W * 0.52, H * 0.7); ctx.closePath(); ctx.fill();
+        if (!padam) { ctx.fillStyle = 'rgba(255,220,140,.95)'; ctx.beginPath(); ctx.arc(W * 0.44, H * 0.7, 4, 0, 6.3); ctx.fill(); }
+        person(ctx, W * 0.32, H * 0.72, F, { hat: 'kapten', helm: !padam && lt > 2 }, '#0a0e16');
+      } else if (i === 2) { // Warung Pantai Joungjava
+        sky(ctx, W, H, '#f0d8a8', '#e8c898'); sea(ctx, W, H, H * 0.58, '#5a8aa0', t);
+        ctx.fillStyle = '#c8a870'; ctx.fillRect(0, H * 0.72, W, H * 0.28);
+        ctx.fillStyle = '#6a4a2a'; ctx.fillRect(W * 0.15, H * 0.42, W * 0.32, H * 0.06); ctx.fillRect(W * 0.17, H * 0.48, W * 0.01, H * 0.24); ctx.fillRect(W * 0.44, H * 0.48, W * 0.01, H * 0.24);
+        person(ctx, W * 0.26, H * 0.8, F, { hat: 'iket' }, '#3a2410');
+        person(ctx, W * 0.36, H * 0.8, F * 0.95, { wave: R.karto_kopi === 'beri' && lt > 1.5 }, '#5a3a1a');
+        ctx.fillStyle = '#1a0e06'; ctx.fillRect(W * 0.285, H * 0.62, 6, 7);
+      } else if (i === 3) { // Mercusuar Bjorneo
+        sky(ctx, W, H, '#e08a5a', '#5a2a3a'); sea(ctx, W, H, H * 0.64, '#3a2a40', t);
+        ctx.fillStyle = '#f0e8dc'; ctx.fillRect(W * 0.7, H * 0.18, W * 0.07, H * 0.5); ctx.fillStyle = '#a8231c'; for (var st = 0; st < 3; st++) ctx.fillRect(W * 0.7, H * (0.26 + st * 0.13), W * 0.07, H * 0.04);
+        ctx.fillStyle = 'rgba(255,240,190,' + (0.6 + 0.4 * Math.sin(t * 2)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(W * 0.735, H * 0.16, Math.min(W, H) * 0.03, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#3a2a20'; ctx.fillRect(0, H * 0.7, W, H * 0.3);
+        person(ctx, W * 0.42, H * 0.78, F * 0.9, { gown: true, bun: true, wave: R.ulin_teka === 'beri' && lt > 2 }, '#1a1410');
+        if (R.ulin_teka === 'beri') person(ctx, W * 0.55, H * 0.78, F, { hat: 'kapten' }, '#1a1410');
+      } else if (i === 4) { // Javasche Bank
+        sky(ctx, W, H, '#2a2018', '#120c08');
+        ctx.fillStyle = 'rgba(120,150,190,.25)'; ctx.fillRect(W * 0.65, H * 0.15, W * 0.2, H * 0.35);
+        ctx.fillStyle = '#4a2e18'; ctx.fillRect(W * 0.1, H * 0.62, W * 0.6, H * 0.08);
+        var buka = !!R.nansy_buku;
+        ctx.fillStyle = '#f2e6c8'; if (buka) { ctx.fillRect(W * 0.3, H * 0.56, W * 0.1, H * 0.06); ctx.fillRect(W * 0.405, H * 0.56, W * 0.1, H * 0.06); ctx.fillStyle = 'rgba(40,24,10,.8)'; ctx.font = 'italic ' + Math.round(H * 0.022) + 'px Georgia, serif'; ctx.fillText(String(D.name || 'Kapten').slice(0, 18), W * 0.41, H * 0.6); }
+        else { ctx.fillStyle = '#6a2a18'; ctx.fillRect(W * 0.34, H * 0.57, W * 0.12, H * 0.05); }
+        person(ctx, W * 0.6, H * 0.8, F, { hat: 'kapten', big: true }, '#0e0a06');
+        if (!buka) for (var sm2 = 0; sm2 < 6; sm2++) { ctx.fillStyle = 'rgba(220,220,220,' + (0.25 - sm2 * 0.03).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(W * 0.62 + Math.sin(t + sm2) * 6, H * 0.5 - sm2 * H * 0.04 - (t * 10 % 20), 6 + sm2 * 2, 0, 6.3); ctx.fill(); }
+      } else if (i === 5) { // Karang Sudyrman
+        sky(ctx, W, H, '#f6d8a8', '#e0a878'); sea(ctx, W, H, H * 0.6, '#4a8aa8', t);
+        ctx.fillStyle = '#a89068'; ctx.beginPath(); ctx.ellipse(W * 0.5, H * 0.64, W * 0.3, H * 0.06, 0, 0, 6.3); ctx.fill();
+        if (R.sudyrman === 'evakuasi') {
+          for (var hu = 0; hu < 4; hu++) { var hx = W * (0.3 + hu * 0.1); ctx.fillStyle = '#7a5a30'; ctx.fillRect(hx, H * 0.54, W * 0.06, H * 0.06); ctx.fillStyle = '#c8a860'; ctx.beginPath(); ctx.moveTo(hx - 6, H * 0.54); ctx.lineTo(hx + W * 0.03, H * 0.49); ctx.lineTo(hx + W * 0.06 + 6, H * 0.54); ctx.closePath(); ctx.fill(); }
+          var cols = ['#c0392b', '#2980b9', '#f1c40f'];
+          for (var bo = 0; bo < 3; bo++) { ctx.fillStyle = cols[bo]; ctx.beginPath(); ctx.ellipse(W * (0.18 + bo * 0.3), H * 0.68, W * 0.04, H * 0.01, 0, 0, 3.2); ctx.fill(); }
+          person(ctx, W * 0.62, H * 0.64, F * 0.6, { gown: true, bun: true, wave: true }, '#3a2410'); person(ctx, W * 0.66, H * 0.64, F * 0.35, { kid: true }, '#3a2410');
+        } else {
+          ctx.save(); ctx.translate(W * 0.5, H * 0.6); ctx.rotate(Math.sin(t * 1.5) * 0.15); ctx.fillStyle = '#c9a450'; ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(14, 0); ctx.lineTo(20, 26); ctx.lineTo(-20, 26); ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+      } else if (i === 6 || i === 7) {
+        if (i === 6 || !D.nasib) { // Black's Alley
+          sky(ctx, W, H, '#1a1016', '#0a0608');
+          ctx.fillStyle = '#4a2a1a'; ctx.fillRect(0, H * 0.66, W, H * 0.06);
+          ctx.fillStyle = '#f2ead8'; ctx.fillRect(W * 0.4, H * 0.5, W * 0.12, H * 0.16); ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 3; ctx.strokeRect(W * 0.4, H * 0.5, W * 0.12, H * 0.16);
+          person(ctx, W * 0.3, H * 0.9, F, { gown: true, bun: true }, '#efe8da');
+          person(ctx, W * 0.66, H * 0.9, F, { hat: 'kapten', big: true }, '#2a1a20');
+          ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.arc(W * 0.66, H * 0.9 - F * 0.74, 4, 0, 6.3); ctx.fill();
+          for (var lp = 0; lp < 5; lp++) { ctx.fillStyle = 'rgba(255,200,110,' + (0.5 + 0.3 * Math.sin(t * 3 + lp)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(W * (0.1 + lp * 0.2), H * 0.12, 5, 0, 6.3); ctx.fill(); }
+        } else if (D.nasib === 'pergi') {
+          sky(ctx, W, H, '#f0d0a0', '#a06a4a'); sea(ctx, W, H, H * 0.62, '#3a6a8a', t);
+          var jx = lerp(W * 0.5, W * 0.85, sm(0, 8, lt));
+          MTShip.draw(ctx, jx, H * 0.64, S * 0.8, Object.assign({}, JANJI_PUTIH, { dir: 1, t: t }));
+          ctx.strokeStyle = 'rgba(80,60,40,.5)'; ctx.lineWidth = 1.2; for (var fl = 0; fl < 4; fl++) { ctx.beginPath(); ctx.moveTo(jx - S * 20 + fl * S * 12, H * 0.64 - S * 100); ctx.lineTo(jx - S * 12 + fl * S * 12, H * 0.64 - S * 60); ctx.stroke(); }
+        } else {
+          sky(ctx, W, H, '#d8b888', '#6a4a2a');
+          for (var sp = 0; sp < 14; sp++) { ctx.fillStyle = 'rgba(90,60,30,.6)'; ctx.fillRect(W * (0.2 + sp * 0.045), H * (0.86 - sp * 0.045), W * 0.05, H * 0.012); }
+          var up = sm(0, 8, lt);
+          person(ctx, W * (0.3 + up * 0.3), H * (0.84 - up * 0.3), F * 0.8, { gown: true, bun: true }, '#efe8da');
+          person(ctx, W * (0.35 + up * 0.3), H * (0.82 - up * 0.3), F * 0.8, { hat: 'iket' }, '#2a1a0c');
+        }
+      } else if (i === 8) { // Dermaga Skitraw
+        sky(ctx, W, H, '#f0b070', '#7a4a6a'); sea(ctx, W, H, H * 0.6, '#3a5a7a', t);
+        ctx.fillStyle = '#5a3a20'; ctx.fillRect(0, H * 0.7, W * 0.6, H * 0.04);
+        ctx.fillStyle = '#2a2030'; ctx.fillRect(W * 0.05, H * 0.36, W * 0.24, H * 0.34);
+        ctx.save(); ctx.font = '700 ' + Math.round(H * 0.05) + 'px "Pirata One", Georgia, serif'; ctx.fillStyle = 'rgba(255,120,200,' + (0.7 + 0.3 * Math.sin(t * 6)).toFixed(2) + ')'; ctx.shadowColor = '#ff60c0'; ctx.shadowBlur = 12; ctx.fillText('Gaul-Wash', W * 0.07, H * 0.34); ctx.restore();
+        person(ctx, W * 0.42, H * 0.7, F * 0.8, { hat: 'iket' }, '#2a1a0c');
+        person(ctx, W * 0.48, H * 0.7, F * 0.45, { kid: true, wave: lt > 1.5 }, '#2a1a0c');
+        ship(ctx, W * 0.75, H * 0.66, S * 0.9, shipOpts(opts.vis, { dir: -1, t: t }));
+      } else { // kutipan akhir di kertas krem
+        paper(ctx, 0, 0, W, H, 'rgba(150,110,50,.12)');
+      }
+      ctx.save(); ctx.globalAlpha = 0.08; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(t) * 30, hs(t + 9) * 30); ctx.fillRect(-40, -40, W + 80, H + 80); ctx.restore();
+      if (i < 9) CH.vignette(ctx, W, H, 0.45);
+      var ttl = TITLE[i]; if (i === 7) ttl = D.nasib === 'pergi' ? 'KE SELATAN' : D.nasib === 'dewan' ? '999 ANAK TANGGA' : TITLE[6];
+      if (ttl) { ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.026) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(255,245,225,.85)'; ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 6; ctx.fillText(ttl, W * 0.04, H * 0.07); ctx.restore(); }
+      // transisi halaman
+      if (lt < 0.8) { ctx.fillStyle = 'rgba(240,228,200,' + (1 - lt / 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W * (1 - lt / 0.8), H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+
+  /* ps_credits3: credit Saga Ketiga. opts.data = { name } */
+  var CREDITS3_SEC = 42;
+  MTCine.register('ps_credits3', function (opts) {
+    var D = opts.data || {}, name = String(D.name || 'Kapten');
+    var LINES = [['logo', 'MARANTAU'], ['h', 'Saga Ketiga — Dark — Selesai'], ['gap'], ['s', 'Pencipta'], ['b', 'DMSandris'], ['gap'],
+      ['i', 'Untuk Slaus dan Franzi,'], ['i', 'yang pernah tertawa di menara lonceng.'], ['gap'], ['gap'], ['end', 'untukmu ' + name + ', terima kasih telah berlayar . .']];
+    function draw(ctx, W, H, t) {
+      var k = sm(0, CREDITS3_SEC * 0.5, t);
+      // kiri: menara lonceng sepia, kanan: Menara Cahaya berwarna
+      var g1 = ctx.createLinearGradient(0, 0, 0, H); g1.addColorStop(0, '#d8a860'); g1.addColorStop(1, '#6a4a2a'); ctx.fillStyle = g1; ctx.fillRect(0, 0, W / 2, H);
+      var g2 = ctx.createLinearGradient(0, 0, 0, H); g2.addColorStop(0, '#0e1a30'); g2.addColorStop(1, '#2a4060'); ctx.fillStyle = g2; ctx.fillRect(W / 2, 0, W / 2, H);
+      ctx.fillStyle = '#f2e6c8'; ctx.fillRect(W * 0.18, H * 0.3, W * 0.07, H * 0.4); ctx.fillStyle = '#8a3a2a'; ctx.beginPath(); ctx.moveTo(W * 0.17, H * 0.3); ctx.lineTo(W * 0.215, H * 0.22); ctx.lineTo(W * 0.26, H * 0.3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#e8e0cc'; ctx.fillRect(W * 0.76, H * 0.24, W * 0.05, H * 0.46);
+      var bg = ctx.createLinearGradient(W * 0.785, H * 0.24, W * 0.5, H * 0.4); bg.addColorStop(0, 'rgba(255,240,190,.7)'); bg.addColorStop(1, 'rgba(255,240,190,0)'); ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(W * 0.785, H * 0.24); ctx.lineTo(W * 0.5, H * 0.3); ctx.lineTo(W * 0.5, H * 0.42); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(20,30,40,.5)'; ctx.fillRect(0, H * 0.7, W, H * 0.3);
+      ship(ctx, lerp(W * 0.1, W * 0.9, k), H * 0.74, Math.min(W * 0.0016, H * 0.0026) * 0.8, shipOpts(opts.vis, { dir: 1, t: t }));
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, H);
+      var y = H * 1.05 - t * H * 0.045, U2 = Math.min(W, H);
+      ctx.save(); ctx.textAlign = 'center';
+      LINES.forEach(function (L) {
+        if (L[0] === 'gap') { y += U2 * 0.08; return; }
+        var f = L[0] === 'logo' ? '700 ' + Math.round(U2 * 0.09) + 'px "Pirata One", Georgia, serif' : L[0] === 'h' ? '700 ' + Math.round(U2 * 0.04) + 'px "Cinzel", Georgia, serif'
+          : L[0] === 's' ? Math.round(U2 * 0.024) + 'px "Cinzel", Georgia, serif' : L[0] === 'b' ? '700 ' + Math.round(U2 * 0.045) + 'px "Cinzel", Georgia, serif'
+          : 'italic ' + Math.round(U2 * 0.034) + 'px Georgia, serif';
+        ctx.font = f; ctx.fillStyle = L[0] === 's' ? 'rgba(240,220,180,.75)' : '#fff3d6';
+        var yy = L[0] === 'end' ? Math.max(H * 0.5, y) : y;
+        ctx.fillText(L[1], W / 2, yy); y += U2 * (L[0] === 'logo' ? 0.12 : 0.07);
+      });
+      ctx.restore();
+      CH.vignette(ctx, W, H, 0.5);
+      if (t < 1.2) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t / 1.2).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 1 };
+  });
+  window.PS_CREDITS3_SEC = CREDITS3_SEC;
+
+  /* =====================================================================
+   * BENANG YANG PUTUS
+   * ===================================================================== */
+  var CARDS = ['gaul', 'gap', 'toogood', 'marlya', 'pusaran', 'jabat', 'menara'];
+  function benang(o, done) {
+    o = o || {};
+    var name = o.name || 'Kapten', shipName = o.ship || 'kapalmu';
+    var A = [
+      'Uda Gala di <b>Gaul-Wash</b> memintamu mencari Kotak Hati.',
+      'Kau menenggelamkan <b>Mr. GAP</b>.',
+      'Kau membantu <b>TooGood merdeka</b>. Black Pearl bangun.',
+      'Kau membebaskan <b>Marlya</b>.',
+      'Di pusaran, Black Pearl menabrak Absolute Justice. <b>Satnislaus tenggelam.</b>',
+      '<b>Dua tangan berjabat</b> di teluk.',
+      '<b>Menara Cahaya IKN</b> menyala.'
+    ];
+    var C = [
+      'Karena tak ada kapal hantu, <b>Gaul-Wash tak pernah berdiri.</b>',
+      'Karena tak ada Gaul-Wash, <b>tak ada yang memintamu mencari Kotak Hati.</b> Mr. GAP tak pernah tenggelam.',
+      'Karena itu, <b>TooGood tak pernah merdeka.</b> Black Pearl tak pernah bangun.',
+      '<b>Marlya tak pernah bebas.</b>',
+      'Tanpa Black Pearl dan tanpa armadamu, <b>Satnislaus tidak pernah tenggelam.</b>',
+      '<b>Dua tangan tak pernah berjabat.</b>'
+    ];
+    var F = [];   // { cap, dur, big, view: fn(ctx,W,H,lt,st) }
+    var cam = { x: 0, z: 0.42 }, burn = {}, cold = 0, snap = 0, showBadai = 0;
+    F.push({ cap: 'Ini kisahmu, <b>Kapten ' + esc(name.replace(/^Kapten\s+/i, '')) + '</b>.', dur: 5, big: true, cam: { x: 3, z: 0.38 }, thread: true });
+    A.forEach(function (c, i) { F.push({ cap: c, dur: i === 4 ? 6 : 4.5, cam: { x: i, z: 1 } }); });
+    F.push({ cap: 'Sebelum semua itu, ada satu malam: <b>Tahun Badai Besar.</b>', dur: 5, cam: { x: -1, z: 1 }, badai: 1 });
+    F.push({ cap: 'Malam itu, seharusnya <b>kapal hantu terdampar</b> di sini. Dari kapal itulah Uda Gala membangun Gaul-Wash.', dur: 6, sepia: 'drift' });
+    F.push({ cap: '<b>Franziska kembali ke malam itu dan mengubahnya.</b>', dur: 6, big: true, sepia: 'pull' });
+    F.push({ cap: 'Benang kisahmu <b>putus</b> di malam itu.', dur: 4.5, cam: { x: -0.4, z: 0.8 }, badai: 1, snap: true });
+    C.forEach(function (c, i) { F.push({ cap: c, dur: i === 4 ? 6.5 : 5, cam: { x: i, z: 1 }, badai: 1, snapped: true, burn: i }); });
+    F.push({ cap: 'Inilah dunia sekarang. <b>Satnislaus memerintah lautan.</b>', dur: 6, cam: { x: 6, z: 1 }, badai: 1, snapped: true, freeze: true });
+    F.push({ cap: 'Kau tetap ada. Tapi <b>semua yang kau dapat dari kisah itu tak pernah terjadi.</b>', dur: 5, big: true, dark: true });
+    F.push({ cap: 'Peta kembali seperti <b>hari pertamamu</b>.', dur: 6, d: 'peta' });
+    F.push({ cap: 'Kapalmu kembali menjadi <b>The Wandering Gull</b>.', dur: 6, d: 'kapal' });
+    F.push({ cap: 'Hartamu <b>tak pernah ada</b>.', dur: 5.5, d: 'harta' });
+    F.push({ cap: 'Tanda jasa dari kisahmu <b>tak pernah diberikan</b>.', dur: 5, d: 'medali' });
+    var thawDone = false;
+    if (o.sambung) {   // Batch 7: "Benang yang Tersambung" (urutan dibalik)
+      F = [];
+      F.push({ cap: '<b>Franziska melepaskan malam itu.</b>', dur: 5, big: true, cam: { x: 3, z: 0.38 }, badai: 1, snapped: true });
+      F.push({ cap: 'Tahun Badai Besar. <b>Janji Putih tidak datang.</b>', dur: 5.5, sepia: 'drift' });
+      F.push({ cap: 'Kapal hantu terdampar di Skitraw. <b>Seperti seharusnya.</b>', dur: 6, sepia: 'beach' });
+      F.push({ cap: 'Benang kisahmu <b>tersambung</b>.', dur: 4.5, cam: { x: -0.4, z: 0.8 }, badai: 1, knot: true });
+      A.forEach(function (c, i) { F.push({ cap: c, dur: i === 4 ? 6 : 4.5, cam: { x: i, z: 1 }, badai: 1, grow: i < 6 ? i : null, thaw: i === 6 }); });
+      F.push({ cap: 'Pulau-pulau yang pernah kau buka <b>muncul kembali</b>.', dur: 6, d: 'peta', rev: true });
+      F.push({ cap: 'The Wandering Gull <b>tumbuh kembali</b> menjadi kapalmu.', dur: 6, d: 'kapal', rev: true });
+      F.push({ cap: 'Hartamu <b>kembali</b>. Dengan sedikit bunga.', dur: 5.5, d: 'harta', rev: true });
+      F.push({ cap: 'Tanda jasamu <b>menyatu kembali</b>.', dur: 5, d: 'medali', rev: true });
+      F.push({ cap: 'Kisahmu kembali. <b>Dan kini ia sedikit lebih panjang.</b>', dur: 6, big: true, cam: { x: 3, z: 0.38 }, badai: 1 });
+      for (var bi = 0; bi < 6; bi++) burn[bi] = 1;
+    }
+
+    var ov = document.createElement('div'); ov.className = 'psb';
+    ov.innerHTML = '<canvas></canvas>' + (o.replay ? '<button class="psb-skip" type="button">Tutup &nbsp;&#215;</button>' : '') +
+      '<div class="psb-cap"><div class="t"></div><div class="row"><div class="dots"></div><button class="nx" type="button">Lanjut &#8250;</button></div></div>' +
+      (o.sambung ? '<div class="psb-sum"><div class="card"><h3>Benang yang Tersambung</h3><ol>' +
+      '<li>Franziska <b>melepaskan</b> malam itu.</li>' +
+      '<li>Kapal hantu terdampar di Skitraw, dan <b>Gaul-Wash berdiri lagi</b>.</li>' +
+      '<li>Seluruh kisahmu <b>kembali</b>, begitu juga hartamu.</li></ol><button type="button">Bangun</button></div></div>'
+      : '<div class="psb-sum"><div class="card"><h3>Apa yang baru saja terjadi?</h3><ol>' +
+      '<li>Franziska kembali ke masa lalu dan membuat <b>Gaul-Wash tak pernah berdiri</b>.</li>' +
+      '<li>Karena itu, seluruh kisahmu tak pernah terjadi, dan <b>Satnislaus tidak pernah tenggelam</b>.</li>' +
+      '<li><b>Kau masih ingat semuanya.</b> Dunia tidak.</li></ol><button type="button">Aku mengerti</button></div></div>');
+    document.body.appendChild(ov);
+    var cv = ov.querySelector('canvas'), ctx = cv.getContext('2d'), capT = ov.querySelector('.psb-cap .t'), nx = ov.querySelector('.psb-cap .nx');
+    var dotsEl = ov.querySelector('.psb-cap .dots'), sum = ov.querySelector('.psb-sum');
+    dotsEl.innerHTML = F.map(function () { return '<i></i>'; }).join('');
+    var W = 0, H = 0, dpr = 1, fi = -1, ft = 0, alive = true, raf = 0, last = 0, T = 0, ended = false;
+    var gold0 = +o.gold || 0, oldCities = (o.cities || []).filter(function (c) { return c && c.MapX != null; });
+    var START = { sunda_empire: 1, joungjava: 1, bjorneo: 1, skitraw: 1, toogood: 1, ikn: 1 };
+    var drops = [], medals = [];
+    var nm = Math.max(3, Math.min(14, o.medals || 6));
+    for (var m = 0; m < nm; m++) medals.push({ x: (m % 7) / 6, row: Math.floor(m / 7), vy: 0, y: 0, rot: 0, fall: 0.3 + m * 0.18 + hs(m) * 0.2 });
+    function resize() { var r = cv.getBoundingClientRect(); W = r.width | 0; H = r.height | 0; dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = W * dpr; cv.height = H * dpr; }
+    window.addEventListener('resize', resize); resize();
+    function go(n) {
+      if (n >= F.length) { end(); return; }
+      if (F[fi] && F[fi].thaw) thawDone = true;
+      if (F[fi] && F[fi].grow != null) burn[F[fi].grow] = 0;
+      fi = n; ft = 0;
+      var f = F[n];
+      capT.classList.remove('in', 'big'); void capT.offsetWidth; capT.innerHTML = '<span>' + f.cap + '</span>'; capT.classList.add('in'); if (f.big) capT.classList.add('big');
+      dotsEl.querySelectorAll('i').forEach(function (d, k) { d.classList.toggle('on', k <= n); });
+      nx.classList.remove('on'); nx.innerHTML = n === F.length - 1 ? 'Selesai &#8250;' : 'Lanjut &#8250;';
+      au(f.snap ? 'chain' : f.burn != null ? 'whoosh' : 'page');
+      if (f.d === 'kapal') { drops = []; }
+    }
+    function end() {
+      if (ended) return; ended = true;
+      sum.classList.add('on'); nx.classList.remove('on');
+      ov.querySelector('.psb-cap').style.display = 'none';
+      au('bell');
+    }
+    function close() {
+      if (!alive) return; alive = false; cancelAnimationFrame(raf); window.removeEventListener('resize', resize);
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 520);
+      if (done) setTimeout(done, 80);
+    }
+    nx.onclick = function () { if (fi < F.length) go(fi + 1); };
+    sum.querySelector('button').onclick = function () { au('success'); close(); };
+    var sk = ov.querySelector('.psb-skip'); if (sk) sk.onclick = close;
+
+    function cardBox(i) {
+      var cw = Math.min(W * 0.62, 560, H * 0.7 * 1.5), ch = cw * 0.66, sp = cw * 1.18;
+      return { w: cw, h: ch, sp: sp };
+    }
+    function threadView(f, lt) {
+      paper(ctx, 0, 0, W, H, 'rgba(60,40,20,.08)');
+      var b = cardBox(), tgt = f.cam || { x: 3, z: 0.38 };
+      var k = 1 - Math.pow(0.0015, 1 / 60);
+      cam.x += (tgt.x - cam.x) * Math.min(1, k * 4); cam.z += (tgt.z - cam.z) * Math.min(1, k * 4);
+      var z = cam.z, ty = H * 0.2;
+      function sx(wx) { return W / 2 + (wx - cam.x) * b.sp * z; }
+      // benang merah
+      var x0 = sx(-1.6), x1 = sx(6.8), tp = f.thread ? sm(0.2, 2.6, lt) : 1;
+      var snapX = sx(-0.5), gap = f.snap ? sm(0.6, 1.4, lt) : f.snapped ? 1 : f.knot ? 1 - sm(0.6, 1.8, lt) : 0;
+      ctx.save(); ctx.strokeStyle = '#a8231c'; ctx.lineWidth = Math.max(2, 3 * z); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x0, ty);
+      var xe = lerp(x0, x1, tp);
+      if (gap > 0) {
+        ctx.lineTo(snapX - gap * 18 * z, ty + gap * 22 * z); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(snapX + gap * 18 * z, ty + gap * 30 * z); ctx.quadraticCurveTo(snapX + 40 * z, ty, Math.max(snapX + 40 * z, xe), ty);
+      } else ctx.lineTo(xe, ty);
+      ctx.stroke(); ctx.restore();
+      // kartu
+      var showB = f.badai || f.snap || f.snapped ? 1 : 0;
+      for (var i = -1; i < CARDS.length; i++) {
+        var cx = sx(i), cw = b.w * z, chh = b.h * z;
+        if (cx + cw < -50 || cx - cw > W + 50) continue;
+        var appear = f.thread ? sm(0.6 + i * 0.25, 1.4 + i * 0.25, lt) : 1;
+        if (i === -1) appear = showB * (f.badai && !f.snap && !f.snapped ? sm(0.3, 1.4, lt) : 1);
+        if (appear <= 0.01) continue;
+        var bp = 0;
+        if (burn[i] != null) bp = burn[i];
+        if (f.burn === i) { bp = sm(0.8, 4.8, lt); burn[i] = bp; }
+        if (f.grow === i) { bp = 1 - sm(0.4, 3.4, lt); burn[i] = bp; }
+        if (bp >= 1) { // abu
+          var bx0 = cx - cw / 2, by0 = ty + 10 * z;
+          ctx.save(); ctx.setLineDash([5, 6]); ctx.strokeStyle = 'rgba(40,30,22,.35)'; ctx.lineWidth = 1.4; ctx.strokeRect(bx0, by0, cw, chh); ctx.setLineDash([]);
+          ctx.fillStyle = 'rgba(30,24,18,.5)'; ctx.beginPath(); ctx.arc(cx, by0 - 2, 4, 0, 6.3); ctx.fill();   // paku tanpa kartu
+          for (var a = 0; a < 40; a++) { ctx.fillStyle = 'rgba(' + (a % 3 ? '58,48,40' : '120,110,100') + ',' + (0.35 + hs(a) * 0.4).toFixed(2) + ')'; ctx.fillRect(bx0 + cw * (0.15 + hs(i * 9 + a) * 0.7), by0 + chh * (0.86 + hs(a + i * 3) * 0.14), 2 + hs(a * 7) * 4, 2 + hs(a * 5) * 2); }
+          ctx.restore();
+          continue;
+        }
+        var cl = 0; if (i === 6 && f.freeze) cl = sm(0.6, 3, lt);
+        if (o.sambung && i === 6) cl = f.thaw ? 1 - sm(0.6, 3.4, lt) : thawDone ? 0 : 1;
+        sketch(ctx, i === -1 ? 'badai' : CARDS[i], cx - cw / 2, ty + 10 * z, cw, chh,
+          { name: i >= 0 ? shipName : null, vis: o.shipVis, alpha: appear, burn: bp, cold: cl, pin: true, t: T });
+      }
+      if (f.snap && lt > 0.6 && lt < 1.6 && !REDUCE) { // serpih benang
+        for (var s = 0; s < 8; s++) { ctx.fillStyle = 'rgba(168,35,28,.7)'; ctx.fillRect(snapX + (hs(s) - 0.5) * 60 * z, ty + (lt - 0.6) * 60 * hs(s + 3), 3, 2); }
+      }
+    }
+    function sepiaView(f, lt) {
+      // malam badai yang sesungguhnya (sepia, bergerak)
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2a1e12'); g.addColorStop(0.6, '#5a4228'); g.addColorStop(1, '#3a2a18');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var hy = H * 0.62; ctx.fillStyle = '#4a3820'; ctx.fillRect(0, hy, W, H - hy);
+      for (var w = 0; w < 16; w++) { ctx.strokeStyle = 'rgba(230,200,150,.15)'; ctx.beginPath(); var wy = hy + (w + 1) * H * 0.02; ctx.moveTo(((w * 0.19 + T * 0.03) % 1) * W, wy); ctx.lineTo(((w * 0.19 + T * 0.03) % 1) * W + W * 0.06, wy); ctx.stroke(); }
+      // pantai Skitraw (kampung nelayan)
+      ctx.fillStyle = '#6a5232'; ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, hy + H * 0.06); ctx.quadraticCurveTo(W * 0.3, hy - H * 0.02, W * 0.45, hy + H * 0.12); ctx.lineTo(W * 0.45, H); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#3a2a16'; ctx.fillRect(W * 0.06, hy - H * 0.14, W * 0.012, H * 0.2);
+      person(ctx, f.sepia === 'beach' ? lerp(W * 0.24, W * 0.44, sm(0.5, 3, lt)) : W * 0.24, hy + H * 0.06, H * 0.16, { hat: 'iket', wave: (f.sepia === 'drift' && lt > 3) || (f.sepia === 'beach' && lt > 3.2) }, '#2a1c0e');
+      if (f.sepia === 'beach' && lt > 3.6) { ctx.save(); ctx.font = 'italic ' + Math.round(H * 0.03) + 'px Georgia, serif'; ctx.fillStyle = 'rgba(240,220,180,.85)'; ctx.fillText('ha ha ha', W * 0.4, hy - H * 0.12); ctx.restore(); }
+      var S = Math.min(W * 0.0016, H * 0.0026);
+      var gx, gy = hy + H * 0.03;
+      if (f.sepia === 'drift') gx = lerp(W * 1.1, W * 0.66, sm(0, 6, lt));
+      else if (f.sepia === 'beach') gx = lerp(W * 0.66, W * 0.56, sm(0, 3, lt));
+      else if (f.sepia !== 'beach') gx = lerp(W * 0.66, W * 1.3, sm(1.8, 6, lt));
+      ctx.save(); ctx.globalAlpha = 0.72; MTShip.draw(ctx, gx, gy, S, { hull: '#d8ccb4', trim: '#a89878', sail: '#e8dcc4', flag: '#e8dcc4', masts: 2, dir: -1, t: T, furl: 0.6, roll: Math.sin(T * 1.2) * 0.04 }); ctx.restore();
+      if (f.sepia === 'pull') {
+        var jx = lerp(W * 1.2, W * 0.88, sm(0, 1.8, lt)), jy = hy + H * 0.01;
+        MTShip.draw(ctx, jx, jy, S * 0.8, Object.assign({}, JANJI_PUTIH, { dir: -1, t: T }));
+        person(ctx, jx - S * 40, jy - S * 34, S * 28, { gown: true, bun: true, helm: true }, '#f4ecdc');
+        if (lt > 1.4) { ctx.strokeStyle = 'rgba(244,236,220,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(jx - S * 46, jy - S * 40); ctx.quadraticCurveTo((jx + gx) / 2, jy + H * 0.04, gx + S * 30, gy - S * 20); ctx.stroke(); }
+      }
+      if (!REDUCE) { ctx.strokeStyle = 'rgba(230,210,170,.35)'; ctx.lineWidth = 1; for (var r = 0; r < 90; r++) { var rx = (hs(r) * 1.2 - (T * 0.12 + hs(r + 5)) % 1.2) * W, ry = ((hs(r + 9) + T * 0.8 * (0.6 + hs(r))) % 1) * H; ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - W * 0.006, ry + H * 0.03); ctx.stroke(); } }
+      if (Math.sin(T * 1.3) > 0.992) { ctx.fillStyle = 'rgba(255,245,220,.5)'; ctx.fillRect(0, 0, W, H); }
+      // butir film + vignette sepia
+      ctx.save(); ctx.globalAlpha = 0.08; ctx.fillStyle = ctx.createPattern(paperTex(), 'repeat'); ctx.translate(hs(T) * 40, hs(T + 1) * 40); ctx.fillRect(-60, -60, W + 120, H + 120); ctx.restore();
+      CH.vignette(ctx, W, H, 0.6);
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.028) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = 'rgba(240,220,180,.8)'; ctx.textAlign = 'left'; ctx.fillText('SKITRAW · TAHUN BADAI BESAR', W * 0.04, H * 0.07); ctx.restore();
+    }
+    function mapView(lt, rv) {
+      paper(ctx, 0, 0, W, H, 'rgba(120,90,40,.12)');
+      var pad = Math.min(W, H) * 0.08, mw = W - pad * 2, mh = H * 0.62, im = 0.1;
+      var xs = oldCities.map(function (c) { return +c.MapX; }), ys = oldCities.map(function (c) { return +c.MapY; });
+      var mx = Math.max(100, Math.max.apply(null, xs.concat([100]))), my = Math.max(100, Math.max.apply(null, ys.concat([100])));
+      ctx.strokeStyle = 'rgba(60,40,20,.25)'; ctx.lineWidth = 1; ctx.strokeRect(pad, pad * 0.7, mw, mh);
+      var order = oldCities.filter(function (c) { return !START[c.CityId]; });
+      oldCities.forEach(function (c) {
+        var x = pad + mw * (im + (+c.MapX / mx) * (1 - im * 2)), y = pad * 0.7 + mh * (im + (+c.MapY / my) * (1 - im * 2)), gone = 0;
+        if (!START[c.CityId]) { var k = order.indexOf(c); gone = sm(0.8 + k * 0.25, 1.5 + k * 0.25, lt); if (rv) gone = 1 - gone; }
+        var a = 1 - gone;
+        if (a <= 0.01) return;
+        ctx.save(); ctx.globalAlpha = a;
+        ctx.fillStyle = '#b8a678'; ctx.beginPath(); ctx.ellipse(x, y, mw * 0.03, mh * 0.03, 0, 0, 6.3); ctx.fill(); ctx.strokeStyle = 'rgba(60,40,20,.6)'; ctx.stroke();
+        ctx.font = Math.round(Math.max(10, mw * 0.016)) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#3a2a18'; ctx.fillText(c.Name || c.CityId, x, y + mh * 0.065);
+        if (gone > 0 && !rv) { ctx.strokeStyle = 'rgba(120,20,14,' + (gone * 2).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - mw * 0.05, y + mh * 0.055); ctx.lineTo(x + mw * 0.05, y + mh * 0.055); ctx.stroke(); }
+        if (START[c.CityId] && lt > 3 && !rv) { ctx.fillStyle = '#f6f6f2'; ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.fillRect(x + mw * 0.012, y - mh * 0.07, mw * 0.022, mh * 0.025); ctx.strokeRect(x + mw * 0.012, y - mh * 0.07, mw * 0.022, mh * 0.025); ctx.beginPath(); ctx.moveTo(x + mw * 0.012, y - mh * 0.07); ctx.lineTo(x + mw * 0.012, y); ctx.stroke(); }
+        ctx.restore();
+      });
+    }
+    function shipView(lt, rv) {
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#8a96a2'); g.addColorStop(1, '#3a4650'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var hy = H * 0.64; ctx.fillStyle = '#34424a'; ctx.fillRect(0, hy, W, H - hy);
+      var k = rv ? 1 - sm(1, 4, lt) : sm(1, 4, lt), S = Math.min(W * 0.0024, H * 0.0036);
+      var oldO = shipOpts(o.shipVis, { dir: -1, t: T }), newO = shipOpts({}, { dir: -1, t: T, kd: null });
+      ctx.save(); ctx.globalAlpha = 1 - k; MTShip.draw(ctx, W * 0.5, hy + H * 0.04, S, oldO); ctx.restore();
+      ctx.save(); ctx.globalAlpha = k; MTShip.draw(ctx, W * 0.5, hy + H * 0.04, S * lerp(1.15, 0.86, k), newO); ctx.restore();
+      if (lt > 0.8 && lt < 4.4 && !REDUCE && !rv) {
+        var cols = [oldO.hull, oldO.sail, oldO.flag, oldO.trim, '#c9342a', '#2f7fa3'];
+        if (drops.length < 80) for (var d = 0; d < 3; d++) drops.push({ x: W * (0.38 + Math.random() * 0.24), y: hy - H * (0.1 + Math.random() * 0.3), v: 0, c: cols[(Math.random() * cols.length) | 0] });
+      }
+      drops.forEach(function (p) { p.v += 0.25; p.y += p.v; ctx.fillStyle = p.c || '#888'; ctx.fillRect(p.x, p.y, 3, 7); });
+      drops = drops.filter(function (p) { return p.y < H; });
+      ctx.save(); ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.04) + 'px "Pirata One", Georgia, serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,' + (1 - k).toFixed(2) + ')'; ctx.fillText(shipName, W * 0.5, H * 0.18);
+      ctx.fillStyle = 'rgba(255,255,255,' + k.toFixed(2) + ')'; ctx.fillText('The Wandering Gull', W * 0.5, H * 0.18);
+      ctx.restore();
+    }
+    function hartaView(lt, rv) {
+      ctx.fillStyle = '#16120c'; ctx.fillRect(0, 0, W, H);
+      var k = sm(0.6, 3.8, lt), v = Math.round(rv ? lerp(5000, gold0, k) : lerp(gold0, 5000, k));
+      ctx.save(); ctx.textAlign = 'center';
+      ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.05) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = '#c9a450'; ctx.fillText('GOLD', W / 2, H * 0.22);
+      ctx.font = '700 ' + Math.round(Math.min(W * 0.14, H * 0.2)) + 'px "Cinzel", Georgia, serif'; ctx.fillStyle = '#ffe7a3';
+      ctx.fillText(typeof formatGold === 'function' ? formatGold(v) : String(v), W / 2, H * 0.42);
+      var rows = [['Palka', o.cargo || 0], ['Gudang', o.wh || 0], ['Bank', o.bank || 0]];
+      ctx.font = Math.round(Math.min(W, H) * 0.032) + 'px Georgia, serif';
+      rows.forEach(function (rw, i) {
+        var kk = sm(1.2 + i * 0.6, 3 + i * 0.6, lt), val = Math.round(rv ? lerp(0, rw[1], kk) : lerp(rw[1], 0, kk)), y = H * (0.56 + i * 0.07);
+        ctx.fillStyle = 'rgba(240,226,190,.75)'; ctx.textAlign = 'right'; ctx.fillText(rw[0], W * 0.48, y);
+        ctx.textAlign = 'left'; ctx.fillStyle = kk >= 1 ? (rv ? '#ffe7a3' : 'rgba(200,120,100,.9)') : '#f0e2be'; ctx.fillText(typeof formatGold === 'function' ? formatGold(val) : String(val), W * 0.52, y);
+      });
+      ctx.restore();
+    }
+    function medaliView(lt, rv) {
+      ctx.fillStyle = '#16120c'; ctx.fillRect(0, 0, W, H);
+      var R = Math.min(W / 18, H / 9);
+      medals.forEach(function (m, i) {
+        var bx = W * 0.12 + m.x * W * 0.76, by = H * (0.32 + m.row * 0.22);
+        var crack = sm(m.fall, m.fall + 0.6, lt), fall = Math.max(0, lt - m.fall - 0.6);
+        var y = by + fall * fall * H * 0.35, rot = fall * (hs(i) - 0.5) * 3;
+        if (rv) { var up = sm(m.fall, m.fall + 1.2, lt); y = by + (1 - up) * H * 0.7; rot = (1 - up) * (hs(i) - 0.5) * 2; crack = 1 - sm(m.fall + 1, m.fall + 1.8, lt); }
+        if (y > H + R * 2) return;
+        ctx.save(); ctx.translate(bx, y); ctx.rotate(rot);
+        ctx.fillStyle = '#7a1a12'; ctx.fillRect(-R * 0.35, -R * 1.7, R * 0.7, R * 0.9);
+        var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, 0, 0, 0, R); g.addColorStop(0, '#ffe7a3'); g.addColorStop(1, '#a8742e');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 0.8, 0, 6.3); ctx.fill();
+        if (crack > 0) { ctx.strokeStyle = 'rgba(30,18,6,' + crack.toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-R * 0.1, -R * 0.8); ctx.lineTo(R * 0.15, -R * 0.2); ctx.lineTo(-R * 0.2, R * 0.2); ctx.lineTo(R * 0.1, R * 0.8); ctx.stroke(); }
+        ctx.restore();
+      });
+    }
+    function frame(now) {
+      if (!alive) return;
+      var dt = last ? Math.min(50, now - last) : 16.7; last = now; T += dt / 1000;
+      if (fi < 0) go(0);
+      ft += dt / 1000;
+      var f = F[fi] || F[F.length - 1];
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      try {
+        if (ended) { paper(ctx, 0, 0, W, H, 'rgba(40,28,14,.35)'); }
+        else if (f.sepia) sepiaView(f, ft);
+        else if (f.d === 'peta') mapView(ft, f.rev);
+        else if (f.d === 'kapal') shipView(ft, f.rev);
+        else if (f.d === 'harta') hartaView(ft, f.rev);
+        else if (f.d === 'medali') medaliView(ft, f.rev);
+        else if (f.dark) { ctx.fillStyle = '#100c08'; ctx.fillRect(0, 0, W, H); }
+        else threadView(f, ft);
+      } catch (e) { console.warn('[MTPS] benang', e); }
+      if (!ended) {
+        var minT = Math.min(4, f.dur);
+        if (ft >= minT) nx.classList.add('on');
+        if (ft >= f.dur + 1.2 && !o.manual) go(fi + 1);   // berlanjut sendiri bila dibiarkan
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    raf = requestAnimationFrame(frame);
+    return close;
+  }
+
+  /* =====================================================================
+   * INGATANMU: sketsa arang (ingatan) yang luntur ke pemandangan sekarang
+   * ===================================================================== */
+  function ingat(kind, text, o, done) {
+    o = o || {};
+    var ov = document.createElement('div'); ov.className = 'psi';
+    ov.innerHTML = '<canvas></canvas><div class="lbl">Ingatanmu</div><div class="tx">' + (text || '') + '</div>';
+    document.body.appendChild(ov);
+    var cv = ov.querySelector('canvas'), ctx = cv.getContext('2d'), W = 0, H = 0, dpr = 1, t = 0, last = 0, alive = true, raf = 0, phase = 0;
+    function resize() { var r = cv.getBoundingClientRect(); W = r.width | 0; H = r.height | 0; dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = W * dpr; cv.height = H * dpr; }
+    resize();
+    var blots = []; for (var i = 0; i < 26; i++) blots.push({ x: Math.random(), y: Math.random(), r: 0.08 + Math.random() * 0.16, d: Math.random() * 0.6 });
+    var HOLD = REDUCE ? 2.5 : 4.2, MELT = 2.2;
+    function frame(now) {
+      if (!alive) return;
+      var dt = last ? Math.min(50, now - last) : 16.7; last = now; t += dt / 1000;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      var melt = sm(HOLD, HOLD + MELT, t);
+      ctx.save();
+      ctx.globalAlpha = 1 - melt * 0.15;
+      var cw = Math.min(W * 0.9, H * 1.3), ch = cw * 0.66;
+      paper(ctx, 0, 0, W, H, null);
+      sketch(ctx, kind, (W - cw) / 2, (H - ch) / 2 - H * 0.03, cw, ch, { name: o.name, vis: o.vis, t: t });
+      if (melt > 0) {
+        // tinta luntur: lubang-lubang air yang melebar
+        ctx.globalCompositeOperation = 'destination-out';
+        blots.forEach(function (b) { var rr = Math.max(0, (melt - b.d) / (1 - b.d)) * b.r * Math.max(W, H) * 2.2; if (rr <= 0) return; var g = ctx.createRadialGradient(b.x * W, b.y * H, rr * 0.3, b.x * W, b.y * H, rr); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(b.x * W - rr, b.y * H - rr, rr * 2, rr * 2); });
+        ctx.fillStyle = 'rgba(0,0,0,' + Math.max(0, melt * 1.4 - 0.4).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
+      if (melt >= 1 && phase === 0) { phase = 1; ov.classList.add('out'); setTimeout(fin, 900); }
+      raf = requestAnimationFrame(frame);
+    }
+    function fin() { if (!alive) return; alive = false; cancelAnimationFrame(raf); ov.remove(); if (done) setTimeout(done, 60); }
+    ov.onclick = function () { if (t > 1.5 && phase === 0) t = Math.max(t, HOLD); };
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    raf = requestAnimationFrame(frame);
+    au('page');
+  }
+
+  return { benang: benang, ingat: ingat, sketch: sketch, person: person, paper: paper, SHIP: { white: WHITE_SHIP, janji: JANJI_PUTIH } };
+})();
+</script>

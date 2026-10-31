@@ -1,0 +1,336 @@
+<style>
+  /* ================= Tide v41 · Pasir Quest 14 (PS14) ================= */
+  .ps14-list { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }
+  .ps14-list li { display: flex; gap: 8px; align-items: center; font-size: .92em; }
+  .ps14-list li i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #a8231c; flex: none; }
+  .ps14-list li.ok i { background: #a8231c; }
+  .ps14-hp { height: 10px; border-radius: 6px; background: rgba(120,90,50,.22); overflow: hidden; margin: 6px 0; }
+  .ps14-hp i { display: block; height: 100%; background: linear-gradient(90deg, #a8231c, #e0a050); }
+  .ps14-quote { font-family: Georgia, serif; font-style: italic; font-size: 1.15em; line-height: 1.7; text-align: center; padding: 18px 8px; }
+  .ps14-choice { position: fixed; inset: auto 0 12% 0; z-index: 9700; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; padding: 0 16px; }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Pasir Quest 14 "Pasir Terakhir" + epilog + credit Saga Ketiga (modul PS14) — Batch 7
+ * Server: 0057.
+ *   1 persiapan (3 Pusaka, setor Mesiu/Senjata/Besi di Sunda, tempa ulang Jangkar) · 2 Malam Pusaran "Kau di Kejauhan"
+ *   3 bos Janji Putih 3 fase (Arus Pusaran membuka Tirai Pasir) · 4 Geladak yang Tenggelam -> Melepaskan -> Benang yang Tersambung
+ *   5 bangun di Gaul-Wash, surat Bunga Waktu, epilog 9 adegan (pilihan nasib Franziska) -> credit · 6 selesai
+ * ===================================================================== */
+var PS14 = (function () {
+  if (!window.PS || !PS.K) return {};
+  var K = PS.K, esc = K.esc, btn = K.btn, on = K.on, actions = K.actions, speech = K.speech, narr = K.narr;
+  function p() { return PS.st(); }
+  function q() { var x = p(); return (x && x.q14) || null; }
+  function step() { var x = q(); return x ? (x.step || 0) : 0; }
+  function qd() { var x = q(); return (x && x.d) || {}; }
+  function riak() { return (p() && p().riak) || {}; }
+  function era() { return K.era(); }
+  function call(a, ok, fail, b) { PS.call(a, ok, fail, b); }
+  function toast(t, k) { if (typeof showToast === 'function') showToast(t, k || 'info'); }
+  function reload() { if (typeof loadState === 'function') loadState(); }
+  function later(f) { setTimeout(function () { try { f(); } catch (e) { } }, 900); }
+  function vis() { return typeof shipVisual_ === 'function' ? shipVisual_() : null; }
+  function nameOf() { return (state && state.player && state.player.characterName) || 'Kapten'; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  var GRADE = { sempurna: 'Sempurna', baik: 'Baik', kasar: 'Kasar', retak: 'Retak' };
+
+  /* ---------- tokoh ---------- */
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    var B = K.N(), BN = {};
+    try { BN = window.BX && BX.N ? BX.N() : {}; } catch (e) { BN = {}; }
+    NN = {
+      ocid: B.ocid, fz: B.franziskaReal, coco: B.coco, chafik: B.chafik,
+      sat: { name: 'Satnislaus', title: 'Absolute Justice', kind: 'satnislaus', medals: true, ap: BN.sat ? BN.sat.ap : K.apOf('satnislaus', 'syahbandar', 0, { outfit: 'seragam', head: 'kapten', facial: 4, hair: 7, skin: 6, age: 0.75 }) },
+      gala: (window.QG && QG.gala) || { name: 'Uda Gala', title: 'Pemilik Galangan Gaul-Wash', ap: K.apOf('gala', 'tukang', 0) },
+      dwi: B.dwi
+    };
+    return NN;
+  }
+  function g1(kind, opts, cb) { if (!window.MTGames || !MTGames.open) { cb({ win: true }); return; } K.busy(true); MTGames.open(kind, opts, function (r) { K.busy(false); cb(r || {}); }); }
+  function g4(kind, opts, cb) { if (!window.MTGames4 || !MTGames4.open) { cb({ win: true, grade: 'baik', score: 75, duration: 9000 }); return; } K.busy(true); MTGames4.open(kind, opts, function (r) { K.busy(false); cb(r || { cancelled: true }); }); }
+
+  /* ---------- Babak 1: persiapan ---------- */
+  function ocidBrief() {
+    K.markSeen('q14ocid');
+    var w = K.modalWrap('hourglass', 'Paman Ocid', 'Pasir Terakhir');
+    K.pages(w, N().ocid, [
+      '"Ia akan ke <b>Malam Pusaran</b>, Kapten. Malam ketika Absolute Justice tenggelam."',
+      '"Malam itu bukan pusaran biasa. Itu tempat dua dunia bertemu: duniamu yang asli dan dunia perempuan itu. <b>Kapal biasa akan terbelah.</b>"',
+      '"Pasang tiga Pusaka di kapalmu. Bawa 100 Mesiu, 100 Senjata, 100 Besi ke gudang arsipku di Sunda, boleh dicicil. Dan kalau jangkarmu belum Baik, tempa ulang di dok kecil."'
+    ], btn('ok', null, 'Mengerti', false), function (w2) { on(w2, '[data-ps=ok]', K.close); }, 'Penjaga Arsip & Jam Agung');
+  }
+  function setor() {
+    call(['setor14'], function (x) {
+      var a = x.add || {}, t = Object.keys(a).map(function (k) { return a[k] + ' ' + ({ mesiu: 'Mesiu', arms: 'Senjata', besi: 'Besi' })[k]; }).join(', ');
+      toast('Disetor ke Paman Ocid: ' + t + '.', 'success'); K.close(); setTimeout(function () { openPanel('tasks'); }, 600);
+    });
+  }
+  function tempa() {
+    g4('tempa', {
+      kicker: "em pe'er de pe'er &middot; Dok kecil", title: 'Tempa Ulang Jangkar Waktu', shape: 'jangkar',
+      intro: '<b>Paman Ocid:</b> "Sekali lagi, Kapten. Malam itu akan menggigit jangkarmu. <b>Kuning jerami</b>, pukul di zona hijau, celup saat oranye-kuning."',
+      cardTitle: 'Mutu Jangkar Waktu',
+      grades: { sempurna: ['Sempurna', '"Jangkar ini bisa menahan kapal di tengah abad."'], baik: ['Baik', '"Bagus. Ia akan memegang waktumu."'], kasar: ['Kasar', '"Masih kasar. Jangkarmu yang lama tetap dipakai bila lebih baik."'], retak: ['Retak', '"Retak. Jangkarmu yang lama tetap dipakai."'] },
+      okBtn: 'Angkat jangkar', failBtn: 'Jangkar retak di bak air'
+    }, function (res) {
+      if (res.cancelled || res.score == null) return;
+      call(['tempa14', String(res.score), String(res.duration || 0)], function (x) {
+        toast(x.naik ? 'Jangkar Waktu kini bermutu ' + (GRADE[x.grade] || x.grade) + '.' : 'Hasil tempa tidak lebih baik. Jangkar lama tetap terpasang.', x.naik ? 'success' : 'info');
+      });
+    });
+  }
+
+  /* ---------- Babak 2: Malam Pusaran, dari luar ---------- */
+  function kejauhan() {
+    K.markSeen('q14jauh');
+    K.cine('ps_kejauhan', [
+      { phase: 0, t: 'Malam Pusaran. Black Pearl menabrak Absolute Justice. Perisai Aegis retak.' },
+      { phase: 1, t: 'Di kejauhan, sebuah kapal kecil bertempur mati-matian. <b>Kapalmu. Yang dulu.</b>' },
+      { phase: 1, t: '<i>Kau akan kembali ke malam yang pernah kau menangkan. Kali ini kau bukan pahlawannya.</i>' },
+      { phase: 2, t: 'Dari balik pusaran, kapal ramping putih tulang menuju Absolute Justice yang mulai terbelah. <b>Janji Putih.</b>' }
+    ], function () { call(['lihat14'], function () { later(scenes); }); }, { vis: vis(), noSkip: !K.seen('q14jauhR'), endLabel: 'Hadang dia' });
+    K.markSeen('q14jauhR');
+  }
+  function arus() {
+    g1('pusaran', {
+      kicker: 'Malam Pusaran · Arus', title: 'Arus Pusaran',
+      introCard: { kicker: 'Malam Pusaran', title: 'Searah Putaran', quote: 'Tirai pasirnya hanya terbuka bila kau berlayar searah putaran pusaran. Baca arusnya.', who: 'Paman Ocid', cta: 'Masuki arus' },
+      winCard: { kicker: 'Arus terbaca', title: 'Searah Putaran', quote: 'Sekarang, Kapten. Tirainya terbuka untuk satu serangan.', who: 'Paman Ocid', cta: 'Hadang Janji Putih' },
+      failCard: { title: 'Terlempar dari Arus', quote: 'Pusaran melemparmu ke pinggir. Coba lagi.', who: 'Paman Ocid' }
+    }, function (r) { if (r && r.win) call(['arus14', 'ok'], function () { toast('Arus terbaca: Tirai Pasir terbuka untuk satu serangan.', 'success'); openPanel('setsail'); }); });
+  }
+
+  /* ---------- Babak 4–6: Geladak, Melepaskan, Benang yang Tersambung ---------- */
+  function geladak() {
+    K.markSeen('q14geladak');
+    var jw = riak().jawab_malam === 'tidak'
+      ? '<b>Kapten:</b> "Aku tidak pernah ingin mengulang malam apa pun. Bukan karena semuanya baik. <b>Karena semuanya milikku.</b>"'
+      : '<b>Kapten:</b> "Aku juga pernah ingin mengulang satu malam. Aku tidak melakukannya. Bukan karena tidak bisa. <b>Karena malam itu milik orang lain juga.</b>"';
+    K.cine('ps_tenggelam', [
+      { phase: 0, t: 'Geladak Absolute Justice miring. Satnislaus, terluka, melihat seorang perempuan tua naik ke kapalnya.' },
+      { phase: 1, t: '<b>Satnislaus:</b> "Franzi? ...Kau tua."' },
+      { phase: 1, t: '<b>Franziska:</b> "Kau juga akan tua, Slaus. Ikut aku. Aku bisa membawamu keluar. Aku sudah mencoba enam kali."' },
+      { phase: 1, t: '<b>Satnislaus:</b> "Enam kali. Dan berapa kali aku menjadi orang yang bisa kau cintai?"<br><i>Franziska tidak menjawab.</i>' },
+      { phase: 1, t: '<b>Satnislaus:</b> "Aku memberi hormat kepada laut, Franzi. Karena laut tidak pernah berbohong padaku. Biarkan aku tenggelam sebagai orang yang kau kenal, bukan hidup sebagai orang yang tidak kau kenal."' },
+      { phase: 1, t: '<b>Satnislaus:</b> "Keadilan akan datang lagi dengan wajah lain. Jangan wajahmu. <b>Hiduplah.</b>"' },
+      { phase: 1, t: jw },
+      { phase: 2, t: 'Franziska memandang Jam Pasir. <b>Kaca ketujuh masih utuh.</b><br><b>Franziska:</b> "Paman Ocid benar. Jam tidak pernah berjalan mundur." <i>(jeda)</i> "Kecuali pemiliknya melepaskan."' },
+      { phase: 2, t: 'Ia <b>membalik Jam Pasir</b> dan membuka tutupnya. Pasir perak terbang ke langit badai.' },
+      { phase: 3, t: 'Satnislaus memberi hormat kepada laut, lalu, untuk pertama kalinya, <b>kepada seseorang</b>: kepada Franzi. Absolute Justice tenggelam.' }
+    ], function () {
+      K.busy(true);
+      call(['lepas14'], function (x) {
+        K.memSet('bunga', (x && x.bunga) || 0);
+        waitKini(function () { K.busy(false); sambung(false); });
+      }, function (e) { K.busy(false); toast((e && e.message) || 'Gagal', 'error'); });
+    }, { vis: vis(), noSkip: !K.seen('q14gelR'), endLabel: 'Lanjut' });
+    K.markSeen('q14gelR');
+  }
+  function waitKini(cb) {
+    var n = 0; reload();
+    (function chk() { if ((state && p() && p().era === 'kini') || n++ > 40) { setTimeout(cb, 600); return; } setTimeout(chk, 500); })();
+  }
+  function sambungData() {
+    var st = state || {}, pl = st.player || {}, sv = st.ship || {};
+    var cargo = 0; try { (st.inventory || []).forEach(function (i) { cargo += Number(i.qty || i.Qty || 0); }); } catch (e) { }
+    return { name: nameOf(), ship: sv.ShipName || (st.shipVisual && st.shipVisual.name) || 'kapalmu', shipVis: vis(), gold: Number(pl.gold || 0), bank: Number((st.bank && st.bank.bankBalance) || 0),
+      cargo: Number(sv.Cargo || cargo || 0), wh: 0, cities: (st.cities || []).filter(function (c) { return c && c.MapX != null; }).map(function (c) { return { CityId: c.CityId, Name: c.Name, MapX: c.MapX, MapY: c.MapY }; }), medals: 8 };
+  }
+  function sambung(replay) {
+    var m = replay ? (K.memGet('sambung') || sambungData()) : sambungData();
+    if (!replay) K.memSet('sambung', m);
+    if (!window.MTPS || !MTPS.benang) { if (!replay) bangun(); return; }
+    K.busy(true);
+    MTPS.benang(Object.assign({}, m, { sambung: true, replay: !!replay }), function () { K.busy(false); if (!replay) bangun(); });
+  }
+
+  /* ---------- Babak 7: Bangun di Gaul-Wash ---------- */
+  function bangun() {
+    K.markSeen('q14bangun');
+    var w = K.modalWrap('sun', 'Gaul-Wash', 'Skitraw, Masa Kini'), cerita = riak().gala_muda === 'cerita';
+    K.pages(w, N().gala, [
+      { narr: 'Pagi yang hangat', icon: 'sun', t: '<p>Warna kembali. Bau sabun kelapa. Suara orang bernyanyi sumbang di dermaga. <b>Gaul-Wash</b> berdiri seperti tak pernah hilang.</p>' },
+      '"Kapten! Tidur di kapal lagi? Ambo sudah tiga kali cuci lambungmu, kau tak bangun-bangun!"' + (cerita ? '<br><br>"Aneh, Kapten. Semalam ambo mimpi seorang kapten basah meramal galangan ini. Wajahnya mirip kau."' : ''),
+      { n: N().coco, title: 'Javasche Bank', t: '<i>Sepucuk surat bercap Javasche Bank:</i><br><br><b>"Bunga Waktu."</b> "Bank kami mencatat ada keganjilan semalam di buku besar. Angkanya bergeser sendiri, lalu kembali. Kami menganggapnya bunga. Jangan bertanya, Kapten. Saya juga tidak mengerti."<br><br><i>Diterima: ' + fmt(K.memGet('bunga') || 0) + ' gold.</i>' }
+    ], btn('epilog', 'star', 'Lanjut') , function (w2) { on(w2, '[data-ps=epilog]', function () { K.close(); epilog(); }); }, 'Pemilik Galangan Gaul-Wash');
+  }
+
+  /* ---------- Epilog ---------- */
+  function epilogSlides(nasib) {
+    var R = riak(), nm = esc(nameOf());
+    var A = [
+      { phase: 0, t: 'Di ruang Jam Agung, roda-roda berputar normal. Paman Ocid meletakkan <b>Jam Pasir Absolut yang kosong</b> di kotak kaca, lalu menguncinya.<br><b>Paman Ocid:</b> "Biar jadi pelajaran untuk penjaga berikutnya."' },
+      { phase: 1, t: R.tedsky_lampu === 'padam' ? 'Tedsky tua berdiri di bawah Menara Cahaya. Lampunya sampai ke tengah laut. Ia menangis tanpa suara.<br><b>Tedsky:</b> "Empat puluh tahun lalu seorang kapten asing bilang lampu ini akan menyala lagi. Aku kira ia mengejekku."' : 'Tedsky menyalakan satu lentera kecil di kaki Garuda, memberi hormat ke menara, lalu kembali mengecat sayap Garuda.' },
+      { phase: 2, t: R.karto_kopi === 'beri' ? 'Pak Tua Karto menyeruput kopi hitam pekat, meringis puas, lalu bercerita kepada pemuda di sebelahnya sambil menunjuk ke laut selatan.' : 'Pak Tua Karto menyeruput kopinya seperti biasa, menatap laut.' },
+      { phase: 3, t: R.ulin_teka === 'beri' ? 'Nenek Ulin menguji seorang kapten muda dengan teka-teki jangkar, lalu terkekeh: "Teka-teki ini dari kapten yang jangkarnya aneh."' : 'Nenek Ulin menyalakan lampu mercusuar.' },
+      { phase: 4, t: R.nansy_buku ? 'coco epan membuka Buku Pancing Legenda. Di satu halaman, tulisan tangan Nansy: <b>' + nm + '</b>. coco melepas monokelnya dan menatap halaman itu lama sekali.' : 'coco epan menutup buku, menyalakan pipa, menatap jendela.' },
+      { phase: 5, t: R.sudyrman === 'evakuasi' ? 'Karang kecil di selatan kini punya kampung, perahu warna-warni, kedai kopi beratap rumbia. Seorang nenek bercerita kepada cucunya: "Malam benua tenggelam, ada kapten yang datang membawa beras."' : 'Karang kosong. <b>Lonceng Akademi</b> tersangkut di karang, berdentang pelan saat angin kencang.' },
+      { phase: 6, t: 'Franziska menaruh <b>kanvas peta waktu yang kini kosong</b> di meja bar dwi de\'clown.<br><b>Franziska:</b> "Lukisanmu memang bisa mencegah kiamat. Tapi tidak bisa membawa orang pulang."<br><b>dwi:</b> "Soal itu, Nyonya, kita sama-sama amatir."' }
+    ];
+    var B = [
+      { phase: 7, t: nasib === 'dewan' ? 'Franziska menaiki 999 anak tangga bersama Paman Ocid.<br><b>Paman Ocid:</b> "Akhirnya ada yang bisa kuajak bicara soal jam."' : 'Janji Putih berlayar sendirian ke selatan, ke arah karang Sudyrman. Layarnya terbuka seperti surat.' },
+      { phase: 8, t: 'Gaul-Wash ramai, neon menyala. Uda Gala duduk di ujung dermaga bersama Chafik.<br><b>Chafik:</b> "Abak, kapal itu kenapa bersih sekali?"<br><b>Uda Gala:</b> "Itu kapal sahabat Abak. Dicuci tiga kali."' },
+      { phase: 9, t: '<div class="ps14-quote">"Mencintai seseorang tidak memberimu hak atas waktunya. Hanya hak untuk mengingatnya."</div><div style="text-align:right;font-style:italic">— Franziska</div>' }
+    ];
+    return { A: A, B: B };
+  }
+  function epilog() {
+    var sl = epilogSlides(null);
+    K.cine('ps_epilog', sl.A, function () { pilihNasib(); }, { vis: vis(), data: { riak: riak(), name: nameOf() }, endLabel: 'Lanjut', skipOk: true });
+  }
+  function pilihNasib() {
+    var w = K.modalWrap('star', "Black's Alley", 'TooGood');
+    w.innerHTML = narr('Satu pilihan terakhir', '<p>Franziska menatap kanvas kosong itu lama. Lalu menatapmu.</p>', actions(btn('pergi', 'ship', 'Biarkan ia pergi') + btn('dewan', 'flag', 'Serahkan ke Dewan Dua Tangan')), 'star');
+    ['pergi', 'dewan'].forEach(function (k) {
+      on(w, '[data-ps=' + k + ']', function (b) {
+        call(['nasib14', k], function () {
+          K.close();
+          K.cine('ps_epilog', epilogSlides(k).B, function () { credits(function () { selesai(); }); }, { vis: vis(), data: { riak: riak(), name: nameOf(), nasib: k }, endLabel: 'Lanjut', skipOk: true });
+        }, null, b);
+      });
+    });
+  }
+  function credits(done) {
+    var ov = document.createElement('div'); ov.className = 'bx-credits';
+    ov.innerHTML = '<canvas></canvas><button class="bx-cskip" type="button">Lewati &#8250;</button>';
+    document.body.appendChild(ov); K.busy(true);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), 'ps_credits3', { vis: vis(), data: { name: nameOf() } }) || stop; } catch (e) { }
+    var ended = false, tm = setTimeout(end, ((window.PS_CREDITS3_SEC || 42) + 1) * 1000);
+    function end() { if (ended) return; ended = true; clearTimeout(tm); ov.classList.add('out'); setTimeout(function () { try { stop(); } catch (e) { } ov.remove(); }, 700); K.busy(false); try { metaMax_('pssaga3', 1); } catch (e) { } if (done) done(); }
+    ov.querySelector('.bx-cskip').onclick = end;
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+  }
+  function selesai() {
+    var w = K.modalWrap('star', 'Saga Ketiga', 'Selesai');
+    w.innerHTML = narr('Kisahmu kembali', '<p>Masa lalu kini tertutup selamanya. Jam Agung tidak lagi menunjuk ke mana pun.</p><p>Pacu Dagang dan Serbuan Bersama terbuka lagi. Di Kedai Rantau, <b>Set Pasir Waktu</b> menunggu.</p>' +
+      '<div class="qg-reward paradiso">' + ic('medal') + '<div><b>Tanda Jasa: Saga Ketiga</b><span>Credit bisa ditonton ulang dari Tanda Jasa di Kartu Kapten</span></div></div>', actions(btn('ok', null, 'Tutup', false)), 'star') + journal();
+    on(w, '[data-ps=ok]', K.close);
+  }
+
+  /* ---------- jurnal ---------- */
+  function objective() {
+    var s = step(), x = q() || {}, d = qd(), so = x.setor || {}, n = x.perlu || 100;
+    if (s === 1) {
+      var li = function (okk, t) { return '<li' + (okk ? ' class="ok"' : '') + '><i></i>' + t + '</li>'; };
+      return '<i>"Kau akan kembali ke malam yang pernah kau menangkan. Kali ini kau bukan pahlawannya."</i><ul class="ps14-list">' +
+        li((x.pusaka || 0) >= 3, 'Pusaka terpasang: <b>' + (x.pusaka || 0) + '/3</b>') +
+        li((so.mesiu || 0) >= n && (so.arms || 0) >= n && (so.besi || 0) >= n, 'Perbekalan di Sunda: Mesiu ' + (so.mesiu || 0) + '/' + n + ', Senjata ' + (so.arms || 0) + '/' + n + ', Besi ' + (so.besi || 0) + '/' + n) +
+        li(x.jangkar === 'baik' || x.jangkar === 'sempurna', 'Jangkar Waktu: <b>' + esc(GRADE[x.jangkar] || x.jangkar || '-') + '</b> <small>(opsional: tempa ulang di em pe\'er de pe\'er)</small>') + '</ul>' +
+        (x.siap ? '<b>Siap.</b> Jam Agung di em pe\'er de pe\'er menunjuk <b>Malam Pusaran</b>.' : '');
+    }
+    if (s === 2) return 'Malam Pusaran.';
+    if (s === 3) {
+      var hp = d.hp != null ? d.hp : (x.hpMax || 1500), pct = Math.max(0, Math.min(100, Math.round(hp / (x.hpMax || 1500) * 100)));
+      var F = ['Tirai Pasir', 'Gema Masa Lalu', 'Kaca Ketujuh'][(d.fase || 1) - 1];
+      return 'Hadang <b>Janji Putih</b>. Fase ' + (d.fase || 1) + '/3: <b>' + F + '</b>.<div class="ps14-hp"><i style="width:' + pct + '%"></i></div>' +
+        ((d.fase || 1) === 1 ? (d.searah ? '<i>Arus terbaca: tirai terbuka untuk satu serangan.</i>' : '<i>Baca Arus Pusaran dulu, atau tembakanmu tertelan pasir.</i>') : '') + (d.kalah ? ' <small>Serangan gagal: ' + d.kalah + '. Luka Janji Putih tersimpan.</small>' : '');
+    }
+    if (s === 4) return 'Janji Putih hanyut ke sisi Absolute Justice yang sedang tenggelam. <b>Merapatlah.</b>';
+    if (s === 5) return 'Bangun di Gaul-Wash.';
+    if (s >= 6) return '<i>"Mencintai seseorang tidak memberimu hak atas waktunya. Hanya hak untuk mengingatnya."</i>';
+    return '';
+  }
+  function journal() {
+    if (step() < 1) return '';
+    return '<div class="qg-journal"><div class="qg-jh">' + ic('hourglass') + ' <b>Pasir Terakhir</b></div><div class="qg-obj">' + ic('scroll') + ' <b>Catatan terakhirmu:</b><br>' + objective() + '</div></div>';
+  }
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks' || step() < 1) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.ps14-j')) return;
+    var d = document.createElement('div'); d.className = 'ps14-j'; d.innerHTML = journal();
+    var b = '', s = step(), x = q() || {}, D = qd(), dk = K.docked(), cid = K.cid(), e = era();
+    if (s === 1 && dk && cid === 'sunda_empire' && e === 'keadilan') b += btn('set', 'anchor', 'Setor perbekalan');
+    if (s >= 1 && s <= 3 && dk && cid === 'empeer_depeer' && x.jangkar !== 'sempurna' && (e === 'keadilan' || e === 'pusaran')) b += btn('tem', 'hammer', 'Tempa ulang Jangkar', false);
+    if (s === 1 && x.siap && dk && cid === 'empeer_depeer') b += btn('jam', 'hourglass', 'Jam Agung');
+    if (s === 2 && e === 'pusaran') b += btn('jau', 'eye', 'Malam Pusaran');
+    if (s === 3 && e === 'pusaran' && dk) { if ((D.fase || 1) === 1 && !D.searah) b += btn('aru', 'ship', 'Baca Arus Pusaran'); b += btn('hdg', 'ship', 'Hadang Janji Putih', (D.fase || 1) === 1 && !D.searah ? false : undefined); }
+    if (s === 4 && dk) b += btn('gel', 'flag', 'Geladak Absolute Justice');
+    if (s === 5 && dk) b += btn('ban', 'sun', 'Gaul-Wash');
+    if (s >= 6) b += btn('rs', 'eye', 'Tonton ulang: Benang yang Tersambung', false) + btn('re', 'star', 'Tonton ulang: Epilog', false);
+    if (b) d.querySelector('.qg-journal').insertAdjacentHTML('beforeend', actions(b));
+    var box = c.querySelector('.ps-wrap'); if (box) box.appendChild(d); else { var w = K.insert(''); if (w) w.appendChild(d); }
+    on(d, '[data-ps=set]', setor); on(d, '[data-ps=tem]', function () { K.close(); tempa(); }); on(d, '[data-ps=jam]', function () { K.close(); openPanel('ps_jam'); });
+    on(d, '[data-ps=jau]', function () { K.close(); kejauhan(); }); on(d, '[data-ps=aru]', function () { K.close(); arus(); }); on(d, '[data-ps=hdg]', function () { K.close(); openPanel('setsail'); });
+    on(d, '[data-ps=gel]', function () { K.close(); geladak(); }); on(d, '[data-ps=ban]', function () { K.close(); bangun(); });
+    on(d, '[data-ps=rs]', function () { K.close(); sambung(true); });
+    on(d, '[data-ps=re]', function () { K.close(); var n = riak().nasib_fz || 'pergi', sl = epilogSlides(n); K.cine('ps_epilog', sl.A.concat(sl.B), null, { vis: vis(), data: { riak: riak(), name: nameOf(), nasib: n }, skipOk: true }); });
+  });
+  wrap_('renderScene', function () {
+    var box = document.getElementById('cityTypeFlavor'), s = step(), D = qd(); if (!box || !p() || !K.docked() || s < 1 || s > 5) return;
+    var lbl = '';
+    if (s === 1 && q() && q().siap && K.cid() === 'empeer_depeer') lbl = 'Malam Pusaran';
+    if (s === 3) lbl = 'Janji Putih · Fase ' + (D.fase || 1) + '/3';
+    if (s === 4) lbl = 'Absolute Justice tenggelam';
+    if (!lbl) return;
+    var chip = '<span class="chip ps-chip">' + ic('hourglass') + esc(lbl) + '</span>';
+    var row = box.querySelector('.loc-chips'); if (row) row.insertAdjacentHTML('afterbegin', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+  });
+
+  /* ---------- Papan Benang ---------- */
+  K.nodeHooks.push(function () {
+    if (step() < 5) return [];
+    return [{ sk: 'pusaran', n: 'Malam Pusaran', a: 'Satnislaus tenggelam.', b: 'Franziska melepaskan malam itu. Benang tersambung.', mark: 'red' }];
+  });
+
+  /* ---------- Tanda Jasa ---------- */
+  var achPushed = false;
+  function pushAch() {
+    if (achPushed || !p() || typeof ACH === 'undefined' || !ACH.push) return;
+    achPushed = true;
+    ACH.push({ id: 'ps_saga3', t: 3, ic: 'star', n: 'Saga Ketiga', d: 'Tonton credit Saga Ketiga sampai selesai.', ps: true, g: function (m) { return [m.c.pssaga3 || 0, 1]; } },
+      { id: 'ps_lepas', t: 3, ic: 'hourglass', n: 'Pasir Terakhir', d: 'Menyaksikan seseorang melepaskan malam yang paling ia inginkan.', ps: true, g: function (m) { return [m.c.pslepas || 0, 1]; } });
+  }
+  wrap_('renderCharacterSheetWith_', function () {
+    var sec = document.getElementById('achSection'); if (!sec || step() < 6) return;
+    sec.querySelectorAll('.ach-card.got').forEach(function (cd) {
+      var b = cd.querySelector('.ach-body b');
+      if (!b || b.textContent !== 'Saga Ketiga' || cd.querySelector('.ps-replay')) return;
+      var d = document.createElement('div'); d.className = 'ps-replay bx-replay'; d.innerHTML = '<button class="btn btn-sm">' + ic('star') + '&nbsp; Tonton ulang credit</button>';
+      cd.querySelector('.ach-body').appendChild(d);
+      d.querySelector('button').onclick = function (ev) { ev.stopPropagation(); if (typeof closeModal === 'function') closeModal(); credits(); };
+    });
+  });
+
+  /* ---------- HUD tempur Janji Putih (Q12–Q14) ---------- */
+  function psEnc() { var v = state && state.voyage; var e = v && v.encounter; return e && e.ps ? e : null; }
+  if (typeof window.updateCombatHud_ === 'function') wrap_('updateCombatHud_', function (args) {
+    var e = args && args[0]; if (!e || !e.ps) return;
+    var sub = document.getElementById('combatEnemySub'), lv = e.displayLevel != null ? e.displayLevel : e.enemyLevel, bits = [e.bossTitle || 'Janji Putih', 'Level ' + lv];
+    if (e.kacaLimit) bits.push(e.kacaPecah ? 'kaca ketujuh pecah' : 'kaca ketujuh: ronde ' + (e.round || 1) + '/' + e.kacaLimit);
+    if (e.allyDmg) bits.push('Uda Gala menembak tiap ronde');
+    if (sub) sub.textContent = bits.join(' · ');
+  });
+  if (typeof window.openCombatScene_ === 'function') wrap_('openCombatScene_', function () {
+    var e = psEnc(); if (!e) return;
+    var ef = document.getElementById('combatEnemyFace'); if (ef) try { ef.innerHTML = MTFace.svg(N().fz.ap, { bgColors: ['#e8e2d4', '#6a6258'] }); } catch (x) { }
+  });
+
+  /* ---------- adegan otomatis ---------- */
+  function scenes() {
+    if (!p() || !K.docked()) return;
+    pushAch();
+    var s = step(), c = K.cid(), e = era();
+    if (s >= 5) { try { metaMax_('pslepas', 1); } catch (x) { } }
+    if (s === 1 && e === 'keadilan' && (c === 'empeer_depeer' || c === 'sunda_empire') && !K.seen('q14ocid')) { if (currentPanel) K.close(); ocidBrief(); return; }
+    if (s === 2 && e === 'pusaran' && !K.seen('q14jauh')) { if (currentPanel) K.close(); kejauhan(); return; }
+    if (s === 4 && !K.seen('q14geladak')) { if (currentPanel) K.close(); geladak(); return; }
+    if (s === 5 && e === 'kini' && !K.seen('q14bangun')) { if (currentPanel) K.close(); bangun(); return; }
+  }
+  wrap_('applyFreshState_', function () {
+    if (!p()) return;
+    var tries = 0;
+    setTimeout(function again() {
+      if (!state || !p()) return;
+      var ov = document.getElementById('modalOverlay');
+      if (K.busyUi() || (ov && ov.classList.contains('open'))) { if (tries++ < 60) setTimeout(again, 1000); return; }
+      try { scenes(); } catch (e) { console.warn('[PS14] scenes', e); }
+    }, 2800);
+  });
+
+  return { step: step, _ocid: ocidBrief, _setor: setor, _tempa: tempa, _jauh: kejauhan, _arus: arus, _geladak: geladak, _sambung: sambung, _bangun: bangun, _epilog: epilog, _credits: credits, _nasib: pilihNasib };
+})();
+</script>

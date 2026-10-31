@@ -1,0 +1,269 @@
+<style>
+  /* ================= Tide v41 · Pasir 40 Tahun Lalu (PSL) ================= */
+  .psl-list { display: grid; gap: 8px; margin-top: 4px; }
+  .psl-it { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: linear-gradient(180deg, #fff8e4, #f1e2bc); border: 1px solid rgba(160,120,50,.4); color: #3a2a12; }
+  .psl-it .ico { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: #3a2a14; color: #f0cf78; }
+  .psl-it .ico svg { width: 22px; height: 22px; }
+  .psl-it .n { font-family: var(--font-title); font-weight: 700; letter-spacing: .03em; }
+  .psl-it .d { font-size: .86em; color: #5a4628; line-height: 1.4; }
+  .psl-it .pr { font-size: .82em; color: #8a6a2a; margin-top: 2px; }
+  .psl-it.own { opacity: .7; }
+  .psl-it .btn { white-space: nowrap; }
+  .psl-zaman { display: grid; gap: 8px; margin-top: 8px; }
+  .psl-zaman button { text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(160,120,50,.5); background: linear-gradient(180deg, #f6e8c4, #e4cc94); color: #3a2410; cursor: pointer; font: inherit; }
+  .psl-zaman button b { display: block; font-family: var(--font-title); letter-spacing: .06em; }
+  .psl-zaman button:disabled { opacity: .55; cursor: default; }
+  .chip.psl-tarik { cursor: pointer; background: rgba(232,196,106,.2); border-color: rgba(232,196,106,.6); color: #fff1cf; }
+  @media (max-width: 560px) { .psl-it { grid-template-columns: 34px 1fr; } .psl-it .btn { grid-column: 1 / -1; justify-self: stretch; } }
+</style>
+<script>
+/* =====================================================================
+ * Tide v41 · Pasir: Zaman 40 Tahun Lalu (modul PSL) — Batch 4
+ * Server: 0054. Era 'lampau' (nada 'emas'). Peta = pulau awal + Benua Sudyrman (pasir.kotaLampau digabung ke state.cities).
+ *   Jam Agung: pilih zaman (lompat) · Tarik Jangkar: kembali ke Zaman Keadilan
+ *   Pustaka Agung IKN (buku), Dok Garuda (IKN) & Galangan Lembah (Sudyrman): Pusaka. Emas ditimbang.
+ *   Pasar, bank, bursa, kedai, misi masa lalu: "Koin apa ini? Rajanya saja belum lahir."
+ * ===================================================================== */
+var PSL = (function () {
+  if (!window.PS || !PS.K) return {};
+  var K = PS.K, esc = K.esc, btn = K.btn, on = K.on, actions = K.actions, speech = K.speech, narr = K.narr;
+  function p() { return PS.st(); }
+  function lampau() { return K.era() === 'lampau'; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function toast(t, k) { if (typeof showToast === 'function') showToast(t, k || 'info'); }
+  function call(a, ok, fail, b) { PS.call(a, ok, fail, b); }
+  function q11done() { var x = p(); return !!(x && x.q11 && x.q11.step >= 10); }
+  var KOIN = '"Koin apa ini? Rajanya saja belum lahir. Simpan baik-baik, Kapten, nanti dipajang di museum."';
+
+  /* ---------- kota masa lalu di state.cities ---------- */
+  function mergeCities() {
+    if (!window.state || !state.cities) return;
+    var x = p(), add = (x && x.kotaLampau) || [];
+    var ids = add.map(function (c) { return c.CityId; });
+    state.cities = state.cities.filter(function (c) { return !/^sudyrman_/.test(c.CityId) || ids.indexOf(c.CityId) >= 0; });
+    add.forEach(function (c) { if (!state.cities.some(function (d) { return d.CityId === c.CityId; })) state.cities.push(c); });
+  }
+  wrap_('renderSetSailWith_', function () {
+    if (!lampau()) return;
+    var c = document.getElementById('modalContent'), anchor = c && (c.querySelector('.npc') || c.querySelector('.ph'));
+    if (!anchor || c.querySelector('.psl-sailnote')) return;
+    var d = document.createElement('div'); d.className = 'psl-sailnote qg-callout';
+    d.innerHTML = '<div class="qg-callout-ico">' + ic('hourglass') + '</div><div><b>40 Tahun Lalu.</b> Berlayar di zaman ini tidak dicegat bajak laut. Untuk pulang ke zamanmu, tarik Jangkar Waktu.</div><button class="btn btn-ghost-ink" data-psl="tarik">' + ic('anchor') + ' Tarik</button>';
+    anchor.parentNode.insertBefore(d, anchor.nextSibling);
+  }, function () { try { mergeCities(); } catch (e) { } });
+  wrap_('renderScene', null, function () { try { mergeCities(); } catch (e) { } });
+
+  /* ---------- tokoh ---------- */
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    NN = {
+      wira: { name: 'Tuan Wiradarma', title: 'Arsiparis Pustaka Agung', ap: K.apOf('wiradarma-pustaka-agung', 'pustakawan', 0, { age: 0.72, eye: 'glasses', head: 'blangkon', facial: 2 }) },
+      dok: { name: 'Mandor Dok Garuda', title: 'Dok Garuda, IKN', ap: K.apOf('mandor-dok-garuda', 'tukang', 0, { age: 0.5, facial: 3 }) },
+      lembah: { name: 'Pandai Kayu Lembah', title: 'Galangan Lembah Seribu Layar', ap: K.apOf('pandai-kayu-lembah', 'tukang', 1, { age: 0.55 }) }
+    };
+    return NN;
+  }
+
+  /* ---------- toko ---------- */
+  var TOKO = {
+    pustaka: { icon: 'book', title: 'Pustaka Agung', who: 'wira', line: '"Buku-buku ini akan bertahan seribu tahun, Kapten. Itu yang selalu kami katakan."' },
+    dok_garuda: { icon: 'wrench', title: 'Dok Garuda', who: 'dok', line: '"Emas tetap emas, Kapten, gambar apa pun di atasnya. Timbang saja."' },
+    lembah: { icon: 'wrench', title: 'Galangan Lembah Seribu Layar', who: 'lembah', line: '"Kayu ulin dari lembah ini tidak pernah busuk. Kapal-kapal kami akan berlayar sampai cucu kalian tua."' }
+  };
+  function toko(kind) {
+    var T = TOKO[kind], x = p() || {}, list = (x.toko || {})[kind];
+    var w = K.modalWrap(T.icon, T.title, (state.city && state.city.Name ? state.city.Name : '') + ' · 40 Tahun Lalu');
+    if (!list) { w.innerHTML = narr('Tutup', '<p>Pintunya terkunci.</p>', actions(btn('ok', null, 'Tutup', false)), 'lock'); on(w, '[data-ps=ok]', K.close); return; }
+    var g = (state.player && +state.player.gold) || 0;
+    var rows = list.map(function (it) {
+      var own = !!it.owned;
+      return '<div class="psl-it' + (own ? ' own' : '') + '"><div class="ico">' + ic(kind === 'pustaka' ? 'book' : it.id === 'layar_garuda' ? 'wind' : it.id === 'meriam_naga' ? 'cannon' : it.id === 'kemudi_ikn' ? 'compass' : it.id === 'lunas_ulin' ? 'log' : 'shield') + '</div>' +
+        '<div><div class="n">' + esc(it.name) + '</div><div class="d">' + esc(it.desc) + '</div><div class="pr">' + fmt(it.price) + ' gold (emas ditimbang)</div></div>' +
+        (own ? '<span class="muted small">Dimiliki</span>' : '<button class="btn ' + (g >= it.price ? 'btn-gold' : 'btn-ghost-ink') + '" data-buy="' + esc(it.id) + '"' + (g >= it.price ? '' : ' disabled') + '>Beli</button>') + '</div>';
+    }).join('');
+    w.innerHTML = speech(N()[T.who], T.line, '', N()[T.who].title) + '<div class="psl-list">' + rows + '</div>' +
+      (kind !== 'pustaka' ? '<p class="muted small">Pusaka yang dibeli dipasang di panel <b>Kapal</b> (3 slot).</p>' : '') + actions(btn('ok', null, 'Tutup', false));
+    on(w, '[data-ps=ok]', K.close);
+    w.querySelectorAll('[data-buy]').forEach(function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-buy');
+        call([kind === 'pustaka' ? 'beli_buku' : 'beli_pusaka', id], function () { K.au('coin'); toast(kind === 'pustaka' ? 'Buku baru di rakmu.' : 'Pusaka baru. Pasang di panel Kapal.', 'success'); toko(kind); }, null, b);
+      };
+    });
+  }
+
+  /* ---------- Jam Agung: pilih zaman ---------- */
+  var ZAMAN = { lampau: ['40 Tahun Lalu', 'Masa ketika lampu kota yang runtuh itu terlihat sampai tengah laut.'], pusaran: ['Malam Pusaran', 'Malam ketika Absolute Justice tenggelam. Kali ini kau bukan pahlawannya.'] };
+  function jamZaman() {
+    var x = p() || {}, z = x.zaman || [], ms = x.jangkarMs || 0;
+    var w = K.modalWrap('hourglass', 'Jam Agung', "Pulau em pe'er de pe'er");
+    if (!z.length) {
+      w.innerHTML = speech(K.N().ocid, '"Jarumnya tidak mau menunjuk ke mana pun lagi, Kapten."', actions(btn('ok', null, 'Tutup', false)), 'Penjaga Jam Agung');
+      on(w, '[data-ps=ok]', K.close); return;
+    }
+    var cd = ms > 0 ? '<p class="muted small"><i>Jangkar Waktu masih dingin: ' + Math.ceil(ms / 60000) + ' menit lagi.</i></p>' : '';
+    w.innerHTML = speech(K.N().ocid, '"Jarumnya menunjuk. Ke mana kau mau berlayar, Kapten?"', cd + '<div class="psl-zaman">' + z.map(function (k) {
+      var Z = ZAMAN[k] || [k, '']; return '<button type="button" data-z="' + esc(k) + '"' + (ms > 0 ? ' disabled' : '') + '><b>' + esc(Z[0]) + '</b><span>' + esc(Z[1]) + '</span></button>';
+    }).join('') + '</div>' + actions(btn('ok', null, 'Tutup', false)), 'Penjaga Jam Agung');
+    on(w, '[data-ps=ok]', K.close);
+    w.querySelectorAll('[data-z]').forEach(function (b) { b.onclick = function () { K.close(); lompat(b.getAttribute('data-z')); }; });
+  }
+  function lompat(era) {
+    function go() {
+      K.busy(true);
+      PE.celah(2600, function () {
+        call(['lompat', era], function () { K.busy(false); K.markSeen('lompat:' + era); if (typeof loadState === 'function') loadState(); }, function (e) { K.busy(false); toast((e && e.message) || 'Gagal', 'error'); });
+      });
+    }
+    if (K.seen('lompat:' + era) || !(window.MTGames && MTGames.open)) { go(); return; }
+    K.busy(true);
+    MTGames.open('pusaran', {
+      celah: true, kicker: 'Jam Agung · Celah Waktu', title: 'Celah Waktu',
+      introCard: era === 'pusaran' ? { kicker: 'Jam Agung &middot; Celah Waktu', title: 'Malam Pusaran', quote: 'Malam itu tempat dua dunia bertemu. Kapal biasa akan terbelah. Pegang kemudimu, Kapten.', who: 'Paman Ocid', cta: 'Masuki celah' }
+        : { kicker: 'Jam Agung &middot; Celah Waktu', title: 'Empat Puluh Tahun ke Belakang', quote: 'Lebih jauh dari badai itu, Kapten. Arusnya lebih deras. Pegang kemudimu.', who: 'Paman Ocid', cta: 'Masuki celah' },
+      winCard: era === 'pusaran' ? { kicker: 'Lolos Celah Waktu', title: 'Malam Pusaran', quote: 'Kau akan kembali ke malam yang pernah kau menangkan. Kali ini kau bukan pahlawannya.', who: 'Catatan jurnal kapten', cta: 'Mendarat' }
+        : { kicker: 'Lolos Celah Waktu', title: '40 Tahun Lalu', quote: 'Bau minyak lampu, derit trem, dan cahaya yang sampai ke tengah laut.', who: 'Catatan jurnal kapten', cta: 'Mendarat' },
+      failCard: { title: 'Terlempar dari Celah!', quote: 'Pasir emas melemparkanmu kembali ke ruang Jam Agung. Coba lagi.', who: 'Paman Ocid' }
+    }, function (res) { K.busy(false); if (res && res.win) go(); });
+  }
+  function tarik() {
+    var w = K.modalWrap('anchor', 'Tarik Jangkar', '40 Tahun Lalu');
+    w.innerHTML = narr('Jangkar Waktu', '<p>Tarik Jangkar Waktu dan kembali ke zamanmu sendiri? Kapalmu akan mendarat di <b>Jam Agung, em pe\'er de pe\'er</b>.</p>', actions(btn('ya', 'anchor', 'Tarik jangkar') + btn('no', null, 'Nanti dulu', false)), 'anchor');
+    on(w, '[data-ps=no]', K.close);
+    on(w, '[data-ps=ya]', function (b) {
+      K.close(); K.busy(true);
+      PE.celah(2200, function () { call(['tarik'], function () { K.busy(false); if (typeof loadState === 'function') loadState(); }, function (e) { K.busy(false); toast((e && e.message) || 'Gagal', 'error'); }); });
+    });
+  }
+
+  /* ---------- tiba pertama kali & Benua di Selatan ---------- */
+  function tibaLampau() {
+    K.markSeen('lampau1');
+    var w = K.modalWrap('sun', 'IKN', '40 Tahun Lalu');
+    w.innerHTML = narr('Empat puluh tahun lalu', '<p>Menara-menara IKN berdiri utuh. Trem berderit di sepanjang dermaga. Garuda perunggu di alun-alun masih baru, berkilau seperti emas.</p><p>Dan di puncak <b>Menara Lampu</b>, cahayanya benar-benar sampai ke tengah laut.</p>', actions(btn('ok', null, 'Turun ke dermaga')), 'sun');
+    on(w, '[data-ps=ok]', K.close);
+  }
+  function benua() {
+    K.markSeen('benua');
+    var x = p() || {}, START = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'toogood', 'ikn'];
+    var cs = (state.cities || []).filter(function (c) { return START.indexOf(c.CityId) >= 0; }).map(function (c) { return { id: c.CityId, name: c.Name, x: +c.MapX, y: +c.MapY }; });
+    var ports = (x.kotaLampau || []).map(function (c) { return { id: c.CityId, name: c.Name, x: +c.MapX, y: +c.MapY }; });
+    K.cine('ps_benua', [
+      { phase: 0, t: 'Peta empat puluh tahun lalu. Pulau-pulau yang kau kenal, lebih muda.' },
+      { phase: 1, t: 'Peta melebar ke selatan. Kabut yang tak pernah ada di petamu.' },
+      { phase: 2, t: 'Kabut tersibak. Sebuah garis pantai panjang: <b>Benua Sudyrman</b>.' }
+    ], function () { }, { data: { cities: cs, ports: ports }, endLabel: 'Selesai' });
+  }
+
+  /* ---------- masa lalu menolak koin ---------- */
+  var BLOCK = { market: 1, bank: 1, bursa: 1, kedai: 1, library: 1, pacu: 1, harian: 1, gotong: 1, kehormatan: 1, items: 1 };
+  var SPOT = {
+    ps_menara: ['sun', 'Menara Lampu', '<p>Seorang kadet muda berseragam putih polos, tangannya belepotan minyak lampu, sibuk menggosok lensa raksasa. Ia tidak menoleh.</p>'],
+    ps_kopi: ['coffee', 'Kedai Kopi', '<p>Bau kopi sangrai memenuhi gang. Seorang lelaki muda bertopi bowler menimbang biji kopi dengan sangat serius.</p>'],
+    ps_akademi: ['flag', 'Akademi Laut Sudyrman', '<p>Kadet-kadet berbaris di lapangan. Lonceng di menara berdentang tepat pada jamnya. Penjaga gerbang menatap benderamu dengan curiga.</p>']
+  };
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (p() && K.docked()) {
+        if (panel === 'ps_jam' && K.cid() === 'empeer_depeer' && K.era() === 'keadilan' && q11done()) { jamZaman(); return; }
+        if (lampau()) {
+          if (panel === 'ps_pustaka') { toko('pustaka'); return; }
+          if (panel === 'ps_dok') { toko('dok_garuda'); return; }
+          if (panel === 'ps_lembah') { toko('lembah'); return; }
+          if (SPOT[panel]) { var S = SPOT[panel], w = K.modalWrap(S[0], S[1], '40 Tahun Lalu'); w.innerHTML = narr(S[1], S[2], actions(btn('ok', null, 'Tutup', false)), S[0]); on(w, '[data-ps=ok]', K.close); return; }
+          if (BLOCK[panel]) {
+            var w2 = K.modalWrap('coins', 'Empat Puluh Tahun Lalu', state.city ? state.city.Name : '');
+            w2.innerHTML = narr('Koin asing', '<p>' + KOIN + '</p><p class="muted small">Di zaman ini hanya Pustaka Agung, Dok Garuda, dan galangan yang mau menerima emas ditimbang.</p>', actions(btn('ok', null, 'Tutup', false)), 'coins');
+            on(w2, '[data-ps=ok]', K.close); return;
+          }
+        }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+
+  /* ---------- wajah kota, gosip, HUD ---------- */
+  var DESC = {
+    sunda_empire: 'Sunda Empire empat puluh tahun lalu. Dermaga kayu, layar-layar tinggi, dan saudagar dari benua selatan.',
+    joungjava: 'Joungjava muda. Warung pantai baru dibuka; kopinya masih manis.',
+    bjorneo: 'Bjorneo, hutan ulin yang belum ditebang. Mercusuarnya punya penjaga baru.',
+    skitraw: 'Kampung nelayan kecil. Belum ada neon, belum ada galangan, belum ada siapa pun yang kau kenal.',
+    toogood: 'TooGood sebelum bendera tengkorak. Pelabuhan bata yang sepi.',
+    ikn: 'Ibu kota yang berjaya. Menara utuh, trem, dan lampu yang terlihat sampai tengah laut.'
+  };
+  wrap_('renderScene', function () {
+    if (!lampau() || !K.docked()) return;
+    var box = document.getElementById('cityTypeFlavor'), c = K.cid();
+    if (box && DESC[c]) { var fl = box.firstElementChild; if (fl && !fl.classList.contains('loc-chips')) fl.textContent = DESC[c]; }
+    var kk = document.getElementById('locKicker'); if (kk) kk.textContent = '40 Tahun Lalu';
+    if (box) {
+      var chip = '<span class="chip psl-tarik" role="button" tabindex="0" data-psl="tarik">' + ic('anchor') + 'Tarik Jangkar</span>';
+      var row = box.querySelector('.loc-chips'); if (row) row.insertAdjacentHTML('beforeend', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+    }
+  });
+  document.addEventListener('click', function (ev) {
+    var t = ev.target && ev.target.closest && ev.target.closest('[data-psl=tarik]'); if (!t) return;
+    ev.preventDefault(); ev.stopPropagation(); if (currentPanel || document.getElementById('modalOverlay').classList.contains('open')) K.close(); tarik();
+  }, true);
+  var origNpcToast = window.showNpcToast_;
+  if (typeof origNpcToast === 'function') window.showNpcToast_ = function (role, text) {
+    if (lampau() && role === 'syahbandar') text = ['Kapal asing? Benderamu belum pernah kulihat, Kapten.', 'Selamat datang. Jangan coba bayar pakai koin aneh itu.', 'Kapal dari mana ini? Catatanku tidak punya namamu.'][Math.floor(Math.random() * 3)];
+    return origNpcToast.call(this, role, text);
+  };
+  var GOSIP = [
+    'Trem baru sampai ke Menara Lampu. Katanya nanti sampai ke bukit juga.',
+    'Kapal-kapal dari benua selatan bawa kopi lagi. Pahit sekali, tapi orang ketagihan.',
+    'Kadet-kadet akademi Sudyrman makin banyak. Ada yang jago melukis peta, katanya.',
+    'Lampu menara itu tak pernah padam. Tak akan pernah.',
+    'Emasmu boleh, koinmu jangan. Rajanya saja belum lahir.'
+  ];
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments);
+      if (!lampau() || !out || !out.length) return out;
+      return out.map(function (x, i) { return GOSIP[(i + Math.floor(Math.random() * GOSIP.length)) % GOSIP.length]; });
+    };
+  }
+  if (typeof window.walkerLine_ === 'function') {
+    var origWalker = window.walkerLine_;
+    window.walkerLine_ = function () {
+      if (lampau() && Math.random() < 0.5) return ['Selamat datang di zaman gemilang!', 'Naik trem, Kapten?', 'Lampunya indah, bukan?', 'Koin apa itu?'][Math.floor(Math.random() * 4)];
+      return origWalker.apply(this, arguments);
+    };
+  }
+
+  /* ---------- Tarik Jangkar di jurnal ---------- */
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks' || !lampau()) return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.psl-j')) return;
+    var d = document.createElement('div'); d.className = 'psl-j';
+    d.innerHTML = '<div class="qg-journal"><div class="qg-jh">' + ic('hourglass') + ' <b>40 Tahun Lalu</b></div><div class="qg-obj">Pasar dan bank zaman ini menolak koinmu. Pustaka Agung, Dok Garuda, dan galangan menerima emas ditimbang.</div>' + actions(btn('tarik', 'anchor', 'Tarik Jangkar', false)) + '</div>';
+    var box = c.querySelector('.ps-wrap'); if (box) box.appendChild(d); else { var w = K.insert(''); if (w) w.appendChild(d); }
+    on(d, '[data-ps=tarik]', tarik);
+  });
+
+  /* ---------- adegan otomatis ---------- */
+  function scenes() {
+    if (!lampau() || !K.docked()) return;
+    var x = p() || {};
+    if (!K.seen('lampau1') && K.cid() === 'ikn') { if (currentPanel) K.close(); tibaLampau(); return; }
+    if (x.sudyrman && !K.seen('benua')) { if (currentPanel) K.close(); benua(); return; }
+  }
+  wrap_('applyFreshState_', function () {
+    try { mergeCities(); } catch (e) { }
+    if (!p()) return;
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !p()) return;
+      var ov = document.getElementById('modalOverlay');
+      if (K.busyUi() || (ov && ov.classList.contains('open'))) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { scenes(); } catch (e) { console.warn('[PSL] scenes', e); }
+    }, 2600);
+  });
+
+  return { toko: toko, jam: jamZaman, lompat: lompat, tarik: tarik, benua: benua, merge: mergeCities };
+})();
+</script>
