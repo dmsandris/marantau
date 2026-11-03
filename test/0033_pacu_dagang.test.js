@@ -104,9 +104,9 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   ok(res.gol['1'].list.length === 1 && res.gol['1'].list[0].name === 'Kapten Alfa', 'Jukung: 2 lolos Perunggu (Delta dicoret) -> hanya juara 1 ' + JSON.stringify(res.gol['1']));
   ok(res.gol['3'].list[0].name === 'Kapten Charlie', 'Juara Galiung');
   ok(res.jelajah && res.jelajah.name === 'Kapten Alfa' && !res.lompat && res.mata, 'kategori (Lompatan butuh rekor)');
-  // Alfa: tier 3 (20+40+80) + juara 200 + Penjelajah 150 (+ Mata bila margin terbaik)
+  // Alfa: tier 3 (20+40+80) + juara 550 + Penjelajah 150 (+ Mata bila margin terbaik)
   const kA = await keping(A) - k0.A, mataA = res.mata.name === 'Kapten Alfa' ? 150 : 0;
-  ok(kA === 140 + 200 + 150 + mataA, 'keping Alfa ' + kA);
+  ok(kA === 140 + 550 + 150 + mataA, 'keping Alfa ' + kA);
   ok(await keping(B) - k0.B === 60 + (res.mata.name === 'Kapten Bravo' ? 150 : 0), 'keping Bravo (Perak, bukan juara 2 karena < 3 lolos)');
   ok(await keping(D) === k0.D, 'Delta dicoret: tanpa hadiah');
   ok(await gold(A) === g0, 'Pekan Uji: tanpa gold');

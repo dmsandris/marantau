@@ -17,7 +17,7 @@
 insert into game.config(key, value) values
   ('PacuOpen', '0'), ('PacuGoldOn', '1'), ('PacuCloseBoardHours', '6'), ('PacuThemeMul', '1.5'),
   ('PacuTargetJukung', '3000,12000,40000'), ('PacuTargetPinisi', '15000,60000,200000'), ('PacuTargetGaliung', '150000,600000,2000000'),
-  ('PacuTierKeping', '20,40,80'), ('PacuJuaraKeping', '200,120,80'), ('PacuKategoriKeping', '150'),
+  ('PacuTierKeping', '20,40,80'), ('PacuJuaraKeping', '550,300,150'), ('PacuKategoriKeping', '150'),
   ('PacuGoldJukung', '100000'), ('PacuGoldPinisi', '250000'), ('PacuGoldGaliung', '600000'),
   ('PacuMataMinJual', '15'), ('PacuNewsGapHours', '3')
 on conflict (key) do nothing;
@@ -254,12 +254,12 @@ begin
   select * into e from game.pd_events where sat = p_sat for update;
   if not found or e.status = 'announced' then return; end if;
   tk := array[game.hr_num(game.cfg('PacuTierKeping'), 1, 20), game.hr_num(game.cfg('PacuTierKeping'), 2, 40), game.hr_num(game.cfg('PacuTierKeping'), 3, 80)];
-  jk := array[game.hr_num(game.cfg('PacuJuaraKeping'), 1, 200), game.hr_num(game.cfg('PacuJuaraKeping'), 2, 120), game.hr_num(game.cfg('PacuJuaraKeping'), 3, 80)];
+  jk := array[game.hr_num(game.cfg('PacuJuaraKeping'), 1, 550), game.hr_num(game.cfg('PacuJuaraKeping'), 2, 300), game.hr_num(game.cfg('PacuJuaraKeping'), 3, 150)];
 
   -- peringkat & tier dihitung dengan rekor SEBELUM pekan ini
   create temp table if not exists pd_tmp (player_id uuid primary key, name text, gol int, score numeric, profit numeric, cost numeric,
     sells_win int, ncity int, reached_at timestamptz, tier int, avg numeric, rank int, titles jsonb, kp bigint, gp bigint) on commit drop;
-  delete from pd_tmp;
+  delete from pd_tmp where true;   -- 'where true': pg_safeupdate Supabase menolak DELETE tanpa WHERE lewat API
   insert into pd_tmp
   select s.player_id, coalesce(nullif(p.character_name, ''), 'Kapten'), s.gol, s.score, s.profit, s.cost, s.sells_win,
          jsonb_array_length(s.cities), s.reached_at, game.pd_tier(s.score, game.pd_targets(s.player_id, s.gol)), game.pd_avg(s.player_id),
@@ -298,7 +298,7 @@ begin
   if v_jelajah is not null then update pd_tmp set kp = kp + v_cat, titles = titles || '"Penjelajah Pasar"'::jsonb where player_id = (v_jelajah ->> 'pid')::uuid; end if;
   if v_lompat is not null then update pd_tmp set kp = kp + v_cat, titles = titles || '"Lompatan Terjauh"'::jsonb where player_id = (v_lompat ->> 'pid')::uuid; end if;
   -- keping Target Pribadi (bertumpuk)
-  update pd_tmp set kp = kp + (case when tier >= 1 then tk[1] else 0 end) + (case when tier >= 2 then tk[2] else 0 end) + (case when tier >= 3 then tk[3] else 0 end);
+  update pd_tmp set kp = kp + (case when tier >= 1 then tk[1] else 0 end) + (case when tier >= 2 then tk[2] else 0 end) + (case when tier >= 3 then tk[3] else 0 end) where true;
 
   -- hadiah, kabar, rekor
   for r in select * from pd_tmp loop
