@@ -1,0 +1,338 @@
+<!--
+  Tide v47 · Perburuan Tony
+  - Kabut Abu-abu: scene titik laut (pelampung + pelikan mesin Marlya), Papan Armada Marlya (lobi 2-4 kapten)
+  - Serbuan memakai arena Serbuan Bersama (MTSERBU) dengan tema 'tony' (api_tonyHunt)
+  - Kabar Marlya: gosip lapau + kabar pelabuhan (harta Tony; ajakan saat lobi terbuka). Tidak menyebut hari atau hadiah.
+  - Sinematik th_kabur (Tony kabur), memakai tn_kepung (Tony.html) untuk pembuka
+  Server: supabase/migrations/0063-perburuan-tony.sql
+-->
+<style>
+  .th-wrap { display: grid; gap: 10px; }
+  .th-hero { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px;
+    background: linear-gradient(180deg, #23252b, #121317); color: #e9e6de; border: 1px solid rgba(190,190,196,.3); }
+  .th-hero .pl { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 35% 30%, #6b6f78, #1b1c20); display: grid; place-items: center; }
+  .th-hero .pl svg { width: 52px; height: 52px; }
+  .th-hero b { color: #f0d58a; }
+  .th-hero p { margin: 4px 0 0; font-size: .92em; line-height: 1.5; }
+  .th-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .th-acts .btn { flex: 1 1 160px; }
+  .th-note { font-size: .82em; color: #7b6445; margin: 0; }
+  .th-short { margin-top: 6px; font-size: .82em; color: #ffb4a0; }
+</style>
+
+<script>
+var MTTH = (function () {
+  'use strict';
+  if (typeof window.openPanel !== 'function') return {};
+  var PELIKAN = '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="30" cy="38" rx="16" ry="11" fill="#c9ced2"/><circle cx="42" cy="24" r="8" fill="#d9dde0"/>' +
+    '<path d="M48 24 L62 27 L48 30 Z" fill="#e8b24a"/><path d="M48 28 Q56 34 48 34 Z" fill="#d49a3a"/><circle cx="44" cy="22" r="1.8" fill="#ff3b3b"/>' +
+    '<path d="M16 34 Q4 30 10 44 Q18 46 22 40 Z" fill="#9aa1a6"/><rect x="26" y="47" width="2.4" height="9" fill="#555"/><rect x="33" y="47" width="2.4" height="9" fill="#555"/>' +
+    '<circle cx="30" cy="38" r="3" fill="none" stroke="#7a8086" stroke-width="1.2"/><path d="M27 38h6M30 35v6" stroke="#7a8086" stroke-width="1"/></svg>';
+
+  function st() { return window.state && state.tonyHunt; }
+  function cid() { return window.state && state.city ? state.city.CityId : ''; }
+  function docked() { return !!(window.state && state.city && !(state.voyage && state.voyage.inTransit)); }
+  function E(s) { return typeof esc_ === 'function' ? esc_(s) : String(s == null ? '' : s); }
+  function G(n) { return typeof formatGold === 'function' ? formatGold(n) : Number(n || 0).toLocaleString('id-ID'); }
+  function sfx(n) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n); } catch (e) { } }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function seen(k) { try { return localStorage.getItem('th_' + k) === '1'; } catch (e) { return false; } }
+  function mark(k) { try { localStorage.setItem('th_' + k, '1'); } catch (e) { } }
+  function rpc(args, ok, fail, b) {
+    if (b) b.disabled = true;
+    var run = google.script.run.withSuccessHandler(function (r) {
+      if (b) b.disabled = false; r = r || {};
+      if (r.tonyHunt !== undefined && window.state) state.tonyHunt = r.tonyHunt;
+      try { if (ok) ok(r); } catch (e) { console.warn('[TH]', e); }
+    }).withFailureHandler(function (e) {
+      if (b) b.disabled = false;
+      if (fail) fail(e); else showToast((e && e.message) || String(e), 'error');
+    });
+    run.api_tonyHunt.apply(run, args);
+  }
+  // angka harta dibulatkan supaya enak dibaca: "lebih dari 2,8 juta" / "hampir 3 juta"
+  function hartaText(n) {
+    n = Number(n || 0);
+    if (n < 1000) return 'beberapa keping';
+    if (n < 1000000) { var k = Math.floor(n / 1000) * 1000; return 'lebih dari ' + G(k) + ' gold'; }
+    var j = n / 1000000, up = Math.ceil(j), dn = Math.floor(j * 10) / 10;
+    if (up - j < 0.15) return 'hampir ' + up + ' juta gold';
+    return 'lebih dari ' + String(dn).replace('.', ',') + ' juta gold';
+  }
+
+  /* ================= KABAR MARLYA ================= */
+  function kabarLines() {
+    var s = st(); if (!s) return [];
+    var out = [], h = Number(s.harta || 0);
+    if (h > 0) out.push(
+      'Pelikan Ratu Marlya lewat lagi pagi ini. Katanya Tony sudah membawa <b>' + hartaText(h) + '</b> ke dalam kabut.',
+      'Tony and Gank makin meresahkan. Harta yang mereka rampas sudah <b>' + hartaText(h) + '</b>.',
+      'Ratu Marlya bilang: setiap keping yang dicatat Tony adalah keringat kapten-kapten kita.',
+      'Kalau tak ada yang bangkit, buku Tony akan penuh dengan nama kita semua.');
+    else out.push('Laut tenang sepekan ini. Tapi Tony pasti sedang membuka halaman baru.');
+    if (s.open) out.push(
+      'Kabut Abu-abu di tengah laut menipis hari ini. Pelikan Marlya menunggu di sana.',
+      'Harus ada yang bangkit melawan Tony. Ratu Marlya membuka Papan Armada di Kabut Abu-abu.',
+      'Sendirian, kau cuma jadi catatan baru di buku Tony. Berempat, kalian bisa merobek bukunya.');
+    if (s.open && s.lobbies > 0) out.push('Dengar-dengar sudah ada kapten yang menulis namanya di papan Marlya.');
+    if (s.kabur) out.push('Tony kabur lagi! Tapi Ratu Marlya bilang ia pasti kembali. Ia selalu kembali.');
+    return out;
+  }
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments) || [], ks = kabarLines();
+      if (ks.length && Array.isArray(out)) { var pick = ks[Math.floor(Math.random() * ks.length)]; out.unshift(pick); if (ks.length > 1) out.splice(Math.min(out.length, 3), 0, ks[(ks.indexOf(pick) + 1) % ks.length]); }
+      return out;
+    };
+  }
+  // kabar pelabuhan: sekali sehari saat merapat (harta), dan sekali saat lobi terbuka
+  function portNews() {
+    var s = st(); if (!s || !docked() || cid() === 'kabut_abu') return;
+    if (document.querySelector('.qt-cine, #tnCard') || (window.MTSERBU && MTSERBU.isOpen && MTSERBU.isOpen())) return;
+    var d = today();
+    if (s.open && !seen('open-' + d)) { mark('open-' + d); setTimeout(function () { showToast('Pelikan Marlya: "Kabut Abu-abu menipis hari ini. Harus ada yang bangkit melawan Tony."', 'info'); }, 2600); return; }
+    if (s.kabur && !seen('kabur-' + d)) { mark('kabur-' + d); setTimeout(function () { showToast('Kabar pelabuhan: Tony kabur lagi ke dalam kabut. Ratu Marlya bilang ia pasti kembali.', 'info'); }, 2600); return; }
+    if (Number(s.harta || 0) > 0 && !seen('harta-' + d)) { mark('harta-' + d); setTimeout(function () { showToast('Kabar pelabuhan: pelikan Ratu Marlya mengabarkan Tony sudah merampas ' + hartaText(s.harta).replace(/<[^>]+>/g, '') + '.', 'info'); }, 3200); }
+  }
+
+  /* ================= PAPAN ARMADA MARLYA ================= */
+  var boardT = 0;
+  function live() { var w = document.querySelector('#modalContent .th-boardwrap'); return w && document.getElementById('modalOverlay').classList.contains('open') ? w : null; }
+  function memHtml(m) {
+    var fc = ''; try { fc = m.f && window.MTFace ? MTFace.svg(m.f, { bgColors: ['#33303e', '#0c0b10'] }) : ''; } catch (e) { fc = ''; }
+    return '<div class="dt-mem"><div class="fc">' + fc + '</div><div><b>' + E(m.n) + (m.lead ? ' <small>&middot; pembuka</small>' : '') + '</b>' +
+      '<small>' + E(m.ship || 'Kapal') + (m.tier ? ' &middot; Tier ' + m.tier : '') + (m.cond != null ? ' &middot; ' + Math.round(m.cond) + '%' : '') + '</small>' +
+      (m.online === false ? '<div class="tags"><span class="dt-tag off">offline</span></div>' : '') + '</div>' +
+      '<span class="dt-ready' + (m.ready ? ' on' : '') + '">' + (m.ready ? 'Siap' : 'Belum siap') + '</span></div>';
+  }
+  function hero(text) { return '<div class="th-hero"><div class="pl">' + PELIKAN + '</div><div><b>Pelikan Ratu Marlya</b><p>' + text + '</p></div></div>'; }
+  function render(w, res) {
+    var s = st() || {}, r = res.raid, board = res.board || [], need = s.needMesiu || 10, html = '';
+    if (r && r.status === 'lobby' && r.mine) {
+      var me = r.members.filter(function (m) { return m.pub === r.me; })[0] || {}, lead = r.leader === r.me, nR = r.members.filter(function (m) { return m.ready; }).length;
+      var cd = r.departAt ? Math.max(0, Math.ceil((r.departAt - r.t) / 1000)) : 0, short = !me.ready && (s.mesiu || 0) < need;
+      html += hero(r.members.length < 2 ? '<i>Klik. Klik.</i> Papan ini butuh satu nama lagi. Sendirian, kau cuma jadi catatan baru di buku Tony.'
+        : r.members.length < 4 ? '<i>Klik.</i> ' + r.members.length + ' kapal. Tony menghitung kalian dari balik kabut.' : '<i>Klik. Klik. Klik.</i> Empat lambung. Untuk sekali ini, Tony yang akan dihitung.');
+      html += '<div class="dt-fleet mine"><h4>Armadamu <span>' + r.members.length + '/4 &middot; ' + nR + ' siap</span></h4>' + r.members.map(memHtml).join('') +
+        (cd ? '<div class="dt-count">Empat kapal siap. Angkat sauh otomatis dalam ' + cd + ' detik.</div>' : '') +
+        (short ? '<div class="th-short">' + ic('alert') + ' Perbekalan: kurang ' + (need - (s.mesiu || 0)) + ' Mesiu.</div>' : '') +
+        '<div class="th-acts">' + (me.ready ? '<button class="btn btn-ghost-ink" data-th="unready">Batal siap</button>' : '<button class="btn btn-gold" data-th="ready">' + ic('check') + '&nbsp; Siap &middot; setor ' + need + ' Mesiu</button>') +
+        (lead ? '<button class="btn btn-danger" data-th="depart">' + ic('anchor') + '&nbsp; Angkat Sauh' + (nR < 2 ? ' (butuh 2 siap)' : '') + '</button>' : '') +
+        '<button class="btn btn-ghost-ink" data-th="leave">Keluar</button></div></div>';
+    } else {
+      html += hero(s.open ? 'Ratu Marlya membuka papan ini untuk kapten yang berani. Tulis namamu, kumpulkan dua sampai empat kapal, lalu hadapi Tony bersama.' : 'Papan Armada tertutup. Pelikan Marlya sudah terbang pulang.');
+      html += board.length ? board.map(function (f) {
+        return '<div class="dt-fleet"><h4>Armada ' + E(f.leader || '') + ' <span>' + f.members.length + '/4</span></h4>' + f.members.map(memHtml).join('') +
+          '<div class="th-acts">' + (f.members.length < 4 && !res.block ? '<button class="btn btn-gold" data-join="' + E(f.id) + '">' + ic('flag') + '&nbsp; Bergabung</button>' : '<span class="muted small">' + (f.members.length >= 4 ? 'Penuh' : '') + '</span>') + '</div></div>';
+      }).join('') : '<div class="dt-empty">Belum ada armada di papan ini.</div>';
+      html += res.block ? '<div class="th-short" style="color:#8a3a20">' + E(res.block) + '</div>' : '<div class="th-acts"><button class="btn btn-danger" data-th="open">' + ic('flag') + '&nbsp; Tulis namaku di papan (buka armada)</button></div>';
+      if (s.open) html += '<p class="th-note">Kapten lain yang bisa ikut, online: <b>' + (s.online || 0) + '</b> &middot; perbekalan ' + need + ' Mesiu per kapten.</p>';
+    }
+    w.innerHTML = '<div class="th-wrap">' + html + '</div>';
+    w.querySelectorAll('[data-join]').forEach(function (b) { b.onclick = function () { rpc(['join', b.getAttribute('data-join')], refresh, null, b); }; });
+    var B = function (k, fn) { var b = w.querySelector('[data-th=' + k + ']'); if (b) b.onclick = function () { fn(b); }; };
+    B('open', function (b) { rpc(['open'], function () { sfx('achieve'); refresh(); }, null, b); });
+    B('ready', function (b) { rpc(['ready', true], function () { try { refreshCargoQuiet_(); } catch (e) { } refresh(); }, null, b); });
+    B('unready', function (b) { rpc(['ready', false], function () { try { refreshCargoQuiet_(); } catch (e) { } refresh(); }, null, b); });
+    B('leave', function (b) { rpc(['leave'], function () { try { refreshCargoQuiet_(); } catch (e) { } refresh(); }, null, b); });
+    B('depart', function (b) { rpc(['depart'], function (x) { if (x.raid && x.raid.status === 'active') startRaid(x.raid.id); else refresh(); }, null, b); });
+  }
+  function refresh() {
+    clearTimeout(boardT);
+    if (!live()) return;
+    rpc(['board'], function (res) {
+      if (!live()) return;
+      if (!res.raidId) { render(live(), res); boardT = setTimeout(refresh, 4000); return; }
+      rpc(['view', res.raidId], function (v) {
+        if (!live()) return;
+        if (v.raid && v.raid.status === 'active') { startRaid(res.raidId); return; }
+        render(live(), { board: res.board, raid: v.raid, block: res.block });
+        boardT = setTimeout(refresh, 2000);
+      }, function () { boardT = setTimeout(refresh, 4000); });
+    }, function (e) { var w = live(); if (w) w.innerHTML = '<div class="dt-empty">' + E((e && e.message) || 'Papan tidak terbaca.') + '</div>'; boardT = setTimeout(refresh, 5000); });
+  }
+  function boardOpen() {
+    if (typeof currentPanel !== 'undefined') currentPanel = null;
+    setModal_(panelHeader_('flag', 'Papan Armada Marlya', 'Kabut Abu-abu &middot; pelikan mesin Ratu Marlya') + '<div class="th-boardwrap"><div class="dt-empty">Membaca papan&hellip;</div></div>');
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    refresh();
+  }
+
+  /* ================= SERBUAN ================= */
+  var SLIDES = {
+    kepung: ['Kabut Abu-abu menutup cakrawala. Dari empat arah, empat layar abu-abu muncul bersamaan.',
+      '<b>Tony:</b> "Wah, wah. Kapten-kapten datang sendiri ke halaman bukuku. Hemat ongkos jemput."',
+      '<b>Pelikan Marlya</b> <i>(dari pelampung)</i>: <i>Klik.</i> "Ratu Marlya berkata: hari ini, kalian yang bicara."'],
+    kabur: ['Tangan Panjang miring berasap. Tony berdiri di buritan, memeluk bukunya.',
+      '<b>Tony:</b> "Separuh untuk kalian. Separuh untuk ongkos kabur. Adil, bukan?"',
+      'Peti-peti jarahan dilempar ke laut supaya kapalnya cukup ringan untuk lari. Empat layar abu-abu menghilang ke kabut.',
+      '<b>Tony</b> <i>(dari kejauhan)</i>: "Pekan depan bukuku terbuka lagi. Halaman baru, nama-nama baru."']
+  };
+  function cine(kind, done) {
+    var sl = SLIDES[kind]; if (!sl || !window.MTCine) { done(); return; }
+    var ov = document.createElement('div'); ov.className = 'qt-cine';
+    ov.innerHTML = '<canvas></canvas><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    ov.style.zIndex = 9500;
+    document.body.appendChild(ov);
+    var stop = function () { }, i = 0, fin = false, txt = ov.querySelector('.qt-captext'), btn = ov.querySelector('.qt-capbtn .btn');
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind === 'kepung' ? 'tn_kepung' : 'th_kabur') || stop; } catch (e) { }
+    function show() { txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = sl[i]; txt.classList.add('in'); btn.innerHTML = i < sl.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai'; }
+    function end() { if (fin) return; fin = true; try { stop(); } catch (e) { } ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450); setTimeout(done, 60); }
+    btn.onclick = function () { sfx('page'); if (++i < sl.length) show(); else end(); };
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!fin) show(); }, 900);
+  }
+  function startRaid(id) {
+    clearTimeout(boardT);
+    if (!window.MTSERBU || !MTSERBU.open) { showToast('Arena serbuan belum termuat. Muat ulang game.', 'error'); return; }
+    if (MTSERBU.isOpen && MTSERBU.isOpen()) return;
+    try { closeModal(); } catch (e) { }
+    MTSERBU.open(id, {
+      api: 'api_tonyHunt', kind: 'tony', cine: cine,
+      onExit: function () { try { loadState(); } catch (e) { } }
+    });
+  }
+
+  /* ================= KAIT INTI ================= */
+  try { if (window.TYPE_META) TYPE_META.KabutAbu = { icon: 'flag', label: 'Kabut Abu-abu' }; } catch (e) { }
+  var origOpen = window.openPanel;
+  window.openPanel = function (panel) {
+    if (cid() === 'kabut_abu' && (panel === 'armada' || panel === 'tasks')) { boardOpen(); return; }
+    if (cid() === 'kabut_abu' && ['market', 'bank', 'cargo', 'tavern', 'library', 'ship', 'mission'].indexOf(panel) >= 0) {
+      showToast('Tak ada dermaga di Kabut Abu-abu. Hanya pelampung dan Papan Armada Marlya.', 'info'); return;
+    }
+    return origOpen.apply(this, arguments);
+  };
+  var origNpcToast = window.showNpcToast_;
+  if (typeof origNpcToast === 'function') window.showNpcToast_ = function (role, text) {
+    if (cid() === 'kabut_abu') { showToast('Tak ada dermaga. Hanya pelampung merah dan pelikan mesin yang berkedip.', 'info'); return; }
+    return origNpcToast.apply(this, arguments);
+  };
+  wrap_('handleInbox_', null, function (it) {
+    if (!it) return;
+    if (it.type === 'th_open') showToast('Pelikan Marlya: Kapten ' + it.from + ' menulis namanya di Papan Armada di Kabut Abu-abu.', 'info');
+    if (it.type === 'th_start') { showToast('Armada ' + it.from + ' mengangkat sauh ke arah Tony!', 'success'); setTimeout(function () { startRaid(it.raidId); }, 300); }
+  });
+  var checkAt = 0;
+  wrap_('applyFreshState_', function () {
+    var s = st(); if (!s) return;
+    // serbuan yang masih berjalan (muat ulang / putus koneksi): kembali ke arena
+    if (s.raidId && Date.now() - checkAt > 5000 && !(window.MTSERBU && MTSERBU.isOpen && MTSERBU.isOpen())) {
+      checkAt = Date.now();
+      rpc(['view', s.raidId], function (v) { if (v.raid && v.raid.status === 'active') startRaid(v.raid.id); }, function () { });
+    }
+    if (docked() && cid() === 'kabut_abu' && s.open && !seen('tiba-' + today())) {
+      mark('tiba-' + today());
+      setTimeout(function () { if (!document.querySelector('.qt-cine') && !(window.MTSERBU && MTSERBU.isOpen && MTSERBU.isOpen())) boardOpen(); }, 1600);
+      return;
+    }
+    portNews();
+  });
+
+  return { open: boardOpen, start: startRaid, kabar: kabarLines, harta: hartaText };
+})();
+</script>
+
+<script>
+/* =====================================================================
+ * Scene Kabut Abu-abu (titik laut) + sinematik th_kabur
+ * ===================================================================== */
+(function () {
+  if (window.MTCities && MTCities.register && MTCities.H) {
+    var H = MTCities.H;
+    function glow(ctx, x, y, r, col, a) { if (a <= 0.004) return; var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + col + ',' + a.toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+    function drawKabut(inst, ctx, p, t, dt, d) {
+      var u = d.u, W = d.W;
+      // kabut bergerak
+      for (var i = 0; i < d.fog.length; i++) {
+        var f = d.fog[i]; if (!inst.reduced) f.x += f.v * dt / 1000; if (f.x > W + f.r) f.x = -f.r; if (f.x < -f.r) f.x = W + f.r;
+        var g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r); g.addColorStop(0, 'rgba(176,178,184,' + f.a + ')'); g.addColorStop(1, 'rgba(176,178,184,0)');
+        ctx.fillStyle = g; ctx.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+      }
+      // mata merah pelikan & lampu pelampung
+      var bl = 0.5 + 0.5 * Math.sin(t * 2.4);
+      glow(ctx, d.bx + u * 0.38, d.by - u * 1.55, u * 0.35, '255,60,60', 0.35 + 0.4 * bl);
+      glow(ctx, d.bx, d.by - u * 0.4, u * 1.4, '255,200,120', (0.15 + 0.35 * p.lights) * (0.7 + 0.3 * bl));
+      // siluet empat layar abu-abu di cakrawala
+      ctx.save(); ctx.globalAlpha = 0.28 + 0.08 * Math.sin(t * 0.4); ctx.fillStyle = '#5a5c62';
+      for (var k = 0; k < 4; k++) { var sx = u * (5 + k * 6.5) + Math.sin(t * 0.15 + k) * u * 0.4, sy = d.hz - u * 0.15; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + u * 0.5, sy - u * 1.4); ctx.lineTo(sx + u * 1.1, sy); ctx.closePath(); ctx.fill(); ctx.fillRect(sx - u * 0.2, sy, u * 1.5, u * 0.18); }
+      ctx.restore();
+    }
+    function kabut(B) {
+      var u = B.u, ctx = B.ctx, base = B.shoreY || B.qTop, W = B.W || u * 30;
+      B.hillY = function () { return base; };
+      // karang & pelampung merah dengan papan ARMADA
+      ctx.fillStyle = '#3a3c42'; ctx.beginPath(); ctx.ellipse(u * 15, base + u * 0.2, u * 3.2, u * 0.9, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#2c2e33'; ctx.beginPath(); ctx.ellipse(u * 12.6, base + u * 0.25, u * 1.4, u * 0.6, 0, Math.PI, 0); ctx.fill();
+      var bx = u * 17.4, by = base - u * 0.2;
+      ctx.fillStyle = '#b3261e'; ctx.beginPath(); ctx.ellipse(bx, by, u * 0.7, u * 0.5, 0, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#f1ede4'; ctx.fillRect(bx - u * 0.7, by - u * 0.12, u * 1.4, u * 0.2);
+      ctx.fillStyle = '#4a3a2a'; ctx.fillRect(bx - u * 0.06, by - u * 2.1, u * 0.12, u * 1.6);
+      ctx.fillStyle = '#d9c9a0'; ctx.fillRect(bx - u * 1.1, by - u * 2.6, u * 2.2, u * 0.75); ctx.strokeStyle = '#6b5638'; ctx.lineWidth = u * 0.06; ctx.strokeRect(bx - u * 1.1, by - u * 2.6, u * 2.2, u * 0.75);
+      ctx.fillStyle = '#3a2a18'; ctx.font = '700 ' + Math.round(u * 0.42) + 'px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('ARMADA', bx, by - u * 2.22);
+      // pelikan mesin
+      ctx.fillStyle = '#c9ced2'; ctx.beginPath(); ctx.ellipse(bx + u * 0.05, by - u * 1.25, u * 0.55, u * 0.35, 0, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx + u * 0.38, by - u * 1.55, u * 0.22, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#e8b24a'; ctx.beginPath(); ctx.moveTo(bx + u * 0.55, by - u * 1.58); ctx.lineTo(bx + u * 1.05, by - u * 1.5); ctx.lineTo(bx + u * 0.55, by - u * 1.45); ctx.closePath(); ctx.fill();
+      H.hot(B, 'armada', 'Papan Armada Marlya', 'flag', bx - u * 1.3, by - u * 2.8, u * 2.6, u * 3.2);
+      var fog = []; for (var i = 0; i < 16; i++) fog.push({ x: Math.random() * W, y: base - u * (Math.random() * 6 - 0.5), r: u * (3 + Math.random() * 4), v: (Math.random() - 0.5) * u * 0.8, a: 0.08 + Math.random() * 0.12 });
+      B.dyn.push({ type: 'fn', fn: drawKabut, u: u, W: W, bx: bx, by: by, hz: base - u * 4.2, fog: fog });
+      B.noLamps = true; B.noPosters = true; B.walk = null; B.roamers = [];
+    }
+    MTCities.register('kabut_abu', kabut, 'overcast');
+  }
+
+  if (!window.MTCine || !MTCine.register || !window.MTUtil || !window.MTSky || !window.MTShip) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  var REDUCE = false; try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  var GANK = [
+    { masts: 3, hull: '#141416', trim: '#3a3a40', sail: '#222226', flag: '#000000', emblem: 'skull', emblemColor: '#bdb8ac', ports: 4 },
+    { masts: 2, hull: '#3a3436', trim: '#7d786e', sail: '#9a968c', sailStripe: '#5a5650', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#e2ddd0', ports: 3 },
+    { masts: 2, hull: '#4a3a2c', trim: '#8d7a5c', sail: '#8a8478', sailStripe: '#5a5650', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#e2ddd0', ports: 4 },
+    { masts: 3, hull: '#2b2a2e', trim: '#8d8a80', sail: '#7d7b76', sailStripe: '#4a4844', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#efe8d6', ports: 6, muzzles: true, sizeK: 1.18 }
+  ];
+  // Tony kabur: Tangan Panjang miring berasap, peti dilempar ke laut, armada menghilang ke kabut
+  function sceneKabur() {
+    var r = U.rng(4747), P = new C.Particles(), L = C.makeLit(), clouds = MTSky.makeClouds(r, 7), chests = [];
+    for (var i = 0; i < 9; i++) chests.push({ t: 1.2 + i * 0.45, x: 0, y: 0, vx: 0, vy: 0, on: false });
+    function draw(ctx, W, H, t, dt) {
+      var port = W < H, hy = H * (port ? 0.42 : 0.46), p = MTSky.palette(0.7, 'encounter', 'overcast');
+      ctx.fillStyle = U.css(p.top); ctx.fillRect(0, 0, W, hy); ctx.fillStyle = U.css(p.seaD); ctx.fillRect(0, hy, W, H - hy);
+      MTSky.paintSky(ctx, W, hy, p, t, null); MTSky.paintClouds(ctx, W, hy * 0.92, p, clouds, dt, REDUCE ? 1 : 4);
+      MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: null, rough: 1.1, drift: 12 });
+      L.set(p.tint);
+      var base = port ? W * 0.0045 : Math.min(W * 0.0018, H * 0.0032), away = sm(4, 10, t);
+      // tiga pengawal menjauh ke kiri
+      [[0.2, 0.12, 0.45, 0], [0.33, 0.06, 0.4, 1], [0.12, 0.2, 0.5, 2]].forEach(function (q) {
+        var x = W * (q[0] - away * 0.3), y = hy + (H - hy) * q[1], s = base * q[2], o = { dir: -1, t: t, lit: L, furl: 0.1, lanterns: 0.3 };
+        for (var k in GANK[q[3]]) o[k] = GANK[q[3]][k];
+        ctx.save(); ctx.globalAlpha = Math.max(0, 1 - away); MTShip.draw(ctx, x, y, s, o); ctx.restore();
+      });
+      // Tangan Panjang miring, berasap
+      var tx = W * (0.62 - away * 0.35), ty = hy + (H - hy) * 0.35, ts = base * 0.9, roll = -0.08 - 0.05 * Math.sin(t * 0.9);
+      var o2 = { dir: -1, t: t, lit: L, furl: 0.2, lanterns: 0.4, roll: roll, damage: 0.7 }; for (var k2 in GANK[3]) o2[k2] = GANK[3][k2];
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - away * 0.9); MTShip.draw(ctx, tx, ty, ts, o2); ctx.restore();
+      if (!REDUCE && Math.random() < 0.7) P.add({ x: tx + (Math.random() - 0.5) * 40 * ts, y: ty - 30 * ts, vx: (Math.random() - 0.5) * 0.4, vy: -0.6 - Math.random() * 0.5, g: -0.003, r: 3 + ts * 5, life: 2.2, col: 'rgba(48,46,48,A)', a: 0.5 });
+      // peti jarahan dilempar ke laut
+      chests.forEach(function (c) {
+        if (t < c.t) return;
+        if (!c.on) { c.on = true; c.x = tx + 20 * ts; c.y = ty - 18 * ts; c.vx = (0.6 + Math.random() * 0.8) * ts * 6; c.vy = -(1.5 + Math.random()) * ts * 6; }
+        if (c.y < ty + 6 * ts) { c.vy += 0.45 * ts * 6 * dt / 16.7; c.x += c.vx * dt / 16.7; c.y += c.vy * dt / 16.7; }
+        else if (!c.splash) { c.splash = true; for (var q = 0; q < 6; q++) P.add({ x: c.x, y: c.y, vx: (Math.random() - 0.5) * 2, vy: -1 - Math.random(), g: 0.08, r: 1.5 + Math.random() * 2, life: 0.7, col: 'rgba(225,235,245,A)', a: 0.8 }); }
+        ctx.fillStyle = '#6b4a22'; ctx.fillRect(c.x - 5 * ts, c.y - 4 * ts, 10 * ts, 7 * ts); ctx.fillStyle = '#d9a84e'; ctx.fillRect(c.x - 5 * ts, c.y - 1 * ts, 10 * ts, 1.5 * ts);
+      });
+      // kabut menutup
+      var fg = ctx.createLinearGradient(0, hy - H * 0.2, 0, H); fg.addColorStop(0, 'rgba(170,172,178,0)'); fg.addColorStop(1, 'rgba(170,172,178,' + (0.15 + 0.5 * away).toFixed(3) + ')');
+      ctx.fillStyle = fg; ctx.fillRect(0, 0, W, H);
+      P.run(ctx, dt);
+      if (t > 2) C.title(ctx, W, H, sm(2, 3, t) * (1 - sm(7.5, 8.5, t)), 'TONY KABUR', 'peti-peti jarahan tertinggal di laut', H * (port ? 0.2 : 0.22));
+      C.vignette(ctx, W, H, 0.45);
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - sm(0, 1, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 7 };
+  }
+  MTCine.register('th_kabur', sceneKabur);
+})();
+</script>

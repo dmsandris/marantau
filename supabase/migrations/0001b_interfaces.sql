@@ -370,6 +370,11 @@ language plpgsql as $$ begin null; end $$;
 -- [Tide v46 · Balai Kongsi / 0062] kapal kongsi & buku Ki Dorus (null = belum terbuka untuk pemain ini)
 create or replace function game.kongsi_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Tide v47 · Perburuan Tony / 0063] larangan berlayar selama lobi/serbuan Perburuan; status untuk getGameState
+create or replace function game.th_sail_guard(p_pid uuid) returns void
+language plpgsql as $$ begin null; end $$;
+create or replace function game.th_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
 -- [Tide v41 · Pasir / 0039] status lapisan zaman (null = tertutup; key tidak dikirim ke klien)
 create or replace function game.pasir_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;

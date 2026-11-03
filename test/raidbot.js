@@ -72,8 +72,9 @@ function planSimple(me, boss, phase, skill, rnd) {
 async function runRaid(H, clients, opts) {
   opts = opts || {};
   const skill = opts.skill == null ? 0.9 : opts.skill;
+  const API = opts.api || 'api_dtRaid', TONY = API === 'api_tonyHunt';   // Tide v47: Perburuan Tony memakai bot yang sama
   const shift = async ms => H.sql(`update game.config set value = (value::bigint + $1)::text where key = 'DtClockOffset'`, [ms]);
-  let v = (await clients[0].c.call('api_dtRaid', ['view'])).raid;
+  let v = (await clients[0].c.call(API, ['view'])).raid;
   const id = v.id;
   await shift(10000);
   let guard = 0, turns = 0; const res0 = { shots: 0, hits: 0, q: 0 };
@@ -82,19 +83,19 @@ async function runRaid(H, clients, opts) {
     const round = v.round;
     let cried = false;
     for (const cl of clients) {
-      const vv = (await cl.c.call('api_dtRaid', ['view', id])).raid;
+      const vv = (await cl.c.call(API, ['view', id])).raid;
       if (vv.status !== 'active' || vv.phase !== 'plan' || vv.round !== round) { v = vv; continue; }
       const me = vv.st.ships[vv.me];
       if (!me || !me.alive) continue;
       if (opts.offline && opts.offline.includes(cl.pub)) continue;
-      const o = plan(me, vv.st.boss, vv.st.boss.phase, skill, null, vv.st.w);
-      if (vv.st.boss.phase === 3 && me.cry && !cried && !vv.st.boss.stun) { o.cry = true; cried = true; }
-      v = (await cl.c.call('api_dtRaid', ['act', round, o, id])).raid;
+      const o = plan(me, vv.st.boss, TONY ? 1 : vv.st.boss.phase, skill, null, vv.st.w);
+      if (!TONY && vv.st.boss.phase === 3 && me.cry && !cried && !vv.st.boss.stun) { o.cry = true; cried = true; }
+      v = (await cl.c.call(API, ['act', round, o, id])).raid;
     }
     if (v.status === 'active' && v.phase === 'plan' && v.round === round) {
       // ada yang tidak mengunci (putus koneksi): tunggu batas waktu
       await shift(16000);
-      v = (await clients[0].c.call('api_dtRaid', ['view', id])).raid;
+      v = (await clients[0].c.call(API, ['view', id])).raid;
     }
     turns++;
     if (v.ev && v.ev.evs) for (const e of v.ev.evs) res0[e.k] = (res0[e.k] || 0) + 1;
@@ -126,7 +127,7 @@ async function runRaid(H, clients, opts) {
         if (Math.abs(ang(rel - Math.PI / 2)) < 0.8 && d < 510 && t - lastF[cl.pub].R >= rl) { evs.push({ k: 'f', s: 1, a: 'ball' }); lastF[cl.pub].R = t; }
         if (d < 115 && t - lastF[cl.pub].B >= 8000) { evs.push({ k: 'b', sc: Math.random() < skill ? 3 : (Math.random() < 0.5 ? 2 : 1) }); lastF[cl.pub].B = t; }
         res.fsent = (res.fsent || 0) + evs.filter(e => e.k === 'f').length;
-        last = await cl.c.call('api_dtRaid', ['rt', { x: s.x, y: s.y, h: s.h, v: s.v, sails: 1, ammo: 'ball' }, evs, since[cl.pub], id]);
+        last = await cl.c.call(API, ['rt', { x: s.x, y: s.y, h: s.h, v: s.v, sails: 1, ammo: 'ball' }, evs, since[cl.pub], id]);
         status = last.status;
         if (status !== 'active') break;
         since[cl.pub] = last.seq; boss = last.boss;
@@ -136,11 +137,11 @@ async function runRaid(H, clients, opts) {
       await shift(dtMs); t += dtMs;
       if (t % 10000 === 0) (res.fl = res.fl || []).push([t / 1000, Math.round(boss.hull), clients.filter(cl => loc[cl.pub].alive !== false).length, res.fsent || 0]);
       if (clients.every(cl => (opts.offline || []).includes(cl.pub) || loc[cl.pub].alive === false)) {
-        await shift(80000); last = await clients[0].c.call('api_dtRaid', ['rt', null, [], 0, id]); status = last.status; break;
+        await shift(80000); last = await clients[0].c.call(API, ['rt', null, [], 0, id]); status = last.status; break;
       }
     }
   }
-  v = (await clients[0].c.call('api_dtRaid', ['view', id])).raid;
+  v = (await clients[0].c.call(API, ['view', id])).raid;
   res.result = v.result; res.card = v.card; res.status = v.status; res.rounds = v.round; res.log = v.log;
   return res;
 }
