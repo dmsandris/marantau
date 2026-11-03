@@ -1,0 +1,372 @@
+<style>
+  /* ================= Tide v46 · Balai Kongsi & Ki Dorus ================= */
+  .bk-wrap { display: grid; gap: 12px; margin: 6px 0 12px; }
+  .bk-musim { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; background: rgba(40,52,70,.12); color: #2f3a4a; font-family: var(--font-title); font-size: .7em; letter-spacing: .14em; text-transform: uppercase; }
+  .bk-musim .ico { width: 13px; height: 13px; }
+  .bk-sec { display: grid; gap: 8px; }
+  .bk-sec > h4 { margin: 0; display: flex; justify-content: flex-start; text-align: left; align-items: center; gap: 6px; font-family: var(--font-title); letter-spacing: .1em; text-transform: uppercase; font-size: .72em; color: #5a4a32; }
+  .bk-sec > h4 .ico { width: 15px; height: 15px; }
+  .bk-sec > h4 .r { margin-left: auto; letter-spacing: 0; text-transform: none; font-family: inherit; color: #8a7a5a; font-size: 1.05em; }
+  .bk-tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .bk-tier { position: relative; display: grid; gap: 8px; align-content: start; padding: 12px; border-radius: 14px; overflow: hidden;
+    background: linear-gradient(180deg, #23303f, #121a24); color: #e8e2d4; border: 1px solid rgba(201,180,138,.35); }
+  .bk-tier.t-konservatif { background: linear-gradient(180deg, #2c3a32, #141c17); }
+  .bk-tier.t-agresif { background: linear-gradient(180deg, #3a2a24, #1a110d); }
+  .bk-tier .sea { height: 64px; margin: -4px -4px 0; border-radius: 10px; background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(120,170,200,.14)); display: grid; place-items: center; }
+  .bk-tier .sea svg { width: 96px; height: 60px; }
+  .bk-tier h5 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.25em; color: #fff2d6; }
+  .bk-tier .tj { font-size: .78em; color: #b9b2a2; }
+  .bk-tier label { font-size: .74em; color: #cfc6b2; display: grid; gap: 4px; }
+  .bk-tier input { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px; border: 1px solid rgba(201,180,138,.45); background: rgba(0,0,0,.35); color: #fff2d6; font: inherit; font-size: 1.05em; }
+  .bk-q { display: flex; flex-wrap: wrap; gap: 4px; }
+  .bk-q button { flex: 1; min-width: 0; padding: 4px 2px; border-radius: 7px; border: 1px solid rgba(201,180,138,.4); background: rgba(255,255,255,.06); color: #e8dcc0; font-size: .7em; cursor: pointer; }
+  .bk-tier .btn { width: 100%; }
+  .bk-tier .busy { font-size: .78em; color: #e8c35a; display: flex; gap: 6px; align-items: center; }
+  .bk-tier .busy .ico { width: 14px; height: 14px; }
+  .bk-tier .btn.warn { background: linear-gradient(180deg, #8a3a22, #5a1e10); color: #fff2d6; }
+  .bk-risk { text-align: center; font-family: var(--font-display); font-style: italic; color: #5a4a32; font-size: 1.02em; padding: 2px 0; }
+  .bk-card { padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.62); border: 1px solid rgba(120,100,60,.26); color: #3b2a16; display: grid; gap: 8px; font-size: .9em; }
+  .bk-voy { display: grid; grid-template-columns: 54px 1fr; gap: 10px; align-items: start; }
+  .bk-voy .shp { width: 54px; height: 38px; }
+  .bk-voy b.t { font-family: var(--font-title); letter-spacing: .03em; color: #2e2010; }
+  .bk-voy .muted { font-size: .86em; }
+  .bk-bar { position: relative; height: 8px; border-radius: 99px; background: rgba(60,40,15,.12); overflow: hidden; margin: 6px 0 4px; }
+  .bk-bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: linear-gradient(90deg, #3a6a8a, #8ac0d8); }
+  .bk-kabar { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(40,60,80,.08); border-left: 3px solid #5a7a9a; font-style: italic; color: #2f3a4a; }
+  .bk-kabar small { display: block; font-style: normal; font-family: var(--font-title); letter-spacing: .1em; text-transform: uppercase; font-size: .72em; color: #5a7a9a; margin-bottom: 2px; }
+  .bk-voy .btn { margin-top: 8px; }
+  .bk-lap { display: grid; gap: 6px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(120deg, #2a1d0e, #120c05 72%); color: #f0e6d4; border: 1px solid rgba(232,195,90,.45); }
+  .bk-lap .hd { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+  .bk-lap .hd b { font-family: var(--font-title); color: #ffe7a3; letter-spacing: .03em; }
+  .bk-lap .num { margin-left: auto; font-family: var(--font-title); }
+  .bk-lap .num.up { color: #9fe0a8; } .bk-lap .num.dn { color: #f0a08a; }
+  .bk-lap p { margin: 0; font-style: italic; color: #e4d6b8; line-height: 1.45; }
+  .bk-book { border-radius: 14px; padding: 12px; background: linear-gradient(180deg, #f6ecd2, #ead9b2); border: 1px solid rgba(120,90,40,.35); color: #3a2a14; display: grid; gap: 8px; box-shadow: inset 0 0 0 4px rgba(255,255,255,.25); }
+  .bk-book .tot { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .bk-book .tot div { padding: 6px 8px; border-radius: 10px; background: rgba(120,90,40,.08); font-size: .8em; }
+  .bk-book .tot b { display: block; font-family: var(--font-title); font-size: 1.15em; color: #2e2010; }
+  .bk-book details { border-top: 1px dashed rgba(120,90,40,.35); padding-top: 6px; }
+  .bk-book summary { cursor: pointer; font-family: var(--font-title); letter-spacing: .03em; color: #4a3218; list-style: none; display: flex; gap: 6px; align-items: center; }
+  .bk-book summary::-webkit-details-marker { display: none; }
+  .bk-book summary .ico { width: 14px; height: 14px; }
+  .bk-book details p { margin: 6px 0 2px; font-family: var(--font-display); font-size: 1.02em; line-height: 1.5; color: #3a2a14; }
+  .bk-book .lock { color: #8a7a5a; font-size: .84em; display: flex; gap: 6px; align-items: center; }
+  .bk-book .lock .ico { width: 13px; height: 13px; }
+  .bk-rw { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: .8em; padding: 5px 0; border-top: 1px dashed rgba(120,90,40,.25); }
+  .bk-rw .up { color: #2f6a3a; } .bk-rw .dn { color: #8a3a22; }
+  .bk-board { border-radius: 14px; padding: 12px; background: linear-gradient(180deg, #1d1912, #0f0c08); color: #ece2cc; border: 1px solid rgba(232,195,90,.35); }
+  .bk-board h4 { margin: 0 0 6px; display: flex; gap: 6px; align-items: center; font-family: var(--font-title); letter-spacing: .12em; font-size: .74em; text-transform: uppercase; color: #f0cf78; }
+  .bk-board h4 .ico { width: 15px; height: 15px; }
+  .bk-board .row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; padding: 6px 2px; border-top: 1px dashed rgba(232,195,90,.18); font-size: .86em; }
+  .bk-board .row:first-of-type { border-top: 0; }
+  .bk-board .row .r { color: #f0cf78; font-family: var(--font-title); }
+  .bk-board .row b { color: #9fe0a8; font-family: var(--font-title); font-weight: 400; }
+  .bk-board .row.me { background: rgba(232,195,90,.12); border-radius: 8px; }
+  .bk-board .empty { color: #a59a84; font-size: .84em; padding: 6px 2px; }
+  .bk-ikn { font-size: .82em; color: #5a4a32; display: flex; gap: 6px; align-items: flex-start; }
+  .bk-ikn .ico { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; }
+  .bk-away { padding: 10px 12px; border-radius: 12px; background: rgba(40,52,70,.08); color: #2f3a4a; font-size: .86em; display: flex; gap: 8px; align-items: center; }
+  .bk-away .ico { width: 16px; height: 16px; }
+  /* perkenalan */
+  .bk-intro { display: grid; gap: 12px; }
+  .bk-intro .stage { position: relative; border-radius: 16px; padding: 18px; min-height: 120px; background: radial-gradient(ellipse at 70% 20%, rgba(255,200,120,.18), transparent 60%), linear-gradient(180deg, #1c1712, #0b0907); color: #e8dcc0; font-style: italic; line-height: 1.55; }
+  .bk-intro .stage::after { content: ''; position: absolute; right: 22px; top: 18px; width: 14px; height: 14px; border-radius: 50%; background: #ffcf7a; box-shadow: 0 0 24px 10px rgba(255,190,100,.35); }
+  .bk-intro .pg { text-align: center; font-family: var(--font-title); letter-spacing: .2em; font-size: .7em; color: #8a7a5a; }
+  /* kartu di panel Bank */
+  .bk-bankcard { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: linear-gradient(120deg, rgba(35,48,63,.95), rgba(18,26,36,.95)); color: #e8e2d4; border: 1px solid rgba(201,180,138,.35); font-size: .86em; }
+  .bk-bankcard b { font-family: var(--font-title); color: #ffe7a3; }
+  .bk-bankcard .btn { margin-left: auto; }
+  @media (max-width: 720px) {
+    .bk-tiers { grid-template-columns: 1fr; }
+    .bk-tier { grid-template-columns: 96px 1fr; align-items: center; }
+    .bk-tier .sea { grid-row: span 2; height: 72px; margin: 0; }
+    .bk-tier > *:not(.sea):not(h5):not(.tj) { grid-column: 1 / -1; }
+    .bk-book .tot { grid-template-columns: 1fr 1fr; }
+    .bk-bankcard .btn { margin-left: 0; width: 100%; }
+  }
+</style>
+<script>
+/* =====================================================================
+ * Tide v46 · Balai Kongsi & Ki Dorus
+ * Server: supabase/migrations/0062-balai-kongsi.sql
+ *   key 'kongsi' di getGameState (null = belum terbuka), endpoint api_kongsi(aksi, ...).
+ * Panel 'balaikongsi' (bangunan di Pelabuhan Rantai Lama; dari Bank di mana pun untuk melihat & memanggil pulang).
+ * Peluang & hasil sengaja tidak pernah sampai ke klien.
+ * ===================================================================== */
+var BK = (function () {
+  var papan = null, armed = {}, tick = null, introPage = -1;
+  var TIERS = [
+    { id: 'konservatif', name: 'Konservatif', ship: 'Jung beras & kain', tujuan: 'Otoland · FreeYork' },
+    { id: 'moderat', name: 'Moderat', ship: 'Pinisi rempah', tujuan: 'Gading Island · em pe\'er de pe\'er' },
+    { id: 'agresif', name: 'Agresif', ship: 'Lancang mutiara & cendana', tujuan: 'Karang Garam · balik Sowtour' }
+  ];
+  var PAGES = [
+    { at: 1000000, t: 'Daftar pertama', p: 'Huruf-huruf di halaman ini miring dan gemetar. Ki Dorus menulisnya pada malam pertama ia bekerja di Balai Pelelangan, umur enam belas. "Saya kira saya hanya mencatat barang," tulisnya di pinggir halaman. "Ternyata barangnya bisa menangis."' },
+    { at: 10000000, t: 'Malam lonceng tanpa tali', p: 'Suatu malam seseorang memotong tali lonceng pelelangan. Penjaga mencari pelakunya sampai pagi dan tak menemukannya. Di halaman ini, di bawah catatan harga, ada satu baris kecil: "Tali disimpan di bawah meja juru tulis. Dicatat."' },
+    { at: 50000000, t: 'Nama yang ia hapus', p: 'Satu nama dicoret begitu tebal sampai tintanya menembus tiga halaman. Di sebelahnya Ki Dorus menulis: "Lari ke timur, ke arah karang putih. Semoga lautnya lebih baik kepadamu daripada kami." Hanya itu satu-satunya nama yang pernah ia hapus.' },
+    { at: 100000000, t: 'Seperlima untuk J.T.', p: 'Deretan angka setoran, setiap pekan, bertahun-tahun. Di ujung tiap baris tertulis kecil: "1/5 untuk dana restorasi". Di halaman terakhir bab ini ada tulisan tangan lain, tegas dan rapi: "Diterima. J.T." Ki Dorus menggarisbawahinya tiga kali.' },
+    { at: 250000000, t: 'Halaman terakhir', p: 'Halaman ini kosong, kecuali satu nama di tengahnya: namamu. Di bawahnya: "Bukan untuk dijual. Untuk diingat." Tintanya masih basah.' }
+  ];
+
+  function st() { return (state && state.kongsi) || null; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(Math.round(n || 0)) : String(Math.round(n || 0)); }
+  function jt(n) { n = Number(n || 0); if (n >= 1000000) return (Math.round(n / 100000) / 10).toLocaleString('id-ID') + ' jt'; if (n >= 1000) return Math.round(n / 1000) + ' rb'; return String(n); }
+  function cap(n) { n = String(n || ''); return /^kapten\s/i.test(n) ? n : 'Kapten ' + n; }
+  function serverNow() { var s = st(); return s && s.now ? s.now + (Date.now() - (s._at || Date.now())) : Date.now(); }
+  function dur(ms) { ms = Math.max(0, ms); var h = Math.floor(ms / 3600000), m = Math.ceil(ms % 3600000 / 60000); if (m === 60) { h++; m = 0; } return h ? h + ' jam ' + m + ' menit' : m + ' menit'; }
+  function tierName(id) { for (var i = 0; i < TIERS.length; i++) if (TIERS[i].id === id) return TIERS[i].name; return id; }
+  function wealth() { var b = (state && state.bank && state.bank.bankBalance) || 0; return b + ((state && state.player && state.player.gold) || 0); }
+  function freePort() { return !!(window.DT && DT.rantaiOpen && DT.rantaiOpen()); }
+
+  /* ---------- Ki Dorus ---------- */
+  var KD_ = null;
+  function kd() {
+    if (KD_) return KD_;
+    var ap; try { ap = MTFace.npc('ki-dorus-rantai-lama', 'pustakawan', 0); } catch (e) { ap = {}; }
+    ap.age = 0.95; ap.head = 'peci'; ap.eye = 'glasses'; ap.outfit = 'koko'; ap.neck = 'chain'; ap.facial = 2; ap.hair = 5;
+    return (KD_ = { name: 'Ki Dorus', title: 'Balai Kongsi · Pelabuhan Rantai Lama', ap: ap });
+  }
+  function faceSvg() { try { return MTFace.svg(kd().ap, { bgColors: ['#3a3226', '#14100a'] }); } catch (e) { return ''; } }
+  function npc(text) {
+    var n = kd();
+    return '<div class="npc"><div class="npc-face">' + faceSvg() + '</div><div class="npc-body"><div class="npc-name">' + esc_(n.name) +
+      ' <span>&middot; ' + esc_(n.title) + '</span></div><div class="npc-text">' + text + '</div></div></div>';
+  }
+  function line() {
+    var s = st();
+    if (s && s.laporan && s.laporan.some(function (l) { return !l.recalled && l.payout === 0; })) return 'Dicatat. Laut berutang pada Tuan Kapten. Entah kapan ia ingat membayar.';
+    if (!freePort() && Math.random() < 0.3) return 'Sepi, ya? Tak apa. Buku saya tidak butuh keramaian.';
+    return pickLine_([
+      'Laut itu bendahara paling jujur, Tuan Kapten. Ia tidak pernah salah hitung, hanya pelit.',
+      'Kabar dari laut itu seperti gosip lapau. Separuh benar, separuh angin.',
+      'Jangan tanam emas yang Tuan Kapten tak sanggup kehilangan. Itu satu-satunya nasihat gratis saya.',
+      'Lonceng itu dulu dibunyikan tiap ada orang terjual. Sekarang tiap ada kapal pulang. Saya lebih suka bunyinya yang sekarang.',
+      'Laut jauh itu seperti perut, Tuan Kapten. Diberi terlalu banyak, ia muntah.',
+      'Nama, modal, tujuan. Semua dicatat. Yang tidak bisa saya catat cuma nasib.'
+    ], 'kdorus');
+  }
+
+  /* ---------- gambar kapal kecil ---------- */
+  function shipSvg(tier) {
+    var hull = '<path d="M8 40 Q48 52 88 40 L82 48 Q48 56 14 48 Z" fill="#5a3a22"/>';
+    var waves = '<path d="M0 52 Q12 48 24 52 T48 52 T72 52 T96 52" stroke="rgba(170,210,230,.5)" stroke-width="1.5" fill="none"/>';
+    var sails;
+    if (tier === 'konservatif') sails = '<rect x="46" y="10" width="2" height="32" fill="#3a2a1a"/><path d="M30 14 H64 L60 38 H34 Z" fill="#c9a86a"/><path d="M30 20 H64 M31 26 H63 M32 32 H62" stroke="#7a5a2a" stroke-width="1"/>';
+    else if (tier === 'moderat') sails = '<rect x="36" y="8" width="2" height="34" fill="#3a2a1a"/><rect x="58" y="12" width="2" height="30" fill="#3a2a1a"/><path d="M38 9 L38 38 L18 38 Z" fill="#e8dcc0"/><path d="M60 13 L60 38 L42 38 Z" fill="#e8dcc0"/><path d="M60 14 L78 38 L60 38 Z" fill="#d8ccb0"/>';
+    else sails = '<rect x="48" y="6" width="2" height="36" fill="#3a2a1a"/><path d="M50 7 Q72 20 70 38 L50 38 Z" fill="#a8302a"/><path d="M48 10 Q32 22 34 38 L48 38 Z" fill="#c9a441"/>';
+    return '<svg viewBox="0 0 96 58" aria-hidden="true">' + sails + hull + waves + '</svg>';
+  }
+
+  /* ---------- server ---------- */
+  function adopt(k) { if (!state) return; if (k) k._at = Date.now(); state.kongsi = k || null; }
+  function call(args, ok, fail) {
+    var r = google.script.run.withSuccessHandler(function (x) {
+      if (x) {
+        if (x.kongsi !== undefined) adopt(x.kongsi);
+        if (x.papan) papan = x.papan;
+        if (x.bank) state.bank = x.bank;
+        if (x.newGold != null && typeof patchGold_ === 'function') patchGold_(x.newGold);
+      }
+      if (ok) ok(x);
+    }).withFailureHandler(function (e) { if (fail) fail(e); else showToast(e.message, 'error'); });
+    r.api_kongsi.apply(r, args);
+  }
+
+  /* ---------- panel ---------- */
+  function intro() {
+    var P = [
+      ['<p>Balai panjang beratap tinggi. Di ujungnya meja kayu jati penuh buku. Seorang lelaki tua menulis tanpa menoleh.</p>', 'Nama, Tuan Kapten. Semua yang masuk balai ini dicatat.'],
+      ['<p>Ia akhirnya mengangkat kepala. Satu lensa kacamatanya retak. Di pinggangnya tergantung buku besar yang dirantai.</p>', 'Dulu di meja ini saya mencatat nama orang-orang yang dijual. Empat puluh tahun. Tinta saya tak pernah kering. Sekarang saya mencatat nama orang yang berani menanam emasnya di laut jauh. Lebih baik begitu, bukan?'],
+      ['<p>Ia menunjuk tiga kapal kecil di dermaga balai: sebuah jung, sebuah pinisi, sebuah lancang.</p>', 'Kapal kongsi berangkat tiap hari dan pulang sehari kemudian. Ada yang pulang membawa mutiara, ada yang tidak pulang sama sekali. Laut tidak pernah berjanji, Tuan Kapten. Saya juga tidak. Dan sebagian laba balai ini saya kirim ke IKN. Utang lama. Dicatat.']
+    ];
+    var i = Math.max(0, introPage), p = P[i];
+    setModal_(panelHeader_('book', 'Balai Kongsi', 'Pelabuhan Rantai Lama') +
+      '<div class="bk-intro"><div class="stage">' + p[0] + '</div>' + npc(p[1]) + '<div class="pg">' + (i + 1) + ' / ' + P.length + '</div>' +
+      '<div><button class="btn btn-gold" id="bkNext">' + (i < P.length - 1 ? 'Lanjut' : ic('book') + ' Buka buku kongsi') + '</button></div></div>');
+    document.getElementById('bkNext').onclick = function () {
+      au_('page');
+      if (i < P.length - 1) { introPage = i + 1; intro(); return; }
+      introPage = -1; call(['kenal'], function () { render(); });
+    };
+  }
+  function render() {
+    if (currentPanel !== 'balaikongsi') return;
+    var s = st();
+    if (!s) { setModal_(panelHeader_('book', 'Balai Kongsi', '') + '<div class="empty-state">' + ic('lock') + 'Balai Kongsi belum dibuka.</div>'); return; }
+    if (s.here && !s.kenal) { if (introPage < 0) introPage = 0; intro(); return; }
+    var now = serverNow(), active = s.active || [], busyT = {};
+    active.forEach(function (a) { busyT[a.tier] = a; });
+    var html = panelHeader_('book', 'Balai Kongsi', (s.here ? 'Pelabuhan Rantai Lama' : 'Buku kongsi Ki Dorus') + (s.musim ? ' &middot; ' + esc_(s.musim) : '')) + npc(line()) + '<div class="bk-wrap">';
+
+    // laporan baru
+    if (s.laporan && s.laporan.length) {
+      html += '<div class="bk-sec"><h4>' + ic('scroll') + ' Kapal pulang<span class="r">' + s.laporan.length + ' laporan baru</span></h4>' +
+        s.laporan.map(function (l) {
+          var net = (l.payout || 0) - l.modal;
+          return '<div class="bk-lap"><div class="hd"><b>' + esc_(tierName(l.tier)) + ' &middot; ' + esc_(l.tujuan) + '</b><span>modal ' + fmt(l.modal) + ' &rarr; ' + fmt(l.payout) + '</span>' +
+            '<span class="num ' + (net >= 0 ? 'up' : 'dn') + '">' + (net >= 0 ? '+' : '&minus;') + fmt(Math.abs(net)) + '</span></div><p>' + esc_(l.story || '') + '</p></div>';
+        }).join('') + '<div><button class="btn btn-ghost-ink" id="bkSeen">' + ic('check') + ' Dicatat</button></div></div>';
+    }
+
+    // kapal di laut
+    if (active.length) {
+      html += '<div class="bk-sec"><h4>' + ic('ship') + ' Di laut<span class="r">' + active.length + ' kapal</span></h4>' + active.map(function (a) {
+        var pct = Math.max(0, Math.min(100, (now - a.departMs) / Math.max(1, a.returnMs - a.departMs) * 100));
+        var back = a.returnMs - now, rc = Math.floor(a.modal * ((s.recallPct || 70) / 100));
+        var kab = a.kabar ? '<div class="bk-kabar"><small>Kabar dari laut</small>' + esc_(a.kabar) + '</div>'
+          : ' <span class="muted">Kabar dari laut datang dalam ' + dur(a.kabarMs - now) + '.</span>';
+        var btn = a.canRecall ? '<button class="btn ' + (armed[a.id] ? 'warn' : 'btn-ghost-ink') + '" data-bk-recall="' + a.id + '">' +
+          (armed[a.id] ? 'Yakin? Panggil pulang &middot; kembali ' + fmt(rc) : ic('reload') + ' Panggil pulang') + '</button>' : '';
+        return '<div class="bk-card bk-voy"><div class="shp">' + shipSvg(a.tier) + '</div><div><b class="t">' + esc_(tierName(a.tier)) + '</b> &middot; ' + esc_(a.tujuan) +
+          ' &middot; modal <b>' + fmt(a.modal) + '</b><div class="bk-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>' +
+          '<span class="muted">' + (back > 0 ? 'Pulang dalam ' + dur(back) + '.' : 'Merapat sebentar lagi&hellip;') + '</span>' + kab + btn + '</div></div>';
+      }).join('') + '</div>';
+    }
+
+    // tanam
+    if (s.here) {
+      var w = wealth();
+      html += '<div class="bk-sec"><h4>' + ic('coins') + ' Tanam modal<span class="r">Bank ' + fmt((state.bank || {}).bankBalance || 0) + ' &middot; tangan ' + fmt(state.player.gold) + '</span></h4><div class="bk-tiers">' +
+        TIERS.map(function (t) {
+          var b = busyT[t.id];
+          var body = b ? '<div class="busy">' + ic('hourglass') + ' Kapal masih di laut.</div>' :
+            '<label>Modal (min ' + fmt(s.min) + ')<input type="number" min="' + s.min + '" step="100000" inputmode="numeric" data-bk-in="' + t.id + '" placeholder="' + fmt(s.min) + '"></label>' +
+            '<div class="bk-q"><button data-bk-q="' + t.id + '" data-v="' + Math.floor(w / 4) + '">25%</button><button data-bk-q="' + t.id + '" data-v="' + Math.floor(w / 2) + '">50%</button><button data-bk-q="' + t.id + '" data-v="' + w + '">Semua</button></div>' +
+            '<button class="btn ' + (armed[t.id] ? 'warn' : 'btn-gold') + '" data-bk-go="' + t.id + '">' + (armed[t.id] ? 'Lebih dari separuh harta. Yakin?' : ic('anchor') + ' Tanam') + '</button>';
+          return '<div class="bk-tier t-' + t.id + '"><div class="sea">' + shipSvg(t.id) + '</div><h5>' + t.name + '</h5><span class="tj">' + esc_(t.ship) + ' &middot; ' + esc_(t.tujuan) + '</span>' + body + '</div>';
+        }).join('') + '</div><div class="bk-risk">&ldquo;Semua usaha pasti ada risikonya. High risk, high return.&rdquo;</div>' +
+        '<span class="muted small">Kapal pulang sehari kemudian. Hasil masuk ke Bank di mana pun kamu berada. Satu kapal per jenis.</span></div>';
+    } else {
+      html += '<div class="bk-away">' + ic('anchor') + '<span>Kongsi baru hanya dicatat di <b>Balai Kongsi, Pelabuhan Rantai Lama</b>. Dari sini kamu bisa melihat kapalmu dan memanggilnya pulang.</span></div>';
+    }
+
+    // Buku Ki Dorus
+    var bk = s.buku || {}, atSea = active.reduce(function (t, a) { return t + (a.modal || 0); }, 0), net = (bk.bayar || 0) - Math.max(0, (bk.modal || 0) - atSea);
+    var pages = PAGES.map(function (p) {
+      if ((bk.modal || 0) >= p.at) return '<details><summary>' + ic('book') + esc_(p.t) + '</summary><p>' + esc_(p.p) + '</p></details>';
+      return '<div class="lock">' + ic('lock') + 'Halaman terkunci &middot; terbuka setelah ' + jt(p.at) + ' modal ditanam</div>';
+    });
+    var firstLocked = PAGES.findIndex ? PAGES.findIndex(function (p) { return (bk.modal || 0) < p.at; }) : -1;
+    if (firstLocked >= 0) pages = pages.slice(0, firstLocked + 1);   // hanya halaman berikutnya yang tampak terkunci
+    html += '<div class="bk-sec"><h4>' + ic('journal') + ' Buku Ki Dorus</h4><div class="bk-book"><div class="tot">' +
+      '<div>Modal ditanam<b>' + fmt(bk.modal) + '</b></div><div>Kembali' + (atSea ? ' &middot; ' + fmt(atSea) + ' di laut' : '') + '<b>' + fmt(bk.bayar) + '</b></div><div>' + (net >= 0 ? 'Untung' : 'Rugi') + ' bersih<b>' + fmt(Math.abs(net)) + '</b></div></div>' +
+      pages.join('') + riwayatHtml() + '</div></div>';
+
+    // Papan Lonceng
+    html += loncengHtml();
+    if (s.ikn) html += '<div class="bk-ikn">' + ic('flag') + '<span>Tiap Senin pagi Ki Dorus mengirim sebagian laba balai ke Restorasi IKN' +
+      (papan && papan.kiDorus ? ' (sejauh ini ' + fmt(papan.kiDorus) + ' gold)' : '') + ', atas nama para pengongsi yang kapalnya tak pulang utuh.</span></div>';
+    html += '</div>';
+    setModal_(html);
+    bind();
+  }
+  function riwayatHtml() {
+    var rw = papan && papan.riwayat; if (!rw || !rw.length) return '';
+    return '<details><summary>' + ic('scroll') + 'Catatan 10 kongsi terakhir</summary>' + rw.map(function (r) {
+      var n = (r.payout || 0) - r.modal;
+      return '<div class="bk-rw"><span>' + esc_(tierName(r.tier)) + ' &middot; ' + esc_(r.tujuan) + (r.recalled ? ' &middot; dipanggil pulang' : '') + '<br><span class="muted">modal ' + fmt(r.modal) + ' &rarr; ' + fmt(r.payout) + '</span></span>' +
+        '<b class="' + (n >= 0 ? 'up' : 'dn') + '">' + (n >= 0 ? '+' : '&minus;') + fmt(Math.abs(n)) + '</b></div>';
+    }).join('') + '</details>';
+  }
+  function loncengHtml() {
+    var L = papan && papan.lonceng;
+    return '<div class="bk-board"><h4>' + ic('trophy') + ' Papan Lonceng &middot; pekan ini</h4>' +
+      (L && L.length ? L.map(function (x, i) {
+        return '<div class="row' + (x.me ? ' me' : '') + '"><span class="r">' + (i + 1) + '</span><span>' + esc_(cap(x.name)) + ' <span style="color:#a59a84">&middot; ' + esc_(tierName(x.tier)) + '</span></span><b>+' + fmt(x.untung) + '</b></div>';
+      }).join('') : '<div class="empty">Lonceng belum berdentang pekan ini.</div>') + '</div>';
+  }
+  function bind() {
+    var c = document.getElementById('modalContent'); if (!c) return;
+    var seen = document.getElementById('bkSeen');
+    if (seen) seen.onclick = function () { seen.disabled = true; au_('page'); call(['lihat'], function () { render(); }); };
+    c.querySelectorAll('[data-bk-q]').forEach(function (b) {
+      b.onclick = function () { var el = c.querySelector('[data-bk-in="' + b.getAttribute('data-bk-q') + '"]'); if (el) { el.value = Math.max(0, Number(b.getAttribute('data-v')) || 0); el.focus(); } };
+    });
+    c.querySelectorAll('[data-bk-go]').forEach(function (b) {
+      b.onclick = function () {
+        var t = b.getAttribute('data-bk-go'), el = c.querySelector('[data-bk-in="' + t + '"]'), v = Math.floor(Number(el && el.value) || 0), s = st();
+        if (!canAct_()) return;
+        if (v < s.min) { showToast('Modal kongsi paling sedikit ' + fmt(s.min) + ' gold.', 'error'); return; }
+        if (v > wealth()) { showToast('Gold di Bank dan di tangan tidak cukup.', 'error'); return; }
+        if (v > wealth() / 2 && !armed[t]) { armed[t] = v; render(); var e2 = c.querySelector('[data-bk-in="' + t + '"]'); if (e2) e2.value = v; return; }
+        delete armed[t]; b.disabled = true;
+        call(['tanam', t, v], function () {
+          au_('coin', { n: 4 });
+          showToast('Dicatat. ' + tierName(t) + ' berangkat dengan modal ' + fmt(v) + ' gold.', 'success');
+          if (typeof saveSnap_ === 'function') saveSnap_();
+          render();
+        }, function (e) { b.disabled = false; showToast(e.message, 'error'); render(); });
+      };
+    });
+    c.querySelectorAll('[data-bk-recall]').forEach(function (b) {
+      b.onclick = function () {
+        var id = Number(b.getAttribute('data-bk-recall'));
+        if (!armed[id]) { armed[id] = 1; render(); return; }
+        delete armed[id]; b.disabled = true;
+        call(['panggil', id], function () { au_('coin', { n: 2 }); showToast('Kapal kongsi dipanggil pulang. Modal kembali ke Bank.', 'info'); render(); },
+          function (e) { b.disabled = false; showToast(e.message, 'error'); render(); });
+      };
+    });
+  }
+  function refresh() { call(['status'], function () { render(); }, function () { }); }
+  function startTick() {
+    stopTick();
+    tick = setInterval(function () {
+      if (currentPanel !== 'balaikongsi') { stopTick(); return; }
+      var s = st(); if (!s) return;
+      var now = serverNow(), due = (s.active || []).some(function (a) { return a.returnMs <= now || (!a.kabar && a.kabarMs <= now); });
+      if (due) refresh();
+      else if (!document.querySelector('#modalContent input:focus') && !Object.keys(armed).length) render();
+    }, 30000);
+  }
+  function stopTick() { if (tick) { clearInterval(tick); tick = null; } }
+
+  /* ---------- kaitan ---------- */
+  if (typeof PANEL_SIZE !== 'undefined') PANEL_SIZE.balaikongsi = 'mid';
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (panel === 'balaikongsi') {
+        if (!st()) { showToast('Balai Kongsi masih tutup.', 'info'); return; }
+        armed = {};
+        var r = origOpen.apply(this, arguments); render(); refresh(); startTick(); return r;
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  // Bank: ringkasan kapal kongsi di mana pun
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'bank') return;
+    var s = st(); if (!s) return;
+    var n = (s.active || []).length, m = (s.laporan || []).length; if (!n && !m) return;
+    var c = document.getElementById('modalContent'), v = c && c.querySelector('.vault'); if (!v || c.querySelector('.bk-bankcard')) return;
+    v.insertAdjacentHTML('afterend', '<div class="bk-bankcard">' + ic('ship') + '<span>Kapal kongsi di laut: <b>' + n + '</b>' + (m ? ' &middot; laporan baru: <b>' + m + '</b>' : '') + '</span>' +
+      '<button class="btn btn-sm btn-gold" id="bkFromBank">' + ic('book') + ' Buku kongsi</button></div>');
+    var b = document.getElementById('bkFromBank'); if (b) b.onclick = function () { openPanel('balaikongsi'); };
+  });
+  wrap_('handleInbox_', null, function (it) {
+    if (!it || it.type !== 'kongsi') return;
+    if (it.kind === 'kabar') { showToast('Kabar dari laut untuk kapal kongsi ' + tierName(it.tier) + '. Lihat di Buku kongsi.', 'info'); au_('page'); }
+    else if (it.kind === 'pulang') {
+      var net = (it.payout || 0) - (it.modal || 0);
+      showToast('Kapal kongsi ' + tierName(it.tier) + ' pulang: ' + fmt(it.payout) + ' gold masuk Bank (' + (net >= 0 ? '+' : '−') + fmt(Math.abs(net)) + ').', net >= 0 ? 'success' : 'info');
+      au_(net > 0 ? 'coin' : 'page', { n: 4 });
+    } else if (it.kind === 'ikn') { showToast('Ki Dorus mengirim ' + fmt(it.share) + ' gold atas namamu ke Restorasi IKN. "Laut mengambil, Garuda menerima. Dicatat."', 'info'); }
+    if (typeof loadState === 'function') setTimeout(loadState, 400);
+  });
+  wrap_('applyFreshState_', function () {
+    var s = st(); if (s) s._at = Date.now();
+    if (currentPanel === 'balaikongsi' && !document.querySelector('#modalContent input:focus')) render();
+  });
+  // Rantai Lama: lapau & kedatangan
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tavern' || !st() || !state.city || state.city.CityId !== 'rantai_lama') return;
+    var el = document.getElementById('rumorList'); if (!el || el.querySelector('.bk-rumor')) return;
+    var d = document.createElement('div'); d.className = 'card rumor bk-rumor';
+    d.innerHTML = ic('chat') + '<span>' + pickLine_(['Lentera di meja Ki Dorus tak pernah padam. Katanya ia menulis sampai pagi.', 'Kalau lonceng balai berdentang, ada kapal kongsi yang pulang membawa untung.', 'Ki Dorus tak pernah lupa satu nama pun. Itu yang membuat orang segan, dan sebagian takut.'], 'bkrum') + '</span>';
+    el.insertBefore(d, el.firstChild);
+  });
+
+  return { st: st, on: function () { return !!st(); }, render: render, open: function () { openPanel('balaikongsi'); } };
+})();
+</script>

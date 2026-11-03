@@ -118,6 +118,8 @@
       for (var i = 0; i < d.feathers.length; i++) { var f = d.feathers[i], fl = inst.reduced ? 1 : 0.7 + 0.3 * Math.sin(t * 2 + f.ph); glowAt(ctx, f.x, f.y, d.u * 0.35, '210,225,255', 0.45 * lo * fl); ctx.fillStyle = 'rgba(235,240,255,' + (0.8 * lo * fl).toFixed(3) + ')'; ctx.fillRect(f.x - 0.6, f.y - d.u * 0.18, 1.2, d.u * 0.36); }
       ctx.globalCompositeOperation = 'source-over';
     }
+    // lentera meja Ki Dorus: selalu menyala, lebih terang saat malam
+    if (d.balai) { var fl0 = inst.reduced ? 1 : 0.8 + 0.2 * Math.sin(t * 3.1); glowAt(ctx, d.balai.x, d.balai.y, d.u * (0.9 + lo * 1.6), '255,190,110', (0.35 + 0.5 * lo) * fl0); }
     // kabut rendah
     ctx.fillStyle = 'rgba(200,196,186,' + (0.12 + 0.05 * Math.sin(t * 0.3)).toFixed(3) + ')'; ctx.fillRect(0, d.q - d.u * 3, inst.W, d.u * 3);
   }
@@ -134,6 +136,18 @@
     var feathers = []; for (var f = 0; f < 22; f++) feathers.push({ x: gx + u * 0.3 + r() * (gw * 0.34), y: q - gh * (0.2 + r() * 0.65), ph: r() * 6 });
     for (var f2 = 0; f2 < 14; f2++) feathers.push({ x: gx + gw * 0.64 + r() * (gw * 0.3), y: q - gh * (0.2 + r() * 0.65), ph: r() * 6 });
     H.hot(B, 'gudang', 'Dinding Gudang', 'moon', gx, q - gh - u * 1.2, gw, gh + u * 1.2);
+    // Tide v46: Balai Kongsi Ki Dorus (bekas Balai Pelelangan) di belakang menara lonceng
+    var balai = null;
+    if (window.BK && BK.on()) {
+      var kx0 = u * 9.9, kw0 = u * 3.8, kh0 = u * 2.3;
+      H.bld(B, { x: kx0, w: kw0, base: q, h: kh0, roof: 'gable', rh: u * 1.2, wall: '#7a6a56', roofCol: '#33281f' });
+      ctx.fillStyle = '#5a4a38'; for (var c0 = 0; c0 < 4; c0++) ctx.fillRect(kx0 + u * 0.2 + c0 * (kw0 - u * 0.5) / 3, q - kh0, u * 0.12, kh0);
+      ctx.fillStyle = '#20180f'; ctx.fillRect(kx0 + kw0 * 0.58, q - kh0 * 0.62, kw0 * 0.2, kh0 * 0.62);
+      H.sign(ctx, kx0 + kw0 * 0.08, q - kh0 * 1.0, kw0 * 0.84, u * 0.42, ['BALAI KONGSI'], 'board', { bg: '#1e1a14', fg: '#f0cf78', frame: '#6a5a3a' });
+      balai = { x: kx0 + kw0 * 0.68, y: q - kh0 * 0.5 };
+      H.hot(B, 'balaikongsi', 'Balai Kongsi', 'book', kx0, q - kh0 - u * 1.4, kw0, kh0 + u * 1.4);
+      B.moored.push({ type: 'junk', x: B.W * 0.36, y: B.H * 0.86, s: B.H * 0.0011, dir: -1, flag: '#c9a441' });
+    }
     // menara lonceng pelelangan
     var bx = u * 11.8; ctx.fillStyle = '#3a342e'; ctx.fillRect(bx - u * 0.12, q - u * 3.6, u * 0.24, u * 3.6); ctx.fillRect(bx - u * 0.7, q - u * 3.6, u * 1.4, u * 0.18);
     // bengkel rantai kecil: tungku dingin, huruf T dua kali di kusen
@@ -157,7 +171,7 @@
       stall(u * 26.6, u * 2.6, u * 1.7, '#6a5c4a', '#2a2420', 'ship', 'Galangan Lonceng', 'wrench', 'GALANGAN');
       B.flags.push({ x: bx, y: q - u * 4.2, h: u * 0.9, col: '#e8c35a' });
     }
-    B.dyn.push({ type: 'fn', fn: drawRantai, bell: { x: bx, y: q - u * 3.4 }, feathers: feathers, u: u, q: q });
+    B.dyn.push({ type: 'fn', fn: drawRantai, bell: { x: bx, y: q - u * 3.4 }, feathers: feathers, u: u, q: q, balai: balai });
     B.noPosters = true; if (free) B.walk = { style: 'villagers', n: 5, x0: u * 3, x1: u * 22 }; else { B.walk = null; B.roamers = []; }
   }
 
