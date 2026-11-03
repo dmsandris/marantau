@@ -1,0 +1,500 @@
+<!--
+  Tide v45 · Bajak laut "Tony and Gank" (event GM terjadwal)
+  - Kartu kepung (sinematik tn_kepung + dialog Tony): Lawan / Menyerah
+  - Pertempuran memakai layar tempur biasa dalam "mode Tony": hanya Tembak, Isi Meriam, Menyerah;
+    armada 4 kapal digambar di kanvas; HUD menunjukkan kapal yang sedang jadi sasaran
+  - Ringkasan: daftar rampasan / jarahan gudang mesiu
+  - Bisikan lapau (state.tony.rumors) + kabut gelap di peta (state.tony.fog)
+  - Bagian "Tony & Gank" di Panel GM (api_gmTony)
+  Server: supabase/migrations/0061-tony-gank.sql
+-->
+<style>
+  #tnCard { position: fixed; inset: 0; z-index: 8900; background: #05060a; opacity: 0; transition: opacity .7s; }
+  #tnCard.show { opacity: 1; } #tnCard.out { opacity: 0; transition: opacity .4s; }
+  #tnCard canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #tnCard .tn-skip { position: absolute; right: max(14px, env(safe-area-inset-right)); top: max(14px, env(safe-area-inset-top)); z-index: 2; background: rgba(10,10,12,.55); color: #e8e4dc;
+    border: 1px solid rgba(220,214,200,.35); border-radius: 999px; padding: 7px 14px; font: 600 13px Georgia, serif; cursor: pointer; opacity: 0; transition: opacity .4s; }
+  #tnCard .tn-skip.on { opacity: .85; }
+  .tn-dlg { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translate(-50%, 16px); width: min(720px, calc(100% - 28px));
+    display: grid; grid-template-columns: 92px 1fr; gap: 14px; padding: 16px 18px; border-radius: 16px; background: rgba(12,12,14,.84);
+    border: 1px solid rgba(190,186,176,.38); box-shadow: 0 18px 50px rgba(0,0,0,.55); backdrop-filter: blur(5px); color: #ebe6da; font-family: Georgia, serif;
+    opacity: 0; transition: opacity .6s, transform .6s; }
+  .tn-dlg.in { opacity: 1; transform: translate(-50%, 0); }
+  .tn-face { width: 92px; height: 92px; border-radius: 14px; overflow: hidden; border: 2px solid #8d8a80; background: #1c1c20; }
+  .tn-face svg { width: 100%; height: 100%; display: block; }
+  .tn-who { font: 700 13px Georgia, serif; letter-spacing: .08em; text-transform: uppercase; color: #b9b4a6; margin-bottom: 4px; }
+  .tn-who b { color: #f0d58a; }
+  .tn-line { font-size: 1.04em; line-height: 1.55; min-height: 3.1em; }
+  .tn-line i { color: #b9b4a6; }
+  .tn-fleet { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+  .tn-fleet span { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); color: #d9d4c7; }
+  .tn-acts { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .tn-acts .btn { flex: 1 1 200px; }
+  .tn-acts small { flex-basis: 100%; color: #a8a396; font-size: 12px; }
+  @media (max-width: 560px) { .tn-dlg { grid-template-columns: 64px 1fr; gap: 10px; padding: 12px; } .tn-face { width: 64px; height: 64px; } .tn-line { font-size: .96em; } }
+
+  /* layar tempur mode Tony */
+  #combatOverlay.tony-mode .combat-action-btn[data-tactic="flee"],
+  #combatOverlay.tony-mode .combat-action-btn[data-tactic="bribe"],
+  #combatOverlay.tony-mode .combat-action-btn[data-tactic="negotiate"],
+  #combatOverlay.tony-mode .combat-action-btn[data-tactic="ram"] { display: none; }
+  #combatOverlay .tn-serah { display: none; }
+  #combatOverlay.tony-mode .tn-serah { display: flex; }
+  #combatOverlay.tony-mode .tn-serah .cab-label { color: #f3ead6; }
+  #combatOverlay .tn-fog { position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 1.2s; }
+  #combatOverlay.tony-mode .tn-fog { opacity: 1; }
+  #combatOverlay .tn-fog i { position: absolute; width: 70%; height: 46%; border-radius: 50%; filter: blur(30px);
+    background: radial-gradient(closest-side, rgba(150,150,158,.34), rgba(150,150,158,0)); animation: tnDrift 26s linear infinite; }
+  #combatOverlay .tn-fog i:nth-child(1) { left: -20%; top: 18%; }
+  #combatOverlay .tn-fog i:nth-child(2) { left: 40%; top: 4%; animation-duration: 34s; animation-direction: reverse; }
+  #combatOverlay .tn-fog i:nth-child(3) { left: 10%; top: 48%; animation-duration: 41s; opacity: .7; }
+  @keyframes tnDrift { 0% { transform: translateX(-8%); } 50% { transform: translateX(10%); } 100% { transform: translateX(-8%); } }
+  @media (prefers-reduced-motion: reduce) { #combatOverlay .tn-fog i { animation: none; } }
+  .tn-hudfleet { display: flex; gap: 3px; margin-top: 5px; }
+  .tn-hudfleet span { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); position: relative; overflow: hidden; }
+  .tn-hudfleet span.on { box-shadow: 0 0 0 1px #f0d58a; }
+  .tn-hudfleet span b { position: absolute; inset: 0; right: auto; background: #b3261e; }
+  .tn-hudfleet-l { font-size: 11px; opacity: .85; margin-top: 2px; }
+
+  /* ringkasan */
+  .tn-loot { text-align: left; margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(60,40,24,.08); border: 1px dashed rgba(120,80,40,.45); }
+  .tn-loot h4 { margin: 0 0 6px; font-family: var(--font-title, Georgia, serif); font-size: 14px; }
+  .tn-loot ul { margin: 0; padding-left: 18px; columns: 2; font-size: 13.5px; }
+  .tn-loot.win { background: rgba(212,168,76,.16); border-color: rgba(176,128,30,.6); }
+  .tn-quote { margin: 10px 0 2px; font-style: italic; text-align: center; color: var(--parch-muted, #7b6445); font-size: 13.5px; }
+  @media (max-width: 480px) { .tn-loot ul { columns: 1; } }
+
+  /* kabut di peta */
+  .sea-chart .tn-mapfog { pointer-events: none; }
+  .sea-chart .tn-mapfog .tn-puff { animation: tnPuff 9s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .sea-chart .tn-mapfog .tn-puff:nth-child(2) { animation-duration: 12s; animation-delay: -3s; }
+  .sea-chart .tn-mapfog .tn-puff:nth-child(3) { animation-duration: 15s; animation-delay: -7s; }
+  @keyframes tnPuff { 0%, 100% { transform: translate(0, 0) scale(1); opacity: .85; } 50% { transform: translate(6px, -3px) scale(1.12); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .sea-chart .tn-mapfog .tn-puff { animation: none; } }
+
+  /* panel GM */
+  #mtGmPanel .tn-gm table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+  #mtGmPanel .tn-gm td { padding: 6px 4px; border-top: 1px solid rgba(79,51,30,.15); vertical-align: top; }
+  #mtGmPanel .tn-gm .st { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: rgba(79,51,30,.1); }
+  #mtGmPanel .tn-gm .st.aktif { background: #a3361e; color: #fff2ea; }
+  #mtGmPanel .tn-gm .st.terjadwal { background: #f6dcc9; color: #8a2c14; }
+  #mtGmPanel .tn-gm .x { border: 0; background: none; color: #a3361e; cursor: pointer; font: 700 12px Georgia, serif; padding: 0; }
+</style>
+
+<script>
+var MTTony = (function () {
+  'use strict';
+  if (typeof window.openCombatScene_ !== 'function') return {};
+  var SHIPS = [{ n: 'Bayang Lambung', a: 0, b: 0.2 }, { n: 'Si Jepit', a: 0.2, b: 0.4 }, { n: 'Kantong Bolong', a: 0.4, b: 0.6 }, { n: 'Tangan Panjang', a: 0.6, b: 1 }];
+  var QUOTE = 'Laut tidak mencuri. Yang mencuri adalah orang yang tahu kapan kau lengah.';
+  var NOFIGHT = {
+    flee: 'Tony tersenyum tipis: "Kabur? Ke mana? Empat arah sudah kami tutup."',
+    bribe: 'Tony merapikan kacamatanya: "Suap? Semua gold-mu toh akan masuk bukuku."',
+    negotiate: 'Tony merapikan kacamatanya: "Suap? Semua gold-mu toh akan masuk bukuku."',
+    ram: 'Menabrak empat kapal sekaligus? Lambungmu yang hancur duluan, Kapten.'
+  };
+  var chosen = {}, lastT = null, busy = false;
+
+  function enc() { var e = window.state && state.voyage && state.voyage.encounter; return e && e.kind === 'tony' ? e : null; }
+  function tEnc() { var e = enc(); if (e) { lastT = e; return e; } return (typeof combatSceneOpen !== 'undefined' && combatSceneOpen && lastT) ? lastT : null; }
+  function rpc(name, args) { return new Promise(function (ok, fail) { google.script.run.withSuccessHandler(ok).withFailureHandler(fail)[name].apply(null, args || []); }); }
+  function E(s) { return typeof esc_ === 'function' ? esc_(s) : String(s == null ? '' : s); }
+  function G(n) { return typeof formatGold === 'function' ? formatGold(n) : Number(n || 0).toLocaleString('id-ID'); }
+  function sfx(n) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n); } catch (e) { } }
+  function face() {
+    try { return MTFace.svg(MTFace.npc('tony|juru hitung tangan panjang', 'bajak', 0), { bgColors: ['#3a3a40', '#0c0c0e'] }); } catch (e) { return ''; }
+  }
+  function target(e) {
+    var dealt = e && e.enemyMaxHp ? 1 - e.enemyHp / e.enemyMaxHp : 0;
+    for (var i = 0; i < SHIPS.length; i++) if (dealt < SHIPS[i].b) return i;
+    return 3;
+  }
+
+  /* ================= KARTU KEPUNG ================= */
+  var LINES = [
+    '<i>Kabut menebal. Empat layar abu-abu muncul dari empat arah sekaligus. Bendera tengkorak memegang neraca berkibar di tiang tertinggi.</i>',
+    '<b>Tony:</b> "Selamat sore, Kapten. Jangan repot menghitung. Kami sudah menghitungnya untukmu."',
+    '<b>Tony:</b> "Muatanmu: semua. Gold-mu: enam dari sepuluh. Sisanya untuk ongkos pulang. Kami bukan binatang. Jadi... mau melawan, atau mau pulang?"'
+  ];
+  function showCard(e) {
+    var key = e.rolledAt; if (document.getElementById('tnCard')) return;
+    if (typeof currentPanel !== 'undefined' && currentPanel) closeModal();
+    var ov = document.createElement('div'); ov.id = 'tnCard';
+    ov.innerHTML = '<canvas></canvas><button class="tn-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button>' +
+      '<div class="tn-dlg" role="dialog" aria-label="Dikepung Tony and Gank"><div class="tn-face">' + face() + '</div><div>' +
+      '<div class="tn-who"><b>Tony</b> &middot; Tony and Gank</div><div class="tn-line"></div>' +
+      '<div class="tn-fleet">' + SHIPS.map(function (s) { return '<span>' + s.n + '</span>'; }).join('') + '</div></div>' +
+      '<div class="tn-acts"></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { if (window.MTCine) stop = MTCine.play(ov.querySelector('canvas'), 'tn_kepung') || stop; } catch (x) { }
+    sfx('horn');
+    var dlg = ov.querySelector('.tn-dlg'), line = ov.querySelector('.tn-line'), acts = ov.querySelector('.tn-acts'), skip = ov.querySelector('.tn-skip'), i = 0, done = false;
+    function close(cb) {
+      if (done) return; done = true; document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (x) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 420);
+      if (cb) setTimeout(cb, 80);
+    }
+    function step() {
+      line.innerHTML = LINES[i];
+      if (i < LINES.length - 1) { acts.innerHTML = '<button class="btn btn-gold" type="button">Lanjut &nbsp;&#8250;</button>'; acts.firstChild.onclick = function () { sfx('page'); i++; step(); }; return; }
+      acts.innerHTML = '<button class="btn btn-danger btn-lg" type="button" data-t="lawan">' + ic('swords') + '&nbsp; Lawan</button>' +
+        '<button class="btn btn-ghost-ink btn-lg" type="button" data-t="serah">' + ic('flag') + '&nbsp; Menyerah</button>' +
+        '<small>Tidak ada jalan kabur, suap, atau runding. Melawan berarti kapalmu ikut rusak.</small>';
+      acts.querySelector('[data-t=lawan]').onclick = function () { chosen[key] = 1; close(function () { window.openCombatScene_(); }); };
+      acts.querySelector('[data-t=serah]').onclick = function () {
+        if (busy) return; busy = true; this.disabled = true;
+        rpc('api_tonyRaid', ['serah']).then(function (r) { busy = false; close(function () { resultModal(r); }); },
+          function (err) { busy = false; showToast(err.message, 'error'); close(function () { loadState(); }); });
+      };
+    }
+    function reveal() { if (dlg.classList.contains('in')) return; dlg.classList.add('in'); step(); }
+    function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); reveal(); } }
+    document.addEventListener('keydown', onKey);
+    skip.onclick = reveal;
+    setTimeout(function () { skip.classList.add('on'); }, 900);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(reveal, 3400);
+  }
+
+  /* hasil menyerah dari kartu (layar tempur belum pernah dibuka) */
+  function lootHtml(r) {
+    if (!r) return '';
+    if (r.result === 'won') return '<div class="tn-loot win"><h4>' + ic('trophy') + ' Gudang mesiu Tangan Panjang meledak</h4><p class="small" style="margin:0">Jarahan <b>+' + G(r.gold) + ' gold</b>. Muatanmu utuh. Tony and Gank menghindarimu sampai perairan ini tenang.</p></div>';
+    var rb = r.rob || {}, items = rb.cargo || [];
+    return '<div class="tn-loot"><h4>' + ic('anchor') + ' Dirampas Tony and Gank</h4>' +
+      '<p class="small" style="margin:0 0 6px"><b>' + G(rb.gold) + ' gold</b> (' + (rb.pct || 60) + '% gold di tangan) &middot; ' + (items.length ? 'seluruh muatan:' : 'palka memang kosong.') + '</p>' +
+      (items.length ? '<ul>' + items.map(function (x) { return '<li>' + E(x.qty) + ' &times; ' + E(x.name) + '</li>'; }).join('') + '</ul>' : '') +
+      '<p class="muted small" style="margin:8px 0 0">Gold di bank, isi gudang, dan barang quest aman.</p></div>';
+  }
+  function resultModal(r) {
+    var html = (typeof panelHeader_ === 'function' ? panelHeader_('skull', 'Dikepung Tony and Gank', 'Kapal dilepas di perairan tujuan') : '<h2>Dikepung Tony and Gank</h2>') +
+      '<div style="padding:4px 2px"><p>' + E(r.message) + '</p>' + lootHtml(r) + '<p class="tn-quote">"' + QUOTE + '"</p>' +
+      '<button class="btn btn-gold btn-lg" style="width:100%;margin-top:10px" type="button" id="tnOk">Lanjutkan</button></div>';
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    var b = document.getElementById('tnOk'); if (b) b.onclick = function () { closeModal(); loadState(); };
+    loadState();
+  }
+
+  /* ================= LAYAR TEMPUR MODE TONY ================= */
+  var origOpen = window.openCombatScene_;
+  window.openCombatScene_ = function () {
+    var e = enc();
+    if (e && !e.fought && !chosen[e.rolledAt]) { showCard(e); return; }
+    var r = origOpen.apply(this, arguments);
+    if (e) enterMode(e);
+    return r;
+  };
+  function enterMode(e) {
+    lastT = e;
+    var ov = document.getElementById('combatOverlay'); if (!ov) return;
+    ov.classList.add('tony-mode');
+    if (!ov.querySelector('.tn-fog')) { var f = document.createElement('div'); f.className = 'tn-fog'; f.innerHTML = '<i></i><i></i><i></i>'; ov.insertBefore(f, ov.firstChild.nextSibling); }
+    var bar = document.getElementById('combatActionBar');
+    if (bar && !bar.querySelector('.tn-serah')) {
+      bar.insertAdjacentHTML('beforeend', '<div class="combat-action-btn tn-serah" data-tactic="serah" data-key="3" onclick="MTTony.serah()"><span class="cab-icon" data-icon="flag"></span>' +
+        '<span class="cab-label">Menyerah</span><span class="cab-tip">Kibarkan bendera putih. Muatan &amp; gold di tangan dirampas, kerusakan yang sudah terjadi tetap.</span></div>');
+      if (typeof hydrateIcons_ === 'function') hydrateIcons_(bar);
+    }
+    var ef = document.getElementById('combatEnemyFace'); if (ef) ef.innerHTML = face();
+    var lb = document.getElementById('combatLogBox');
+    if (lb && (e.round || 1) <= 1) lb.innerHTML = '<p><b>Tony:</b> "Berani juga. Baik, kita catat."</p><p class="muted">Empat kapal menembak bersama setiap ronde. Tidak bisa kabur, suap, runding, atau tabrak. Kapalmu tidak akan tenggelam, tapi kalah berarti dirampas.</p>';
+    hud(e);
+  }
+  function hud(e) {
+    var sub = document.getElementById('combatEnemySub');
+    if (sub) sub.textContent = 'Armada 4 kapal · Level ' + e.enemyLevel + ' · tak bisa kabur, suap, runding';
+    var host = document.querySelector('.combat-hud.hud-right'); if (!host) return;
+    var el = host.querySelector('.tn-hudfleet-w');
+    if (!el) { el = document.createElement('div'); el.className = 'tn-hudfleet-w'; host.appendChild(el); }
+    var dealt = e.enemyMaxHp ? 1 - e.enemyHp / e.enemyMaxHp : 0, ti = target(e);
+    el.innerHTML = '<div class="tn-hudfleet">' + SHIPS.map(function (s, i) {
+      var k = Math.max(0, Math.min(1, (dealt - s.a) / (s.b - s.a)));
+      return '<span class="' + (i === ti ? 'on' : '') + '" style="flex:' + (s.b - s.a) * 10 + '" title="' + s.n + '"><b style="width:' + Math.round(k * 100) + '%"></b></span>';
+    }).join('') + '</div><div class="tn-hudfleet-l">Sasaran: <b>' + SHIPS[ti].n + '</b></div>';
+  }
+  wrap_('updateCombatHud_', function (args) { var e = args[0]; if (e && e.kind === 'tony') hud(e); });
+  wrap_('closeCombatScene_', function () {
+    lastT = null;
+    var ov = document.getElementById('combatOverlay'); if (ov) ov.classList.remove('tony-mode');
+    var h = document.querySelector('.combat-hud.hud-right .tn-hudfleet-w'); if (h) h.remove();
+  });
+  var origAct = window.doCombatAction_;
+  window.doCombatAction_ = function (tactic) {
+    if (tEnc() && tactic === 'flee') { serah(); return; }   // tombol Kabur disembunyikan; tombol 3 = Menyerah
+    if (tEnc() && NOFIGHT[tactic]) { showToast(NOFIGHT[tactic], 'error'); return; }
+    return origAct.apply(this, arguments);
+  };
+  function serah() {
+    if (busy || txPending || cvOutcome || !tEnc()) return;
+    if (!confirm('Menyerah kepada Tony and Gank?\n\nSeluruh muatan dan sebagian gold di tangan akan dirampas.')) return;
+    busy = true; setCombatBarBusy_(true);
+    rpc('api_tonyRaid', ['serah']).then(function (r) {
+      busy = false; setCombatBarBusy_(false);
+      if (r.newGold != null) { patchGold_(r.newGold); renderSidebar(); }
+      cvOutcome = { kind: 'robbed', t: 0 };
+      combatRoundLog.unshift(r.message);
+      var lb = document.getElementById('combatLogBox'); if (lb) lb.innerHTML = buildCombatLogHtml_();
+      setTimeout(function () { renderBattleSummary_(r); }, 900);
+    }, function (err) { busy = false; setCombatBarBusy_(false); showToast(err.message, 'error'); });
+  }
+
+  /* ringkasan pertempuran */
+  if (window.RESULT_META) RESULT_META.robbed = { icon: 'anchor', title: 'Dirampas Tony and Gank', cls: 'lose' };
+  wrap_('renderBattleSummary_', function (args) {
+    var r = args[0]; if (!r || !r.tony) return;
+    if (r.result === 'won') sfx('victory');
+    var g = document.querySelector('#combatSummaryContent .summary-stat-grid');
+    if (g) g.insertAdjacentHTML('afterend', lootHtml(r) + '<p class="tn-quote">"' + QUOTE + '"</p>');
+    if (r.result === 'robbed') { var b = document.querySelector('#combatSummaryContent .btn-gold'); if (b) b.innerHTML = 'Lanjutkan ke Pelabuhan <span class="kbd">Enter</span>'; }
+  });
+
+  /* ================= GAMBAR ARMADA DI KANVAS TEMPUR ================= */
+  var OPT = [
+    { masts: 3, hull: '#141416', trim: '#3a3a40', sail: '#222226', sailShade: '#111113', flag: '#000000', emblem: 'skull', emblemColor: '#bdb8ac', pennant: '#2a2a2e', ports: 4, sizeK: 1.0 },
+    { masts: 2, hull: '#3a3436', trim: '#7d786e', sail: '#9a968c', sailStripe: '#5a5650', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#e2ddd0', pennant: '#7d786e', ports: 3, sizeK: 0.96, studding: 0 },
+    { masts: 2, hull: '#4a3a2c', trim: '#8d7a5c', sail: '#8a8478', sailStripe: '#5a5650', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#e2ddd0', pennant: '#8a8478', ports: 4, sizeK: 1.08, hatch: true, wale2: true },
+    { masts: 3, hull: '#2b2a2e', trim: '#8d8a80', sail: '#7d7b76', sailStripe: '#4a4844', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#efe8d6', pennant: '#9a958a', ports: 6, muzzles: true, rivets: true, sizeK: 1.18, studding: 1, streamers: true }
+  ];
+  // pengawal di sisi musuh (kanan) supaya tidak menutupi kapal pemain
+  var POS = [{ x: -0.2, y: -0.22, k: 0.5 }, { x: 0.2, y: -0.3, k: 0.46 }, { x: -0.06, y: -0.42, k: 0.36 }];
+  var origDraw = window.cvDrawShip_;
+  if (typeof origDraw === 'function') {
+    window.cvDrawShip_ = function (sh, isEnemy, pal, t) {
+      var e = isEnemy && tEnc();
+      if (!e) return origDraw.apply(this, arguments);
+      var ctx = cvCtx, hp = cvHpPct.enemy, dealt = 1 - hp / 100, won = cvOutcome && cvOutcome.kind === 'won' ? cvOutcome.t : 0;
+      var x0 = sh.x + sh.dx, y0 = sh.y + sh.bob, W = typeof cvW === 'number' ? cvW : 800;
+      // pengawal di belakang (lebih kecil = lebih jauh); mundur ke kabut saat gudang mesiu meledak
+      for (var i = 0; i < 3; i++) {
+        var p = POS[i], s = sh.s * p.k, k = Math.max(0, Math.min(1, (dealt - SHIPS[i].a) / (SHIPS[i].b - SHIPS[i].a)));
+        var ex = x0 + p.x * W + (won ? won * won * W * 0.05 : 0), ey = y0 + p.y * sh.s * 160 + Math.sin(t * 1.1 + i * 2) * 2 * s;
+        var o = { dir: -1, t: t, lit: pal.lit, lanterns: i === 0 ? 0 : Math.max(0.3, pal.lights), damage: k * 0.8, roll: Math.sin(t * 0.8 + i) * 0.03 + k * -0.08, furl: 0.2 };
+        for (var q in OPT[i]) o[q] = OPT[i][q];
+        ctx.save(); ctx.globalAlpha = (won ? Math.max(0, 1 - won / 2.2) : 1) * (0.72 + i * 0.06); MTShip.draw(ctx, ex, ey, s, o); ctx.restore();
+        if (Math.random() < 0.004 && !won) { var gx = ex - 30 * s, gy = ey - 8 * s; cvSpawnParticle_(gx, gy, 0, 0, 'rgba(255,225,150,A)', 3 + s * 8, 0.12, 0, { add: true }); }
+        if (k > 0.3 && Math.random() < 0.25) cvSpawnParticle_(ex, ey - 20 * s, (Math.random() - 0.5) * 0.4, -0.5, 'rgba(40,36,34,A)', 2 + s * 3, 0.008, -0.002, { grow: 0.1, a: 0.5 });
+      }
+      // kapal induk Tangan Panjang (posisi musuh utama); tenggelam saat gudang mesiu meledak
+      var dir = -1, roll = Math.sin(t * 0.9 + 1) * 0.035, sinkS = 0, y = y0;
+      if (won) { sinkS = Math.min(1, won / 2.4); roll += dir * sinkS * 0.35; y += sinkS * sinkS * 170 * sh.s; }
+      var om = { dir: dir, t: t, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), roll: roll, damage: won ? 0.9 : Math.max(0, (dealt - 0.6) / 0.4) };
+      for (var q2 in OPT[3]) om[q2] = OPT[3][q2];
+      if (!won) { ctx.save(); ctx.globalAlpha = 0.15; var ro = {}; for (var k2 in om) ro[k2] = om[k2]; ro.reflect = true; ro.roll = -roll; MTShip.draw(ctx, x0, y + 6 * sh.s, sh.s, ro); ctx.restore(); }
+      ctx.save(); if (won) { ctx.beginPath(); ctx.rect(0, 0, W, y0 + 5 * sh.s); ctx.clip(); }
+      MTShip.draw(ctx, x0, y, sh.s, om); ctx.restore();
+      MTShip.foam(ctx, x0, y0, sh.s, dir, t, 0.25, won ? 1 - sinkS : 1);
+      if (won && won < 2) for (var f = 0; f < 3; f++) if (Math.random() < 0.5) cvSpawnParticle_(x0 + (Math.random() - 0.6) * 50 * sh.s, y - 20 * sh.s, (Math.random() - 0.5) * 2, -1 - Math.random() * 2, 'rgba(255,150,50,A)', 2 + Math.random() * 3, 0.03, -0.01, { add: true });
+    };
+  }
+
+  /* ================= BISIKAN LAPAU ================= */
+  if (typeof window.rumors_ === 'function') {
+    var origRumors = window.rumors_;
+    window.rumors_ = function () {
+      var out = origRumors.apply(this, arguments) || [];
+      var t = window.state && state.tony, rs = (t && t.rumors) || [];
+      if (rs.length && Array.isArray(out)) { rs.forEach(function (x) { out.unshift(E(x)); out.splice(Math.min(out.length, 3), 0, E(x)); }); }
+      return out;
+    };
+  }
+
+  /* ================= KABUT DI PETA ================= */
+  if (window.MTChart && typeof MTChart.build === 'function') {
+    var origBuild = MTChart.build;
+    MTChart.build = function (o) {
+      var s = origBuild.apply(this, arguments);
+      try {
+        var fog = (window.state && state.tony && state.tony.fog) || [], nowMs = Date.now();
+        var seen = {};
+        fog = fog.filter(function (f) { if (seen[f.city] || (f.until && f.until < nowMs - 60000)) return false; seen[f.city] = 1; return true; });
+        if (!fog.length || typeof s !== 'string') return s;
+        var W = 720, H = 440, M = 36, cities = (o && o.cities) || [], extX = 100, extY = 100, maxX = 0, maxY = 0;
+        cities.forEach(function (c) { maxX = Math.max(maxX, Number(c.MapX) || 0); maxY = Math.max(maxY, Number(c.MapY) || 0); });
+        if (maxX > 100) extX = Math.max(170, maxX + 26);
+        if (maxY > 84) extY = maxY + 12;
+        var g = '<defs><radialGradient id="tnFogG"><stop offset="0" stop-color="#1b1b20" stop-opacity=".62"/><stop offset=".55" stop-color="#2a2a30" stop-opacity=".38"/><stop offset="1" stop-color="#3a3a40" stop-opacity="0"/></radialGradient></defs><g class="tn-mapfog">';
+        fog.forEach(function (f) {
+          var c = cities.filter(function (x) { return x.CityId === f.city; })[0]; if (!c) return;
+          var px = M + (Number(c.MapX) || 50) / extX * (W - M * 2), py = M + (Number(c.MapY) || 50) / extY * (H - M * 2);
+          g += '<g><title>Layar abu-abu terlihat di perairan ini</title>' +
+            '<ellipse class="tn-puff" cx="' + (px - 14).toFixed(1) + '" cy="' + (py + 4).toFixed(1) + '" rx="46" ry="30" fill="url(#tnFogG)"/>' +
+            '<ellipse class="tn-puff" cx="' + (px + 16).toFixed(1) + '" cy="' + (py - 6).toFixed(1) + '" rx="40" ry="26" fill="url(#tnFogG)"/>' +
+            '<ellipse class="tn-puff" cx="' + px.toFixed(1) + '" cy="' + (py + 2).toFixed(1) + '" rx="58" ry="34" fill="url(#tnFogG)"/>';
+          for (var i = 0; i < 3; i++) {
+            var sx = px - 28 + i * 24, sy = py - 22 + (i % 2) * 8;
+            g += '<path d="M' + sx + ' ' + (sy + 7) + ' l7 0 l-1.4 2.6 l-4.2 0 z M' + (sx + 3.4) + ' ' + (sy + 6.5) + ' l0 -8 l3.2 7 z" fill="#4a4a50" opacity=".85"/>';
+          }
+          g += '</g>';
+        });
+        g += '</g>';
+        // di bawah penanda kota, supaya nama kota tetap terbaca dan tetap bisa diklik
+        var at = s.indexOf('<g class="city-pin');
+        return at > 0 ? s.slice(0, at) + g + s.slice(at) : s.replace(/<\/svg>\s*$/, g + '</svg>');
+      } catch (x) { return s; }
+    };
+  }
+
+  /* ================= DENYUT: state.tony ikut pulse GM ================= */
+  function hookPulse() {
+    if (!window.MTGM || !MTGM.onPulse || MTGM._tony) return;
+    var o = MTGM.onPulse; MTGM._tony = true;
+    MTGM.onPulse = function (g) {
+      try {
+        if (window.state) {
+          var nt = (g && g.tony) || null, was = JSON.stringify(state.tony || null);
+          state.tony = nt;
+          if (JSON.stringify(nt) !== was && typeof refreshSailChart_ === 'function') refreshSailChart_();
+        }
+      } catch (e) { }
+      return o.apply(this, arguments);
+    };
+  }
+  hookPulse();
+
+  /* ================= PANEL GM ================= */
+  var GM = { data: null };
+  function gmMsg(t, err) { var m = document.getElementById('tnGMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('err', !!err); } }
+  function hm(ms) { var d = new Date(ms); return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2); }
+  function dtLocal(ms) { var d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); }
+  function gmRender(d) {
+    GM.data = d = d || GM.data; if (!d) return;
+    var dest = document.getElementById('tnGDest'), org = document.getElementById('tnGOrig');
+    if (dest && !dest.options.length) {
+      dest.innerHTML = d.cities.map(function (c) { return '<option value="' + c.id + '">' + E(c.name) + (c.hidden ? ' (tersembunyi)' : '') + '</option>'; }).join('');
+      dest.value = 'toogood';
+      org.innerHTML = '<option value="">Semua asal</option>' + d.cities.map(function (c) { return '<option value="' + c.id + '">' + E(c.name) + '</option>'; }).join('');
+    }
+    var KB = { diam: 'Diam', bisik: 'Bisik lapau', umum: 'Umum' };
+    var rows = (d.raids || []).map(function (r) {
+      return '<tr><td><span class="st ' + r.status + '">' + r.status + '</span><br><b>' + E(r.originName || 'Semua') + ' &rarr; ' + E(r.destName) + '</b><br>' + hm(r.startAt) + ' &ndash; ' + hm(r.endAt) +
+        '<br>' + r.chance + '% &middot; gold ' + r.goldPct + '% &middot; ' + KB[r.kabar] + '</td>' +
+        '<td>' + r.hits + '/' + r.rolls + ' dikepung<br>' + r.korban + ' korban (' + r.lawan + ' kalah bertempur, ' + r.serah + ' menyerah)<br>' + r.menang + ' menang<br><b>' + G(r.gold) + '</b> gold disedot<br>~' + G(r.cargoValue) + ' nilai muatan</td>' +
+        '<td>' + (r.status === 'aktif' || r.status === 'terjadwal' ? '<button type="button" class="x" data-id="' + r.id + '">Batalkan</button>' : '') + '</td></tr>';
+    }).join('');
+    var tb = document.getElementById('tnGList');
+    if (tb) {
+      tb.innerHTML = rows ? '<table>' + rows + '</table>' : '<p class="mtp-hint">Belum ada event Tony.</p>';
+      tb.querySelectorAll('.x').forEach(function (b) {
+        b.onclick = function () {
+          if (!confirm('Batalkan event Tony ini? Berlaku seketika.')) return;
+          gmMsg('Membatalkan…');
+          rpc('api_gmTony', ['cancel', { id: Number(b.getAttribute('data-id')) }]).then(function (x) { gmMsg('Event dibatalkan.'); gmRender(x); }, function (e) { gmMsg(e.message, true); });
+        };
+      });
+    }
+  }
+  function gmLoad() { rpc('api_gmTony', ['list']).then(gmRender, function (e) { gmMsg(e.message, true); }); }
+  function gmAdd() {
+    var s = new Date(document.getElementById('tnGStart').value).getTime(), e = new Date(document.getElementById('tnGEnd').value).getTime();
+    if (!s || !e) { gmMsg('Isi jam mulai dan jam selesai.', true); return; }
+    var o = {
+      dest: document.getElementById('tnGDest').value, origin: document.getElementById('tnGOrig').value || null,
+      startAt: s, endAt: e, chance: Number(document.getElementById('tnGCh').value) || 80, goldPct: Number(document.getElementById('tnGGp').value) || 60,
+      kabar: document.getElementById('tnGKb').value, siar: document.getElementById('tnGSiar').checked
+    };
+    var dn = document.getElementById('tnGDest').selectedOptions[0].textContent;
+    if (!confirm('Pasang Tony and Gank?\n\n' + (o.origin ? document.getElementById('tnGOrig').selectedOptions[0].textContent : 'Semua asal') + ' → ' + dn + '\n' + hm(s) + ' – ' + hm(e) + '\nPeluang ' + o.chance + '%, gold diambil ' + o.goldPct + '%')) return;
+    gmMsg('Memasang…');
+    rpc('api_gmTony', ['add', o]).then(function (x) { gmMsg('Tony and Gank terpasang.'); gmRender(x); }, function (err) { gmMsg(err.message, true); });
+  }
+  function gmMount() {
+    var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box || document.getElementById('tnGm')) return;
+    var hint = box.querySelector(':scope > .mtp-hint:last-child');
+    var sec = document.createElement('div'); sec.id = 'tnGm'; sec.className = 'tn-gm';
+    var n = Date.now() + 5 * 60000; n -= n % 300000;
+    sec.innerHTML = '<h4>Tony and Gank</h4>' +
+      '<div class="mtp-row"><label>Tujuan<select id="tnGDest"></select></label><label>Asal<select id="tnGOrig"></select></label></div>' +
+      '<div class="mtp-row"><label>Mulai (WIB)<input type="datetime-local" id="tnGStart" value="' + dtLocal(n) + '"></label><label>Selesai (WIB)<input type="datetime-local" id="tnGEnd" value="' + dtLocal(n + 2 * 3600000) + '"></label></div>' +
+      '<div class="mtp-row"><label>Peluang (%)<input type="number" id="tnGCh" min="1" max="100" value="80"></label><label>Gold diambil (%)<input type="number" id="tnGGp" min="10" max="90" value="60"></label></div>' +
+      '<div class="mtp-row"><label>Kabar<select id="tnGKb"><option value="bisik">Bisik lapau (gosip samar 60 menit sebelumnya)</option><option value="umum">Umum (pengumuman + kabut di peta)</option><option value="diam">Diam (kejutan)</option></select></label>' +
+      '<label style="align-content:end"><span><input type="checkbox" id="tnGSiar" checked style="width:auto"> Siarkan korban ke chat Dunia</span></label></div>' +
+      '<div class="mtp-acts"><button type="button" class="red" id="tnGAdd">Pasang Tony and Gank</button><button type="button" class="alt" id="tnGRef">Muat ulang daftar</button></div>' +
+      '<div class="mtp-msg" id="tnGMsg" aria-live="polite"></div><div id="tnGList"></div>';
+    if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
+    document.getElementById('tnGAdd').onclick = gmAdd;
+    document.getElementById('tnGRef').onclick = gmLoad;
+    var btn = document.getElementById('mtGmBtn'); if (btn) btn.addEventListener('click', function () { gmLoad(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { gmMount(); hookPulse(); }); else gmMount();
+
+  return { serah: serah, _enc: tEnc, gmLoad: gmLoad };
+})();
+</script>
+
+<script>
+/* =====================================================================
+ * Sinematik tn_kepung: kabut senja, kapal pemain di tengah, empat layar
+ * abu-abu muncul dari empat arah, bendera tengkorak berkibar.
+ * ===================================================================== */
+(function () {
+  if (!window.MTCine || !MTCine.register || !window.MTUtil || !window.MTSky || !window.MTShip) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function myOpts(o) {
+    var b = {}; try { if (typeof myShipOpts_ === 'function') b = myShipOpts_() || {}; } catch (e) { b = {}; }
+    if (!b.hull) b = { masts: 3, hull: '#6b4226', trim: '#d4a84c', sail: '#f3e9d2', flag: '#9b2d20', emblem: 'crest', pennant: '#e8d7a8', ports: 5 };
+    var r = {}, k; for (k in b) r[k] = b[k]; for (k in o) r[k] = o[k]; return r;
+  }
+  var GANK = [
+    { masts: 3, hull: '#141416', trim: '#3a3a40', sail: '#222226', flag: '#000000', emblem: 'skull', emblemColor: '#bdb8ac', ports: 4 },
+    { masts: 2, hull: '#3a3436', trim: '#7d786e', sail: '#9a968c', sailStripe: '#5a5650', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#e2ddd0', ports: 3 },
+    { masts: 2, hull: '#4a3a2c', trim: '#8d7a5c', sail: '#8a8478', sailStripe: '#5a5650', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#e2ddd0', ports: 4, hatch: true },
+    { masts: 3, hull: '#2b2a2e', trim: '#8d8a80', sail: '#7d7b76', sailStripe: '#4a4844', flag: '#1a1a1c', emblem: 'skull', emblemColor: '#efe8d6', ports: 6, muzzles: true, sizeK: 1.18, streamers: true }
+  ];
+  function sceneKepung() {
+    var r = U.rng(4521), P = new C.Particles(), L = C.makeLit(), clouds = MTSky.makeClouds(r, 8), fog = [];
+    for (var i = 0; i < 26; i++) fog.push({ x: r(), y: r(), w: 0.25 + r() * 0.35, v: (r() - 0.5) * 0.012, a: 0.15 + r() * 0.25 });
+    // empat kapal: [x akhir, y (0 = cakrawala, 1 = depan), skala, arah, x awal]
+    var POS = [[0.16, 0.18, 0.55, 1, -0.25], [0.82, 0.12, 0.5, -1, 1.25], [0.3, 0.02, 0.38, 1, 0.12], [0.7, 0.42, 0.85, -1, 1.35]];
+    function draw(ctx, W, H, t, dt) {
+      var port = W < H, hy = H * (port ? 0.42 : 0.46);
+      var p = MTSky.palette(0.74, 'encounter', 'overcast');
+      ctx.fillStyle = U.css(p.top); ctx.fillRect(0, 0, W, hy);
+      ctx.fillStyle = U.css(p.seaD); ctx.fillRect(0, hy, W, H - hy);
+      MTSky.paintSky(ctx, W, hy, p, t, null);
+      MTSky.paintClouds(ctx, W, hy * 0.92, p, clouds, dt, REDUCE ? 1 : 4);
+      MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: null, rough: 1.2, drift: 14 });
+      L.set(p.tint);
+      var base = port ? W * 0.0042 : Math.min(W * 0.0017, H * 0.003);
+      // kapal pemain di tengah
+      var px = W * 0.5, py = hy + (H - hy) * 0.6, ps = base * 0.95;
+      var looks = sm(5.2, 6.4, t);
+      MTShip.draw(ctx, px, py + Math.sin(t * 1.2) * ps, ps, myOpts({ dir: looks > 0.5 ? -1 : 1, t: t, lit: L, furl: 0.35 + looks * 0.5, lanterns: 0.6, roll: Math.sin(t * 0.9) * 0.02 }));
+      MTShip.foam(ctx, px, py, ps, 1, t, 0.2, 0.7);
+      // empat kapal Tony masuk berurutan dari kabut
+      var order = [2, 0, 1, 3];
+      order.forEach(function (i, n) {
+        var q = POS[i], k = C.ease ? C.ease(sm(1.0 + n * 0.9, 3.4 + n * 0.9, t)) : sm(1.0 + n * 0.9, 3.4 + n * 0.9, t);
+        if (k <= 0) return;
+        var x = W * U.lerp(q[4], q[0], k), y = hy + (H - hy) * q[1] + Math.sin(t * 1.1 + i) * 2, s = base * q[2];
+        var o = { dir: q[3], t: t, lit: L, furl: 0.15, lanterns: i === 0 ? 0 : 0.5, roll: Math.sin(t * 0.8 + i) * 0.025 };
+        for (var kk in GANK[i]) o[kk] = GANK[i][kk];
+        ctx.save(); ctx.globalAlpha = 0.35 + 0.65 * k; MTShip.draw(ctx, x, y, s, o); ctx.restore();
+        MTShip.foam(ctx, x, y, s, q[3], t, k < 1 ? 0.8 : 0.2, 0.7);
+        if (n === 3 && t > 6 && t < 6.2 && Math.random() < 0.5) P.add({ x: x - q[3] * 30 * s, y: y - 10 * s, vx: 0, vy: 0, g: 0, r: 8 + s * 6, life: 0.25, col: 'rgba(255,225,150,A)', a: 0.9, add: true });
+      });
+      // kabut bergerak
+      for (var f = 0; f < fog.length; f++) {
+        var fg = fog[f]; fg.x += fg.v * dt / 16;
+        if (fg.x < -0.4) fg.x = 1.2; if (fg.x > 1.2) fg.x = -0.4;
+        var fx = fg.x * W, fy = hy * 0.7 + fg.y * (H - hy * 0.7), fr = fg.w * W * (port ? 1.4 : 1);
+        var gg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
+        var dens = fg.a * (0.6 + 0.4 * (1 - sm(4, 8, t) * 0.5));
+        gg.addColorStop(0, 'rgba(150,150,158,' + dens.toFixed(3) + ')'); gg.addColorStop(1, 'rgba(150,150,158,0)');
+        ctx.fillStyle = gg; ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2);
+      }
+      P.run(ctx, dt);
+      if (t > 4.6) C.title(ctx, W, H, sm(4.6, 5.6, t) * (1 - sm(8.5, 9.5, t)), 'TONY AND GANK', 'empat layar abu-abu', H * (port ? 0.2 : 0.22));
+      C.vignette(ctx, W, H, 0.5);
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - sm(0, 1, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 6 };
+  }
+  MTCine.register('tn_kepung', sceneKepung);
+})();
+</script>
