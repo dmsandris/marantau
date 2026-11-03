@@ -17,6 +17,7 @@ begin
 
   -- Selesaikan kedatangan yang sudah waktunya dulu (sama seperti versi .gs)
   perform game.resolve_arrival_if_due(v_pid);
+  perform game.tony_auto(v_pid);   -- Tide v45: pertempuran Tony yang ditinggal terlalu lama = menyerah
   perform game.paradiso_tick(v_pid);
   select * into v_me from game.players where player_id = v_pid;
 
@@ -60,7 +61,8 @@ begin
     'gotong', game.gotong_state(v_pid),
     'pacu', game.pacu_state(v_pid),
     'kisah', game.kisah_state(v_pid),
-    'honor', game.honor_state(v_pid)
+    'honor', game.honor_state(v_pid),
+    'tony', game.tony_state(v_pid)
   );
 
   -- Tide v41: key 'pasir' hanya ada bila terbuka untuk pemain ini (tidak dikirim sebagai null)
@@ -70,7 +72,7 @@ begin
     -- Di zaman lain kisah lama tidak pernah terjadi untuk pemain ini
     if v_ps is not null and coalesce(v_ps ->> 'era', 'kini') <> 'kini' then
       r := r || jsonb_build_object('gala', null, 'toogood', null, 'warwerwor', null, 'barsati', null, 'kompas', null,
-        'cocoepan', null, 'tigasilang', null, 'limatangan', null, 'duatangan', null, 'gotong', null, 'pacu', null);
+        'cocoepan', null, 'tigasilang', null, 'limatangan', null, 'duatangan', null, 'gotong', null, 'pacu', null, 'tony', null);
     end if;
   exception when others then raise warning '[pasir] state: %', sqlerrm;
   end;
@@ -94,6 +96,7 @@ language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me();
 begin
   perform game.resolve_arrival_if_due(v_me.player_id);
+  perform game.tony_auto(v_me.player_id);   -- Tide v45
   return jsonb_build_object('voyage', game.voyage_state(v_me.player_id));
 end $$;
 select game.expose('api_pollvoyage');
