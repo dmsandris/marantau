@@ -335,6 +335,8 @@ create table if not exists game.mp_raids (
   card      jsonb
 );
 create index if not exists mp_raids_status_idx on game.mp_raids (status);
+-- Tide v47: jenis serbuan (dt = Quest 9, tony = Perburuan Tony / 0062). Mesin & tabel dipakai bersama.
+alter table game.mp_raids add column if not exists kind text not null default 'dt';
 
 create table if not exists game.mp_raid_members (
   raid_id   text not null references game.mp_raids(id) on delete cascade,
@@ -376,7 +378,7 @@ alter table game.mp_raid_rtev enable row level security;
 create or replace function game.dt_raid_of(p_pid uuid) returns text
 language sql stable as $$
   select r.id from game.mp_raid_members m join game.mp_raids r on r.id = m.raid_id
-   where m.player_id = p_pid and r.status in ('lobby', 'active') and m.state <> 'fled'
+   where m.player_id = p_pid and r.status in ('lobby', 'active') and m.state <> 'fled' and r.kind = 'dt'
    order by r.created desc limit 1
 $$;
 
@@ -437,7 +439,7 @@ begin
   ltd := game.lt_data(p_pid);
   v_open := game.dt_open_at(p_pid);
   v_raid := game.dt_raid_of(p_pid);
-  select count(*) into v_lobbies from game.mp_raids where status = 'lobby';
+  select count(*) into v_lobbies from game.mp_raids where status = 'lobby' and kind = 'dt';
   select count(*) into v_online from game.mp_presence o
    where game.mp_online(o) and o.player_id <> p_pid and game.lt_step(o.player_id) >= 10 and game.dt_step(o.player_id) >= 1;
   return jsonb_build_object(
@@ -477,6 +479,7 @@ begin
     if d.status = 'invited' then raise exception 'Batalkan dulu tantangan duelmu sebelum berlayar.'; end if;
     if d.status = 'active' then raise exception 'Selesaikan duelmu dulu sebelum berlayar.'; end if;
   end if;
+  perform game.th_sail_guard(p_pid);   -- Tide v47: armada Perburuan Tony (0063)
   v_raid := game.dt_raid_of(p_pid);
   if v_raid is null then return; end if;
   select * into r from game.mp_raids where id = v_raid for update;
@@ -1327,7 +1330,7 @@ create or replace function game.dt_board_json(p_pid uuid) returns jsonb
 language plpgsql as $$
 declare r game.mp_raids; out jsonb := '[]'::jsonb; v_id text;
 begin
-  for v_id in select id from game.mp_raids where status = 'lobby' order by created loop
+  for v_id in select id from game.mp_raids where status = 'lobby' and kind = 'dt' order by created loop
     select * into r from game.mp_raids where id = v_id for update;
     r := game.dt_tick(r); perform game.dt_save(r);
     if r.status = 'lobby' then

@@ -161,7 +161,7 @@
     try {
       var r = google.script.run.withSuccessHandler(function (x) { if (ok) ok(x); })
         .withFailureHandler(function (e) { if (fail) fail(e); else toast(e && e.message ? e.message : String(e), 'error'); });
-      r.api_dtRaid.apply(r, args);
+      r[S.opts.api || 'api_dtRaid'].apply(r, args);   // Tide v47: Perburuan Tony memakai arena yang sama (api_tonyHunt)
     } catch (e) { if (fail) fail(e); }
   }
 
@@ -191,6 +191,14 @@
   function now() { return Date.now() - (S.skew || 0); }
   function K(n, d) { return S.k && S.k[n] != null ? S.k[n] : d; }
   function stoneP() { return { x: K('stoneX', 1100), y: K('stoneY', 750) }; }
+  /* Tide v47: tema arena. 'tony' = Perburuan Tony (Kabut Abu-abu), selain itu Quest 9 (Teluk Dua Tangan). */
+  function TONY() { return S.opts.kind === 'tony' || !!(S.v && S.v.kind === 'tony'); }
+  var TT = {
+    boss: 'Tangan Panjang', bossFull: 'Armada Tony and Gank', place: 'Kabut Abu-abu',
+    ph: ['', 'Karung Pelindung', 'Kabut', 'Pengait', 'Murka Tony'],
+    sub: ['', 'Jebol karung Kantong Bolong (peluru Rantai x2)', 'Bayang Lambung menebar asap: tembakan sulit kena', 'Si Jepit melempar pengait', 'Empat kapal menembak serentak']
+  };
+  function bossName() { return TONY() ? TT.boss : 'Sayap Patah'; }
   function member(pub) { var m = S.v && S.v.members; if (!m) return null; for (var i = 0; i < m.length; i++) if (m[i].pub === pub) return m[i]; return null; }
   function nameOf(pub) { var m = member(pub); if (m) return m.n; var s = S.v && S.v.st && S.v.st.ships && S.v.st.ships[pub]; return s ? s.n : 'Kapten'; }
   function myShipSt() { return S.v && S.v.st && S.v.st.ships ? S.v.st.ships[S.me] : null; }
@@ -304,14 +312,14 @@
     if (prev && v.t && prev.t && v.t < prev.t - 30 && v.status === prev.status && v.round === prev.round) return;
     var sk = Date.now() - v.t; S.skew = S.skew == null ? sk : Math.min(S.skew + 400, lerp(S.skew, sk, 0.3));
     S.v = v; S.me = v.me; S.k = v.k || S.k;
-    if (v.status === 'lobby') { flash('Armada masih di dermaga Sowtour.'); return; }
+    if (v.status === 'lobby') { flash(TONY() ? 'Armada masih menunggu di Papan Armada Marlya.' : 'Armada masih di dermaga Sowtour.'); return; }
     if (v.status === 'cancelled') { toast('Armada bubar sebelum berangkat.'); close(); return; }
     if (!v.st) return;
     shipColors(v);
     // sinematik Teluk Dua Tangan sebelum giliran pertama
     if (S.first) {
       S.first = false;
-      if (v.status === 'active' && v.round === 1 && !v.ev && now() < v.planStart - 2500) queueCine('teluk');
+      if (v.status === 'active' && v.round === 1 && !v.ev && now() < v.planStart - 2500) queueCine(TONY() ? 'kepung' : 'teluk');
       else S.cineSeen.teluk = 1;
     }
     if (v.ev && v.ev.r > S.lastR) {
@@ -353,7 +361,7 @@
       var sh = S.show[p]; if (sh.alive === false && !sh.fled && !sh.sunk) sh.sunk = 0.01;
     });
     S.boss = Object.assign(S.boss || { wake: [] }, st.boss);
-    S.pearl = Object.assign(S.pearl || { wake: [] }, st.pearl);
+    S.pearl = st.pearl ? Object.assign(S.pearl || { wake: [] }, st.pearl) : null;
   }
 
   /* ---------- animasi giliran (jejak dari server, 12 titik / 3 dtk) ---------- */
@@ -361,7 +369,7 @@
     var st = ev.start || {};
     Object.keys(st.ships || {}).forEach(function (p) { snapOne(p, st.ships[p]); });
     if (st.boss) S.boss = Object.assign(S.boss || { wake: [] }, st.boss);
-    if (st.pearl) S.pearl = Object.assign(S.pearl || { wake: [] }, st.pearl);
+    if (st.pearl) S.pearl = Object.assign(S.pearl || { wake: [] }, st.pearl); else S.pearl = null;
     var from = {};
     Object.keys(ev.tracks || {}).forEach(function (p) { var s = S.show[p]; if (s) from[p] = [s.x, s.y, s.h]; });
     from.$b = S.boss ? [S.boss.x, S.boss.y, S.boss.h] : null; from.$p = S.pearl ? [S.pearl.x, S.pearl.y, S.pearl.h] : null;
@@ -408,10 +416,16 @@
         if (e.by === me) say(line); else say('<b>' + esc(nameOf(e.by)) + ':</b> ' + line, false, 3.5);
       } else if (e.k === 'pulled' && e.by === me) say('Kapalmu terseret arus dan menghantam karang.', true);
       else if (e.k === 'immune' && e.by === me) say('Kau sudah terbiasa memegang kemudi sendiri. Arus tidak menggoyahkanmu.');
-      else if (e.k === 'sunk') { var s = S.show[e.by]; if (s) s.sunk = 0.01; say(e.by === me ? 'Kapalmu tak bisa bertempur lagi. Awakmu menariknya keluar dari teluk.' : 'Kapal <b>' + esc(nameOf(e.by)) + '</b> tumbang dari barisan.', true); }
-      else if (e.k === 'ram' && e.by === me) flash('Lambungmu menghantam Sayap Patah!', true);
-      else if (e.k === 'phase' && e.p === 2) { say('<b>Bang Rimba:</b> "Rantai terakhir di laut ini. Bagus."'); setTimeout(function () { say('<b>Hasiolan:</b> "Ikuti buritan ambo! Arus ini pernah ambo baca dari peta di kepala coco!"', false, 6); }, 2200); }
-      else if (e.k === 'phase' && e.p === 3) say('<b>zafachmie:</b> "Dua kali, Kapten! Black Pearl menembak dua kali sekarang!"', false, 5);
+      else if (e.k === 'sunk') { var s = S.show[e.by]; if (s) s.sunk = 0.01; say(e.by === me ? 'Kapalmu tak bisa bertempur lagi. Awakmu menariknya keluar dari ' + (TONY() ? 'kabut.' : 'teluk.') : 'Kapal <b>' + esc(nameOf(e.by)) + '</b> tumbang dari barisan.', true); }
+      else if (e.k === 'ram' && e.by === me) flash('Lambungmu menghantam ' + bossName() + '!', true);
+      else if (e.k === 'hooked') { if (e.by === me) say('<b>Si Jepit</b> melempar pengait ke pagar kapalmu! Giliran berikut kemudimu terkunci lurus dan layarmu setengah.', true, 5); else say('Pengait Si Jepit menancap di kapal <b>' + esc(nameOf(e.by)) + '</b>.', false, 3.5); }
+      else if (TONY() && e.k === 'phase') {
+        if (e.p === 2) say('<b>Kantong Bolong</b> oleng, karung-karungnya berhamburan ke laut. <b>Bayang Lambung</b> menebar asap dari buritan.', false, 6);
+        if (e.p === 3) say('<b>Tony:</b> "Jepit mereka! Kapal yang diam lebih mudah dihitung."', false, 6);
+        if (e.p === 4) say('<b>Tony</b> merobek satu halaman bukunya. <i>"Kalian membuat pembukuanku berantakan!"</i> Empat kapal menembak serentak.', true, 6);
+      }
+      else if (!TONY() && e.k === 'phase' && e.p === 2) { say('<b>Bang Rimba:</b> "Rantai terakhir di laut ini. Bagus."'); setTimeout(function () { say('<b>Hasiolan:</b> "Ikuti buritan ambo! Arus ini pernah ambo baca dari peta di kepala coco!"', false, 6); }, 2200); }
+      else if (!TONY() && e.k === 'phase' && e.p === 3) say('<b>zafachmie:</b> "Dua kali, Kapten! Black Pearl menembak dua kali sekarang!"', false, 5);
     });
     var a = ev.auto && ev.auto[me];
     if (a === 'late') flash('Perintahmu terlambat: kapal melaju di haluan lama tanpa menembak.', true);
@@ -465,7 +479,7 @@
   function nextCine() {
     var kind = S.cineQ.shift(); if (!kind || !S.open) return;
     var ended = false, tm = 0;
-    var finish = function () { if (ended) return; ended = true; clearTimeout(tm); if (S.cine && S.cine.stop) { try { S.cine.stop(); } catch (e) {} } S.cine = null; $('sbCine').hidden = true; if (kind === 'menang') showEnd(); nextCine(); };
+    var finish = function () { if (ended) return; ended = true; clearTimeout(tm); if (S.cine && S.cine.stop) { try { S.cine.stop(); } catch (e) {} } S.cine = null; $('sbCine').hidden = true; if (kind === 'menang' || kind === 'kabur') showEnd(); nextCine(); };
     if (typeof S.opts.cine === 'function') {
       S.cine = { end: finish, stop: null };
       try { S.opts.cine(kind, finish); } catch (e) { finish(); }
@@ -473,7 +487,7 @@
       return;
     }
     var cv = $('sbCine').querySelector('canvas');
-    if (!window.MTCine || !MTCine.play) { if (kind === 'menang') showEnd(); nextCine(); return; }
+    if (!window.MTCine || !MTCine.play) { if (kind === 'menang' || kind === 'kabur') showEnd(); nextCine(); return; }
     $('sbCine').hidden = false;
     var stop = MTCine.play(cv, 'dt_' + kind, { onIntroEnd: function () { setTimeout(finish, 900); } });
     S.cine = { end: finish, stop: stop };
@@ -516,7 +530,7 @@
     if (!S.v || S.v.status !== 'active' || S.v.myState !== 'in') return;
     if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Yakin mundur tanpa hadiah? Klik lagi'; setTimeout(function () { b.classList.remove('armed'); b.textContent = 'Mundur'; }, 3000); return; }
     b.classList.remove('armed'); b.textContent = 'Mundur';
-    rpc(['flee'], function (x) { stopFinal(); apply(x && x.raid); toast('Kapalmu keluar dari teluk dan kembali ke Kota Sowtour.'); });
+    rpc(['flee'], function (x) { stopFinal(); apply(x && x.raid); toast(TONY() ? 'Kapalmu menembus kabut dan menjauh dari kepungan Tony.' : 'Kapalmu keluar dari teluk dan kembali ke Kota Sowtour.'); });
   }
 
   /* ---------- Pertarungan Terakhir (realtime, bos dihitung server) ---------- */
@@ -529,7 +543,7 @@
     S.F = { M: M, w: st.w, startAt: v.finalTs, endAt: v.finalEnd, started: false, inp: { left: false, right: false },
       out: [], seq: 0, busy: false, relayT: 0, rt: {}, bossRt: null, board: null, boardCd: 2, done: false, active: !!(mine && mine.alive !== false && v.myState === 'in'), allySaid: false, lastOk: Date.now() };
     $('sbOverlay').classList.add('final'); measure();
-    flashBanner('PERTARUNGAN TERAKHIR', '75 detik · tahan ◄ ► berbelok, Q / E menembak, ↑ layar, 1/2/3 peluru. Sentuh lambung Sayap Patah untuk Serbu Geladak.', true);
+    flashBanner('PERTARUNGAN TERAKHIR', '75 detik · tahan ◄ ► berbelok, Q / E menembak, ↑ layar, 1/2/3 peluru. Sentuh lambung ' + bossName() + ' untuk Serbu Geladak.' + (TONY() ? ' Buat Tony kabur sebelum waktu habis!' : ''), true);
     sfx('horn');
     clearTimeout(S.pollT);
   }
@@ -575,12 +589,12 @@
       if (S.pearl) playShot({ by: 'pearl', fx: S.pearl.x, fy: S.pearl.y, tx: S.boss ? S.boss.x : m.tx, ty: S.boss ? S.boss.y : m.ty, n: 1 });
     } else if (m.k === 'b') {
       if (m.ok) { S.fx.push({ k: 'num', x: S.boss.x, y: S.boss.y - 120, text: 'Serbu Geladak -' + Math.round(m.dmg), life: 2, col: '#ffd27a' }); S.shake = 10; sfx('clang'); }
-      if (m.by !== S.me) say('<b>' + esc(nameOf(m.by)) + '</b> ' + (m.ok ? 'menyerbu geladak Sayap Patah!' : 'dipukul mundur dari geladak Sayap Patah.'), !m.ok, 3.5);
-      else flashBanner(m.ok ? 'Geladak Sayap Patah dikuasai!' : 'Penyerbuan dipukul mundur', m.ok ? 'Awakmu menebas rantai di geladak.' : 'Awakmu kembali ke kapal.', !m.ok);
+      if (m.by !== S.me) say('<b>' + esc(nameOf(m.by)) + '</b> ' + (m.ok ? 'menyerbu geladak ' + bossName() + '!' : 'dipukul mundur dari geladak ' + bossName() + '.'), !m.ok, 3.5);
+      else flashBanner(m.ok ? 'Geladak ' + bossName() + ' dikuasai!' : 'Penyerbuan dipukul mundur', m.ok ? (TONY() ? 'Awakmu menendang peti-peti Tony ke laut.' : 'Awakmu menebas rantai di geladak.') : 'Awakmu kembali ke kapal.', !m.ok);
       if (m.petrik) say(m.by === S.me ? '<b>Petrik dibebaskan dari palka!</b> Kau yang memecah rantainya.' : '<b>Petrik dibebaskan dari palka</b> oleh ' + esc(nameOf(m.by)) + '.', false, 6);
     } else if (m.k === 'sunk') {
       var s = S.show[m.by]; if (s) s.sunk = 0.01;
-      if (m.by === S.me) { F.active = false; flashBanner('Kapalmu tumbang', 'Awakmu menariknya keluar dari teluk. Armada masih bertempur.', true); $('sbOverlay').classList.add('watch'); }
+      if (m.by === S.me) { F.active = false; flashBanner('Kapalmu tumbang', 'Awakmu menariknya keluar dari ' + (TONY() ? 'kabut' : 'teluk') + '. Armada masih bertempur.', true); $('sbOverlay').classList.add('watch'); }
       else say('Kapal <b>' + esc(nameOf(m.by)) + '</b> tumbang dari barisan.', true);
     }
   }
@@ -672,13 +686,39 @@
     S.endWait = true; stopFinal();
     var v = S.v, win = v.result === 'win';
     if (win && S.boss) S.boss.sunk = 0.01;
-    flashBanner(win ? 'Sayap Patah Tenggelam' : 'Serbuan Gagal', win ? 'Sayap logam terakhir patah. Medali-medali Tedsky berjatuhan ke pusaran.' : 'Sayap Patah memanggil sisa rantainya dan mundur ke balik batu.', !win);
-    setTimeout(function () { S.endWait = false; if (!S.open) return; if (win && !S.cineSeen.menang) { S.cineSeen.menang = 1; queueCine('menang'); } else showEnd(); }, S.anim ? 3800 : 1800);
+    if (TONY()) flashBanner(win ? 'Tony Kabur!' : 'Serbuan Gagal', win ? 'Tangan Panjang miring berasap. Peti-peti jarahan dilempar ke laut.' : 'Tony tertawa dari geladak Tangan Panjang dan menghilang ke kabut.', !win);
+    else flashBanner(win ? 'Sayap Patah Tenggelam' : 'Serbuan Gagal', win ? 'Sayap logam terakhir patah. Medali-medali Tedsky berjatuhan ke pusaran.' : 'Sayap Patah memanggil sisa rantainya dan mundur ke balik batu.', !win);
+    setTimeout(function () { S.endWait = false; if (!S.open) return; if (win && !S.cineSeen.menang) { S.cineSeen.menang = 1; queueCine(TONY() ? 'kabur' : 'menang'); } else showEnd(); }, S.anim ? 3800 : 1800);
   }
   function fmtDur(ms) { var s = Math.round((ms || 0) / 1000), m = Math.floor(s / 60); return m + ':' + ('0' + (s % 60)).slice(-2); }
+  function showEndTony() {
+    var v = S.v, c = v.card || {}, win = (c.result || v.result) === 'win', rows = c.rows || [];
+    var tiles = [['Kapal', c.ships || rows.length], ['Durasi', fmtDur(c.durMs)], ['Giliran', c.rounds || v.round], [win ? 'Tony' : 'HP armada', win ? 'kabur' : Math.round(c.boss || 0) + '/' + Math.round(c.bossMax || 1)]];
+    var tbl = '<table class="sb-tbl"><thead><tr><th>Kapten</th><th>Lambung</th><th>Karung</th><th class="hm">Serbu</th>' + (win ? '<th>Jarahan</th>' : '') + '<th>Kapal</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var tags = r.state === 'fled' ? '<span class="sb-tag out">mundur</span>' : r.state === 'sunk' ? '<span class="sb-tag out">tumbang</span>' : '';
+        return '<tr class="' + (r.pub === S.me ? 'me' : '') + '"><td><b>' + esc(r.n) + '</b>' + (r.ship ? '<br><small>' + esc(r.ship) + '</small>' : '') + (tags ? '<br>' + tags : '') + '</td>' +
+          '<td>' + Math.round(r.hull || 0) + '</td><td>' + Math.round(r.shield || 0) + '</td><td class="hm">' + (r.boards || 0) + '</td>' +
+          (win ? '<td><b>' + (r.loot ? gold(r.loot) + ' gold' : '—') + '</b></td>' : '') +
+          '<td>' + Math.round(r.endHull || 0) + '/' + Math.round(r.hull0 || 0) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    var title = win ? 'Tony and Gank Kabur' : 'Serbuan Gagal';
+    var sub = win ? (c.empty ? 'Tony kabur ke kabut. Peti-petinya kosong pekan ini.' : 'Tony kabur ke kabut dan meninggalkan peti-peti jarahan.')
+      : c.other ? 'Tony sudah kabur lewat jalur lain sebelum armadamu menuntaskannya.' : 'Tony menghilang ke kabut. Kapalnya akan pulih sebelum armada berikutnya datang.';
+    $('sbEndP').innerHTML = '<header class="ph"><span class="ph-ico">' + icn(win ? 'trophy' : 'anchor') + '</span><div style="min-width:0;"><h2>' + title + '</h2><div class="ph-sub">' + esc(sub) + '</div></div></header>' +
+      '<div class="sb-tiles">' + tiles.map(function (x) { return '<div><b>' + esc(x[1]) + '</b><small>' + x[0] + '</small></div>'; }).join('') + '</div>' +
+      '<h3>' + icn('scroll') + 'Kartu Hasil</h3>' + tbl +
+      (win ? '<p class="sb-quote"><b>Ratu Marlya:</b> "Diam adalah emas, kata mereka dulu. Ternyata yang emas itu keberanian untuk bicara."</p>'
+           : '<p class="sb-quote"><b>Tony:</b> "Catat ini, Kapten: hari ini bukumu yang bertambah satu halaman, bukan bukuku."</p>') +
+      '<div class="sb-foot"><button class="btn btn-gold btn-lg" data-sb="home">' + icn('anchor') + '&nbsp; Kembali ke Kabut Abu-abu</button></div>';
+    $('sbEnd').hidden = false;
+    setTimeout(function () { var b = document.querySelector('#sbEndP [data-sb]'); if (b) b.focus(); }, 40);
+    sfx(win ? 'victory' : 'defeat');
+  }
   function showEnd() {
     if (!S.v || S.endShown || !S.open) return;
     S.endShown = true; stopFinal();
+    if (TONY()) { showEndTony(); return; }
     var v = S.v, c = v.card || {}, win = (c.result || v.result) === 'win', rows = c.rows || [];
     var meRow = null; rows.forEach(function (r) { if (r.pub === S.me) meRow = r; });
     var goStone = win && !v.vet && v.myState !== 'fled' && meRow && meRow.state !== 'fled';
@@ -718,6 +758,12 @@
   function hud() {
     var v = S.v; if (!v || !v.st) return;
     var b = S.boss || v.st.boss, max = b.max || 1000, hp = clamp(b.hull / max * 100, 0, 100), shp = b.shMax ? clamp((b.shield || 0) / b.shMax * 100, 0, 100) : 0;
+    if (TONY()) {
+      $('sbBoss').innerHTML = '<div class="sb-bn"><b>Armada Tony and Gank · Tony</b><span>' + (S.F ? 'Pertarungan Terakhir' : 'Fase ' + (b.phase || 1) + ' · ' + TT.ph[b.phase || 1]) + '</span></div>' +
+        '<div class="sb-hp"><i style="width:' + hp + '%"></i><em style="left:70%"></em><em style="left:55%"></em><em style="left:40%"></em><em style="left:30%"></em><em style="left:10%;background:#ffd27a"></em></div>' +
+        ((b.shield || 0) > 0 ? '<div class="sb-sh"><i style="width:' + shp + '%"></i></div><div class="sb-bsub"><span>Karung Kantong Bolong ' + Math.round(b.shield) + '</span><span>armada ' + Math.round(b.hull) + ' / ' + Math.round(max) + '</span></div>'
+          : '<div class="sb-bsub"><span>' + (S.F ? 'Tony kabur di 10%' : TT.sub[b.phase || 1]) + '</span><span>armada ' + Math.round(b.hull) + ' / ' + Math.round(max) + '</span></div>');
+    } else
     $('sbBoss').innerHTML = '<div class="sb-bn"><b>Sayap Patah · Jendral Tedsky</b><span>' + (S.F ? 'Pertarungan Terakhir' : 'Fase ' + (b.phase || 1) + ' · ' + PH_NAME[b.phase || 1]) + (b.stun ? ' · terdiam' : '') + '</span></div>' +
       '<div class="sb-hp"><i style="width:' + hp + '%"></i><em style="left:70%"></em><em style="left:50%"></em><em style="left:30%"></em></div>' +
       ((b.shield || 0) > 0 ? '<div class="sb-sh"><i style="width:' + shp + '%"></i></div><div class="sb-bsub"><span>Perisai Rantai ' + Math.round(b.shield) + '</span><span>lambung ' + Math.round(b.hull) + ' / ' + Math.round(max) + '</span></div>'
@@ -743,7 +789,7 @@
       var n = 0, lockedN = 0; pubs().forEach(function (p) { var s = v.st.ships[p]; if (s && s.alive !== false && !s.fled) { n++; if (v.locked && v.locked[p]) lockedN++; } });
       ph.textContent = 'Beri Perintah'; tm.textContent = Math.max(0, Math.ceil((v.planDeadline - t) / 1000)); sub.textContent = 'Giliran ' + v.round + ' · ' + lockedN + '/' + n + ' siap';
     }
-    var w = $('sbWatch'); if (w) w.textContent = v.myState === 'fled' ? 'Kau sudah mundur. Armada masih bertempur di teluk.' : 'Kapalmu tumbang. Kau menyaksikan armada bertempur dari kejauhan.';
+    var w = $('sbWatch'); if (w) w.textContent = v.myState === 'fled' ? 'Kau sudah mundur. Armada masih bertempur di ' + (TONY() ? 'kabut.' : 'teluk.') : 'Kapalmu tumbang. Kau menyaksikan armada bertempur dari kejauhan.';
   }
   function buttons() {
     var v = S.v; if (!v || !v.st) return;
@@ -791,15 +837,16 @@
     var g = { x: b.x + Math.sin(b.h) * b.v * FIRE_AT, y: b.y - Math.cos(b.h) * b.v * FIRE_AT }, dd = dist(pr.fire, g);
     var qL = arcQ(pr.fire, g, -1), qR = arcQ(pr.fire, g, 1), msg, warn = false;
     if (S.draft.cry) msg = '<b>Seruan</b> siap diserukan giliran ini.';
-    else if (qR > 0 && dd < RANGE) msg = 'Sayap Patah masuk <b>busur kanan</b> · jarak ' + Math.round(dd);
-    else if (qL > 0 && dd < RANGE) msg = 'Sayap Patah masuk <b>busur kiri</b> · jarak ' + Math.round(dd);
-    else if (dd >= RANGE) msg = 'Sayap Patah di luar jangkauan (' + Math.round(dd) + '). Dekati dari samping.';
-    else msg = 'Sayap Patah di depan/belakangmu. Belokkan kapal supaya ia di samping.';
-    if (b.phase === 2) {
+    else if (qR > 0 && dd < RANGE) msg = bossName() + ' masuk <b>busur kanan</b> · jarak ' + Math.round(dd);
+    else if (qL > 0 && dd < RANGE) msg = bossName() + ' masuk <b>busur kiri</b> · jarak ' + Math.round(dd);
+    else if (dd >= RANGE) msg = bossName() + ' di luar jangkauan (' + Math.round(dd) + '). Dekati dari samping.';
+    else msg = bossName() + ' di depan/belakangmu. Belokkan kapal supaya ia di samping.';
+    if (TONY() && me.hooked) { msg = 'Kapalmu tertambat <b>pengait Si Jepit</b>: kemudi lurus & layar setengah giliran ini. Meriam tetap bisa ditembakkan.'; warn = true; }
+    if (b.phase === 2 && !TONY()) {
       var sp = stoneP(), rr = dist(pr.end, sp), hw = (me.lane || 70) + (S.pearl && dist(pr.end, S.pearl) < 170 ? 40 : 0);
       if (Math.abs(rr - K('laneR', 560)) > hw) { msg = 'Jalurmu keluar dari <b>jalur aman</b>: arus akan menyeretmu ke karang.'; warn = true; }
     }
-    if (b.shield > 0 && S.draft.ammo !== 'chain' && (S.draft.fl || S.draft.fr)) msg += ' · Peluru Rantai x2 ke perisai';
+    if (b.shield > 0 && S.draft.ammo !== 'chain' && (S.draft.fl || S.draft.fr)) msg += TONY() ? ' · Peluru Rantai x2 ke karung' : ' · Peluru Rantai x2 ke perisai';
     if (wf(pr.end.h, st.w) < 0.3) { msg = 'Haluan melawan angin! Kapal akan hampir berhenti.'; warn = true; }
     var h = $('sbHint'); h.innerHTML = msg; h.classList.toggle('warn', warn); h.style.opacity = 1;
   }
@@ -891,7 +938,8 @@
     if (S.shake > 0.3) c.translate(rnd(-S.shake, S.shake), rnd(-S.shake, S.shake));
     var fin = !!S.F, st = S.v.st, w = st ? st.w : 0, ph = st && st.boss ? st.boss.phase : 1;
     var gr = c.createRadialGradient(CW / 2, CH * 0.45, 40, CW / 2, CH * 0.45, Math.max(CW, CH) * 0.8);
-    gr.addColorStop(0, fin ? '#1d3438' : ph === 3 ? '#2a2f3c' : '#14424c'); gr.addColorStop(1, fin ? '#0a1416' : '#06161c');
+    if (TONY()) { gr.addColorStop(0, fin ? '#2a2b30' : ph === 4 ? '#30303a' : '#2c3438'); gr.addColorStop(1, fin ? '#0d0e10' : '#101417'); }
+    else { gr.addColorStop(0, fin ? '#1d3438' : ph === 3 ? '#2a2f3c' : '#14424c'); gr.addColorStop(1, fin ? '#0a1416' : '#06161c'); }
     c.fillStyle = gr; c.fillRect(-20, -20, CW + 40, CH + 40);
     var s = S.cam.s;
     c.save(); c.translate(CW / 2 - S.cam.x * s, CH / 2 + S.cam.oy - S.cam.y * s); c.scale(s, s);
@@ -902,11 +950,14 @@
       c.strokeStyle = 'rgba(160,220,214,' + (0.04 + a * 0.1) + ')'; c.lineWidth = 2.2 / Math.max(0.5, s);
       c.beginPath(); c.moveTo(x - wdy * 14, y + wdx * 14); c.quadraticCurveTo(x + wdx * 4, y + wdy * 4, x + wdy * 14, y - wdx * 14); c.stroke();
     }
+    if (TONY()) { c.strokeStyle = 'rgba(170,170,176,.18)'; c.lineWidth = 40; c.strokeRect(20, 20, AW - 40, AH - 40); stoneTony(c); }
+    else {
     whirl(c, ph);
     c.strokeStyle = 'rgba(214,190,130,.22)'; c.lineWidth = 40; c.strokeRect(20, 20, AW - 40, AH - 40);
     handReef(c, 60, AH / 2, 1); handReef(c, AW - 60, AH / 2, -1);
     if (ph === 2 && !fin) laneRing(c);
     stone(c);
+    }
     var all = Object.keys(S.show).map(function (p) { return S.show[p]; }); if (S.boss) all.push(S.boss); if (S.pearl) all.push(S.pearl);
     all.forEach(function (sp) { if (!sp.wake) return; for (var j = 0; j < sp.wake.length; j++) { var wk = sp.wake[j]; if (wk.a <= 0) continue; c.fillStyle = 'rgba(220,240,240,' + wk.a * 0.16 + ')'; c.beginPath(); c.ellipse(wk.x, wk.y, wk.w, wk.w * 0.6, 0, 0, TAU); c.fill(); } });
     // ramalan
@@ -922,7 +973,7 @@
     }
     if (S.F && S.F.started && S.F.active) arcs(c, S.F.M, S.F.M, null, true);
     if (S.pearl) drawPearl(c, S.pearl);
-    if (S.boss) drawBoss(c, S.boss);
+    if (S.boss) (TONY() ? drawTony : drawBoss)(c, S.boss);
     Object.keys(S.show).forEach(function (p) { if (p !== S.me) drawShip(c, S.show[p], p); });
     if (S.show[S.me]) drawShip(c, S.show[S.me], S.me);
     S.balls.forEach(function (bl) {
@@ -939,6 +990,7 @@
       else if (f.k === 'num') { c.save(); c.font = '900 ' + (18 / Math.max(0.45, s)) + 'px "Pirata One", Cinzel, serif'; c.textAlign = 'center'; c.globalAlpha = Math.min(1, f.life); c.lineWidth = 4 / s; c.strokeStyle = 'rgba(20,10,4,.85)'; c.strokeText(f.text, f.x, f.y); c.fillStyle = f.col || '#ff9a7c'; c.fillText(f.text, f.x, f.y); c.restore(); }
     });
     S.smoke.forEach(function (m) { c.fillStyle = 'rgba(225,220,205,' + m.a * 0.55 + ')'; c.beginPath(); c.arc(m.x, m.y, m.r, 0, TAU); c.fill(); });
+    if (TONY()) fogTony(c, ph);
     c.restore();
     if (fin) { var vg = c.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * 0.3, CW / 2, CH / 2, Math.max(CW, CH) * 0.75); vg.addColorStop(0, 'rgba(120,20,10,0)'); vg.addColorStop(1, 'rgba(120,20,10,' + (0.28 + Math.sin(S.t * 3) * 0.06) + ')'); c.fillStyle = vg; c.fillRect(0, 0, CW, CH); }
     compass(c, w);
@@ -1079,6 +1131,80 @@
       c.restore();
     }
     if (!b.sunk || b.sunk < 0.9) label(c, b.stun ? 'Sayap Patah · terdiam' : 'Sayap Patah', b.x, b.y - (Lh + 34) / Math.max(0.7, S.cam.s) * 0.9, b.stun ? 'rgba(160,230,220,.95)' : 'rgba(255,170,150,.95)');
+  }
+  /* ---------- Tide v47: arena Kabut Abu-abu ---------- */
+  var FOG = null;
+  function stoneTony(c) {
+    var sp = stoneP(), r = K('stoneR', 120);
+    c.save(); c.translate(sp.x, sp.y);
+    c.fillStyle = 'rgba(48,50,54,.95)'; for (var i = 0; i < 11; i++) { var a = i / 11 * TAU; c.beginPath(); c.ellipse(Math.cos(a) * (r + 4), Math.sin(a) * (r + 4), 30, 18, a, 0, TAU); c.fill(); }
+    var g = c.createRadialGradient(-24, -24, 10, 0, 0, r); g.addColorStop(0, '#7a7c80'); g.addColorStop(1, '#2c2e32');
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, r - 10, 0, TAU); c.fill();
+    // pelampung pelikan Marlya
+    c.fillStyle = '#b3261e'; c.beginPath(); c.arc(r * 0.35, -r * 0.2, 9, 0, TAU); c.fill();
+    c.fillStyle = '#c9ced2'; c.beginPath(); c.ellipse(r * 0.35, -r * 0.2 - 14, 9, 6, 0, 0, TAU); c.fill(); c.fillStyle = '#e8b24a'; c.fillRect(r * 0.35 + 6, -r * 0.2 - 16, 9, 3);
+    c.fillStyle = 'rgba(255,60,60,.9)'; c.beginPath(); c.arc(r * 0.35 + 3, -r * 0.2 - 16, 1.6, 0, TAU); c.fill();
+    c.restore();
+    c.save(); c.font = '700 ' + (14 / Math.max(0.45, S.cam.s)) + 'px Cinzel, serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(220,222,226,.7)'; c.fillText('Karang Kabut', sp.x, sp.y + r + 34 / Math.max(0.6, S.cam.s)); c.restore();
+  }
+  function fogTony(c, ph) {
+    if (!FOG) { FOG = []; for (var i = 0; i < 26; i++) FOG.push({ x: Math.random() * AW, y: Math.random() * AH, r: rnd(160, 340), v: rnd(-14, 14), a: rnd(0.05, 0.12) }); }
+    var dens = ph === 2 && !S.F ? 2.2 : 1;
+    for (var k = 0; k < FOG.length; k++) {
+      var f = FOG[k]; f.x += f.v * 0.016; if (f.x < -400) f.x = AW + 400; if (f.x > AW + 400) f.x = -400;
+      var g = c.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r); g.addColorStop(0, 'rgba(170,172,178,' + Math.min(0.3, f.a * dens) + ')'); g.addColorStop(1, 'rgba(170,172,178,0)');
+      c.fillStyle = g; c.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+    }
+  }
+  // empat kapal: tiga pengawal mengelilingi Tangan Panjang, tenggelam bergantian di pergantian fase
+  function escort(c, x, y, h, col, Lh, B, sunk, label_) {
+    var w = S.v.st ? S.v.st.w : 0;
+    c.save(); c.translate(x, y); c.rotate(h);
+    if (sunk) c.globalAlpha = Math.max(0.12, 1 - sunk);
+    c.fillStyle = 'rgba(0,0,0,.28)'; hullPath(c, Lh, B, 4, 5); c.fill();
+    c.fillStyle = col.hull; hullPath(c, Lh, B, 0, 0); c.fill(); c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 1.6; c.stroke();
+    c.fillStyle = col.deck; hullPath(c, Lh - 6, B - 4, 0, 0); c.fill();
+    sails3(c, col.sail, { h: h, sails: 1, sail: 100 }, w, Lh / 46, col.masts);
+    c.restore();
+    if (!sunk && label_ && S.cam.s > 0.28) label(c, label_, x, y - (Lh + 26) / Math.max(0.6, S.cam.s) * 0.9, 'rgba(210,210,214,.8)');
+  }
+  function drawTony(c, b) {
+    var w = S.v.st ? S.v.st.w : 0, Lh = 88, B = 28, ph = b.phase || 1, karung = (b.shield || 0) > 0 && !S.F;
+    var ESC = [
+      { n: 'Kantong Bolong', a: 0, d: 150, col: { hull: '#4a3a2c', deck: '#6b5844', sail: '#8a8478', masts: [-12, 10] }, gone: ph >= 2 || S.F },
+      { n: 'Bayang Lambung', a: 2.2, d: 170, col: { hull: '#141416', deck: '#2a2a2e', sail: '#222226', masts: [-14, 2, 16] }, gone: ph >= 3 || S.F },
+      { n: 'Si Jepit', a: -2.2, d: 170, col: { hull: '#3a3436', deck: '#5a5456', sail: '#9a968c', masts: [-10, 10] }, gone: ph >= 4 || S.F }
+    ];
+    ESC.forEach(function (e) {
+      e.sk = e.sk || 0;
+      var key = 'esc' + e.n; if (e.gone) S[key] = Math.min(1, (S[key] || 0) + 0.006); else S[key] = 0;
+      if (S[key] >= 1) return;
+      var a = b.h + e.a + Math.sin(S.t * 0.4 + e.a) * 0.15, ex = b.x + Math.sin(a) * e.d, ey = b.y - Math.cos(a) * e.d;
+      escort(c, ex, ey, b.h + Math.sin(S.t * 0.6 + e.a) * 0.1, e.col, 40, 13, S[key], e.n);
+      if (e.n === 'Kantong Bolong' && karung) { // tali karung ke Tangan Panjang
+        c.strokeStyle = 'rgba(190,170,130,.7)'; c.lineWidth = 2; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(b.x, b.y); c.lineTo(ex, ey); c.stroke(); c.setLineDash([]);
+      }
+    });
+    c.save(); c.translate(b.x, b.y);
+    if (b.sunk) c.globalAlpha = Math.max(0.15, 1 - b.sunk);
+    c.rotate(b.h);
+    c.fillStyle = 'rgba(0,0,0,.3)'; hullPath(c, Lh, B, 6, 8); c.fill();
+    var hg = c.createLinearGradient(-B, 0, B, 0); hg.addColorStop(0, '#1e1d21'); hg.addColorStop(0.5, b.flash > 0 ? '#a8705a' : '#3a393e'); hg.addColorStop(1, '#1e1d21');
+    c.fillStyle = hg; hullPath(c, Lh, B, 0, 0); c.fill(); c.strokeStyle = '#8d8a80'; c.lineWidth = 2.2; c.stroke();
+    c.fillStyle = '#4a4844'; hullPath(c, Lh - 12, B - 8, 0, 0); c.fill();
+    c.fillStyle = '#121214'; for (var g = -4; g <= 4; g++) { c.fillRect(-B - 3, g * 15 - 2, 7, 4); c.fillRect(B - 4, g * 15 - 2, 7, 4); }
+    sails3(c, '#7d7b76', b, w, 1.7, [-38, 0, 38]);
+    // Tony di buritan: jas panjang & buku catatan
+    c.fillStyle = '#e7dcc4'; c.beginPath(); c.arc(0, Lh - 26, 5, 0, TAU); c.fill(); c.fillStyle = '#5a4430'; c.fillRect(-4, Lh - 21, 8, 10); c.fillStyle = '#f2e6c8'; c.fillRect(4, Lh - 20, 5, 6);
+    if (S.F && ph) { var hp = (b.hull || 0) / (b.max || 1); if (hp < 0.2) for (var k = 0; k < 3; k++) { c.fillStyle = 'rgba(255,' + (120 + k * 40) + ',40,' + (0.5 - k * 0.1) + ')'; c.beginPath(); c.arc(-10 + k * 10 + Math.sin(S.t * 8 + k) * 3, 30 - k * 14, 6 - k, 0, TAU); c.fill(); } }
+    c.restore();
+    if (karung) {
+      var R = K('bossR', 78) + 40, n = 14;
+      c.save(); c.translate(b.x, b.y); c.rotate(S.t * 0.25);
+      for (var i = 0; i < n; i++) { var a0 = i / n * TAU; c.fillStyle = 'rgba(150,120,80,' + (0.35 + 0.55 * (b.shield / (b.shMax || 1))) + ')'; c.beginPath(); c.ellipse(Math.cos(a0) * R, Math.sin(a0) * R, 11, 8, a0, 0, TAU); c.fill(); }
+      c.restore();
+    }
+    if (!b.sunk || b.sunk < 0.9) label(c, 'Tangan Panjang · Tony', b.x, b.y - (Lh + 34) / Math.max(0.7, S.cam.s) * 0.9, 'rgba(235,225,200,.95)');
   }
   function compass(c, w) {
     var r = Math.min(40, CW * 0.08), x = CW - r - 20, y = (CW < 560 ? 250 : 150) + r;

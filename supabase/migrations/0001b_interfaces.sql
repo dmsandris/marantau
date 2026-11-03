@@ -367,6 +367,11 @@ create or replace function game.tony_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
 create or replace function game.tony_auto(p_pid uuid) returns void
 language plpgsql as $$ begin null; end $$;
+-- [Tide v47 · Perburuan Tony / 0062] larangan berlayar selama lobi/serbuan Perburuan; status untuk getGameState
+create or replace function game.th_sail_guard(p_pid uuid) returns void
+language plpgsql as $$ begin null; end $$;
+create or replace function game.th_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
 -- [Tide v41 · Pasir / 0039] status lapisan zaman (null = tertutup; key tidak dikirim ke klien)
 create or replace function game.pasir_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
