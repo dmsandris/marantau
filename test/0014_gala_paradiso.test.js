@@ -2,6 +2,8 @@
 const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } };
 (async () => {
   const H = await require('./harness').create();
+  // Kabut Abu-abu (Perburuan Tony, 0063) tampil di peta semua pemain setiap Rabu WIB -> matikan supaya tes tidak bergantung hari
+  await H.sql(`update game.config set value = 'off' where key = 'TonyHuntForce'`);
   const u = await H.user('pemburu'); await u.call('api_createCharacter', ['Pemburu Harta', 'explorer']);
   const go = c => H.sql(`update game.player_location set city_id = $2, destination_city_id = null, depart_at = null, arrive_at = null, pending_encounter = null where player_id = $1`, [u.id, c]);
   const gold = async () => Number((await H.sql('select gold from game.players where player_id = $1', [u.id]))[0].gold);
