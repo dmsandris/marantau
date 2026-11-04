@@ -389,6 +389,13 @@ var MTGames4 = (function () {
       for (var i = 0; i < 20; i++) { var rr = i % 2 ? r : r * 1.25, a = i / 20 * Math.PI * 2; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
       ctx.closePath(); ctx.fill(); ctx.fillStyle = '#6a4a1a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.38, 0, 6.3); ctx.fill(); ctx.restore();
     }
+    function partAt(x, y, r) { // bagian mesin besi berukir (quest Lorang Peregrin)
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(D.t * 1.2) * 0.15);
+      ctx.fillStyle = '#8a8f96'; ctx.fillRect(-r * 1.2, -r * 0.8, r * 2.4, r * 1.6);
+      ctx.fillStyle = '#5c6168'; ctx.fillRect(-r * 1.2, -r * 0.8, r * 0.35, r * 1.6); ctx.fillRect(r * 0.85, -r * 0.8, r * 0.35, r * 1.6);
+      ctx.strokeStyle = '#c9a450'; ctx.lineWidth = 1.2; ctx.strokeRect(-r * 0.6, -r * 0.45, r * 1.2, r * 0.9);
+      ctx.restore();
+    }
     function diver(x, y, s, c) {
       ctx.save(); ctx.translate(x, y); var sw = Math.sin(D.t * 8) * 0.3;
       ctx.fillStyle = c || '#c99470'; ctx.beginPath(); ctx.arc(0, -16 * s, 8 * s, 0, 6.3); ctx.fill();
@@ -428,12 +435,12 @@ var MTGames4 = (function () {
       var open = kimaOpen() ? 1 : 0.15, kx = kima.x, ky = kima.y;
       ctx.fillStyle = '#8a9a8a'; ctx.beginPath(); ctx.ellipse(kx, ky, 60, 18, 0, 0, Math.PI); ctx.fill();
       ctx.save(); ctx.translate(kx, ky); ctx.rotate(-open * 0.5); ctx.fillStyle = '#9aaa98'; ctx.beginPath(); ctx.ellipse(0, 0, 60, 18, 0, Math.PI, 0); ctx.fill(); ctx.restore();
-      if (!D.heart && open > 0.5) { glow(ctx, kx, ky - 8, 30, '255,240,200', 0.7); if (opts.target === 'gear') gearAt(kx, ky - 6, 11); else { ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(kx, ky - 6, 9, 0, 6.3); ctx.fill(); } }
+      if (!D.heart && open > 0.5) { glow(ctx, kx, ky - 8, 30, '255,240,200', 0.7); if (opts.target === 'gear') gearAt(kx, ky - 6, 11); else if (opts.target === 'part') partAt(kx, ky - 6, 10); else { ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(kx, ky - 6, 9, 0, 6.3); ctx.fill(); } }
       // Ipo & pemain
       if (guide) diver(guide.x, guide.y, 0.85, '#a8744a');
       if (D.dizzy > 0) { ctx.save(); ctx.translate(D.x, D.y); ctx.rotate(Math.sin(t * 12) * 0.2); ctx.translate(-D.x, -D.y); }
       diver(D.x, D.y, 1);
-      if (D.heart && !opts.haveHeart) { glow(ctx, D.x + 14, D.y - 2, 18, '255,240,200', 0.7); if (opts.target === 'gear') gearAt(D.x + 14, D.y - 2, 8); else { ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(D.x + 14, D.y - 2, 6, 0, 6.3); ctx.fill(); } }
+      if (D.heart && !opts.haveHeart) { glow(ctx, D.x + 14, D.y - 2, 18, '255,240,200', 0.7); if (opts.target === 'gear') gearAt(D.x + 14, D.y - 2, 8); else if (opts.target === 'part') partAt(D.x + 14, D.y - 2, 7); else { ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(D.x + 14, D.y - 2, 6, 0, 6.3); ctx.fill(); } }
       if (D.dizzy > 0) ctx.restore();
       var dark = clamp((D.y - 200) / 500, 0, 0.55); ctx.fillStyle = 'rgba(2,10,20,' + dark.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H);
       if (D.breath < 12) { ctx.fillStyle = 'rgba(120,0,0,' + (0.12 + 0.1 * Math.sin(t * 8)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }

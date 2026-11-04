@@ -1,0 +1,635 @@
+<style>
+  /* ================= Quest rahasia "Mesin yang Hanyut" (Lorang Peregrin) ================= */
+  .pg-wrap { display: grid; gap: 10px; margin: 6px 0 12px; }
+  .pg-art { display: block; width: 100%; max-width: 420px; height: auto; margin: 4px auto 0; border-radius: 12px; }
+  .pg-quote { font-style: italic; text-align: center; color: #5a3a1a; margin: 6px 0 0; }
+  .pg-reward { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(201,164,80,.16); border: 1px solid rgba(150,110,40,.35); color: #3f2a14; }
+  .pg-reward .ico { width: 22px; height: 22px; }
+</style>
+<script>
+/* =====================================================================
+ * Quest rahasia "Mesin yang Hanyut" (Lorang Peregrin) — di luar Saga 3.
+ * Konsep: claude/KONSEP-Quest-Mesin-Sangrai-felyx.md (final). Server: 0064-peregrin.sql (api_peregrin).
+ *
+ * Terbuka setelah Saga 2 selesai; dimulai di Kedai Stumpy (Gading Island). Satu-satunya jejak adalah
+ * dialog penjaga lapau. TIDAK ADA Tanda Jasa, jurnal, chip, toast petunjuk, atau pengumuman.
+ * Penjaga lapau yang terakhir memberi petunjuk mengulang kiasannya bila dikunjungi lagi.
+ * Dibekukan selama Saga 3 aktif (state.peregrin.frozen).
+ *
+ * Juga: nama tetap penjaga lapau Saga 1 (Mas Bhims, Bang Sems, Omphutss, Uni Ros, Cik Siss, Chasong),
+ * berlaku untuk semua pemain di zaman kini.
+ * Modul ini MEMBUNGKUS fungsi inti (npc_, setModal_, openPanel) — inti tidak diubah.
+ * ===================================================================== */
+var PG = (function () {
+  /* ---------- nama tetap penjaga lapau Saga 1 ---------- */
+  var LAPAU_NAME = {
+    sunda_empire: ['Wak Jalil', 'Mas Bhims'], joungjava: ['Koh Liong', 'Bang Sems'], bjorneo: ['Ompu Tigor', 'Omphutss'],
+    skitraw: ['Mbok Sri', 'Uni Ros'], ikn: ['Cik Mei', 'Cik Siss'], paradiso: ['Kak Dayang', 'Chasong']
+  };
+  function eraKini() { return !(state && state.pasir && state.pasir.era && state.pasir.era !== 'kini'); }
+  var origNpc = window.npc_;
+  if (typeof origNpc === 'function') {
+    window.npc_ = function (role) {
+      var n = origNpc.apply(this, arguments);
+      try {
+        var m = role === 'lapau' && LAPAU_NAME[cid()];
+        if (m && n && n.name === m[0] && eraKini()) n = Object.assign({}, n, { name: m[1] });
+      } catch (e) { }
+      return n;
+    };
+  }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.peregrin) || null; }
+  function step() { var s = st(); return s ? (s.step || 0) : -1; }
+  function active() { var s = st(); return !!(s && !s.frozen && !s.done && eraKini()); }
+  function done() { var s = st(); return !!(s && s.done); }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function frac() { return typeof dayFrac_ === 'function' ? dayFrac_() : 0.4; }
+  function night() { var f = frac(); return f >= 0.72 || f < 0.04; }
+  function dawn() { var f = frac(); return f >= 0.93 || f < 0.12; }
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+  function face(n) { return n.svg || MTFace.svg(n.ap, { bgColors: ['#7a5a3a', '#2a1a0e'], fat: n.fat, clown: n.clown, medals: n.medals }); }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  var gameOpen = false;
+
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    NN = {
+      felyx: { name: 'felyx', title: 'Penjaga Kedai Stumpy', ap: apOf('felyx-stumpy-gading', 'lapau', 0, { age: 0.32, head: 'none', item: 'none' }) },
+      ama: { name: 'Ama Kerang', title: 'Tetua penyelam Karang Garam', ap: apOf('ama-kerang-karang-garam', 'gudang', 1, { age: 0.95, head: 'none', hair: 4 }) },
+      tassy: { name: 'Tassyaaa', title: 'Pandai besi FreeYork', ap: apOf('tassyaaa-freeyork-tempa', 'tukang', 1, { age: 0.5, outfit: 'apron', head: 'ikat', facial: 0 }) },
+      upayy: { name: 'Ny. Upayy', title: 'Penjaga kincir tua, Otoland', ap: apOf('upayy-otoland-kincir', 'lapau', 1, { age: 0.95, hair: 4, head: 'none', outfit: 'kebaya' }) },
+      anak: { name: 'Anak Kamp Pemulung', title: 'Di bawah sayap Garuda', ap: apOf('anak-kamp-ikn', 'lapau', 1, { age: 0.08, head: 'none' }) },
+      karto: { name: 'Pak Tua Karto', title: 'Peminum Kopi Pahit', ap: { fem: 0, skin: 3, hair: 4, hairStyle: 5, facial: 2, head: 'arch', eyes: 0, seed: 1717, role: 'lapau', age: 0.95 } },
+      queeen: { name: 'Miss Queeen', title: 'Nakhoda Ratu Kabut', ap: apOf('miss-queeen-ratu-kabut', 'syahbandar', 1, { age: 0.48, head: 'kapten', ear: 'hoop', mark: 'none' }) }
+    };
+    return NN;
+  }
+  function who(k) {
+    if (!k || k === 'lapau') { try { return npc_('lapau'); } catch (e) { return { name: 'Penjaga lapau', title: '', ap: MTFace.npc('x|lapau', 'lapau') }; } }
+    return N()[k];
+  }
+
+  function speech(n, text, extra, title) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(title || n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function narr(kicker, text, extra, icon) {
+    return '<div class="cb-narr"><div class="cn-k">' + ic(icon || 'scroll') + esc_(kicker || '') + '</div>' + text + (extra || '') + '</div>';
+  }
+  function actions(b) { return '<div class="qg-actions">' + b + '</div>'; }
+  function btn(id, icon, label, gold) { return '<button class="btn ' + (gold === false ? '' : 'btn-gold') + '" data-pg="' + id + '">' + (icon ? ic(icon) + '&nbsp; ' : '') + label + '</button>'; }
+  function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function insertTop(html) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    var old = c.querySelector('.pg-wrap'); if (old) old.remove();
+    var anchor = c.querySelector('.ph');
+    var wrap = document.createElement('div'); wrap.className = 'pg-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function showModal(html) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function modalWrap(icon, title, sub) { showModal(panelHeader_(icon, title, sub)); return insertTop('<div></div>'); }
+  function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
+
+  // halaman bertahap. list: string (pembicara utama) | {n: kunci tokoh, t} | {narr, t, icon}
+  function pages(w, mainKey, list, lastBtns, bind) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], txt = (pg && pg.t) || pg;
+      var nav = actions(last ? (lastBtns || '') : btn('next', null, 'Lanjut')) + (list.length > 1 ? dots(i, list.length) : '');
+      w.innerHTML = pg && pg.narr ? narr(pg.narr, txt, nav, pg.icon) : speech(who((pg && pg.n) || mainKey), txt, nav);
+      try { au_('page'); } catch (e) { }
+      if (!last) on(w, '[data-pg=next]', function () { i++; show(); }); else if (bind) bind(w);
+    }
+    show();
+  }
+
+  function call(s, res, ok, b) {
+    if (b) b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      r = r || {};
+      if (r.peregrin !== undefined && state) state.peregrin = r.peregrin;
+      if (r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
+      if (typeof invalidatePanelCache_ === 'function') try { invalidatePanelCache_(); } catch (e) { }
+      try { ok(r); } catch (e) { console.warn('[PG]', e); }
+    }).withFailureHandler(function (e) {
+      if (b) b.disabled = false;
+      var m = (e && e.message) || String(e);
+      showToast(m, 'error');
+      if (/bergeser/.test(m)) refresh();
+    }).api_peregrin('maju', s, res || '');
+  }
+  function refresh() {
+    google.script.run.withSuccessHandler(function (r) { if (r && r.peregrin !== undefined && state) state.peregrin = r.peregrin; }).withFailureHandler(function () { }).api_peregrin('status');
+  }
+
+  /* ---------- mini game ---------- */
+  function lib(kind) {
+    if (kind === 'pantun' || kind === 'mercusuar') return window.MTGames;
+    if (kind === 'gasing') return window.MTGames2;
+    if (kind === 'jejak') return window.MTGames3;
+    return window.MTGames4;
+  }
+  function game(kind, opts, cb) {
+    var L = lib(kind);
+    function fin(res) { gameOpen = false; try { cb(res || { cancelled: true }); } catch (e) { console.warn('[PG] game', e); } }
+    if (L && typeof L.open === 'function') {
+      gameOpen = true;
+      try { L.open(kind, opts || {}, fin); return; } catch (e) { gameOpen = false; console.warn('[PG] game', e); }
+    }
+    fin({ win: true });   // mini game tidak termuat: cerita tetap bisa lanjut
+  }
+
+  var PANTUN_ROS = [
+    { s: ['Anak dara menumbuk padi,', 'Padinya ditampi di halaman.'], i: ['Nampan berputar tak usah dicari,', 'Bawalah pulang ke tangan tuan.'],
+      bad: ['Nampan berputar biar di sini,', 'Jangan dikembalikan pada tuan.'], r: ['i', 'an'], k: ['tu', 'an'] },
+    { s: ['Burung pipit di pohon jati,', 'Terbang rendah ke tepi kali.'], i: ['Kopi pahit diminum hati-hati,', 'Supaya manisnya terasa kembali.'],
+      bad: ['Kopi pahit diminum hati-hati,', 'Tambahkan gula sepuluh kali.'], r: ['ti', 'li'], k: ['kem', 'ba', 'li'] },
+    { s: ['Rendang dimasak di kuali tembaga,', 'Apinya kecil sampai ke pagi.'], i: ['Barang orang dijaga dengan setia,', 'Bila pemiliknya datang, kembalikan lagi.'],
+      bad: ['Barang orang dijaga dengan setia,', 'Bila pemiliknya datang, sembunyikan lagi.'], r: ['a', 'gi'], k: ['la', 'gi'] },
+    { s: ['Layar terkembang di Teluk Bayur,', 'Angin barat bertiup pelan.'], i: ['Juru seduh menabung dengan jujur,', 'Satu koin satu cangkir tiap pekan.'],
+      bad: ['Juru seduh menabung dengan jujur,', 'Lalu dihabiskan di meja judian.'], r: ['ur', 'an'], k: ['pe', 'kan'] },
+    { s: ['Pisang emas dibawa berlayar,', 'Masak sebiji di atas peti.'], i: ['Hutang emas boleh dibayar,', 'Hutang budi dibawa mati.'],
+      bad: ['Hutang emas boleh dibayar,', 'Hutang budi lupakan nanti.'], r: ['ar', 'ti'], k: ['ma', 'ti'] },
+    { s: ['Pagi-pagi ke pasar Bukittinggi,', 'Membeli lado di ujung lorong.'], i: ['Jalan jauh jangan disesali,', 'Yang mencari pasti tertolong.'],
+      bad: ['Jalan jauh lebih baik dihindari,', 'Duduk saja menunggu tolong.'], r: ['gi', 'ong'], k: ['ter', 'to', 'long'] }
+  ];
+
+  var ALLEY_SVG = (function () {
+    var s = '<rect width="1000" height="600" fill="#1a1410"/>';
+    s += '<rect x="0" y="0" width="230" height="600" fill="#241a14"/><rect x="770" y="0" width="230" height="600" fill="#241a14"/>';
+    s += '<path d="M230 600 L420 330 L580 330 L770 600 Z" fill="#2c2218"/>';
+    for (var i = 0; i < 9; i++) s += '<rect x="' + (30 + (i % 3) * 60) + '" y="' + (60 + Math.floor(i / 3) * 140) + '" width="40" height="70" fill="#3a2a1c"/>';
+    s += '<rect x="420" y="160" width="160" height="170" fill="#1f1712"/><rect x="470" y="230" width="60" height="100" fill="#120d0a"/>';
+    s += '<rect x="790" y="420" width="120" height="90" fill="#4a3522"/><rect x="800" y="380" width="90" height="40" fill="#3e2c1c"/>';
+    s += '<rect x="90" y="470" width="110" height="70" fill="#4a3522"/><circle cx="880" cy="200" r="18" fill="#d9a441" opacity=".5"/>';
+    s += '<path d="M300 560 q20 -8 40 0 M360 520 q18 -6 36 0 M420 480 q16 -6 32 0 M470 440 q14 -5 28 0" stroke="#0a0807" stroke-width="10" fill="none" opacity=".75"/>';
+    s += '<rect x="560" y="360" width="40" height="18" fill="#0a0807" opacity=".7"/><text x="500" y="150" text-anchor="middle" font-size="22" fill="#6a5238" font-family="Georgia,serif">PASAR GELAP</text>';
+    return s;
+  })();
+  var JEJAK_CFG = {
+    kicker: "TooGood &middot; Black's Alley, malam", title: 'Olah Jejak &middot; Cerobong yang Dicopot',
+    intro: 'Bengkel cat dwi penuh jelaga. Ada <b>lima jejak</b> yang ditinggalkan orang yang mencopot cerobongnya. Minyak lentera terbatas: <b>ketukan sembarangan memboroskannya</b>.',
+    clues: [
+      { id: 'telapak', x: 320, y: 556, r: 30, t: 'Telapak kaki berjelaga', th: 'Telapak kaki hitam, besar, tanpa sepatu. Menjauh dari bengkel dwi.' },
+      { id: 'seret', x: 440, y: 480, r: 28, t: 'Bekas benda diseret', th: 'Dua garis sejajar di tanah: sesuatu yang <b>berat dan bulat</b> diseret.' },
+      { id: 'cat', x: 580, y: 368, r: 22, t: 'Cat basah di batu', th: 'Cat biru dwi menempel di batu. Cerobong itu masih basah catnya saat dibawa.' },
+      { id: 'tali', x: 850, y: 400, r: 28, t: 'Tali yang ditinggalkan', th: 'Tali tambang putus. Cerobongnya <b>terlalu berat</b> untuk satu orang.' },
+      { id: 'pintu', x: 500, y: 280, r: 30, t: 'Pintu belakang Pasar Gelap', th: 'Jejak jelaga berhenti di pintu belakang Pasar Gelap.' }
+    ],
+    decoys: [
+      { x: 145, y: 505, r: 30, th: 'Peti arak kosong. Sudah lama di sini.' },
+      { x: 880, y: 200, r: 24, th: 'Lentera gantung. Minyaknya hampir habis.' },
+      { x: 60, y: 95, r: 26, th: 'Jendela tertutup papan. Tidak ada yang mengintip.' },
+      { x: 700, y: 560, r: 30, th: 'Genangan air. Hanya bayangan lampu.' }
+    ],
+    deduce: [{ q: 'Di mana cerobong itu sekarang?', opts: [
+      { t: 'Di belakang Pasar Gelap, ditinggalkan', ok: true, why: 'Jejak berhenti di pintu belakang, talinya putus. <b>Terlalu berat untuk dijual.</b>' },
+      { t: 'Sudah dibawa berlayar', why: 'Tidak ada jejak ke dermaga. Semua jejak menuju gang ini.' },
+      { t: 'Disembunyikan di Dok Kering', why: 'Dok Kering di arah sebaliknya. Jelaganya tidak ke sana.' }
+    ] }]
+  };
+
+  /* =====================================================================
+   * 30 langkah. at: 'tavern' | 'stumpy' | 'dawn'. main = pembicara utama.
+   * p = halaman sebelum aksi, b = tombol aksi, g = mini game, a = halaman sesudah berhasil,
+   * rep = kiasan yang diulang penjaga lapau bila pemain kembali, wait = bila syarat waktu belum terpenuhi.
+   * ===================================================================== */
+  var S = [
+    /* 0 */ { c: 'gading_island', at: 'stumpy', main: 'felyx', icon: 'coffee', title: 'Kedai Stumpy',
+      p: [{ narr: 'Kedai Stumpy', icon: 'coffee', t: '<p>felyx tidak bertanya kopi apa. Ia menimbang biji, menuang air dari ketel berleher angsa, dan memutarnya pelan di atas kertas saring. Uapnya naik bersama asap dupa klenteng di seberang jalan.</p>' },
+        '"<b>Manual brew.</b> Bijinya kusangrai sendiri, sedikit-sedikit, di wajan. Biji yang baik pantas dapat api yang lebih baik."',
+        '"Bertahun-tahun, selama Stumpy tutup, aku menyeduh untuk pekerja dermaga. Satu koin per cangkir. Semuanya kusimpan di kaleng teh di bawah meja."',
+        '"Akhirnya cukup. Aku memesan mesin sangrai dari bengkel di pelabuhan kaca. <b>Lorang Peregrin</b>. Tujuh puluh kilo biji sekali putar. Dengan itu Stumpy bisa buka setiap hari."',
+        '<i>(ia tersenyum tipis)</i> "Kapalnya tak pernah sampai. Musim itu semua kompas berputar. <b>Dari pelabuhan kaca, kapal itu tak pernah sampai.</b>" Ia mendorong cangkir ke arahmu. "Ah, sudahlah. Minum kopimu, Kapten. Selagi hangat."'],
+      b: btn('go', 'cup', 'Habiskan kopimu'),
+      a: [{ narr: 'Kedai Stumpy', icon: 'coffee', t: '<p>Pahit di lidah. Manis di ingatan.</p>' }] },
+    /* 1 */ { c: 'marie_regal', at: 'tavern',
+      p: ['"SELAMAT DATANG DI KAFE SIRKUIT. MINUMAN HARI INI: KOPI. SEMUA MINUMAN ADALAH KOPI."',
+        '"Catatan dermaga: pernah ada kapal yang membawa paket besar. Label: <b>PESANAN ROASTER NOMOR 1 DI MARE NUSANTARA</b>."',
+        '"Kapal dan kargonya hilang saat kejadian kompas rusak. Status kiriman: tidak pernah tiba. Status pemesan: menunggu."',
+        '"Saya pernah mendengar kaptennya mengatakan kargonya <b>hanyut ke FreeYork</b>. Suaranya keras. Tercatat 94 desibel."'],
+      b: btn('go', null, 'Terima kasih, K-11', false),
+      rep: '"ULANGI DATA: kapten itu mengatakan kargonya hanyut ke FreeYork."' },
+    /* 2 */ { c: 'freeyork', at: 'tavern',
+      p: ['"Kapal karam, malam kompas berputar? Iya, ada. Satu pinisi menabrak karang di depan pelabuhan. Bunyinya sampai ke tungku-tungku kami."',
+        '"Paginya peti-peti pecah mengapung ke mana-mana. Orang memungut apa saja yang bisa dipungut. Yang besar, <b>tabung besi yang bisa berputar</b>, tenggelam bersama bangkainya."',
+        '"Menyelam ke sana? Orang sini tukang tempa, Kapten, bukan penyelam. Penyelam terbaik ada di <b>pulau yang tiangnya tegak di tengah garam</b>."'],
+      b: btn('go', null, 'Pamit', false),
+      rep: '"Penyelam terbaik ada di pulau yang tiangnya tegak di tengah garam, Kapten."' },
+    /* 3 */ { c: 'karang_garam', at: 'tavern',
+      p: ['"Tabung besi di FreeYork? Itu dalam sekali, Kapten. Hanya Ama Kerang yang kenal karang-karang dalam."',
+        '"Tapi Ama pernah bercerita soal <b>corong besi berukir</b> yang tersangkut di karang kami sendiri. Terseret arus dari timur, katanya. Ia kira itu lonceng hantu."',
+        '"Ama sedang melaut. <b>Datanglah lagi saat perahunya pulang.</b>"'],
+      b: btn('go', null, 'Nanti kembali', false),
+      rep: '"Ama sedang melaut, Kapten. Datanglah lagi saat perahunya pulang."' },
+    /* 4 */ { c: 'karang_garam', at: 'tavern', main: 'ama',
+      p: [{ narr: 'Dapur Penyelam', icon: 'fish', t: '<p>Ama Kerang duduk di sudut dapur. Rambut putihnya masih basah air laut.</p>' },
+        '"Corong besi? Aku tahu tempatnya. Celah karang yang buka-tutup di dasar. Kau yang turun, aku menunggu di perahu."'],
+      b: btn('go', 'fish', 'Menyelam'),
+      g: { kind: 'selam', opts: { kicker: 'Kepulauan Karang Garam &middot; perairan dalam', title: 'Selam &middot; Corong Besi', targetName: 'Corong Besi', target: 'part', guide: false,
+        intro: '<b>Ama Kerang:</b> "Corongnya terjepit di celah karang yang buka-tutup. Jangan sentuh ubur-ubur yang menyala. Cari gelembung kalau napas tinggal sedikit. Waktu naik, <b>pelankan sebelum garis hijau</b>."',
+        grabMsg: '<b>Corong besi!</b> Ukirannya halus. Sekarang naik pelan-pelan.',
+        cards: { ok: ['Corong besi', 'Di tanganmu', '<b>Ama Kerang:</b> "Itu dia. Ukirannya bukan dari laut kita."'], empty: ['Naik tanpa corong', 'Corongnya masih di dasar', '<b>Ama Kerang:</b> "Karang tidak ke mana-mana."'], fail: ['Napas habis', 'Kau naik terengah', '<b>Ama Kerang:</b> "Istirahat dulu. Laut tidak suka orang terburu-buru."'] } } },
+      a: ['"Tabung besar di FreeYork? Terlalu dalam tanpa pengait. <b>Mintalah pada tangan yang memukul besi siang malam.</b>"'],
+      rep: '"Tabung besar itu terlalu dalam tanpa pengait, kata Ama. Mintalah di kota tempat besi dipukul siang malam."' },
+    /* 5 */ { c: 'freeyork', at: 'tavern',
+      p: ['"Tassyaaa! Kapten ini mau menyelam ke bangkai pinisi itu."',
+        { n: 'tassy', t: '"Ke bangkai itu? Kau butuh pengait yang tidak patah di kedalaman. <b>Tempa sendiri.</b> Aku yang mengawasi."' }],
+      b: btn('go', 'hammer', 'Ambil palu'),
+      g: { kind: 'tempa', opts: { kicker: 'FreeYork &middot; tungku Tassyaaa', title: 'Tempa Pengait Selam',
+        intro: '<b>Tassyaaa:</b> "Panaskan sampai kuning jerami, jangan putih. Pukul di zona hijau. Lalu celup sekali, tepat waktu."' } },
+      a: [{ n: 'tassy', t: '"Pengait yang baik. Bangkainya di karang depan pelabuhan. Pergilah selagi airnya tenang."' }],
+      rep: '"Pengaitmu sudah jadi, Kapten. Bangkai itu di karang depan pelabuhan."' },
+    /* 6 */ { c: 'freeyork', at: 'tavern', main: 'tassy',
+      p: ['"Pengaitnya di tanganmu. Turun, kaitkan ke tabungnya, lalu naik pelan. Jangan tarik sendiri."'],
+      b: btn('go', 'fish', 'Menyelam ke bangkai'),
+      g: { kind: 'selam', opts: { kicker: 'FreeYork &middot; karang depan pelabuhan', title: 'Selam &middot; Bangkai Pinisi', targetName: 'Tabung Besi', target: 'part', guide: false,
+        intro: '<b>Tassyaaa:</b> "Tabungnya di lambung bangkai, terjepit papan yang buka-tutup kena arus. Kaitkan, lalu naik. <b>Pelankan sebelum garis hijau.</b>"',
+        grabMsg: '<b>Pengait terkunci!</b> Tabung besi itu ikut terangkat. Naik pelan-pelan.',
+        cards: { ok: ['Tabung besi', 'Terangkat', 'Di lambung bangkai, papan nama masih terbaca: <b>RATU KABUT</b>.'], empty: ['Naik tanpa tabung', 'Tabungnya masih di bangkai', '<b>Tassyaaa:</b> "Coba lagi. Besi sabar, kau juga harus."'], fail: ['Napas habis', 'Kau naik terengah', '<b>Tassyaaa:</b> "Istirahat. Bangkai itu tidak ke mana-mana."'] } } },
+      a: [{ narr: 'Karang depan pelabuhan', icon: 'anchor', t: '<p>Di lambung bangkai, papan nama masih terbaca: <b>RATU KABUT</b>.</p>' },
+        { n: 'lapau', t: '"Tabung itu akhirnya naik juga. Kotak-kotak kecil yang dulu mengapung? Satu <b>kotak bertombol</b> dipungut <b>kapal yang belnya berbunyi tiap jam</b>."' }],
+      rep: '"Kotak bertombol itu dipungut kapal yang belnya berbunyi tiap jam, Kapten."' },
+    /* 7 */ { c: 'sowtour', at: 'tavern',
+      p: ['"Kapal berlonceng itu kapal kami, Kapten. Belnya berbunyi tiap jam, seperti kota ini."',
+        '"Kotak bertombol? Awak kami mengira itu cermin rusak. Kacanya bundar, tombolnya kuningan. Dijual murah ke seorang kolektor."',
+        '"Kolektornya dari <b>pulau tempat jam lebih dihormati daripada orang</b>."'],
+      b: btn('go', null, 'Pamit', false),
+      rep: '"Kolektor itu dari pulau tempat jam lebih dihormati daripada orang."' },
+    /* 8 */ { c: 'empeer_depeer', at: 'tavern',
+      p: ['"Kotak bertombol? Sssst. Semua barang tanpa cap bea disita Dewan, Kapten. Kolektornya sampai menangis di depan kantor."',
+        '"Berkasnya ada di arsip. Aku tidak boleh membuka arsip di jam kerja."',
+        '"<b>Tanya lagi setelah jam agung berdentang malam.</b>"'],
+      b: btn('go', null, 'Nanti malam', false),
+      rep: '"Tanya lagi setelah jam agung berdentang malam, Kapten."' },
+    /* 9 */ { c: 'empeer_depeer', at: 'tavern', t: 'malam',
+      wait: '"Jam agung belum berdentang malam, Kapten. Aku masih pegawai sampai lampu-lampu dinyalakan."',
+      p: ['<i>(ia melepas kartu pegawainya)</i> "Nah. Sekarang aku bukan pegawai."',
+        '"Barang sitaan itu sudah dilelang. Kotak bertombol dimenangkan seorang <b>penjaga kincir tua</b>. Katanya, kacanya cocok untuk membaca angin."',
+        '"Carilah ke <b>tempat angin diperas jadi tepung</b>."'],
+      b: btn('go', null, 'Terima kasih', false),
+      rep: '"Carilah ke tempat angin diperas jadi tepung, Kapten."' },
+    /* 10 */ { c: 'otoland', at: 'tavern',
+      p: ['"Kotak bertombol itu? Sekarang mengatur kincir tua Ny. Upayy. Sejak dipasang, kincirnya tak pernah salah putar."',
+        '"Tapi Ny. Upayy tidak mau bicara soal kincirnya di kincir. Ia hanya mau bicara di warung. <b>Ia mampir tiap sore.</b>"'],
+      b: btn('go', null, 'Nanti kembali', false),
+      rep: '"Ny. Upayy mampir ke warung tiap sore, Kapten."' },
+    /* 11 */ { c: 'otoland', at: 'tavern', main: 'upayy',
+      p: ['"Kau mau kotak di kincirku? Nansy dulu juga selalu minta barang dengan cara yang sama: menantangku main gasing."',
+        '"Menang dariku, kotaknya milikmu."'],
+      b: btn('go', 'star', 'Adu Gasing'),
+      g: { kind: 'gasing', lose: '"Lagi? Gasing tidak pernah bosan, Kapten."', opts: { title: 'Adu Gasing', subtitle: 'Warung Jaring · lawan Ny. Upayy', kicker: 'Otoland · taruhannya kotak bertombol',
+        intro: 'Ny. Upayy mengeluarkan gasing kayu tuanya. Lilit tali, lempar tepat waktu, hantam gasing lawan. Terbaik dari tiga ronde.',
+        variant: 'normal', easy: true, winLine: '"Kau menang. Kotaknya milikmu."', loseLine: '"Belum, Kapten. Lagi?"' } },
+      a: ['"Kincirku akan salah putar lagi. Biar saja; angin juga butuh bercanda."',
+        { n: 'lapau', t: '"Kapten, dulu ada kapten perempuan yang namanya pakai <b>tiga e</b> singgah di sini. Ia bertanya jalan ke <b>sarang tempat asap tak pernah padam</b>."' }],
+      rep: '"Kapten bertiga e itu bertanya jalan ke sarang tempat asap tak pernah padam."' },
+    /* 12 */ { c: 'toogood', at: 'tavern',
+      p: ['"Cerobong logam? Ada di bengkel catku. Asapnya lurus sekali, lukisanku jadi tidak berjelaga."',
+        '"...Sampai semalam. Seseorang mencopotnya. Bengkelku sekarang penuh jelaga."',
+        '"Kapten perempuan yang tertawa keras itu? Ia pernah minum di sini sampai menangis. <b>Datanglah saat lampu dinyalakan.</b> Jejak jelaga hanya terlihat di bawah lentera."'],
+      b: btn('go', null, 'Nanti malam', false),
+      rep: '"Datanglah saat lampu dinyalakan, Kapten. Jejak jelaga hanya terlihat di bawah lentera."' },
+    /* 13 */ { c: 'toogood', at: 'tavern', t: 'malam',
+      wait: '"Jejak jelaga hanya terlihat di bawah lentera, Kapten. Tunggu lampu dinyalakan."',
+      p: ['"Lentera sudah menyala. Ikuti jelaganya, Kapten. Aku menjaga bar."'],
+      b: btn('go', 'eye', 'Ikuti jejak jelaga'),
+      g: { kind: 'jejak', opts: { cfg: JEJAK_CFG, sceneSvg: ALLEY_SVG, warm: true, doneLine: 'Jejaknya berhenti di pintu belakang Pasar Gelap.' } },
+      a: [{ narr: "Belakang Pasar Gelap", icon: 'eye', t: '<p>Cerobong itu tergeletak di balik tumpukan peti. Pencurinya meninggalkannya: terlalu berat untuk dijual.</p>' },
+        '"Ambil saja. Bengkelku sudah terlanjur hitam; lukisan berikutnya biar gelap."',
+        '"Api birunya? Dulu ada tungku kecil yang ikut terdampar di sini. Sudah dijual ke orang dari <b>tempat gunung batuk dan tuak hangat</b>."'],
+      rep: '"Tungku api biru itu dijual ke orang dari tempat gunung batuk dan tuak hangat."' },
+    /* 14 */ { c: 'bjorneo', at: 'tavern',
+      p: ['"Tungku api biru? Hah. Kau tahu kenapa tuak kami hangat sejak musim lalu?"',
+        '"Semua orang bilang gunung yang batuk. Bukan. <b>Tungku kecil itu</b>, di bawah gentong. Aku belum rela melepasnya."',
+        '"Minum dulu bersamaku, lain kali. Tuak terakhir yang hangat harus diminum berdua."'],
+      b: btn('go', null, 'Lain kali', false),
+      rep: '"Tuak terakhir yang hangat harus diminum berdua, Kapten."' },
+    /* 15 */ { c: 'bjorneo', at: 'tavern', barter: [3, 'Tuak'],
+      p: ['"Kau kembali. Bawa <b>tiga Tuak</b> dari pasar kami. Kita minum yang terakhir."'],
+      b: btn('go', 'cup', 'Serahkan 3 Tuak'),
+      a: [{ narr: 'Kedai Tuak', icon: 'cup', t: '<p>Tiga cangkir, dua orang, satu tungku yang dipadamkan pelan-pelan.</p>' },
+        '"Mulai besok tuak kami dingin lagi. Gunung itu boleh batuk sesukanya."',
+        '"Nampan berputar yang ikut terdampar? Dibawa juru masak keliling, ke <b>orang-orang yang bersumpah demi rendang</b>."'],
+      rep: '"Nampan berputar itu dibawa ke orang-orang yang bersumpah demi rendang."' },
+    /* 16 */ { c: 'skitraw', at: 'tavern',
+      p: ['"Nampan berputar? Itu nampan rendang ambo. Lengannya mengaduk sendiri. Rendang ambo tak pernah gosong sejak itu."',
+        '"Orang Minang tidak memberi barang karena diminta, Kapten. <b>Balas pantun ambo dulu.</b>"'],
+      b: btn('go', 'scroll', 'Balas pantun'),
+      g: { kind: 'pantun', lose: '"Asah lagi lidahmu, Kapten. Ambo menunggu."', opts: { bank: PANTUN_ROS, place: 'Bopet Bassamo &middot; Skitraw', kicker: 'Bopet Bassamo · Skitraw', title: 'Balas Pantun Uni Ros', hall: 'Bopet Bassamo',
+        quote: 'Orang Minang tidak memberi barang karena diminta.', cta: 'Duduk di depan dapur', cooldownSec: 0,
+        winKicker: 'Pantun terakhir', winTitle: 'Nampan Berpindah Tangan', winQuote: 'Ambil nampannya, Kapten.' } },
+      a: ['"Ambil nampannya. Ambo masak rendang dengan sabar saja, seperti nenek ambo dulu."',
+        '"Rangka besinya? Dipungut pemulung besi, dibawa ke <b>kota yang sudah runtuh</b>."'],
+      rep: '"Rangka besi itu dibawa pemulung ke kota yang sudah runtuh, Kapten."' },
+    /* 17 */ { c: 'ikn', at: 'tavern',
+      p: ['"Rangka besi berkaki empat? Anak-anak menjadikannya gerobak. Mereka balapan tiap sore di bawah sayap Garuda."',
+        '"Mereka tak akan melepasnya, Kapten. Itu satu-satunya mainan mereka. <b>Kecuali ada gantinya.</b>"'],
+      b: btn('go', null, 'Pamit', false),
+      rep: '"Anak-anak itu butuh gantinya, Kapten."' },
+    /* 18 */ { c: 'ikn', at: 'tavern', main: 'anak', barter: [3, 'Besi'],
+      p: ['"Kapten mau gerobak kami? Buatkan yang baru dulu! <b>Tiga batang besi</b> cukup."'],
+      b: btn('go', 'wrench', 'Serahkan 3 Besi'),
+      a: ['"Gerobak baru lebih cepat!"',
+        { n: 'lapau', t: '"Kapten perempuan bertiga e itu? Kudengar ia bersembunyi di <b>pulau tempat orang melepas sepatu dan utangnya</b>."' }],
+      rep: '"Kapten bertiga e itu bersembunyi di pulau tempat orang melepas sepatu dan utangnya."' },
+    /* 19 */ { c: 'paradiso', at: 'tavern',
+      p: ['"Miss Queeen? Ia tinggal sebulan di bungalow paling ujung. Tak pernah berenang, tak pernah berdansa. Hanya minum kopi pahit tanpa gula."',
+        '"Suatu pagi ia pergi. Katanya kopi di sini terlalu manis untuk orang yang bersalah."',
+        '"Ia pindah ke <b>tanah paling subur</b>."'],
+      b: btn('go', null, 'Terima kasih', false),
+      rep: '"Miss Queeen pindah ke tanah paling subur, Kapten."' },
+    /* 20 */ { c: 'joungjava', at: 'tavern',
+      p: [{ narr: 'Warung Pantai', icon: 'cup', t: '<p>Di sudut warung, seorang perempuan bertopi kapten duduk membelakangi pintu. Cangkirnya hitam pekat.</p>' },
+        { n: 'queeen', t: '"Kalau kau dari Gading, putar badanmu. Aku tidak mau bicara."' },
+        { n: 'karto', t: '<i>(berbisik)</i> "Datang lagi, Kapten. Kopi pahit membuka mulut orang. Pelan-pelan."' }],
+      b: btn('go', null, 'Biarkan ia', false),
+      rep: '"Miss Queeen masih di sudut itu. Kata Pak Tua Karto, beri ia waktu satu cangkir lagi."' },
+    /* 21 */ { c: 'joungjava', at: 'tavern', main: 'queeen',
+      p: ['"Kau lagi. Baik. Duduk."',
+        '"Namaku Queeen. <b>Tiga e.</b> Satu e untuk setiap badai yang kulewati tanpa kehilangan satu peti pun. Sampai malam itu."',
+        '"Kompasku berputar seperti gasing. Karang FreeYork muncul dari gelap. Aku punya dua belas awak dan satu peti mesin. <b>Aku memilih dua belas awak.</b>"',
+        '"Sejak itu aku tak berani lewat Gading. Peti itu milik seorang juru seduh yang menabung bertahun-tahun." Ia mengeluarkan sebuah buku tipis dari saku mantelnya. "Buku manualnya selalu kubawa. Bersama surat pesanannya: <b>lunas, atas nama felyx</b>, dibayar dengan koin-koin kecil."'],
+      b: btn('go', 'book', 'Terima buku manual'),
+      a: ['"Aksaranya aksara Moramora. Aku tak bisa membacanya."',
+        { n: 'lapau', t: '"Pelabuhan tempat semua kapten pertama kali berangkat punya orang yang tahu segala macam huruf, Kapten."' }],
+      rep: '"Coba ke pelabuhan tempat semua kapten pertama kali berangkat, Kapten."' },
+    /* 22 */ { c: 'sunda_empire', at: 'tavern',
+      p: ['"Aksara Moramora? Wah, Kapten. Di Pustaka kami tak ada yang bisa. Huruf begini hanya bisa dibaca di tempat mesinnya dibuat."',
+        '"Bawa pulang ke <b>pelabuhan kaca</b>."'],
+      b: btn('go', null, 'Pamit', false),
+      rep: '"Bawa buku itu ke pelabuhan kaca, Kapten."' },
+    /* 23 */ { c: 'marie_regal', at: 'tavern',
+      p: ['"MEMINDAI... BUKU MANUAL LORANG PEREGRIN. BENGKEL LORANG, MARIE REGAL."',
+        '"Panel kontrol mesin ini sudah lama tidur. Mengirim kode pabrik... <b>bangun</b>."',
+        '"Instruksi: <b>rakit di kota tempa</b>. Perakitan membutuhkan tujuh bagian."'],
+      b: btn('go', null, 'Lanjut', false),
+      a: ['"Catatan tambahan: halaman terakhir manual dikunci untuk pemilik mesin."'],
+      rep: '"INSTRUKSI: rakit di kota tempa."' },
+    /* 24 */ { c: 'freeyork', at: 'tavern', main: 'tassy',
+      p: [{ narr: 'Kedai Arang', icon: 'wrench', t: '<p>Tassyaaa memeriksa bagian demi bagian di atas meja kedai.</p>' },
+        '"Drum, corong, panel, cerobong, tungku, nampan, rangka. Lengkap." Ia mengangkat drum ke arah lampu. "Tunggu. <b>Kaca intipnya retak.</b> Tanpa kaca, juru seduhmu menyangrai buta."',
+        '"Kaca setebal ini hanya dipotong di <b>kota cermin</b>."'],
+      b: btn('go', null, 'Pamit', false),
+      rep: '"Tassyaaa bilang kaca setebal itu hanya dipotong di kota cermin, Kapten."' },
+    /* 25 */ { c: 'sowtour', at: 'tavern',
+      p: ['"Kaca setebal itu? Gudang Cermin. Tapi penjaganya hanya membuka pintu kalau <b>isyarat menara dibalas</b>."'],
+      b: btn('go', 'sun', 'Naik ke menara'),
+      g: { kind: 'mercusuar', lose: '"Cerminnya belum menjawab, Kapten. Coba lagi."', opts: { lengths: [4, 5, 6] } },
+      a: [{ narr: 'Gudang Cermin', icon: 'sun', t: '<p>Pintu Gudang Cermin terbuka. Penjaganya memotong kaca bundar tanpa bertanya apa-apa.</p>' },
+        '"Bawa ke kota tempa, Kapten."'],
+      rep: '"Bawa kaca itu ke kota tempa, Kapten."' },
+    /* 26 */ { c: 'freeyork', at: 'tavern', main: 'tassy',
+      p: ['"Kau kembali dengan kacanya. Bagus. Sekarang diam dan lihat."'],
+      b: btn('go', 'hammer', 'Rakit'),
+      a: [{ narr: 'Kedai Arang, semalaman', icon: 'hammer', t: '<p>Palu, kunci, dan obeng berganti tangan sampai lewat tengah malam. Saat ayam pertama berkokok, sebuah mesin berdiri di lantai kedai, mengilap.</p>' },
+        '"<b>Lorang Peregrin.</b> Mesin yang baik. Bawa ke pemiliknya."'],
+      rep: '"Mesin sebesar itu pantas pulang ke pemiliknya, Kapten."' },
+    /* 27 */ { c: 'gading_island', at: 'tavern',
+      p: ['<i>(melihat mesin di palkamu)</i> "Itu... Kapten, jangan bawa ke Stumpy dulu."',
+        '"Sejak kapal itu tak datang, felyx menunggu di dermaga <b>setiap fajar</b>. Tidak pernah bilang apa-apa. Hanya berdiri, membawa dua cangkir."',
+        '"Biar ia melihatnya sendiri. <b>Tunggu fajar.</b>"'],
+      b: btn('go', null, 'Tunggu fajar', false),
+      rep: '"Tunggu fajar, Kapten. Ia selalu di dermaga saat fajar."' },
+    /* 28 */ { c: 'gading_island', at: 'dawn', t: 'fajar', main: 'felyx', icon: 'anchor', title: 'Dermaga Lampion',
+      p: [{ narr: 'Dermaga Lampion, fajar', icon: 'anchor', t: '<p>Kabut tipis di atas air. Di ujung dermaga, felyx berdiri dengan dua cangkir di tangan, seperti setiap pagi.</p>' },
+        { narr: 'Dermaga Lampion, fajar', icon: 'anchor', t: '<p>Mesin itu diturunkan dari kapalmu. Seseorang ikut turun di belakangnya: <b>Miss Queeen</b>.</p>' },
+        { n: 'queeen', t: '"Aku yang membawa kapalmu ke karang, juru seduh. Aku memilih awakku. Maafkan aku."' },
+        '<i>(lama diam)</i> "Kau menyelamatkan dua belas orang. <b>Mesin masih bisa dicari.</b>" Ia menyodorkan cangkir kedua.',
+        { narr: 'Dermaga Lampion, fajar', icon: 'anchor', t: '<p>Miss Queeen meminum kopinya sampai habis, lalu berlayar pergi sebelum matahari penuh. Ia tidak menoleh.</p>' }],
+      b: btn('go', 'coffee', 'Bawa mesin ke Stumpy') },
+    /* 29 */ { c: 'gading_island', at: 'stumpy', main: 'felyx', icon: 'coffee', title: 'Kedai Stumpy',
+      p: ['"Bantu aku mengangkatnya, Kapten. Pelan. Ia sudah berlayar lebih jauh dari kita berdua."'],
+      b: btn('go', 'coffee', 'Sangrai pertama'), cine: true }
+  ];
+  var FINAL = [
+    '"Cangkir yang sama seperti hari pertama kau datang. Tapi bijinya dari mesinku sendiri."',
+    null, // hadiah
+    '<i>(membuka halaman terakhir manual)</i> "Bengkel Lorang di Marie Regal tidak hanya membuat mesin kopi, Kapten. Dulu mereka juga menempa lambung untuk para panglima laut. Di halaman ini ada tingkat kapal di atas Legendary. Mereka menyebutnya <b>Warlord</b>."',
+    '<p class="pg-quote">"Biji yang baik tidak terburu-buru di api. Orang baik juga tidak terburu-buru datang."</p>'
+  ];
+  var AFTER_LINES = [
+    '"Peregrin masih hangat. Biji hari ini kusangrai sebelum fajar."',
+    '"Kopi pertama untukmu selalu gratis, Kapten. Itu janji."',
+    '"Kadang aku masih ke dermaga saat fajar. Kebiasaan."',
+    '"Tujuh puluh kilo sekali putar. Antreannya sampai ke depan klenteng."'
+  ];
+
+  function timeOk(d) { return d.t === 'malam' ? night() : d.t === 'fajar' ? dawn() : true; }
+  function rewardHtml(g) { return '<div class="pg-reward">' + ic('coins') + '<div><b>' + fmt(g) + ' gold</b> dari felyx</div></div>'; }
+
+  /* ---------- menjalankan satu langkah ---------- */
+  function runStep(w, i) {
+    var d = S[i], main = d.main || 'lapau';
+    pages(w, main, d.p, d.b, function (w2) {
+      on(w2, '[data-pg=go]', function (b) {
+        if (d.g) {
+          b.disabled = true;
+          var o = Object.assign({}, d.g.opts || {});
+          if (d.g.kind === 'gasing') o.opponent = { name: N().upayy.name, title: 'Guru gasing Nansy', npcRole: 'lapau', ap: N().upayy.ap };
+          if (d.g.kind === 'pantun' || d.g.kind === 'mercusuar') { var k = who('lapau'); o.npc = { name: k.name, title: k.title, ap: k.ap }; }
+          game(d.g.kind, o, function (res) {
+            b.disabled = false;
+            if (!res || res.cancelled) return;
+            if (!res.win) { var tx = w2.querySelector('.qg-text'); if (d.g.lose && tx) tx.innerHTML = d.g.lose; return; }
+            call(i, 'ok', function (r) { after(i, r); }, b);
+          });
+          return;
+        }
+        if (d.cine) { call(i, '', function (r) { finale(r); }, b); return; }
+        call(i, '', function (r) { after(i, r); }, b);
+      });
+    });
+  }
+  function after(i, r) {
+    var d = S[i];
+    if (i === 0) { close(); return; }
+    var w = modalWrap(d.icon || 'cup', d.title || lapauTitle(), cityLabel());
+    if (!w) return;
+    if (!d.a || !d.a.length) { close(); return; }
+    pages(w, d.main || 'lapau', d.a, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-pg=ok]', close); });
+  }
+  function lapauTitle() { var el = document.querySelector('#modalContent .ph h2, #modalContent .ph .t'); return (el && el.textContent) || 'Lapau'; }
+  function cityLabel() { try { return cityName_(cid()); } catch (e) { return ''; } }
+
+  /* ---------- lapau ---------- */
+  function decorTavern() {
+    if (!active() || !docked()) return;
+    var s = step(), d = S[s], c = cid();
+    if (d && c === d.c && (d.at === 'tavern' || d.at === 'dawn')) {
+      if (d.at === 'dawn') { if (dawn()) { var wd = insertTop('<div></div>'); if (wd) runStep(wd, s); } else repeat(s); return; }
+      if (!timeOk(d)) { insertTop(speech(who(d.main), d.wait || '')); return; }
+      var w = insertTop('<div></div>'); if (w) runStep(w, s);
+      return;
+    }
+    repeat(s);
+  }
+  // kiasan terakhir diulang oleh penjaga lapau yang memberikannya
+  function repeat(s) {
+    for (var k = s - 1; k >= 0 && k >= s - 2; k--) {
+      var p = S[k];
+      if (p && p.rep && p.c === cid() && p.at === 'tavern') { insertTop(speech(who('lapau'), p.rep)); return; }
+    }
+  }
+
+  /* ---------- Stumpy ---------- */
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (panel === 'stumpy' && cid() === 'gading_island' && docked() && st() && eraKini()) {
+        var s = step();
+        if (active() && (s === 0 || s === 29 || (s === 28 && dawn()))) {
+          var d = S[s], w = modalWrap(d.icon || 'coffee', d.title || 'Kedai Stumpy', 'Gading Island');
+          if (w) runStep(w, s);
+          return;
+        }
+        if (done()) {
+          var r = origOpen.apply(this, arguments);
+          setTimeout(function () { try { stumpyAfter(); } catch (e) { console.warn('[PG]', e); } }, 0);
+          return r;
+        }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  function roasterSvg() {
+    return '<svg class="pg-art" viewBox="0 0 420 200" role="img" aria-label="Mesin sangrai Lorang Peregrin">' +
+      '<rect width="420" height="200" rx="12" fill="#2a1c12"/><rect x="0" y="160" width="420" height="40" fill="#3a2818"/>' +
+      '<g opacity=".55" fill="#d8cbb8"><circle cx="300" cy="40" r="14"/><circle cx="318" cy="22" r="10"/><circle cx="290" cy="14" r="8"/></g>' +
+      '<rect x="290" y="50" width="18" height="50" fill="#5c6168"/>' +
+      '<rect x="150" y="70" width="170" height="80" rx="40" fill="#8a8f96"/><circle cx="200" cy="110" r="22" fill="#3a3f46" stroke="#c9a450" stroke-width="3"/>' +
+      '<circle cx="200" cy="110" r="9" fill="#e8c878" opacity=".8"/><path d="M110 140 h60 v-34 l-30 -24 h-30z" fill="#6a7078"/>' +
+      '<rect x="160" y="150" width="150" height="12" fill="#4a4f56"/><rect x="60" y="138" width="80" height="10" rx="5" fill="#7a5a30"/>' +
+      '<g fill="#ff9a3a" opacity=".85"><path d="M215 162 q6 -14 12 0z"/><path d="M235 162 q6 -16 12 0z"/><path d="M255 162 q6 -12 12 0z"/></g>' +
+      '<text x="235" y="92" text-anchor="middle" font-size="12" fill="#2a1c12" font-family="Georgia,serif">LORANG</text></svg>';
+  }
+  function stumpyAfter() {
+    var c = document.getElementById('modalContent'); if (!c || !done()) return;
+    var line = typeof pickLine_ === 'function' ? pickLine_(AFTER_LINES, 'pgaf') : AFTER_LINES[0];
+    insertTop(narr('Lorang Peregrin', roasterSvg() + '<p>' + line + ' <span class="muted small">&mdash; felyx</span></p>', '', 'coffee'));
+  }
+
+  /* ---------- penutup ---------- */
+  function finale(r) {
+    var gold = (r && r.gold) || 25000;
+    function rest() {
+      var w = modalWrap('coffee', 'Kedai Stumpy', 'Gading Island'); if (!w) return;
+      var list = FINAL.map(function (t) { return t === null ? { n: 'felyx', t: '"Bukan bayaran. Ini harga kopi untuk setahun. Datanglah setiap kali kau lewat."' + rewardHtml(gold) } : t; });
+      list[list.length - 1] = { narr: 'Kedai Stumpy', icon: 'coffee', t: roasterSvg() + FINAL[FINAL.length - 1] };
+      pages(w, 'felyx', list, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-pg=ok]', close); });
+      try { au_('victory'); } catch (e) { }
+    }
+    cine('pg_roast', [
+      'Drum besi itu berputar untuk pertama kalinya. Api biru menyala di bawahnya.',
+      'Biji hijau berubah kuning, lalu cokelat. Lalu terdengar letupan kecil: <b>first crack</b>.',
+      'Asap kopi naik dari cerobong, bercampur dengan asap dupa klenteng di seberang jalan.'
+    ], rest);
+  }
+  function cine(kind, slides, cb) {
+    var finished = false;
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    close();
+    var ov = document.createElement('div'); ov.className = 'qt-cine cb-cine';
+    ov.innerHTML = '<canvas></canvas><button class="cb-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind) || stop; } catch (e) { console.warn('[PG] cine', e); }
+    var i = 0, txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.cb-skip');
+    function show() { txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i]; txt.classList.add('in'); b.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai'; }
+    function finish() {
+      if (finished) return; finished = true;
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      if (cb) setTimeout(cb, 60);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    b.onclick = function () { try { au_('page'); } catch (e) { } if (++i < slides.length) show(); else finish(); };
+    skip.onclick = function () { finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1500);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!finished) show(); }, 900);
+  }
+
+  /* ---------- kait inti ---------- */
+  if (typeof wrap_ === 'function') {
+    wrap_('setModal_', function () {
+      if (currentPanel !== 'tavern' || gameOpen) return;
+      try { decorTavern(); } catch (e) { console.warn('[PG] lapau', e); }
+    });
+  }
+
+  return { S: S, step: step, active: active, N: N };
+})();
+
+/* ---------- sinematik: sangrai pertama (prosedural) ---------- */
+(function () {
+  if (!window.MTCine || !MTCine.register || !window.MTUtil) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function glow(ctx, x, y, r, col, a) {
+    if (a <= 0.004 || r <= 0.5) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function sceneRoast() {
+    var r = U.rng(7070), puffs = [];
+    for (var i = 0; i < 40; i++) puffs.push({ off: r() * 6, sp: 0.6 + r() * 0.6, dx: (r() - 0.5) * 0.4, s: 0.5 + r() });
+    function draw(ctx, W, H, t) {
+      var m = Math.min(W, H), cx = W * 0.5, fy = H * 0.72;
+      var bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#1a110a'); bg.addColorStop(1, '#2e1d10');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#3a2616'; ctx.fillRect(0, fy, W, H - fy);
+      var heat = sm(0.5, 3, t);
+      glow(ctx, cx, fy - m * 0.05, m * 0.5, '255,150,60', 0.35 * heat);
+      // drum
+      var dw = m * 0.42, dh = m * 0.22, dx = cx - dw / 2, dy = fy - m * 0.34;
+      ctx.fillStyle = '#7f858c'; ctx.beginPath(); ctx.ellipse(cx, dy + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(cx - dw * 0.18, dy + dh / 2); ctx.rotate(REDUCE ? 0 : t * 2.2);
+      ctx.strokeStyle = '#c9a450'; ctx.lineWidth = Math.max(2, m * 0.008);
+      ctx.beginPath(); ctx.arc(0, 0, dh * 0.34, 0, Math.PI * 2); ctx.stroke();
+      for (var k = 0; k < 6; k++) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(k) * dh * 0.34, Math.sin(k) * dh * 0.34); ctx.stroke(); }
+      ctx.restore();
+      var beans = U.lerp(0, 1, sm(1.5, 7, t));
+      var bc = 'rgb(' + Math.round(U.lerp(150, 90, beans)) + ',' + Math.round(U.lerp(160, 55, beans)) + ',' + Math.round(U.lerp(90, 30, beans)) + ')';
+      ctx.fillStyle = bc; ctx.beginPath(); ctx.arc(cx - dw * 0.18, dy + dh / 2, dh * 0.16, 0, Math.PI * 2); ctx.fill();
+      // kaki & tungku
+      ctx.fillStyle = '#4a4f56'; ctx.fillRect(dx + dw * 0.1, dy + dh, dw * 0.8, m * 0.03);
+      ctx.fillRect(dx + dw * 0.15, dy + dh, m * 0.02, fy - dy - dh); ctx.fillRect(dx + dw * 0.85 - m * 0.02, dy + dh, m * 0.02, fy - dy - dh);
+      for (var f = 0; f < 5; f++) {
+        var fx = dx + dw * (0.25 + f * 0.12), fl = (0.6 + 0.4 * Math.sin(t * 9 + f * 1.7)) * heat;
+        ctx.fillStyle = 'rgba(110,170,255,' + (0.7 * fl).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(fx - m * 0.012, dy + dh + m * 0.05); ctx.quadraticCurveTo(fx, dy + dh + m * (0.05 - 0.05 * fl), fx + m * 0.012, dy + dh + m * 0.05); ctx.fill();
+      }
+      // corong & cerobong
+      ctx.fillStyle = '#6a7078'; ctx.beginPath(); ctx.moveTo(dx - m * 0.02, dy - m * 0.06); ctx.lineTo(dx + m * 0.1, dy - m * 0.06); ctx.lineTo(dx + m * 0.06, dy + m * 0.03); ctx.lineTo(dx + m * 0.02, dy + m * 0.03); ctx.closePath(); ctx.fill();
+      var chx = dx + dw * 0.78, chy = dy - m * 0.2;
+      ctx.fillStyle = '#5c6168'; ctx.fillRect(chx, chy, m * 0.04, m * 0.2 + dh * 0.2);
+      // asap
+      var smoke = sm(2.5, 5, t);
+      puffs.forEach(function (p) {
+        var ph = ((t * p.sp + p.off) % 4) / 4;
+        var x = chx + m * 0.02 + (p.dx + Math.sin(t + p.off) * 0.1) * m * ph * 0.8, y = chy - ph * H * 0.45;
+        ctx.fillStyle = 'rgba(225,215,200,' + (smoke * 0.35 * (1 - ph)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(x, y, m * 0.03 * p.s * (0.6 + ph * 1.6), 0, Math.PI * 2); ctx.fill();
+      });
+      if (t > 4.5 && t < 6.5) { var cr = 1 - Math.abs(t - 5.5); glow(ctx, cx - dw * 0.18, dy + dh / 2, m * 0.12, '255,240,200', 0.4 * cr); }
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  }
+  MTCine.register('pg_roast', sceneRoast);
+})();
+</script>
