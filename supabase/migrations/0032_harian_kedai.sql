@@ -944,13 +944,70 @@ begin
     'gold', (select gold from game.players where player_id = p_pid));
 end $$;
 
+-- ---------------------------------------------------------------------
+-- Kolam Restorasi IKN: SATU sumber logika tahap (pengumuman tahap, festival, bendera Saga 3).
+-- Dipakai api_gotong (0032), Balai Kongsi (0062), dan quest TheDuneks (0065).
+-- p_by = nama penyumbang di pengumuman tahap ("Kapten X" / "Ki Dorus, Balai Kongsi"); p_pid untuk catatan bendera.
+-- Mengembalikan {"old": tahap lama, "new": tahap baru, "added": nilai yang masuk}. Kolam yang sudah selesai: added = 0.
+-- ---------------------------------------------------------------------
+create or replace function game.gr_pool_add(p_val bigint, p_by text, p_pid uuid default null) returns jsonb
+language plpgsql as $$
+declare g game.gr_projects; v_old int; v_new int; k int; st jsonb; v_cum bigint;
+begin
+  if coalesce(p_val, 0) <= 0 then return jsonb_build_object('old', game.gr_stage('ikn'), 'new', game.gr_stage('ikn'), 'added', 0); end if;
+  select * into g from game.gr_projects where id = 'ikn' for update;
+  if not found or g.done_at is not null then return jsonb_build_object('old', coalesce(g.stage, 0), 'new', coalesce(g.stage, 0), 'added', 0); end if;
+  v_old := g.stage;
+  update game.gr_projects set total = total + p_val where id = 'ikn' returning * into g;
+  v_new := greatest(v_old, game.gr_stage_of(g.stages, g.total));
+  if v_new > v_old then
+    for k in v_old + 1 .. v_new loop
+      st := (select e from jsonb_array_elements(g.stages) e where (e ->> 'n')::int = k);
+      update game.gr_projects set stage = k, stage_at = stage_at || jsonb_build_object(k::text, game.now_ms()) where id = 'ikn';
+      v_cum := (select sum((e ->> 'need')::bigint) from jsonb_array_elements(g.stages) e where (e ->> 'n')::int <= k);
+      perform game.sys_chat('Monumen Restorasi', 'Kolam Restorasi IKN mencapai ' || to_char(v_cum / 1000000, 'FM999') || ' juta gold: ' || (st ->> 'name') || '! ' || (st ->> 'desc')
+        || ' Sumbangan terakhir dari ' || coalesce(p_by, 'seorang kapten') || '.', 'ikn');
+      if k = 5 then
+        update game.gr_projects set done_at = now() where id = 'ikn';
+        delete from game.city_events where city_id = 'ikn' and expires_game_day >= game.game_day();
+        insert into game.city_events(city_id, event_type, label, message, price_pct, reward_pct, expires_game_day)
+        values ('ikn', 'festival', 'Festival Restorasi', 'Menara Cahaya IKN menyala lagi. Seluruh Mare Nusantara datang berpesta.', 0, 25,
+          game.game_day() + greatest(1, ceil(7 * 24 * 60 / game.cfg_num('GameDayLengthRealMinutes', 180)))::int);
+        -- pemicu Saga 3 (diam-diam: tanpa chat, inbox, atau data ke klien)
+        insert into game.world_flags(key, value) values ('saga3', jsonb_build_object('trigger', 'ikn', 'by', p_pid))
+        on conflict (key) do nothing;
+      end if;
+    end loop;
+  end if;
+  return jsonb_build_object('old', v_old, 'new', v_new, 'added', p_val);
+end $$;
+
+-- Hadiah kategori penyumbang dari total pribadi (sesudah sumbangan): 2 = Lentera IKN, 3 = Sayap Garuda bernomor.
+-- Mengembalikan {"lentera": baru diberi?, "garudaNo": nomor baru (atau null)}.
+create or replace function game.gr_grant_kategori(p_pid uuid, p_total bigint) returns jsonb
+language plpgsql as $$
+declare v_kat int := game.gr_kategori(p_total); v_l boolean := false; v_gno int; v_name text;
+begin
+  if v_kat >= 2 and game.kd_qty(p_pid, 'aura_lentera_ikn') = 0 then
+    perform game.kd_grant(p_pid, 'aura_lentera_ikn', 1, 'gotong'); v_l := true;
+  end if;
+  if v_kat >= 3 and game.kd_qty(p_pid, 'lambang_garuda') = 0 then
+    perform game.kd_grant(p_pid, 'lambang_garuda', 1, 'gotong');
+    select coalesce(max(garuda_no), 0) + 1 into v_gno from game.gr_donations where project_id = 'ikn';
+    update game.gr_donations set garuda_no = v_gno where project_id = 'ikn' and player_id = p_pid;
+    select coalesce(nullif(character_name, ''), 'Seorang kapten') into v_name from game.players where player_id = p_pid;
+    perform game.sys_chat('Monumen Restorasi', 'Kapten ' || v_name || ' menjadi Penjaga Garuda #' || v_gno || '. Sayap Garuda emas kini membentang di atas kapalnya.', 'ikn');
+  end if;
+  return jsonb_build_object('lentera', v_l, 'garudaNo', v_gno);
+end $$;
+
 create or replace function public.api_gotong(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare v_me game.players := game.me(true); v_pid uuid := v_me.player_id; v_act text := coalesce(game.arg(a, 0), 'status');
   v_gold bigint := greatest(0, coalesce(game.arg_int(a, 1), 0)); v_kp bigint := greatest(0, coalesce(game.arg_int(a, 2), 0));
   g game.gr_projects; v_val bigint; v_old int; v_new int; d game.gr_donations; v_rate numeric := game.cfg_num('GotongKepingRate', 1000);
   v_lentera boolean := false; v_name text; st jsonb; k int; v_max bigint := game.cfg_num('GotongMaxPerKapten', 0)::bigint;
-  v_kat0 int; v_kat1 int; v_gno int; v_cum bigint;
+  v_kat0 int; v_kat1 int; v_gno int; v_cum bigint; v_gk jsonb; v_pool jsonb;
 begin
   if v_me.archetype = '' then raise exception 'Buat karakter dulu.'; end if;
   if not game.fitur_on(v_pid, 'GotongOpen') then raise exception 'Gotong Royong belum dibuka.'; end if;
@@ -979,40 +1036,13 @@ begin
   v_name := coalesce(nullif(v_me.character_name, ''), 'Seorang kapten');
   -- kategori penyumbang: 2 = Lentera IKN, 3 = Sayap Garuda bernomor (terbatas: hanya selama Restorasi berjalan)
   v_kat0 := game.gr_kategori(d.total); v_kat1 := game.gr_kategori(coalesce(d.total, 0) + v_val);
-  if v_kat1 >= 2 and game.kd_qty(v_pid, 'aura_lentera_ikn') = 0 then
-    perform game.kd_grant(v_pid, 'aura_lentera_ikn', 1, 'gotong');
-    v_lentera := true;
-  end if;
-  if v_kat1 >= 3 and game.kd_qty(v_pid, 'lambang_garuda') = 0 then
-    perform game.kd_grant(v_pid, 'lambang_garuda', 1, 'gotong');
-    select coalesce(max(garuda_no), 0) + 1 into v_gno from game.gr_donations where project_id = 'ikn';
-    update game.gr_donations set garuda_no = v_gno where project_id = 'ikn' and player_id = v_pid;
-    perform game.sys_chat('Monumen Restorasi', 'Kapten ' || v_name || ' menjadi Penjaga Garuda #' || v_gno || '. Sayap Garuda emas kini membentang di atas kapalnya.', 'ikn');
-  end if;
+  v_gk := game.gr_grant_kategori(v_pid, coalesce(d.total, 0) + v_val);
+  v_lentera := coalesce((v_gk ->> 'lentera')::boolean, false); v_gno := (v_gk ->> 'garudaNo')::int;
 
-  v_old := g.stage;
-  update game.gr_projects set total = total + v_val where id = 'ikn' returning * into g;
-  v_new := greatest(v_old, game.gr_stage_of(g.stages, g.total));
   perform game.log(v_pid, 'Menyumbang ' || to_char(v_val, 'FM999G999G999G999') || ' gold' || case when v_kp > 0 then ' (termasuk ' || v_kp || ' keping)' else '' end || ' untuk Restorasi IKN.');
-  if v_new > v_old then
-    for k in v_old + 1 .. v_new loop
-      st := (select e from jsonb_array_elements(g.stages) e where (e ->> 'n')::int = k);
-      update game.gr_projects set stage = k, stage_at = stage_at || jsonb_build_object(k::text, game.now_ms()) where id = 'ikn';
-      v_cum := (select sum((e ->> 'need')::bigint) from jsonb_array_elements(g.stages) e where (e ->> 'n')::int <= k);
-      perform game.sys_chat('Monumen Restorasi', 'Kolam Restorasi IKN mencapai ' || to_char(v_cum / 1000000, 'FM999') || ' juta gold: ' || (st ->> 'name') || '! ' || (st ->> 'desc')
-        || ' Sumbangan terakhir dari Kapten ' || v_name || '.', 'ikn');
-      if k = 5 then
-        update game.gr_projects set done_at = now() where id = 'ikn';
-        delete from game.city_events where city_id = 'ikn' and expires_game_day >= game.game_day();
-        insert into game.city_events(city_id, event_type, label, message, price_pct, reward_pct, expires_game_day)
-        values ('ikn', 'festival', 'Festival Restorasi', 'Menara Cahaya IKN menyala lagi. Seluruh Mare Nusantara datang berpesta.', 0, 25,
-          game.game_day() + greatest(1, ceil(7 * 24 * 60 / game.cfg_num('GameDayLengthRealMinutes', 180)))::int);
-        -- pemicu Saga 3 (diam-diam: tanpa chat, inbox, atau data ke klien)
-        insert into game.world_flags(key, value) values ('saga3', jsonb_build_object('trigger', 'ikn', 'by', v_pid))
-        on conflict (key) do nothing;
-      end if;
-    end loop;
-  elsif v_val >= 1000000 then
+  v_pool := game.gr_pool_add(v_val, 'Kapten ' || v_name, v_pid);
+  v_old := (v_pool ->> 'old')::int; v_new := (v_pool ->> 'new')::int;
+  if v_new <= v_old and v_val >= 1000000 then
     perform game.sys_chat('Monumen Restorasi', 'Kapten ' || v_name || ' menyumbang ' || to_char(v_val, 'FM999G999G999') || ' gold untuk Restorasi IKN.', 'ikn');
   end if;
 

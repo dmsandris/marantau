@@ -373,6 +373,9 @@ language plpgsql as $$ begin return null; end $$;
 -- [Quest rahasia Lorang Peregrin / 0064] langkah quest (null = belum terbuka untuk pemain ini)
 create or replace function game.pg_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Quest rahasia TheDuneks / 0065] langkah quest (null = belum terbuka untuk pemain ini)
+create or replace function game.dn_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
 -- [Tide v47 · Perburuan Tony / 0063] larangan berlayar selama lobi/serbuan Perburuan; status untuk getGameState
 create or replace function game.th_sail_guard(p_pid uuid) returns void
 language plpgsql as $$ begin null; end $$;
