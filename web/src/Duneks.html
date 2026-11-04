@@ -1,0 +1,522 @@
+<style>
+  /* ================= Quest rahasia "Knock-knock Gudang Door" (TheDuneks) ================= */
+  .dn-wrap { display: grid; gap: 10px; margin: 6px 0 12px; }
+  .dn-quote { font-style: italic; text-align: center; color: #5a3a1a; margin: 6px 0 0; }
+  .dn-reward { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(201,164,80,.16); border: 1px solid rgba(150,110,40,.35); color: #3f2a14; margin-top: 8px; }
+  .dn-reward .ico { width: 22px; height: 22px; }
+  .dn-line { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 8px 0 2px; }
+  .dn-line .p { width: 62px; text-align: center; font-size: .7em; line-height: 1.2; color: #4a3218; }
+  .dn-line .p .f { width: 52px; height: 52px; margin: 0 auto 3px; border-radius: 50%; overflow: hidden; border: 2px solid rgba(201,164,80,.7); box-shadow: 0 0 14px rgba(255,190,110,.45); background: #2a1a0e; }
+  .dn-line .p .f svg { width: 100%; height: 100%; display: block; }
+  .dn-turus { display: block; width: 100%; max-width: 420px; height: auto; margin: 6px auto 0; border-radius: 10px; }
+  .dn-choice { display: grid; gap: 8px; margin-top: 10px; }
+  .dn-choice .btn { width: 100%; white-space: normal; line-height: 1.3; min-height: 48px; }
+</style>
+<script>
+/* =====================================================================
+ * Quest rahasia "Knock-knock Gudang Door" (TheDuneks) — side quest di luar Saga 3.
+ * Konsep: claude/KONSEP-Quest-TheDuneks.md (v3). Server: 0065-duneks.sql (api_duneks).
+ *
+ * Terbuka setelah Saga 2 selesai, hanya bila tidak ada side quest lain yang sedang berjalan.
+ * Dimulai saat panel Gudang (Cargo) Sunda Empire dibuka. Satu-satunya jejak: dialog penjaga gudang.
+ * TIDAK ADA Tanda Jasa khusus, jurnal, chip, toast petunjuk, atau pengumuman. Penawaran akhir tidak
+ * menyebut angka apa pun; hasil baru tampil setelah memilih.
+ * Dibekukan selama Saga 3 aktif (state.duneks.frozen).
+ * Juga: nama tetap penjaga gudang Sunda = Bi Onah (semua pemain, zaman kini).
+ * Modul ini MEMBUNGKUS fungsi inti (npc_, setModal_) — inti tidak diubah.
+ * ===================================================================== */
+var DN = (function () {
+  function eraKini() { return !(state && state.pasir && state.pasir.era && state.pasir.era !== 'kini'); }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+
+  /* ---------- nama tetap: Bi Onah (penjaga gudang Sunda) ---------- */
+  var ONAH_AP = null;
+  function onahAp() {
+    if (ONAH_AP) return ONAH_AP;
+    try { ONAH_AP = MTFace.npc('bi-onah-sunda-gudang', 'gudang', 1); ONAH_AP.age = 0.74; ONAH_AP.head = 'none'; ONAH_AP.hair = 4; } catch (e) { ONAH_AP = null; }
+    return ONAH_AP;
+  }
+  var origNpc = window.npc_;
+  if (typeof origNpc === 'function') {
+    window.npc_ = function (role) {
+      var n = origNpc.apply(this, arguments);
+      try { if (role === 'gudang' && cid() === 'sunda_empire' && eraKini()) n = Object.assign({}, n, { name: 'Bi Onah', title: 'Penjaga Gudang', ap: onahAp() || n.ap, svg: null }); } catch (e) { }
+      return n;
+    };
+  }
+
+  /* ---------- pembantu ---------- */
+  function st() { return (state && state.duneks) || null; }
+  function step() { var s = st(); return s ? (s.step || 0) : -1; }
+  function active() { var s = st(); return !!(s && !s.frozen && !s.done && eraKini()); }
+  function done() { var s = st(); return !!(s && s.done && eraKini()); }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function frac() { return typeof dayFrac_ === 'function' ? dayFrac_() : 0.4; }
+  function night() { var f = frac(); return f >= 0.72 || f < 0.04; }
+  function face(n) { return n.svg || MTFace.svg(n.ap, { bgColors: ['#7a5a3a', '#2a1a0e'] }); }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  var gameOpen = false;
+
+  // penjaga gudang lain (wajah sama dengan panel gudang pulau masing-masing)
+  var KEEPERS = [['sunda_empire', 'Bi Onah'], ['joungjava', 'Mbok Sri'], ['bjorneo', 'Ibu Ratna'], ['toogood', 'Mas Bayu'], ['skitraw', 'Uni Rahmi'], ['gading_island', 'Kobonn'], ['ikn', 'Cik Mei']];
+  function keeperAp(c) {
+    if (c === 'sunda_empire') return onahAp();
+    try { return MTFace.npc(c + '|gudang', c === 'toogood' ? 'bajak' : 'gudang'); } catch (e) { return null; }
+  }
+  function who(k) {
+    if (k === 'onah') return { name: 'Bi Onah', title: 'Penjaga Gudang, Sunda Empire', ap: onahAp() };
+    if (k === 'narr') return null;
+    try { return npc_('gudang'); } catch (e) { return { name: 'Penjaga Gudang', title: '', ap: MTFace.npc('x|gudang', 'gudang') }; }
+  }
+  function speech(n, text, extra) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function narr(kicker, text, extra, icon) { return '<div class="cb-narr"><div class="cn-k">' + ic(icon || 'warehouse') + esc_(kicker || '') + '</div>' + text + (extra || '') + '</div>'; }
+  function actions(b) { return '<div class="qg-actions">' + b + '</div>'; }
+  function btn(id, icon, label, gold) { return '<button class="btn ' + (gold === false ? '' : 'btn-gold') + '" data-dn="' + id + '">' + (icon ? ic(icon) + '&nbsp; ' : '') + label + '</button>'; }
+  function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function insertTop(html) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    var old = c.querySelector('.dn-wrap'); if (old) old.remove();
+    var anchor = c.querySelector('.ph');
+    var wrap = document.createElement('div'); wrap.className = 'dn-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function showModal(html) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function modalWrap(title, sub) { showModal(panelHeader_('warehouse', title, sub)); return insertTop('<div></div>'); }
+  function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
+  function cityLabel() { try { return cityName_(cid()); } catch (e) { return ''; } }
+
+  // halaman bertahap. list: string (pembicara utama) | {n: kunci tokoh, t} | {narr, t, icon}
+  function pages(w, mainKey, list, lastBtns, bind) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], txt = (pg && pg.t) || pg;
+      var nav = actions(last ? (lastBtns || '') : btn('next', null, 'Lanjut')) + (list.length > 1 ? dots(i, list.length) : '');
+      w.innerHTML = pg && pg.narr ? narr(pg.narr, txt, nav, pg.icon) : speech(who((pg && pg.n) || mainKey), txt, nav);
+      try { au_('page'); } catch (e) { }
+      if (!last) on(w, '[data-dn=next]', function () { i++; show(); }); else if (bind) bind(w);
+    }
+    show();
+  }
+  function apply(r) {
+    r = r || {};
+    if (r.duneks !== undefined && state) state.duneks = r.duneks;
+    if (r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
+    if (r.gotong && state) {
+      state.gotong = r.gotong;
+      try { var k = r.gotong.ikn && r.gotong.ikn.kat; if (k && typeof metaMax_ === 'function') { metaMax_('grgive', 1); metaMax_('grkat', k); } } catch (e) { }
+    }
+    if (typeof invalidatePanelCache_ === 'function') try { invalidatePanelCache_(); } catch (e) { }
+  }
+  function call(act, s, res, ok, b, fail) {
+    if (b) b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      apply(r);
+      try { ok(r || {}); } catch (e) { console.warn('[DN]', e); }
+    }).withFailureHandler(function (e) {
+      if (b) b.disabled = false;
+      var m = (e && e.message) || String(e);
+      showToast(m, 'error');
+      if (/bergeser/.test(m)) refresh();
+      if (fail) try { fail(m); } catch (x) { }
+    }).api_duneks(act, s, res == null ? '' : res);
+  }
+  function refresh() {
+    google.script.run.withSuccessHandler(function (r) { if (r && r.duneks !== undefined && state) state.duneks = r.duneks; }).withFailureHandler(function () { }).api_duneks('status');
+  }
+
+  /* ---------- mini game ---------- */
+  function lib(kind) {
+    if (kind === 'susun' || kind === 'manifest') return window.MTGames5;
+    if (kind === 'syahbandar') return window.MTGames;
+    if (kind === 'pesta') return window.MTGames3;
+    return null;
+  }
+  function game(kind, opts, cb) {
+    var L = lib(kind);
+    function fin(res) { gameOpen = false; try { cb(res || { cancelled: true }); } catch (e) { console.warn('[DN] game', e); } }
+    if (L && typeof L.open === 'function') {
+      gameOpen = true;
+      try { L.open(kind, opts || {}, fin); return; } catch (e) { gameOpen = false; console.warn('[DN] game', e); }
+    }
+    fin({ cancelled: true });
+  }
+  function levelThen(s, fn, b) {
+    if (b) b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) { if (b) b.disabled = false; fn((r && r.level) || null); })
+      .withFailureHandler(function (e) { if (b) b.disabled = false; showToast((e && e.message) || String(e), 'error'); refresh(); })
+      .api_duneks('level', s);
+  }
+
+  /* =====================================================================
+   * Langkah. main = pembicara utama (penjaga gudang pulau itu). p = halaman sebelum aksi, b = tombol aksi,
+   * g = mini game, a = halaman sesudah berhasil, rep = kiasan yang diulang bila pemain kembali,
+   * t = 'malam' (dengan wait bila belum malam).
+   * ===================================================================== */
+  var S = [
+    /* 0 */ { c: 'sunda_empire', title: 'Gudang Pelabuhan',
+      p: [{ narr: 'Gudang Pelabuhan Sunda', t: '<p>Lorong gudang tertutup peti sampai ke pintu. Seorang perempuan tua mendorong karung garam dengan bahunya, lalu berhenti, terengah.</p>' },
+        '"Aduh, Kapten, maaf, maaf, lorongnya tak bisa dilewati. Gudang ini penuh. Kuli-kuli sudah lama tak datang, upahnya tak dibayar sejak jalur ditutup perang."',
+        '"Bibi mau merapikan, tapi tak tahu mulai dari mana. Peti-peti ini ada suratnya, tapi Bibi tak bisa membaca. Dulu tak sempat sekolah."',
+        '"Kapten mau bantu Bibi sebentar? Bibi cuma bisa menunjuk mana yang berat."'],
+      b: btn('go', 'crate', 'Bantu Bi Onah'),
+      g: { kind: 'susun', opts: { kicker: 'Gudang Pelabuhan &middot; Sunda Empire', newRules: ['berat', 'basah'],
+        intro: 'Yang ada jangkarnya itu <b>berat</b>, Kapten. Di bawah saja. Yang ada tetesnya jangan di atas <b>kain batik</b>, nanti luntur.',
+        placeLines: ['Nah, begitu.', 'Pelan-pelan saja, Kapten.', 'Tangan Kapten kuat juga.'], cardQuote: '"Lorongnya bisa dilewati lagi. Terima kasih, Kapten."' } },
+      a: ['"Aduh, lega&hellip; Tinggal satu, Kapten. Yang bersegel lilin merah itu. Tak ada yang pernah menjemputnya."',
+        { narr: 'Surat muatan', icon: 'scroll', t: '<p>Kau membaca surat yang terselip di peti itu. <i>Tujuan: Gudang Pelabuhan, tanah paling subur. Pengirim:</i> kosong. Di sudutnya, cap lilin merah: <b>J.T.</b></p>' },
+        '"Bibi tak bisa baca. Tapi Bibi hafal: peti macam ini ada di mana-mana. Sudah dua puluh tahun." <i>(Ia mengambil sepotong kapur dan menggoreskan satu tanda kecil di pinggir surat itu.)</i>',
+        '"Mbok Sri di <b>tanah paling subur</b> pasti kewalahan juga. Bawa surat itu, Kapten. Tunjukkan coretan ini."'],
+      rep: '"Mbok Sri di tanah paling subur pasti kewalahan juga, Kapten. Tunjukkan coretan Bibi."' },
+    /* 1 */ { c: 'joungjava', title: 'Gudang Pelabuhan',
+      p: [{ narr: 'Gudang Pelabuhan Joungjava', t: '<p>Karung gula menumpuk sampai ke langit-langit. Bau manisnya bercampur bau keringat.</p>' },
+        '"Gudang tutup, Kapten. Penuh." <i>(Ia melihat surat di tanganmu, lalu coretan kapur di pinggirnya.)</i> "&hellip;Itu coretan Onah. Masuklah."',
+        '"Separuh karung ini \'pajak\' untuk Residen. Separuhnya lagi bercap lilin. Kapal pengangkutnya lewat tiap pekan, tak pernah mampir ke Kantor Syahbandar."',
+        '"Bantu Mbok lihat lewat teropong. Kapal mana yang muatannya tidak tercatat di buku?"'],
+      b: btn('go', 'eye', 'Pegang teropong'),
+      g: { kind: 'syahbandar', opts: { maxMistakes: 2, noRaven: true, kicker: 'Gudang Pelabuhan \u00b7 Joungjava', title: 'Mata Gudang',
+        introCard: { kicker: 'Gudang Pelabuhan &middot; Joungjava', title: 'Mata Gudang', quote: 'Bantu Mbok menemukan kapal yang muatannya tidak tercatat.',
+          steps: ['Kapal-kapal pengangkut gula lewat di depan <b>teropong</b>. Satu di antaranya tidak sama dengan buku.',
+            'Bandingkan dengan <b>Buku Manifes</b>: lambang bendera, jumlah tiang, atau cat lambung.',
+            'Klik atau ketuk kapal yang dicurigai. Arahkan mouse atau tahan &amp; geser untuk <b>teropong pembesar</b>.',
+            '3 ronde, makin sulit. Salah tunjuk lebih dari 2 kali &rarr; ronde diulang.'], cta: 'Pegang teropong' },
+        text: { target: 'kapal yang tidak tercatat', manifestNote: 'Catatan Mbok Sri: kapal resmi tercatat persis seperti di buku.',
+          failTitle: 'Kapalnya Lolos', failQuote: 'Tiga kali salah tunjuk, Kapten. Kuli dermaga mulai curiga. Kita tunggu konvoi berikutnya.',
+          winKicker: 'Gudang Pelabuhan', winTitle: 'Mata Gudang', winQuote: 'Mata Kapten tajam. Mbok sudah curiga dari dulu.', statSpy: 'Kapal tak tercatat', wrong: 'Itu kapal resmi, Kapten.' } } },
+      a: ['"Kapal itu tak pernah berhenti di Kantor Syahbandar. Langsung ke gudang, malam-malam. Karungnya bercap lilin."',
+        '"Peti yang sama ada di <b>gudang kayu di kaki gunung yang batuk</b>. Ibu Ratna di sana pasti sudah kehabisan tempat."'],
+      rep: '"Gudang kayu di kaki gunung yang batuk, Kapten. Ibu Ratna menunggumu."' },
+    /* 2 */ { c: 'bjorneo', title: 'Gudang Kayu',
+      p: [{ narr: 'Gudang Kayu Bjorneo', t: '<p>Gelondong kayu ulin menutup lorong. Uap tipis dari gunung masuk lewat celah dinding.</p>' },
+        '"Mbok Sri yang menyuruhmu? Pantas tanganmu bau gula."',
+        '"Ulin itu tak tenggelam, tak lapuk. Tapi juga tak mau pindah sendiri. Bantu aku."'],
+      b: btn('go', 'crate', 'Bantu Ibu Ratna'),
+      g: { kind: 'susun', opts: { kicker: 'Gudang Kayu &middot; Bjorneo', newRules: ['rapuh'],
+        intro: 'Yang ada tanda retaknya itu <b>sarang walet</b>, Kapten. Mahal sekali. Jangan ditindih apa pun.',
+        placeLines: ['Hati-hati, itu ulin.', 'Bagus.', 'Raknya sudah tua, tapi kuat.'], cardQuote: '"Bagus. Sarang waletnya utuh semua."' } },
+      a: ['"Ibu Ratna di pulau resor? Bukan saudaraku. Bukan juga nama asliku. Nama ini ikut kunci gudang. Yang memegang kunci, memakai namanya."',
+        '"Peti bercap lilin itu juga ada di sini. Dua puluh tahun, tak pernah ada yang menjemput."',
+        '"Di <b>sarang tempat dulu asap tak pernah padam</b>, ada yang mengawasi gudang Mas Bayu. Datanglah saat lampu-lampu dinyalakan."'],
+      rep: '"Sarang tempat dulu asap tak pernah padam, Kapten. Saat lampu-lampu dinyalakan."' },
+    /* 3 */ { c: 'toogood', t: 'malam', title: 'Gudang Penyelundup',
+      wait: '"Siang begini semua orang melihat, Kapten. Datang lagi saat lampu-lampu dinyalakan."',
+      p: [{ narr: 'Pasar Gelap TooGood, malam', t: '<p>Gerimis. Lentera-lentera Pasar Gelap berayun di bawah tenda. Di ujung gang, pintu gudang setengah terbuka.</p>' },
+        '"Di sini kami disebut penyelundup. Di pulau lain, penjaga gudang. Bedanya hanya siapa yang memberi cap."',
+        '"Sejak Jendral itu jatuh, ada yang mengintai gudangku. Orang-orangnya dulu. Mereka mau mengambil peti bercap lilin."',
+        '"Bantu aku menemukannya di keramaian. Jangan sampai ia tahu sedang dicari."'],
+      b: btn('go', 'eye', 'Amati keramaian'),
+      g: { kind: 'pesta', opts: { art: 'pasar', kicker: 'TooGood &middot; Pasar Gelap, malam', title: 'Mata Gudang &middot; Pasar Gelap', bowRound: 2,
+        rounds: [
+          { clue: 'Ronde 1 &middot; Sepatunya kering di malam gerimis', hint: 'Yang baru datang dari dermaga kakinya basah. Yang menunggu di bawah atap sejak sore kakinya kering.', ok: 'Kakinya <b>kering</b>. Ia sudah menunggu di sini sejak sore.' },
+          { clue: 'Ronde 2 &middot; Memegang kunci gudang', hint: 'Ikan, lentera, kantong uang&hellip; cari cincin kunci kuningan.', ok: 'Di tangannya: <b>cincin kunci kuningan</b>. Kunci gudang Mas Bayu.' },
+          { clue: 'Ronde 3 &middot; Tidak menoleh saat lonceng dermaga berdentang', hint: 'Semua orang menoleh ke dermaga saat lonceng berbunyi. Hampir semua.', ok: 'Semua kepala menoleh ke dermaga. <b>Satu orang tetap menatap pintu gudang.</b>' }],
+        bowMsg: 'Lonceng dermaga berdentang: <b>kapal masuk!</b>', bowWait: 'Tunggu loncengnya, Kapten.', tapMsg: 'Ketuk orang yang cocok dengan petunjuk.',
+        missMsg: 'Orang-orang mulai melirikmu. Kau berteduh sebentar dan mengamati ulang&hellip;',
+        finalText: 'Lelaki berjubah kelabu itu memegang kunci gudang Mas Bayu. Saat kau mendekat, ia menjatuhkan kuncinya dan lari ke gang gelap.', finalBtn: 'Pungut kuncinya' } },
+      a: ['"Kunci cadanganku. Hilang tiga malam lalu." <i>(Ia menimbang kunci itu di telapak tangannya.)</i>',
+        '"Kau tak bertanya kenapa semua penjaga gudang percaya padamu, Kapten?" <i>(Ia tersenyum, tapi tidak menjelaskan.)</i>',
+        '"Uni Rahmi di antara <b>orang-orang yang bersumpah demi rendang</b>. Gudangnya penuh bahan festival. Dan beberapa peti yang tidak seharusnya ada."'],
+      rep: '"Orang-orang yang bersumpah demi rendang, Kapten. Uni Rahmi."' },
+    /* 4 */ { c: 'skitraw', title: 'Gudang Pelabuhan',
+      p: [{ narr: 'Gudang Pelabuhan Skitraw', t: '<p>Bendera festival, gendang, dan karung kayu manis memenuhi gudang. Bau rendang masuk dari dapur sebelah.</p>' },
+        '"Mas Bayu sudah kirim kabar. Cepat juga kau, Kapten."',
+        '"Festival tinggal tiga hari. Bukunya sudah Uni tulis, tapi ada peti yang tidak cocok. Uni tak bisa baca huruf. Tolong bandingkan dengan buku turus Uni."'],
+      b: btn('go', 'book', 'Buka buku muatan'),
+      g: { kind: 'manifest', opts: { kicker: 'Gudang Pelabuhan &middot; Skitraw', ledgerTitle: 'Buku Muatan Uni Rahmi',
+        intro: 'Buku ini Uni tulis pakai <b>turus</b>. Bandingkan jumlah, cap, dan beratnya dengan label di peti. Pakai <b>lup</b> kalau tulisannya kecil.',
+        foundLines: ['Itu satu. Cap lilin merah lagi&hellip;', 'Dua. Uni sudah curiga dari dulu.', 'Tiga. Semuanya dari Jendral itu.'],
+        resetLine: 'Aduh, Kapten, Uni bereskan ulang dulu raknya, ya. Hitung turusnya pelan-pelan.',
+        cardTitle: 'Tiga peti tak tercatat', cardQuote: '"Tertulis Restorasi IKN. Tak pernah dikirim ke sana."' } },
+      a: ['"Di bukunya tertulis \'Restorasi IKN\'. Tapi tak pernah dikirim ke sana. Dua puluh tahun, ditumpuk di gudang-gudang."',
+        '"Kobonn di <b>pelabuhan lampion</b>. Gudangnya paling jauh. Kalau peti ini sampai ke sana, berarti sampai ke mana-mana."'],
+      rep: '"Pelabuhan lampion, Kapten. Kobonn."' },
+    /* 5 */ { c: 'gading_island', title: 'Gudang Pelabuhan',
+      p: [{ narr: 'Gudang Pelabuhan Gading', t: '<p>Lampion merah bergoyang di atas rak. Gudang ini rapi, kecuali satu sudut.</p>' },
+        '"Uni Rahmi bilang kau akan datang. Sudut itu&hellip; peti-peti yang menyeberang laut jauh. Tak pernah dibuka."',
+        '"Besok pagi ada kapal teh berangkat. Bantu aku menata dulu, supaya yang keluar besok ada di dekat pintu."'],
+      b: btn('go', 'crate', 'Bantu Kobonn'),
+      g: { kind: 'susun', opts: { kicker: 'Gudang Pelabuhan &middot; Gading Island', newRules: ['besok'],
+        intro: 'Yang ada jamnya <b>keluar besok pagi</b>, Kapten. Taruh di kolom dekat pintu. Aturan lainnya tetap.',
+        placeLines: ['Rapi.', 'Teliti sekali.', 'Lampionnya jangan sampai penyok.'], cardQuote: '"Kapal teh bisa berangkat tepat waktu."' } },
+      a: [{ narr: 'Surat-surat muatan', icon: 'scroll', t: '<p>Kau menjajarkan semua surat muatan yang kau kumpulkan: dari Sunda, Joungjava, Bjorneo, TooGood, Skitraw, dan Gading. Pengirimnya berbeda-beda. <b>Tujuan akhirnya sama.</b></p>' },
+        '"Pergilah ke <b>gudang di kota yang sudah runtuh, di bawah burung perunggu</b>. Datang saat malam. Mereka akan menunggumu."'],
+      rep: '"Gudang di kota yang sudah runtuh, di bawah burung perunggu. Saat malam, Kapten."' },
+    /* 6 */ { c: 'ikn', t: 'malam', title: 'Gudang IKN',
+      wait: '"Gudang ini Kakak buka malam hari saja, Kapten. Datang lagi saat lampu-lampu dinyalakan."',
+      p: [{ narr: 'Gudang IKN, malam', t: '<p>Gudang terbesar yang pernah kau lihat. Rak menjulang sampai langit-langit, berlumut. Hanya satu lentera yang menyala.</p>' },
+        '"Kau datang juga, Kapten. Ini buku terakhir. Buku paling tua."',
+        '"Peti RESTORASI masuk siang hari dan keluar lagi malam hari. Semuanya tercatat di sini, dengan turus. Temukan yang tidak cocok."'],
+      b: btn('go', 'book', 'Buka buku terakhir'),
+      g: { kind: 'manifest', opts: { kicker: 'Gudang IKN &middot; malam', title: 'Tata Gudang &middot; Buku Terakhir', ledgerTitle: 'Buku Muatan Cik Mei', finale: true,
+        intro: 'Buku paling tua, Kapten. Jumlahnya ditulis dengan <b>turus</b>. Pakai <b>lup</b> untuk melihat cap dan angka berat yang dikerok.',
+        foundLines: ['Satu&hellip;', 'Dua&hellip;', 'Tiga. Semuanya bercap lilin yang sama.'],
+        resetLine: 'Pelan-pelan, Kapten. Kakak bereskan ulang dulu raknya.',
+        finaleText: '<i>Kau mundur selangkah. Dinding gudang itu penuh coretan kapur. Turus. Dari lantai sampai langit-langit.</i>',
+        cardTitle: 'Dua puluh tahun', cardQuote: '"Satu garis untuk setiap peti yang lewat."', okBtn: 'Lanjut' } },
+      reveal: true },
+    /* 7 */ { c: 'ikn', pilih: true, title: 'Gudang IKN' }
+  ];
+
+  var REVEAL = function () {
+    var line = '<div class="dn-line">' + KEEPERS.map(function (k) {
+      var ap = keeperAp(k[0]), sv = ap ? MTFace.svg(ap, { bgColors: ['#7a5a3a', '#2a1a0e'] }) : '';
+      return '<div class="p"><div class="f">' + sv + '</div>' + esc_(k[1]) + '</div>';
+    }).join('') + '</div>';
+    return [
+      { narr: 'Gudang IKN', icon: 'fire', t: '<p>Lentera-lentera menyala satu per satu di antara rak. Wajah-wajah yang selama ini kau lewati di setiap pelabuhan.</p>' + line },
+      { n: 'onah', t: '"Kapten kaget Bibi bisa sampai di sini lebih dulu? Gudang punya jalurnya sendiri. Kapal boleh ditahan perang. Karung beras tidak."' },
+      { n: 'onah', t: '"Bibi memang tak bisa membaca huruf. Tapi Bibi bisa membaca ini." <i>(Ia menunjuk dinding penuh turus kapur.)</i> "Satu garis untuk setiap peti yang lewat. Dua puluh tahun. Semua peti Jendral itu."' },
+      { n: 'onah', t: '"Kami <b>TheDuneks</b>. Orang menyebut kami penjaga gudang, penyelundup, kuli. Kami sendiri menyebut diri <b>Mata yang Tidak Terlihat</b>."' },
+      { n: 'onah', t: '"Para jendral, ratu, dan laksamana berebut laut. Mereka lupa satu hal. Dunia ini bergerak karena barang sampai ke tempatnya. Dan barang dijaga oleh kami."' },
+      { n: 'ikn', t: '"Isinya, Kapten: emas batangan bercap J.T. Peti RESTORASI yang tak pernah sampai. Medali, kebanyakan palsu. Gaharu dan cendana setoran para gubernur."' },
+      { n: 'ikn', t: '"Hukum gudang: barang yang tak dijemput tiga musim, menjadi tanggungan gudang. Kami bisa menjualnya. Sedikit-sedikit, supaya pasar tidak goyah."' }
+    ];
+  };
+  function offerPages() {
+    var full = !!(state && state.gotong && state.gotong.ikn && state.gotong.ikn.done);
+    return [
+      { n: 'onah', t: '"Berabad-abad kami melihat, Kapten. Harta seperti ini tak pernah membuat pemiliknya bahagia. Mr. GAP mati di lautnya. Jendral itu kehilangan segalanya. Yang tersisa hanya penderitaan."' },
+      { n: 'onah', t: '"Sumpah kami: jangan pernah mengambil. Jadi bukan kami yang memutuskan. Kapten yang menenggelamkan Jendral itu. Kapten yang memutuskan."' },
+      { n: 'onah', t: full ? '"Kota ini sudah berdiri lagi. Tapi anak-anak Kamp Pemulung masih tidur di bawah terpal. Setujukah Kapten kalau semuanya kami berikan untuk mereka?"'
+        : '"Kota ini masih runtuh. Papan RESTORASI-nya dipasang tiap tahun, lapuk tiap tahun, karena uangnya ada di gudang kami. Setujukah Kapten kalau semuanya kami sumbangkan untuk membangun IKN?"' }
+    ];
+  }
+  var QUOTE = '"Pahlawan menulis sejarah. Kami yang mencatat isinya."';
+  var AFTER = {
+    setuju: { sunda_empire: '"Masih ada satu-dua peti tak bertuan, Kapten. Tapi sekarang Bibi tahu harus ke mana."', joungjava: '"Gula masih mahal, Kapten. Tapi setidaknya Mbok tahu ke mana uangnya pergi."',
+      bjorneo: '"Raknya lega. Ulin itu akhirnya ada yang memakai: katanya untuk dermaga di kota runtuh."', toogood: '"Pengintai itu tak kembali. Kuncinya kusimpan di tempat yang lebih baik."',
+      skitraw: '"Festivalnya meriah, Kapten. Uni tak menangis. Asap rendang saja yang pedih."', gading_island: '"Kapal teh berangkat tepat waktu. Terima kasih, Kapten."', ikn: '"Peti-peti itu pulang, Kapten. Dua puluh tahun terlambat."' },
+    tolak: { sunda_empire: '"Gudang Bibi rapi berkat Kapten. Itu tak akan Bibi lupakan."', joungjava: '"Mbok tidak menghakimi, Kapten. Mbok hanya mencatat."', bjorneo: '"Ulin tak tenggelam, tak lapuk. Begitu juga catatan kami."',
+      toogood: '"Di sini semua orang mengelola uangnya sendiri, Kapten. Itu biasa."', skitraw: '"Festivalnya tetap meriah, Kapten."', gading_island: '"Kapal teh berangkat tepat waktu. Terima kasih, Kapten."', ikn: '"Gudang ini tetap buka untukmu, Kapten."' }
+  };
+
+  function timeOk(d) { return d.t === 'malam' ? night() : true; }
+  function rewardHtml(icon, text) { return '<div class="dn-reward">' + ic(icon) + '<div>' + text + '</div></div>'; }
+
+  /* ---------- menjalankan satu langkah ---------- */
+  function runStep(w, i) {
+    var d = S[i];
+    if (d.pilih) { runOffer(w); return; }
+    pages(w, 'gudang', d.p, d.b, function (w2) {
+      on(w2, '[data-dn=go]', function (b) { play(i, b, w2); });
+    });
+  }
+  function play(i, b, w2) {
+    var d = S[i], g = d.g, o = Object.assign({}, g.opts || {});
+    try { var k = who('gudang'); o.npc = { name: k.name, title: k.title, ap: k.ap }; } catch (e) { }
+    if (window.__MT_AUTOPLAY) o.__autoplay = true;   // uji browser
+    function launch(level) {
+      if (level) { o.level = level; o.theme = level.theme; }
+      game(g.kind, o, function (res) {
+        if (!res || res.cancelled) return;
+        if (!res.win) return;
+        var payload = g.kind === 'susun' ? res.layout : g.kind === 'manifest' ? res.picks : 'ok';
+        call('maju', i, payload, function () { after(i); }, b);
+      });
+    }
+    if (g.kind === 'susun' || g.kind === 'manifest') levelThen(i, function (lv) { if (lv) launch(lv); }, b); else launch(null);
+  }
+  function after(i) {
+    var d = S[i];
+    var w = modalWrap(d.title || 'Gudang', cityLabel()); if (!w) return;
+    if (d.reveal) {
+      var list = REVEAL();
+      pages(w, 'gudang', list, btn('hear', null, 'Dengarkan Bi Onah'), function (w2) { on(w2, '[data-dn=hear]', function () { runOffer(w2); }); });
+      return;
+    }
+    pages(w, 'gudang', d.a, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-dn=ok]', close); });
+  }
+  function runOffer(w) {
+    var choose = '<div class="dn-choice">' + btn('setuju', 'gift', 'Kembalikan ke kota yang runtuh.') + btn('tolak', 'coins', 'Uangnya biarkan aku yang kelola sendiri.', false) + '</div>';
+    pages(w, 'onah', offerPages(), choose, function (w2) {
+      var bs = w2.querySelectorAll('.dn-choice .btn');
+      function pick(ch, b) {
+        bs.forEach(function (x) { x.disabled = true; });
+        call('pilih', 7, ch, function (r) { finale(r); }, null, function () { bs.forEach(function (x) { x.disabled = false; }); });
+      }
+      on(w2, '[data-dn=setuju]', function (b) { pick('setuju', b); });
+      on(w2, '[data-dn=tolak]', function (b) { pick('tolak', b); });
+    });
+  }
+
+  /* ---------- penutup ---------- */
+  function turusArt() {
+    var s = '<svg class="dn-turus" viewBox="0 0 420 120" role="img" aria-label="Dinding penuh turus kapur"><rect width="420" height="120" rx="10" fill="#2a2a20"/>';
+    var r = 7;
+    for (var i = 0; i < 70; i++) {
+      r = (r * 1103515245 + 12345) % 2147483648; var x = 10 + (r % 380); r = (r * 1103515245 + 12345) % 2147483648; var y = 8 + (r % 92);
+      s += '<g stroke="#e8e0cc" stroke-width="1.6" stroke-linecap="round" opacity=".' + (4 + i % 5) + '"><path d="M' + x + ' ' + y + 'v12M' + (x + 4) + ' ' + y + 'v12M' + (x + 8) + ' ' + y + 'v12M' + (x + 12) + ' ' + y + 'v12M' + (x - 2) + ' ' + (y + 10) + 'L' + (x + 14) + ' ' + (y + 2) + '"/></g>';
+    }
+    return s + '</svg>';
+  }
+  function finale(r) {
+    var ch = (r && r.choice) || 'setuju';
+    function rest() {
+      var w = modalWrap('Gudang IKN', cityLabel() || 'IKN'); if (!w) return;
+      var list;
+      if (ch === 'tolak') {
+        list = [{ n: 'onah', t: '"Bukan bayaran, Kapten. Upah angkat peti di hari pertama. Bibi tidak menghakimi. Bibi hanya mencatat."' + rewardHtml('coins', '<b>+' + fmt(r.gold || 25000) + ' gold</b> dari TheDuneks') },
+          { narr: 'Gudang IKN', icon: 'warehouse', t: '<p>Bi Onah menggoreskan satu turus lagi di dinding. Ia tidak bilang untuk apa.</p>' + turusArt() }];
+      } else if (ch === 'kamp') {
+        list = [{ n: 'onah', t: '"Peti-peti itu kini milik anak-anak Kamp Pemulung, Kapten. Atap dulu. Lalu sekolah."' },
+          { narr: 'Kamp Pemulung', icon: 'users', t: '<p>Di bawah sayap Garuda, terpal-terpal mulai diganti papan.</p>' }];
+      } else {
+        list = [{ n: 'onah', t: '"Dua puluh tahun terlambat, Kapten. Tapi pulang."' + rewardHtml('gift', '<b>' + fmt(r.amount || 0) + ' gold</b> disumbangkan untuk Restorasi IKN atas namamu.' + (r.uji ? ' <i>(uji GM: tidak masuk kolam)</i>' : '')) }];
+      }
+      list.push({ narr: 'TheDuneks', icon: 'warehouse', t: '<p class="dn-quote">' + QUOTE + '</p><p class="muted small" style="text-align:center">&mdash; Bi Onah</p>' });
+      pages(w, 'onah', list, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-dn=ok]', close); });
+      try { au_('victory'); } catch (e) { }
+    }
+    if (ch === 'tolak') { rest(); return; }
+    cine('dn_fajar', [
+      'Fajar di IKN. Perahu-perahu kecil tanpa bendera merapat di dermaga, satu per satu.',
+      'Peti-peti diturunkan. Tak ada nama di atasnya. Hanya coretan kapur.',
+      ch === 'kamp' ? 'Anak-anak Kamp Pemulung berlarian ke dermaga, bersorak riang gembira.' : 'Anak-anak Kamp Pemulung berlarian ke dermaga, bersorak riang gembira. Di belakang mereka, Garuda perunggu menangkap cahaya pertama.'
+    ], rest);
+  }
+  function cine(kind, slides, cb) {
+    var finished = false;
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    close();
+    var ov = document.createElement('div'); ov.className = 'qt-cine cb-cine';
+    ov.innerHTML = '<canvas></canvas><button class="cb-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind) || stop; } catch (e) { console.warn('[DN] cine', e); }
+    var i = 0, txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.cb-skip');
+    function show() { txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i]; txt.classList.add('in'); b.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai'; }
+    function finish() {
+      if (finished) return; finished = true;
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      if (cb) setTimeout(cb, 60);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    b.onclick = function () { try { au_('page'); } catch (e) { } if (++i < slides.length) show(); else finish(); };
+    skip.onclick = function () { finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1500);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!finished) show(); }, 900);
+  }
+
+  /* ---------- panel gudang (Cargo) ---------- */
+  function decorGudang() {
+    if (!docked() || !eraKini()) return;
+    var s0 = st(); if (!s0 || s0.frozen) return;
+    if (s0.done) { var l = (AFTER[s0.jalur === 'tolak' ? 'tolak' : 'setuju'] || {})[cid()]; if (l) insertTop(speech(who('gudang'), l)); return; }
+    var s = step(), d = S[s], c = cid();
+    if (d && c === d.c) {
+      if (!timeOk(d)) { insertTop(speech(who('gudang'), d.wait || '')); return; }
+      var w = insertTop('<div></div>'); if (w) runStep(w, s);
+      return;
+    }
+    // kiasan terakhir diulang oleh penjaga gudang yang memberikannya
+    var p = S[s - 1];
+    if (p && p.rep && p.c === c) insertTop(speech(who('gudang'), p.rep));
+  }
+
+  /* ---------- kait inti ---------- */
+  if (typeof wrap_ === 'function') {
+    wrap_('setModal_', function () {
+      if (currentPanel !== 'cargo' || gameOpen) return;
+      try { decorGudang(); } catch (e) { console.warn('[DN] gudang', e); }
+    });
+  }
+
+  return { S: S, step: step, active: active };
+})();
+
+/* ---------- sinematik: fajar di IKN, perahu tanpa bendera (prosedural) ---------- */
+(function () {
+  if (!window.MTCine || !MTCine.register || !window.MTUtil) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function glow(ctx, x, y, r, col, a) {
+    if (a <= 0.004 || r <= 0.5) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function sceneFajar() {
+    var r = U.rng(4141), boats = [], kids = [], crates = [];
+    for (var i = 0; i < 5; i++) boats.push({ d: 0.6 + i * 0.9, lane: r(), s: 0.75 + r() * 0.4 });
+    for (var k = 0; k < 9; k++) kids.push({ x: 0.08 + k * 0.045 + r() * 0.02, ph: r() * 6, h: 0.8 + r() * 0.3, arms: r() < 0.6 });
+    for (var c = 0; c < 10; c++) crates.push({ x: 0.3 + c * 0.035 + r() * 0.01, t: 2.6 + c * 0.45, st: c % 3 });
+    function draw(ctx, W, H, t) {
+      var m = Math.min(W, H), horizon = H * 0.58, dawn = sm(0, 6, t);
+      // langit fajar
+      var sky = ctx.createLinearGradient(0, 0, 0, horizon);
+      sky.addColorStop(0, 'rgb(' + Math.round(U.lerp(20, 70, dawn)) + ',' + Math.round(U.lerp(24, 60, dawn)) + ',' + Math.round(U.lerp(48, 90, dawn)) + ')');
+      sky.addColorStop(0.7, 'rgb(' + Math.round(U.lerp(60, 230, dawn)) + ',' + Math.round(U.lerp(40, 140, dawn)) + ',' + Math.round(U.lerp(60, 90, dawn)) + ')');
+      sky.addColorStop(1, 'rgb(' + Math.round(U.lerp(90, 255, dawn)) + ',' + Math.round(U.lerp(60, 200, dawn)) + ',' + Math.round(U.lerp(60, 120, dawn)) + ')');
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, horizon);
+      var sunY = horizon + m * 0.06 - dawn * m * 0.16;
+      glow(ctx, W * 0.72, sunY, m * 0.7, '255,190,110', 0.55 * dawn);
+      ctx.fillStyle = 'rgba(255,226,170,' + (0.95 * dawn).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(W * 0.72, sunY, m * 0.05, 0, Math.PI * 2); ctx.fill();
+      // siluet kota runtuh + Garuda
+      ctx.fillStyle = 'rgba(18,16,22,.92)';
+      var bx = [0.02, 0.1, 0.16, 0.5, 0.58, 0.86, 0.93], bh = [0.18, 0.3, 0.12, 0.22, 0.34, 0.16, 0.26];
+      for (var b = 0; b < bx.length; b++) { var x0 = W * bx[b], w0 = W * 0.06, h0 = H * bh[b]; ctx.beginPath(); ctx.moveTo(x0, horizon); ctx.lineTo(x0, horizon - h0); ctx.lineTo(x0 + w0 * 0.6, horizon - h0 * (0.85 + (b % 2) * 0.1)); ctx.lineTo(x0 + w0, horizon - h0 * 0.7); ctx.lineTo(x0 + w0, horizon); ctx.fill(); }
+      var gx = W * 0.36, gy = horizon - H * 0.05;
+      ctx.fillRect(gx - m * 0.015, gy - m * 0.12, m * 0.03, m * 0.12 + H * 0.05);
+      ctx.beginPath(); ctx.moveTo(gx, gy - m * 0.2); ctx.quadraticCurveTo(gx - m * 0.16, gy - m * 0.3, gx - m * 0.22, gy - m * 0.16); ctx.quadraticCurveTo(gx - m * 0.1, gy - m * 0.17, gx, gy - m * 0.1);
+      ctx.quadraticCurveTo(gx + m * 0.1, gy - m * 0.17, gx + m * 0.22, gy - m * 0.16); ctx.quadraticCurveTo(gx + m * 0.16, gy - m * 0.3, gx, gy - m * 0.2); ctx.fill();
+      ctx.beginPath(); ctx.arc(gx, gy - m * 0.22, m * 0.025, 0, Math.PI * 2); ctx.fill();
+      glow(ctx, gx + m * 0.03, gy - m * 0.24, m * 0.12, '255,210,140', 0.35 * sm(3, 7, t));
+      // laut
+      var sea = ctx.createLinearGradient(0, horizon, 0, H); sea.addColorStop(0, 'rgba(' + Math.round(U.lerp(40, 200, dawn)) + ',' + Math.round(U.lerp(40, 130, dawn)) + ',' + Math.round(U.lerp(60, 100, dawn)) + ',1)'); sea.addColorStop(1, '#141622');
+      ctx.fillStyle = sea; ctx.fillRect(0, horizon, W, H - horizon);
+      ctx.strokeStyle = 'rgba(255,220,160,' + (0.25 * dawn).toFixed(3) + ')'; ctx.lineWidth = 2;
+      for (var wv = 0; wv < 14; wv++) { var wy = horizon + 6 + wv * (H - horizon) / 14, wx = W * 0.72 + Math.sin(t * 0.8 + wv) * 10; ctx.beginPath(); ctx.moveTo(wx - m * 0.03 * (1 + wv * 0.2), wy); ctx.lineTo(wx + m * 0.03 * (1 + wv * 0.2), wy); ctx.stroke(); }
+      // dermaga
+      var py = H * 0.74;
+      ctx.fillStyle = '#2a1c12'; ctx.fillRect(0, py, W * 0.62, H * 0.04);
+      for (var pp = 0; pp < 9; pp++) ctx.fillRect(W * (0.02 + pp * 0.07), py, m * 0.012, H - py);
+      // perahu tanpa bendera
+      boats.forEach(function (bt, i2) {
+        var u = U.clamp((t - bt.d) / 5, 0, 1), e = 1 - Math.pow(1 - u, 3);
+        var x = W * (1.08 - e * (0.42 - i2 * 0.04)), y = py - m * 0.01 + bt.lane * m * 0.05 + Math.sin(t * 1.6 + i2) * m * 0.004, s = m * 0.07 * bt.s;
+        ctx.save(); ctx.translate(x, y);
+        ctx.fillStyle = '#3a2416'; ctx.beginPath(); ctx.moveTo(-s, 0); ctx.quadraticCurveTo(0, s * 0.45, s, 0); ctx.lineTo(s * 0.8, -s * 0.12); ctx.lineTo(-s * 0.85, -s * 0.12); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#5a3a20'; ctx.fillRect(-s * 0.04, -s * 1.1, s * 0.07, s);
+        ctx.fillStyle = 'rgba(230,214,180,.9)'; ctx.beginPath(); ctx.moveTo(s * 0.03, -s * 1.05); ctx.lineTo(s * 0.62, -s * 0.2); ctx.lineTo(s * 0.03, -s * 0.2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#7a5232'; ctx.fillRect(-s * 0.6, -s * 0.35, s * 0.3, s * 0.22); ctx.fillRect(-s * 0.26, -s * 0.32, s * 0.24, s * 0.2);
+        ctx.restore();
+      });
+      // peti-peti diturunkan
+      crates.forEach(function (cr) {
+        var u2 = U.clamp((t - cr.t) / 0.6, 0, 1); if (u2 <= 0) return;
+        var x = W * cr.x, y = py - m * 0.03 * (1 + cr.st) - (1 - u2) * m * 0.2, s2 = m * 0.03;
+        ctx.globalAlpha = u2; ctx.fillStyle = '#7a5232'; ctx.fillRect(x, y, s2, s2); ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 1; ctx.strokeRect(x, y, s2, s2);
+        ctx.strokeStyle = 'rgba(240,230,210,.8)'; ctx.beginPath(); ctx.moveTo(x + s2 * 0.25, y + s2 * 0.2); ctx.lineTo(x + s2 * 0.25, y + s2 * 0.8); ctx.moveTo(x + s2 * 0.45, y + s2 * 0.2); ctx.lineTo(x + s2 * 0.45, y + s2 * 0.8); ctx.moveTo(x + s2 * 0.15, y + s2 * 0.65); ctx.lineTo(x + s2 * 0.6, y + s2 * 0.3); ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+      // anak-anak bersorak
+      var run = sm(4.5, 8, t);
+      kids.forEach(function (kd, i3) {
+        var x = W * (kd.x + run * 0.12), jump = REDUCE ? 0 : Math.max(0, Math.sin(t * 7 + kd.ph)) * m * 0.025 * sm(6, 7, t), h = m * 0.06 * kd.h, y = py - h - jump;
+        ctx.fillStyle = 'rgba(16,12,10,.95)';
+        ctx.beginPath(); ctx.arc(x, y - h * 0.15, h * 0.16, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x - h * 0.14, y); ctx.lineTo(x + h * 0.14, y); ctx.lineTo(x + h * 0.1, y + h * 0.6); ctx.lineTo(x - h * 0.1, y + h * 0.6); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(16,12,10,.95)'; ctx.lineWidth = Math.max(2, h * 0.09); ctx.lineCap = 'round';
+        var up = kd.arms && t > 6 ? -h * 0.45 : h * 0.15;
+        ctx.beginPath(); ctx.moveTo(x - h * 0.12, y + h * 0.08); ctx.lineTo(x - h * 0.3, y + up); ctx.moveTo(x + h * 0.12, y + h * 0.08); ctx.lineTo(x + h * 0.3, y + up);
+        ctx.moveTo(x - h * 0.06, y + h * 0.6); ctx.lineTo(x - h * 0.1, y + h); ctx.moveTo(x + h * 0.06, y + h * 0.6); ctx.lineTo(x + h * 0.1, y + h); ctx.stroke();
+      });
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  }
+  MTCine.register('dn_fajar', sceneFajar);
+})();
+</script>

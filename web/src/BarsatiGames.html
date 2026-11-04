@@ -972,6 +972,11 @@ var MTGames = (function () {
     title: 'Mata Syahbandar', kicker: 'Kantor Syahbandar · Joungjava',
     create: function (S, opts) {
       var ROUNDS = 3, MAXM = opts.maxMistakes != null ? opts.maxMistakes : 2;
+      // Tide v49: opts.text (teks pengganti) & opts.noRaven (tanpa gagak mesin) untuk dipakai ulang quest lain. Default Quest 4 tidak berubah.
+      var TX = Object.assign({ target: 'kapal penyamar', manifestNote: 'Catatan Syahbandar: kapal resmi tidak membawa burung apa pun di tiangnya.',
+        failTitle: 'Tikusnya Lolos', failQuote: 'Tiga tuduhan salah, Kapten. Pedagang jujur mulai menggerutu. Kita amati konvoi berikutnya.',
+        winKicker: 'Joungjava bergabung', winTitle: 'Mata Setajam Elang', winQuote: 'Matamu setajam elang Garuda, Kapten. Armada terbaik dewan bangsawan akan menyusulmu.',
+        statSpy: 'Penyamar tertangkap', wrong: 'Itu kapal resmi!' }, opts.text || {});
       var gov = opts.npc || cityNpc('joungjava', 'Gubernur Joungjava', 'joungjava|syahbandar', 'Gubernur Joungjava');
       var who = esc(gov.name || 'Gubernur') + (gov.title && gov.title !== gov.name ? ', ' + esc(gov.title) : '');
       var G = { round: 0, state: 'idle', ships: [], mistakes: 0, totalMist: 0, res: [], usedDiff: [], spy: null, flash: [], lens: null, freeze: 1, reveal: null, open: false, sky: null, skyKey: '', t: 0 };
@@ -991,12 +996,13 @@ var MTGames = (function () {
         S.progress(S.pips(ROUNDS, G.res, G.round) + '<span class="mtg-chip' + (G.mistakes ? ' bad' : '') + '" title="Salah tunjuk (maks ' + MAXM + ')">' + m + '</span>');
       }
       function helpText() {
-        help.innerHTML = S.touch ? 'Ketuk kapal penyamar. <b>Tahan &amp; geser</b> untuk teropong pembesar.' : 'Klik kapal penyamar. <b>Arahkan mouse</b> untuk teropong pembesar.';
+        help.innerHTML = S.touch ? 'Ketuk ' + TX.target + '. <b>Tahan &amp; geser</b> untuk teropong pembesar.' : 'Klik ' + TX.target + '. <b>Arahkan mouse</b> untuk teropong pembesar.';
       }
 
       /* ---------- ronde ---------- */
       function chooseDiff(r) {
         var opt = r === 0 ? ['gagak', 'lambung'] : r === 1 ? ['tiang', 'lambung', 'gagak'] : (Math.random() < 0.7 ? ['bendera'] : ['bendera', 'tiang', 'gagak', 'lambung']);
+        if (opts.noRaven) opt = r === 0 ? ['lambung', 'tiang'] : r === 1 ? ['tiang', 'lambung'] : ['bendera'];
         var f = opt.filter(function (d) { return G.usedDiff.indexOf(d) < 0; }); return pick(f.length ? f : opt);
       }
       function startRound(r) {
@@ -1024,7 +1030,7 @@ var MTGames = (function () {
       function buildManifest() {
         var list = side.querySelector('.sy-list');
         var ents = shuffle(G.ships.map(function (s) { return s.F; }));
-        list.innerHTML = '<div style="font-size:.84em;font-style:italic;color:#6a4a20;padding:0 4px">Catatan Syahbandar: kapal resmi tidak membawa burung apa pun di tiangnya.</div>' + ents.map(function (F, i) {
+        list.innerHTML = '<div style="font-size:.84em;font-style:italic;color:#6a4a20;padding:0 4px">' + TX.manifestNote + '</div>' + ents.map(function (F, i) {
           return '<div class="sy-ent"><canvas data-i="' + i + '" width="264" height="168"></canvas><div><div class="nm">' + esc(F.n) + '</div><ul>' +
             '<li><b>' + F.masts + ' tiang</b></li><li>Lambung ' + esc(F.hullN) + ', lis ' + esc(F.trimN) + '</li>' +
             '<li>Bendera ' + esc(F.flagN) + ' &middot; ' + esc(F.emN) + ' <canvas class="fl" data-f="' + i + '" width="68" height="44"></canvas></li><li>Layar ' + esc(F.sailN) + '</li></ul></div></div>';
@@ -1280,19 +1286,19 @@ var MTGames = (function () {
           if (G.mistakes > MAXM) {
             G.state = 'failed'; S.fail({ round: G.round + 1 });
             S.later(function () {
-              S.card({ cls: 'bad', face: gov, kicker: 'Ronde ' + (G.round + 1) + ' diulang', title: 'Tikusnya Lolos',
-                quote: 'Tiga tuduhan salah, Kapten. Pedagang jujur mulai menggerutu. Kita amati konvoi berikutnya.', who: who,
+              S.card({ cls: 'bad', face: gov, kicker: 'Ronde ' + (G.round + 1) + ' diulang', title: TX.failTitle,
+                quote: TX.failQuote, who: who,
                 buttons: [{ label: 'Ulangi ronde', primary: true, onClick: function () { S.hideCard(); startRound(G.round); } }, { label: 'Keluar', cls: 'btn-lg btn-ghost', onClick: function () { S.exit(); } }] });
             }, 900);
-          } else S.msg('Itu kapal resmi! Sisa salah tunjuk: ' + (MAXM - G.mistakes + 1 > 0 ? MAXM - G.mistakes : 0), 'bad', 1800);
+          } else S.msg(TX.wrong + ' Sisa salah tunjuk: ' + (MAXM - G.mistakes + 1 > 0 ? MAXM - G.mistakes : 0), 'bad', 1800);
         }
       }
       function winNow() {
         var perfect = G.totalMist === 0;
         S.win({ perfect: perfect, score: Math.max(0, ROUNDS * 100 - G.totalMist * 25), mistakes: G.totalMist }, {
-          face: gov, kicker: 'Joungjava bergabung', title: 'Mata Setajam Elang', badge: perfect ? 'Sempurna &middot; tanpa salah tunjuk' : null,
-          quote: 'Matamu setajam elang Garuda, Kapten. Armada terbaik dewan bangsawan akan menyusulmu.', who: who,
-          stats: [['Penyamar tertangkap', ROUNDS + ' / ' + ROUNDS], ['Salah tunjuk', String(G.totalMist)]]
+          face: gov, kicker: TX.winKicker, title: TX.winTitle, badge: perfect ? 'Sempurna &middot; tanpa salah tunjuk' : null,
+          quote: TX.winQuote, who: who,
+          stats: [[TX.statSpy, ROUNDS + ' / ' + ROUNDS], ['Salah tunjuk', String(G.totalMist)]]
         });
       }
 

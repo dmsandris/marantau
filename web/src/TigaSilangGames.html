@@ -56,6 +56,8 @@
     .tsg-ball { grid-template-columns: repeat(4, 1fr); gap: 4px; }
     .tsg-cell { width: 25px; } .tsg-cell svg { width: 18px; height: 18px; }
   }
+  /* Tide v49: Mata Pesta versi Pasar Gelap TooGood (opts.art = 'pasar') */
+  .tsg-ball.pasar { background: radial-gradient(ellipse at 20% 0%, rgba(255,170,80,.22), transparent 45%), radial-gradient(ellipse at 85% 10%, rgba(255,150,70,.18), transparent 40%), linear-gradient(180deg, #141824, #0b0d14 55%, #161a22); }
   @media (prefers-reduced-motion: reduce) { .tsg-red-shake, .tsg-guest.no, .tsg-shake { animation: none; } .tsg-guest .bowg { transition: none; } }
 </style>
 <script>
@@ -404,6 +406,46 @@ var MTGames3 = (function () {
     s += '</g></svg>';
     return s;
   }
+  // Tide v49: pengunjung Pasar Gelap malam (jubah, caping/kupluk, lentera). g: { gown, hat, feet ('wet'|'dry'), hold, target }
+  function pasarSvg(g) {
+    var body = g.gown, tall = g.target ? 1.06 : 1, hy = 150 - 100 * tall;
+    var s = '<svg viewBox="0 0 80 150" aria-hidden="true">';
+    // genangan & pantulan lentera (malam hujan)
+    if (g.feet !== 'dry') s += '<ellipse cx="40" cy="146" rx="26" ry="4" fill="#2a3448" opacity=".85"/><ellipse cx="34" cy="146" rx="6" ry="1.2" fill="#f0b060" opacity=".35"/>';
+    else s += '<ellipse cx="40" cy="146" rx="20" ry="3" fill="#000" opacity=".25"/>';
+    s += '<g class="bowg">';
+    // jubah
+    s += '<path d="M' + (40 - 19 * tall) + ' 142 L' + (40 - 12) + ' ' + (150 - 90 * tall) + ' Q40 ' + (150 - 96 * tall) + ' ' + (40 + 12) + ' ' + (150 - 90 * tall) + ' L' + (40 + 19 * tall) + ' 142 Z" fill="' + body + '"/>';
+    s += '<path d="M40 ' + (150 - 92 * tall) + ' L40 140" stroke="rgba(0,0,0,.35)" stroke-width="1.2"/>';
+    // kaki: basah (gelap mengilap) / kering (sandal terang)
+    if (g.feet === 'dry') s += '<rect x="29" y="140" width="9" height="4" rx="2" fill="#c8a46a"/><rect x="42" y="140" width="9" height="4" rx="2" fill="#c8a46a"/><path d="M31 140 l5 0 M44 140 l5 0" stroke="#8a6a3a" stroke-width="1"/>';
+    else s += '<rect x="29" y="140" width="9" height="4" rx="2" fill="#141a26"/><rect x="42" y="140" width="9" height="4" rx="2" fill="#141a26"/><path d="M31 141 l3 0 M44 141 l3 0" stroke="#7a8aa8" stroke-width=".8"/>';
+    // kepala & topi
+    s += '<circle cx="40" cy="' + hy + '" r="10" fill="#b5835e"/>';
+    if (g.hat === 'kupluk') s += '<path d="M30 ' + (hy - 2) + ' Q40 ' + (hy - 16) + ' 50 ' + (hy - 2) + ' Z" fill="#3a2a24"/>';
+    else s += '<path d="M22 ' + (hy - 2) + ' L40 ' + (hy - 18) + ' L58 ' + (hy - 2) + ' Z" fill="#8a7448"/><path d="M22 ' + (hy - 2) + ' L58 ' + (hy - 2) + '" stroke="#5a4a2a" stroke-width="1.4"/>';
+    s += '<ellipse cx="36" cy="' + (hy + 1) + '" rx="1.4" ry="1" fill="#1a1210"/><ellipse cx="44" cy="' + (hy + 1) + '" rx="1.4" ry="1" fill="#1a1210"/>';
+    // lengan & barang di tangan
+    var ay = 150 - 66 * tall;
+    s += '<path d="M28 ' + (150 - 84 * tall) + ' L22 ' + ay + '" stroke="' + body + '" stroke-width="6" stroke-linecap="round"/><path d="M52 ' + (150 - 84 * tall) + ' L58 ' + ay + '" stroke="' + body + '" stroke-width="6" stroke-linecap="round"/>';
+    s += '<circle cx="22" cy="' + ay + '" r="3.6" fill="#b5835e"/><circle cx="58" cy="' + ay + '" r="3.6" fill="#b5835e"/>';
+    var hx = 60, hyy = ay + 5;
+    if (g.hold === 'key') s += '<circle cx="' + hx + '" cy="' + hyy + '" r="4" fill="none" stroke="#e8c060" stroke-width="1.6"/><path d="M' + (hx - 1) + ' ' + (hyy + 3) + ' l-2 9 m1 -4 l3 0 m-2 4 l3 0" stroke="#e8c060" stroke-width="1.6" fill="none"/><path d="M' + (hx + 2) + ' ' + (hyy + 3) + ' l3 8 m-1 -3 l3 -1" stroke="#d8b050" stroke-width="1.4" fill="none"/>';
+    else if (g.hold === 'fish') s += '<ellipse cx="' + hx + '" cy="' + (hyy + 6) + '" rx="3" ry="8" fill="#9aa8b8"/><path d="M' + (hx - 3) + ' ' + (hyy + 15) + ' l3 -3 l3 3 z" fill="#9aa8b8"/>';
+    else if (g.hold === 'lantern') s += '<circle cx="' + hx + '" cy="' + (hyy + 7) + '" r="9" fill="#ffb050" opacity=".25"/><rect x="' + (hx - 3.5) + '" y="' + (hyy + 2) + '" width="7" height="10" rx="1.5" fill="#ffc870" stroke="#4a3018" stroke-width="1"/>';
+    else if (g.hold === 'coin') s += '<path d="M' + (hx - 5) + ' ' + (hyy + 2) + ' q5 -3 10 0 q2 8 -5 10 q-7 -2 -5 -10 z" fill="#7a5a30"/><circle cx="' + hx + '" cy="' + (hyy + 1) + '" r="1.6" fill="#e8c060"/>';
+    s += '</g></svg>';
+    return s;
+  }
+  var PASAR_CLOAK = ['#3a2a2a', '#2a3a4a', '#3a3a2a', '#4a2a3a', '#2a2a3a', '#3a4a3a', '#4a3a2a'];
+  function pasarGuests(rd) {
+    var hats = ['caping', 'kupluk', 'caping', 'caping', 'kupluk', 'caping', 'kupluk'];
+    var gs = PASAR_CLOAK.map(function (c, i) { return { id: i, gown: c, hat: hats[i], feet: 'wet', hold: null, target: i === 0 }; });
+    gs[0].gown = '#2e2e34';
+    if (rd === 0) { gs[0].feet = 'dry'; gs[2].hold = 'lantern'; gs[5].hold = 'fish'; }
+    if (rd === 1) { gs[0].hold = 'key'; gs[1].hold = 'fish'; gs[2].hold = 'lantern'; gs[3].hold = 'coin'; gs[4].hold = 'lantern'; gs[5].hold = 'fish'; gs[6].hold = 'coin'; }
+    return gs;
+  }
   function playPesta(opts, cb) {
     var S = shell(opts.kicker || "Pulau em pe'er de pe'er &middot; Ruang Sidang Agung", opts.title || 'Mata Syahbandar &middot; Pesta Topeng');
     S.cb = cb;
@@ -416,6 +458,7 @@ var MTGames3 = (function () {
     var round = 0, miss = 0;
     function guests(rd) {
       if (opts.guests) return shuffle(opts.guests(rd, GOWNS.slice()));
+      if (opts.art === 'pasar') return shuffle(pasarGuests(rd));
       var gs = GOWNS.map(function (c, i) { return { id: i, gown: c, mask: 'porc', glove: null, target: i === 0 }; });
       gs[0].gown = '#e8e2d2';
       if (rd === 0) { gs[0].mask = 'metal'; gs[3].mask = 'gold'; gs[5].mask = 'gold'; }
@@ -426,10 +469,10 @@ var MTGames3 = (function () {
       var R = ROUNDS[round], gs = guests(round);
       var pips = ROUNDS.map(function (x, i) { return '<i class="' + (i < round ? 'done' : i === round ? 'on' : '') + '"></i>'; }).join('');
       S.body.innerHTML = '<div class="tsg-row" style="justify-content:space-between;align-items:center"><span class="tsg-clue">' + R.clue + '</span><span class="tsg-pips">' + pips + '</span></div>' +
-        '<div class="tsg-stage"><div class="tsg-ball">' + gs.map(function (g) {
+        '<div class="tsg-stage"><div class="tsg-ball' + (opts.art === 'pasar' ? ' pasar' : '') + '">' + gs.map(function (g) {
           var late = round === BOW && g.id === 4;
-          return '<button class="tsg-guest' + (round === BOW && g.target ? ' proud' : '') + (late ? ' late' : '') + '" type="button" data-id="' + g.id + '" aria-label="Tamu bertopeng">' + guestSvg(g, round) + '</button>';
-        }).join('') + '</div></div><div class="tsg-msg">' + (round === BOW ? (opts.bowMsg || 'Gamelan istana berhenti. Pengeras suara corong berderak: <b>"Lagu kebesaran!"</b>') : 'Ketuk tamu yang cocok dengan petunjuk.') + '</div>';
+          return '<button class="tsg-guest' + (round === BOW && g.target ? ' proud' : '') + (late ? ' late' : '') + '" type="button" data-id="' + g.id + '" aria-label="' + (opts.art === 'pasar' ? 'Pengunjung pasar' : 'Tamu bertopeng') + '">' + (opts.art === 'pasar' ? pasarSvg(g) : guestSvg(g, round)) + '</button>';
+        }).join('') + '</div></div><div class="tsg-msg">' + (round === BOW ? (opts.bowMsg || 'Gamelan istana berhenti. Pengeras suara corong berderak: <b>"Lagu kebesaran!"</b>') : (opts.tapMsg || 'Ketuk tamu yang cocok dengan petunjuk.')) + '</div>';
       var ball = S.body.querySelector('.tsg-ball'), msg = S.body.querySelector('.tsg-msg');
       if (round === BOW) S.timers.push(setTimeout(function () { ball.classList.add('bow'); au('page'); }, REDUCE ? 200 : 1500));
       ball.querySelectorAll('.tsg-guest').forEach(function (b) {
@@ -446,7 +489,7 @@ var MTGames3 = (function () {
               else {
                 au('success');
                 S.body.innerHTML = '<div class="tsg-stage" style="display:grid;place-items:center;padding:16px;background:radial-gradient(circle,#4a2a14,#120a06)">' +
-                  '<div style="width:min(260px,60vw)">' + guestSvg(opts.finalGuest || { gown: '#e8e2d2', mask: 'metal', glove: { col: '#a8743a', side: 1 }, target: true }, 0) + '</div></div>' +
+                  '<div style="width:min(260px,60vw)">' + (opts.art === 'pasar' ? pasarSvg(opts.finalGuest || { gown: '#2e2e34', hat: 'caping', feet: 'dry', hold: 'key', target: true }) : guestSvg(opts.finalGuest || { gown: '#e8e2d2', mask: 'metal', glove: { col: '#a8743a', side: 1 }, target: true }, 0)) + '</div></div>' +
                   '<div class="tsg-msg good">' + (opts.finalText || 'Ketiga petunjuk menunjuk satu orang: pria tinggi bertopeng <b>Garuda perunggu</b>. Ia tidak lari. Ia malah menoleh, dan mengangkat gelasnya ke arahmu.') + '</div>';
                 finishBtn(S, opts.finalBtn || 'Hampiri dia', { win: true, kind: 'pesta' });
               }
@@ -454,7 +497,7 @@ var MTGames3 = (function () {
           } else {
             miss++; au('error'); b.classList.remove('no'); void b.offsetWidth; b.classList.add('no');
             msg.className = 'tsg-msg bad';
-            if (miss >= 3) { msg.innerHTML = 'Para tamu mulai berbisik curiga. Kau mundur ke dekat pilar dan mengamati ulang&hellip; <i>' + R.hint + '</i>'; miss = 0; S.timers.push(setTimeout(render, 1600)); }
+            if (miss >= 3) { msg.innerHTML = (opts.missMsg || 'Para tamu mulai berbisik curiga. Kau mundur ke dekat pilar dan mengamati ulang&hellip;') + ' <i>' + R.hint + '</i>'; miss = 0; S.timers.push(setTimeout(render, 1600)); }
             else msg.innerHTML = 'Bukan dia. ' + (miss === 2 ? '<i>' + R.hint + '</i>' : '');
           }
         };

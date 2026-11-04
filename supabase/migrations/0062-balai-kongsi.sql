@@ -280,60 +280,26 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- Restorasi IKN: tambah kolam (salinan logika tahap dari api_gotong 0032)
--- ⚠️ Bila logika tahap di api_gotong berubah, ubah juga di sini.
+-- Restorasi IKN: tambah kolam & porsi pribadi. Logika tahap & kategori ada di 0032
+-- (game.gr_pool_add, game.gr_grant_kategori), dipakai bersama api_gotong & TheDuneks.
 -- ---------------------------------------------------------------------
 create or replace function game.kongsi_gr_pool(p_val bigint) returns void
 language plpgsql as $$
-declare g game.gr_projects; v_old int; v_new int; k int; st jsonb; v_cum bigint;
 begin
-  if p_val <= 0 then return; end if;
-  select * into g from game.gr_projects where id = 'ikn' for update;
-  if not found or g.done_at is not null then return; end if;
-  v_old := g.stage;
-  update game.gr_projects set total = total + p_val where id = 'ikn' returning * into g;
-  v_new := greatest(v_old, game.gr_stage_of(g.stages, g.total));
-  if v_new > v_old then
-    for k in v_old + 1 .. v_new loop
-      st := (select e from jsonb_array_elements(g.stages) e where (e ->> 'n')::int = k);
-      update game.gr_projects set stage = k, stage_at = stage_at || jsonb_build_object(k::text, game.now_ms()) where id = 'ikn';
-      v_cum := (select sum((e ->> 'need')::bigint) from jsonb_array_elements(g.stages) e where (e ->> 'n')::int <= k);
-      perform game.sys_chat('Monumen Restorasi', 'Kolam Restorasi IKN mencapai ' || to_char(v_cum / 1000000, 'FM999') || ' juta gold: ' || (st ->> 'name') || '! ' || (st ->> 'desc')
-        || ' Sumbangan terakhir dari Ki Dorus, Balai Kongsi.', 'ikn');
-      if k = 5 then
-        update game.gr_projects set done_at = now() where id = 'ikn';
-        delete from game.city_events where city_id = 'ikn' and expires_game_day >= game.game_day();
-        insert into game.city_events(city_id, event_type, label, message, price_pct, reward_pct, expires_game_day)
-        values ('ikn', 'festival', 'Festival Restorasi', 'Menara Cahaya IKN menyala lagi. Seluruh Mare Nusantara datang berpesta.', 0, 25,
-          game.game_day() + greatest(1, ceil(7 * 24 * 60 / game.cfg_num('GameDayLengthRealMinutes', 180)))::int);
-        insert into game.world_flags(key, value) values ('saga3', jsonb_build_object('trigger', 'ikn', 'by', null))
-        on conflict (key) do nothing;
-      end if;
-    end loop;
-  end if;
+  perform game.gr_pool_add(p_val, 'Ki Dorus, Balai Kongsi', null);
 end $$;
 
 -- Porsi pribadi (dari rugi kongsi): masuk total sumbangan & kategori, tanpa gold/keping
 create or replace function game.kongsi_gr_credit(p_pid uuid, p_val bigint) returns void
 language plpgsql as $$
-declare d game.gr_donations; v_tot bigint; v_gno int; v_name text;
+declare d game.gr_donations;
 begin
   if p_val <= 0 then return; end if;
   insert into game.gr_donations as x (project_id, player_id, kongsi, total, n, last_at)
   values ('ikn', p_pid, p_val, p_val, 0, now())
   on conflict (project_id, player_id) do update set kongsi = x.kongsi + excluded.kongsi, total = x.total + excluded.total, last_at = now()
   returning * into d;
-  v_tot := d.total;
-  select coalesce(nullif(character_name, ''), 'Seorang kapten') into v_name from game.players where player_id = p_pid;
-  if game.gr_kategori(v_tot) >= 2 and game.kd_qty(p_pid, 'aura_lentera_ikn') = 0 then
-    perform game.kd_grant(p_pid, 'aura_lentera_ikn', 1, 'gotong');
-  end if;
-  if game.gr_kategori(v_tot) >= 3 and game.kd_qty(p_pid, 'lambang_garuda') = 0 then
-    perform game.kd_grant(p_pid, 'lambang_garuda', 1, 'gotong');
-    select coalesce(max(garuda_no), 0) + 1 into v_gno from game.gr_donations where project_id = 'ikn';
-    update game.gr_donations set garuda_no = v_gno where project_id = 'ikn' and player_id = p_pid;
-    perform game.sys_chat('Monumen Restorasi', 'Kapten ' || v_name || ' menjadi Penjaga Garuda #' || v_gno || '. Sayap Garuda emas kini membentang di atas kapalnya.', 'ikn');
-  end if;
+  perform game.gr_grant_kategori(p_pid, d.total);
 end $$;
 
 -- ---------------------------------------------------------------------
