@@ -26,6 +26,7 @@
 --  12 TooGood                         27 Gading (Rumah Mahjong)
 --  13 TooGood (malam): jejak -> cerobong  28 Gading (fajar, butuh mesin)
 --  14 Bjorneo                         29 Gading Stumpy: mesin & manual diambil, +25.000 gold -> 30 selesai
+-- Side quest satu per satu: tidak terpicu selama side quest lain sedang berjalan (game.side_quest_active).
 -- Aman diulang.
 -- =====================================================================
 
@@ -94,11 +95,39 @@ create or replace function game.pg_last() returns int language sql immutable as 
 create or replace function game.pg_step(p_pid uuid) returns int
 language sql stable as $$ select coalesce((select step from game.player_quests where player_id = p_pid and quest_id = 'peregrin'), 0) $$;
 
--- Saga 2 selesai?
+-- ---------------------------------------------------------------------
+-- ATURAN SIDE QUEST: SATU PER SATU (berlaku untuk semua side quest, sekarang dan ke depan)
+-- Side quest "aktif" = baris player_quests sudah ada (langkah 0 sudah dijalankan) dan done_at masih kosong.
+-- Yang dibekukan Saga 3 tetap aktif. Selama ada yang aktif, side quest lain tidak terpicu.
+-- Side quest baru: tambahkan id-nya ke config SideQuestIds (di migrasi quest itu) dan cek
+--   game.side_quest_active(pid, '<id sendiri>') is null sebelum terbuka. Wajib mengisi done_at saat tamat.
+-- ---------------------------------------------------------------------
+insert into game.config(key, value) values ('SideQuestIds', 'peregrin') on conflict (key) do nothing;
+
+create or replace function game.side_quest_ids() returns text[]
+language sql stable as $$
+  select coalesce(array_remove(string_to_array(replace(
+    (select value from game.config where key = 'SideQuestIds'), ' ', ''), ','), ''), '{}'::text[])
+$$;
+
+-- id side quest lain yang sedang aktif (null = tidak ada)
+create or replace function game.side_quest_active(p_pid uuid, p_except text default null) returns text
+language sql stable as $$
+  select pq.quest_id from game.player_quests pq
+   where pq.player_id = p_pid and pq.done_at is null
+     and pq.quest_id = any(game.side_quest_ids())
+     and pq.quest_id is distinct from p_except
+   order by pq.quest_id limit 1
+$$;
+
+-- Saga 2 selesai, dan (sudah pernah dimulai, atau tidak ada side quest lain yang sedang berjalan).
+-- Yang sudah dimulai/tamat tidak pernah tertutup lagi, supaya Stumpy pasca-quest tetap tampil.
 create or replace function game.pg_eligible(p_pid uuid) returns boolean
 language plpgsql stable as $$
 begin
-  return game.dt_step(p_pid) >= 5;
+  if game.dt_step(p_pid) < 5 then return false; end if;
+  if exists (select 1 from game.player_quests where player_id = p_pid and quest_id = 'peregrin') then return true; end if;
+  return game.side_quest_active(p_pid, 'peregrin') is null;
 exception when others then return false;
 end $$;
 

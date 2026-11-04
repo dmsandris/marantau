@@ -1,5 +1,6 @@
 // Quest rahasia "Mesin yang Hanyut" (Lorang Peregrin): gerbang Saga 2, 30 langkah, kota, malam/fajar,
-// mini game, barter, palka, idempoten, pembekuan Saga 3, hadiah, rahasia (tanpa log/TJ/chat).
+// mini game, barter, palka, idempoten, pembekuan Saga 3, hadiah, rahasia (tanpa log/TJ/chat),
+// aturan side quest satu per satu.
 const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } };
 (async () => {
   const H = await require('./harness').create();
@@ -131,6 +132,36 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   // pemain yang sudah tamat tetap tidak terganggu saat Saga 3 aktif
   s = await A.call('api_getGameState', [null]);
   ok(s.peregrin.done === true, 'tamat tetap tamat');
+
+  // ------------------------------------------------------------------ side quest satu per satu
+  ok((await one(`select game.side_quest_ids() v`)).v.includes('peregrin'), 'peregrin terdaftar sebagai side quest');
+  await H.sql(`delete from game.world_flags where key = 'saga3'`); // Saga 3 belum aktif
+  await cfg('SideQuestIds', 'peregrin,sq_uji');
+  const C = await mk('Kapten Antri', 'pg_c');
+  await H.sql(`insert into game.player_quests(player_id, quest_id, step) values ($1, 'duatangan', 5)`, [C.id]);
+  ok((await C.call('api_getGameState', [null])).peregrin.step === 0, 'tanpa side quest lain: terbuka');
+  // side quest lain sedang berjalan -> peregrin tidak terpicu, Stumpy normal
+  await H.sql(`insert into game.player_quests(player_id, quest_id, step) values ($1, 'sq_uji', 3)`, [C.id]);
+  ok((await C.call('api_getGameState', [null])).peregrin === null, 'side quest lain aktif: peregrin tertahan (state null)');
+  await ke(C, 'gading_island'); await siang();
+  await H.expectError(() => C.call('api_peregrin', ['maju', 0]), /Tidak ada yang perlu/);
+  ok(!(await one(`select 1 x from game.player_quests where player_id = $1 and quest_id = 'peregrin'`, [C.id])), 'tidak ada baris peregrin dibuat');
+  // side quest lain tamat -> peregrin bisa terpicu
+  await H.sql(`update game.player_quests set done_at = now() where player_id = $1 and quest_id = 'sq_uji'`, [C.id]);
+  r = await C.call('api_peregrin', ['maju', 0]); ok(r.peregrin.step === 1, 'setelah side quest lain tamat: peregrin mulai');
+  // peregrin sedang berjalan -> side quest lain melihatnya aktif
+  const D = await mk('Kapten Duluan', 'pg_d');
+  await H.sql(`insert into game.player_quests(player_id, quest_id, step) values ($1, 'duatangan', 5)`, [D.id]);
+  await ke(D, 'gading_island');
+  await D.call('api_peregrin', ['maju', 0]);
+  ok((await one(`select game.side_quest_active($1, 'sq_uji') v`, [D.id])).v === 'peregrin', 'peregrin berjalan: side quest lain tertahan');
+  ok((await one(`select game.side_quest_active($1, 'peregrin') v`, [D.id])).v === null, 'tidak menahan dirinya sendiri');
+  // peregrin yang sudah dimulai tetap terbuka walau ada side quest lain (mis. dipasang GM)
+  await H.sql(`insert into game.player_quests(player_id, quest_id, step) values ($1, 'sq_uji', 1)`, [D.id]);
+  ok((await D.call('api_getGameState', [null])).peregrin.step === 1, 'yang sudah dimulai tidak tertutup');
+  // pemain yang sudah tamat tidak menahan side quest lain
+  ok((await one(`select game.side_quest_active($1, 'sq_uji') v`, [A.id])).v === null, 'peregrin tamat tidak menahan');
+  ok((await A.call('api_getGameState', [null])).peregrin.done === true, 'tamat tetap tampil');
 
   console.log('PEREGRIN TESTS PASSED');
 })().catch(e => { console.error(e); process.exit(1); });
