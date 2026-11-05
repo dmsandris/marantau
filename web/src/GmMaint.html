@@ -88,6 +88,9 @@
     width: 46px; height: 46px; border-radius: 50%; cursor: pointer; font-family: var(--font-title, Georgia, serif); font-weight: 900; font-size: 14px; letter-spacing: .04em;
     color: #2a1a06; background: radial-gradient(circle at 35% 30%, #fff3c4, #d3a342 60%, #8f6522); border: 2px solid #4a320c; box-shadow: 0 6px 16px #000a; }
   #mtGmBtn.on { display: block; }
+  /* Tide v50: tombol GM bisa digeser; posisi disimpan per perangkat */
+  #mtGmBtn { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: left .18s ease, right .18s ease, top .18s ease, transform .12s ease; }
+  #mtGmBtn.drag { transition: none; transform: scale(1.12); cursor: grabbing; box-shadow: 0 10px 26px #000c; }
   #mtGmBtn.maint { animation: mtgPulse 1.6s ease-in-out infinite; }
   @keyframes mtgPulse { 50% { box-shadow: 0 0 0 7px rgba(224,106,74,.35), 0 6px 16px #000a; } }
   #mtGmPanel { position: fixed; inset: 0; z-index: 2147482400; display: none; place-items: center; background: rgba(4,6,12,.6); padding: 12px; }
@@ -98,6 +101,16 @@
   #mtGmPanel h3 { margin: 0 0 2px; font-family: var(--font-title, Georgia, serif); font-size: 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   #mtGmPanel h4 { margin: 16px 0 8px; font-family: var(--font-title, Georgia, serif); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--teak-600, #4f331e);
     border-top: 1px solid rgba(79,51,30,.25); padding-top: 12px; }
+  /* Tide v50: tiap bagian panel bisa dilipat */
+  #mtGmPanel .mtp-sec > h4 { cursor: pointer; -webkit-user-select: none; user-select: none; display: flex; align-items: center; gap: 8px; min-height: 28px; }
+  #mtGmPanel .mtp-sec > h4::after { content: ''; flex: none; width: 8px; height: 8px; margin: 0 4px 3px 0; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg); transition: transform .15s ease; margin-left: auto; }
+  #mtGmPanel .mtp-sec.shut > h4::after { transform: rotate(-45deg); margin-bottom: 0; }
+  #mtGmPanel .mtp-sec > h4:focus-visible { outline: 2px solid var(--brass-500, #c9922f); outline-offset: 2px; border-radius: 4px; }
+  #mtGmPanel .mtp-sec.shut > :not(h4) { display: none !important; }
+  #mtGmPanel .mtp-sum { flex: 1 1 auto; min-width: 0; text-align: right; font-family: var(--font-body, Georgia, serif); font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none;
+    color: var(--parch-muted, #7b6445); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #mtGmPanel .mtp-sum.on { color: #a3361e; font-weight: 700; }
   #mtGmPanel .mtp-st { font-size: 14px; color: var(--parch-muted, #7b6445); margin: 0 0 4px; }
   #mtGmPanel .mtp-st.on { color: #a3361e; font-weight: 700; }
   #mtGmPanel textarea, #mtGmPanel input, #mtGmPanel select { font: inherit; width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px;
@@ -139,7 +152,7 @@
   #mtMaintGmBar.on ~ #mtGmBars { top: calc(28px + env(safe-area-inset-top, 0px)); }
 
   @media (prefers-reduced-motion: reduce) {
-    #mtMaint *, #mtMaint, .mtg-bar, #mtGmBtn { animation: none !important; transition: none !important; }
+    #mtMaint *, #mtMaint, .mtg-bar, #mtGmBtn, #mtGmPanel .mtp-sec > h4::after { animation: none !important; transition: none !important; }
   }
 </style>
 
@@ -163,11 +176,12 @@
 <div id="mtGmUrgent" role="alertdialog" aria-modal="true" aria-labelledby="mtuTitle">
   <div class="mtu-box"><h2 id="mtuTitle">Pengumuman GM</h2><p id="mtuTx"></p><span class="mtg-cd" id="mtuCd"></span><button type="button" id="mtuOk">Siap, mengerti!</button></div>
 </div>
-<button type="button" id="mtGmBtn" title="Panel GM" aria-label="Buka panel GM">GM</button>
+<button type="button" id="mtGmBtn" title="Panel GM (tahan lalu geser untuk memindah)" aria-label="Buka panel GM">GM</button>
 <div id="mtGmPanel" role="dialog" aria-modal="true" aria-labelledby="mtpTitle">
   <div class="mtp-box">
     <h3><span id="mtpTitle">Panel GM</span><button type="button" class="mtp-x" id="mtpX" aria-label="Tutup">&times;</button></h3>
 
+    <div class="mtp-sec" data-k="umum">
     <h4>Pengumuman ke semua layar</h4>
     <textarea id="mtpTx" maxlength="240" placeholder="Contoh: Server akan direset pukul 14.00, simpan daganganmu ya Kapten!"></textarea>
     <div class="mtp-row">
@@ -180,7 +194,10 @@
     </div>
     <div class="mtp-acts"><button type="button" id="mtpSay">Kirim ke semua layar</button><button type="button" class="alt" id="mtpClear">Hapus semua pengumuman</button></div>
 
-    <h4>Mode pemeliharaan</h4>
+    </div>
+
+    <div class="mtp-sec" data-k="maint">
+    <h4>Mode pemeliharaan<span class="mtp-sum" id="mtpMSum"></span></h4>
     <p class="mtp-st" id="mtpSt">Status: normal</p>
     <label>Pesan di layar maintenis (opsional)<input type="text" id="mtpMTx" maxlength="240" placeholder="Contoh: Lagi pasang pulau baru"></label>
     <div class="mtp-row">
@@ -190,6 +207,9 @@
     <div class="mtp-acts"><button type="button" class="red" id="mtpMOn">Tutup pelabuhan</button><button type="button" id="mtpMOff">Buka kembali</button></div>
     <div class="mtp-msg" id="mtpMsg" aria-live="polite"></div>
 
+    </div>
+
+    <div class="mtp-sec" data-k="sandi">
     <h4>Reset sandi pemain</h4>
     <label>Username pemain<input type="text" id="mtpRU" maxlength="16" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="misal: sansan"></label>
     <div class="mtp-acts"><button type="button" id="mtpRChk">Cek data kapten</button><button type="button" class="alt" id="mtpRLogBtn">Riwayat reset</button></div>
@@ -197,7 +217,8 @@
     <div id="mtpRTemp" hidden></div>
     <div class="mtp-msg" id="mtpRMsg" aria-live="polite"></div>
     <div id="mtpRLog" hidden></div>
-    <div class="mtp-hint">Lewat chat juga bisa: <b>/gm pesan</b> &middot; <b>/gm! pesan</b> (darurat) &middot; <b>/panel</b>. Saat pemeliharaan, kamu tetap bisa main untuk menguji.</div>
+    </div>
+    <div class="mtp-hint">Lewat chat juga bisa: <b>/gm pesan</b> &middot; <b>/gm! pesan</b> (darurat) &middot; <b>/panel</b>. Saat pemeliharaan, kamu tetap bisa main untuk menguji. Tombol GM bisa ditahan lalu digeser.</div>
   </div>
 </div>
 
@@ -461,8 +482,121 @@ var MTGM = (function () {
     st.textContent = m && m.on ? 'Status: PELABUHAN DITUTUP' + (m.endAt ? ' · perkiraan buka ' + hhmm(m.endAt) : '')
                    : m && m.startAt ? 'Status: terjadwal tutup pukul ' + hhmm(m.startAt) + (m.endAt ? ' s.d. ' + hhmm(m.endAt) : '')
                    : 'Status: normal (pelabuhan buka)';
+    var sum = $('mtpMSum');
+    if (sum) {
+      sum.textContent = m && m.on ? 'PELABUHAN DITUTUP' : m && m.startAt ? 'terjadwal ' + hhmm(m.startAt) : '';
+      sum.classList.toggle('on', !!(m && m.on));
+    }
   }
-  function openPanel() { $('mtGmPanel').classList.add('open'); panelStatus(); msg(''); setTimeout(function () { try { $('mtpTx').focus(); } catch (e) {} }, 30); }
+  function openPanel() {
+    $('mtGmPanel').classList.add('open'); foldAll(); panelStatus(); msg('');
+    // fokus ke kotak pengumuman hanya bila bagiannya terbuka (di HP, fokus memunculkan keyboard)
+    setTimeout(function () { try { var s = $('mtpTx').closest('.mtp-sec'); if (!s || !s.classList.contains('shut')) $('mtpTx').focus(); } catch (e) {} }, 30);
+  }
+
+  /* ---------- Tide v50: bagian panel bisa dilipat ---------- */
+  // Berlaku juga untuk bagian yang disisipkan file lain (Tony, Uji Pasir): setiap <div> anak .mtp-box yang diawali <h4>.
+  var FKEY = 'mt_gm_fold_v1', FOLD = null;
+  function foldStore() {
+    if (FOLD) return FOLD;
+    try { FOLD = JSON.parse(localStorage.getItem(FKEY) || '{}') || {}; } catch (e) { FOLD = {}; }
+    return FOLD;
+  }
+  function secKey(el) { return el.getAttribute('data-k') || el.id || (el.className || '').split(' ')[0] || 'x'; }
+  function foldSet(el, open) {
+    el.classList.toggle('shut', !open);
+    var h = el.firstElementChild; if (h && h.tagName === 'H4') h.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function foldPrep(el) {
+    var h = el.firstElementChild; if (!h || h.tagName !== 'H4') return;
+    if (!el.classList.contains('mtp-sec')) el.classList.add('mtp-sec');
+    if (!h.hasAttribute('tabindex')) { h.setAttribute('tabindex', '0'); h.setAttribute('role', 'button'); }
+    var k = secKey(el), st = foldStore();
+    foldSet(el, k in st ? !!st[k] : k === 'umum');   // bawaan: hanya Pengumuman terbuka
+  }
+  function foldAll() {
+    var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box) return;
+    Array.prototype.forEach.call(box.children, function (el) { if (el.tagName === 'DIV') foldPrep(el); });
+  }
+  function foldToggle(h) {
+    var el = h.parentNode, open = el.classList.contains('shut');
+    foldSet(el, open);
+    var st = foldStore(); st[secKey(el)] = open ? 1 : 0;
+    try { localStorage.setItem(FKEY, JSON.stringify(st)); } catch (e) {}
+  }
+  function foldWire() {
+    var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box) return;
+    box.addEventListener('click', function (e) {
+      var h = e.target.closest && e.target.closest('h4');
+      if (h && h.parentNode && h.parentNode.parentNode === box && h.parentNode.classList.contains('mtp-sec') && h === h.parentNode.firstElementChild) foldToggle(h);
+    });
+    box.addEventListener('keydown', function (e) {
+      var h = e.target;
+      if ((e.key === 'Enter' || e.key === ' ') && h.tagName === 'H4' && h.parentNode.classList.contains('mtp-sec')) { e.preventDefault(); foldToggle(h); }
+    });
+    // bagian baru dari file lain (Tony, Uji Pasir) langsung ikut bisa dilipat
+    try {
+      new MutationObserver(function (list) {
+        list.forEach(function (m) { Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1 && n.tagName === 'DIV') foldPrep(n); }); });
+      }).observe(box, { childList: true });
+    } catch (e) {}
+    foldAll();
+  }
+
+  /* ---------- Tide v50: tombol GM bisa digeser ---------- */
+  // Tahan lalu geser. Dilepas -> menempel ke tepi kiri/kanan terdekat. Posisi disimpan per perangkat.
+  var BKEY = 'mt_gm_btn_pos_v1', BSZ = 46;
+  function btnPlace(pos) {
+    var b = $('mtGmBtn'); if (!b || !pos) return;
+    var y = Math.round(Math.max(0, Math.min(1, Number(pos.y) || 0)) * window.innerHeight);
+    b.style.bottom = 'auto';
+    b.style.top = 'clamp(calc(env(safe-area-inset-top, 0px) + 8px), ' + y + 'px, calc(100% - ' + (BSZ + 8) + 'px - env(safe-area-inset-bottom, 0px)))';
+    if (pos.side === 'r') { b.style.left = 'auto'; b.style.right = 'calc(10px + env(safe-area-inset-right, 0px))'; }
+    else { b.style.right = 'auto'; b.style.left = 'calc(10px + env(safe-area-inset-left, 0px))'; }
+  }
+  function btnSaved() { try { return JSON.parse(localStorage.getItem(BKEY) || 'null'); } catch (e) { return null; } }
+  function btnWire() {
+    var b = $('mtGmBtn'), D = null, eat = false;
+    btnPlace(btnSaved());
+    b.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      var r = b.getBoundingClientRect();
+      D = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false };
+      try { b.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    b.addEventListener('pointermove', function (e) {
+      if (!D || e.pointerId !== D.id) return;
+      if (!D.moved) {
+        if (Math.abs(e.clientX - D.x) + Math.abs(e.clientY - D.y) < 10) return;
+        D.moved = true; b.classList.add('drag');
+      }
+      var W = window.innerWidth, H = window.innerHeight;
+      b.style.right = 'auto'; b.style.bottom = 'auto';
+      b.style.left = Math.max(0, Math.min(W - BSZ, e.clientX - D.dx)) + 'px';
+      b.style.top = Math.max(0, Math.min(H - BSZ, e.clientY - D.dy)) + 'px';
+      e.preventDefault();
+    });
+    function end(e, cancel) {
+      if (!D || e.pointerId !== D.id) return;
+      var moved = D.moved; D = null;
+      if (!moved) return;
+      b.classList.remove('drag');
+      eat = true; setTimeout(function () { eat = false; }, 400);   // jangan sampai geseran dianggap ketukan
+      if (cancel) { btnPlace(btnSaved()); return; }
+      var r = b.getBoundingClientRect();
+      var pos = { side: r.left + BSZ / 2 > window.innerWidth / 2 ? 'r' : 'l', y: r.top / Math.max(1, window.innerHeight) };
+      try { localStorage.setItem(BKEY, JSON.stringify(pos)); } catch (x) {}
+      btnPlace(pos);
+    }
+    b.addEventListener('pointerup', function (e) { end(e, false); });
+    b.addEventListener('pointercancel', function (e) { end(e, true); });
+    // tahan semua pendengar klik tombol GM (panel, daftar Tony, Uji Pasir) bila baru saja digeser
+    window.addEventListener('click', function (e) {
+      if (eat && e.target && (e.target === b || (b.contains && b.contains(e.target)))) { e.stopImmediatePropagation(); e.preventDefault(); eat = false; }
+    }, true);
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    window.addEventListener('resize', function () { if (!D) btnPlace(btnSaved()); });
+  }
   function closePanel() { $('mtGmPanel').classList.remove('open'); }
   /* ---------- Tide v43: reset sandi pemain ---------- */
   var RS = { card: null };
@@ -534,6 +668,7 @@ var MTGM = (function () {
   }
 
   function wire() {
+    btnWire(); foldWire();
     $('mtGmBtn').addEventListener('click', openPanel);
     $('mtpX').addEventListener('click', closePanel);
     $('mtGmPanel').addEventListener('click', function (e) { if (e.target === this) closePanel(); });
