@@ -1,0 +1,764 @@
+<style>
+  /* ================= Quest rahasia "Bunga yang Tak Pernah Dipetik" (Rekening J.T.) ================= */
+  .jt-wrap { display: grid; gap: 10px; margin: 6px 0 12px; }
+  .jt-quote { font-style: italic; text-align: center; color: #3f2a14; margin: 10px 0 0; font-size: 1.12em; line-height: 1.5; }
+  .jt-reward { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(201,164,80,.16); border: 1px solid rgba(150,110,40,.35); color: #3f2a14; margin-top: 8px; }
+  .jt-reward .ico { width: 22px; height: 22px; }
+  .jt-choice { display: grid; gap: 8px; margin-top: 10px; }
+  .jt-choice .btn { width: 100%; white-space: normal; line-height: 1.3; min-height: 48px; }
+  .jt-doc { margin: 8px 0 2px; padding: 12px 14px; border-radius: 6px; background: #f6efdc; border: 1px solid rgba(120,90,40,.35); box-shadow: 0 2px 0 rgba(120,90,40,.15), 0 8px 18px -10px rgba(60,40,20,.5); font-family: Georgia, serif; color: #2a1a0a; line-height: 1.55; }
+  .jt-doc i { color: #4a3218; }
+  .jt-sign { display: flex; gap: 16px; justify-content: center; align-items: center; margin: 8px 0 2px; flex-wrap: wrap; }
+  .jt-sign figure { margin: 0; text-align: center; font-size: .72em; color: #5a3a1a; }
+  .jt-sign svg { width: 130px; height: 64px; display: block; background: #f6efdc; border: 1px solid rgba(120,90,40,.3); border-radius: 4px; }
+  .jt-q01 { display: block; width: 100%; max-width: 420px; height: auto; margin: 6px auto 0; border-radius: 10px; }
+  /* Kartu Taksiran Nasabah J.T. */
+  .jt-card { position: relative; margin: 8px auto 2px; width: min(380px, 100%); padding: 12px 14px 14px; border-radius: 4px; background:
+      repeating-linear-gradient(180deg, transparent 0 25px, rgba(90,120,170,.22) 25px 26px), #f7f0dc; border: 1px solid rgba(120,90,40,.4);
+    box-shadow: 0 10px 22px -12px rgba(40,25,10,.6); font-family: Georgia, serif; color: #2a1a0a; transform: rotate(-.6deg); }
+  .jt-card .kop { font: 700 10px "Cinzel", Georgia, serif; letter-spacing: .16em; text-transform: uppercase; color: #3a5a7a; border-bottom: 2px solid #3a5a7a; padding-bottom: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+  .jt-card .row { font-size: .84em; display: flex; gap: 8px; } .jt-card .row b { min-width: 74px; color: #3a5a7a; font-weight: 600; }
+  .jt-card .ket { margin-top: 6px; font-size: .8em; color: #3a5a7a; font-weight: 600; }
+  .jt-card ul { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 3px; }
+  .jt-card li { position: relative; line-height: 1.35; }
+  .jt-card li.print { font-family: "Courier New", monospace; font-weight: 700; letter-spacing: .08em; }
+  .jt-card li.hand { font-family: "Segoe Script", "Bradley Hand", "Comic Sans MS", cursive; font-size: 1.04em; color: #1d2a5a; }
+  .jt-card li.big { font-size: 1.5em; transform: rotate(-6deg); transform-origin: left; color: #1a3a1a; margin: 2px 0 4px 10px; }
+  .jt-card li.stamp { display: inline-block; justify-self: start; font: 700 .9em "Courier New", monospace; letter-spacing: .14em; padding: 1px 8px; border: 2px solid currentColor; border-radius: 3px; transform: rotate(-4deg); opacity: .85; }
+  .jt-card li.red { color: #b0281e; } .jt-card li.blue { color: #1e4aa0; }
+  .jt-card li.final { font-weight: 700; color: #102a5a; font-size: 1.12em; }
+  .jt-card li.x::after { content: ''; position: absolute; left: -2px; right: -2px; top: 52%; height: 2px; background: #1d2a5a; transform: rotate(-2deg); transform-origin: left; }
+  .jt-card li.new { animation: jtInk .9s ease-out both; }
+  .jt-card li.stamp.new { animation: jtStamp .45s cubic-bezier(.3,1.6,.6,1) both; }
+  .jt-card li.newx::after { animation: jtStrike .7s .2s ease-out both; }
+  @keyframes jtInk { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  @keyframes jtStamp { from { transform: rotate(-4deg) scale(1.8); opacity: 0; } to { transform: rotate(-4deg) scale(1); opacity: .85; } }
+  @keyframes jtStrike { from { right: 100%; } to { right: -2px; } }
+  @media (prefers-reduced-motion: reduce) { .jt-card li.new, .jt-card li.stamp.new, .jt-card li.newx::after { animation: none; } }
+</style>
+<script>
+/* =====================================================================
+ * Quest rahasia "Bunga yang Tak Pernah Dipetik" (Rekening J.T.) — side quest di luar Saga 3.
+ * Konsep: claude/KONSEP-Quest-Rekening-JT.md (v3.1). Server: 0067-jtq.sql (api_jtq).
+ *
+ * Terbuka setelah Saga 2 selesai, hanya bila tidak ada side quest lain yang sedang berjalan.
+ * Dimulai saat panel Bank Marie Regal dibuka. Jejaknya hanya dialog bankir (+ Ki Dorus di Rantai Lama).
+ * TIDAK ADA Tanda Jasa khusus, jurnal, chip, toast petunjuk, atau pengumuman. Penawaran akhir tidak
+ * menyebut angka apa pun; hasil baru tampil setelah memilih. Tedsky tidak pernah tampil, hanya disebut.
+ * Kartu Taksiran Nasabah J.T. hanya digambar di dalam adegan, hilang setelah kutipan akhir.
+ * Dibekukan selama Saga 3 aktif (state.jtq.frozen).
+ * Modul ini MEMBUNGKUS fungsi inti (setModal_, lineBank_) — inti tidak diubah.
+ * ===================================================================== */
+var JTQ = (function () {
+  function eraKini() { return !(state && state.pasir && state.pasir.era && state.pasir.era !== 'kini'); }
+  function cid() { return state && state.city ? state.city.CityId : ''; }
+  function st() { return (state && state.jtq) || null; }
+  function step() { var s = st(); return s ? (s.step || 0) : -1; }
+  function done() { var s = st(); return !!(s && s.done && eraKini()); }
+  function jalur() { var s = st(); return s && s.jalur === 'ikn' ? 'ikn' : 'dewan'; }
+  function saga3() { var s = st(); return !!(s && s.saga3); }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function frac() { return typeof dayFrac_ === 'function' ? dayFrac_() : 0.4; }
+  function night() { var f = frac(); return f >= 0.72 || f < 0.04; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  var gameOpen = false;
+
+  /* ---------- tokoh ---------- */
+  var FACE = {};
+  function robot() { try { if (window.WW && WW.robotSvg) return WW.robotSvg([255, 196, 110], '#2a2418'); } catch (e) { } return ''; }
+  function apAt(city, fem) { var k = city + '|bankir'; if (!FACE[k]) { try { FACE[k] = MTFace.npc(k, 'bankir', fem); } catch (e) { FACE[k] = null; } } return FACE[k]; }
+  function dorusAp() {
+    if (FACE.dorus) return FACE.dorus;
+    var ap; try { ap = MTFace.npc('ki-dorus-rantai-lama', 'pustakawan', 0); } catch (e) { ap = {}; }
+    ap.age = 0.95; ap.head = 'peci'; ap.eye = 'glasses'; ap.outfit = 'koko'; ap.neck = 'chain'; ap.facial = 2; ap.hair = 5;
+    return (FACE.dorus = ap);
+  }
+  function anakAp() {
+    if (FACE.anak) return FACE.anak;
+    var ap; try { ap = MTFace.npc('anak-kamp-pemulung-ikn', 'lapau', 0); ap.age = 0.02; ap.head = 'none'; } catch (e) { ap = null; }
+    return (FACE.anak = ap);
+  }
+  function who(k) {
+    switch (k) {
+      case 'b09': return { name: 'B-09', title: 'Unit Kas, Marie Regal', svg: robot() };
+      case 'kopdas': return { name: 'Manager Kopdas', title: 'Bank Mahkota', ap: apAt('empeer_depeer', 0) };
+      case 'lukas': return { name: 'Pak Lukas', title: 'Bank Rantai, FreeYork', ap: apAt('freeyork', 0) };
+      case 'tarni': return { name: 'Bu Tarni', title: 'Pengurus Koperasi, Otoland', ap: apAt('otoland', 1) };
+      case 'rizal': return { name: 'Uda Rizal', title: 'Bank Saudagar, Sunda Empire', ap: apAt('sunda_empire') };
+      case 'bayu': return { name: 'Mas Bayu', title: 'Rentenir, TooGood', ap: apAt('toogood') };
+      case 'liong': return { name: 'Koh Liong', title: 'Penjaga Brankas, Bank Runtuh IKN', ap: apAt('ikn') };
+      case 'dorus': return { name: 'Ki Dorus', title: 'Balai Kongsi, Pelabuhan Rantai Lama', ap: dorusAp() };
+      case 'anak': return { name: 'Anak Kamp Pemulung', title: 'IKN', ap: anakAp() };
+    }
+    try { return npc_('bankir'); } catch (e) { return { name: 'Bankir', title: '', ap: apAt(cid()) }; }
+  }
+  function face(n) { if (n.svg) return n.svg; try { return MTFace.svg(n.ap, { bgColors: ['#3a5a3a', '#14200e'] }); } catch (e) { return ''; } }
+
+  /* ---------- pembantu tampilan (pola sama dengan Duneks.html) ---------- */
+  function speech(n, text, extra) {
+    return '<div class="qg-card"><div class="qg-face">' + face(n) + '</div><div class="qg-body"><div class="qg-name">' + esc_(n.name) + ' <span>&middot; ' + esc_(n.title || '') + '</span></div>' +
+      '<div class="qg-text">' + text + '</div>' + (extra || '') + '</div></div>';
+  }
+  function narr(kicker, text, extra, icon) { return '<div class="cb-narr"><div class="cn-k">' + ic(icon || 'bank') + esc_(kicker || '') + '</div>' + text + (extra || '') + '</div>'; }
+  function actions(b) { return '<div class="qg-actions">' + b + '</div>'; }
+  function btn(id, icon, label, gold) { return '<button class="btn ' + (gold === false ? '' : 'btn-gold') + '" data-jt="' + id + '">' + (icon ? ic(icon) + '&nbsp; ' : '') + label + '</button>'; }
+  function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
+  function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function insertTop(html) {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    var old = c.querySelector('.jt-wrap'); if (old) old.remove();
+    var anchor = c.querySelector('.ph');
+    var wrap = document.createElement('div'); wrap.className = 'jt-wrap'; wrap.innerHTML = html;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    return wrap;
+  }
+  function showModal(html) {
+    currentPanel = null; setModal_(html);
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function modalWrap(title, sub, icon) { showModal(panelHeader_(icon || 'bank', title, sub)); return insertTop('<div></div>'); }
+  function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
+  function cityLabel() { try { return cityName_(cid()); } catch (e) { return ''; } }
+
+  // halaman bertahap. list: string (pembicara utama) | {n: kunci tokoh, t, card} | {narr, t, icon, card}
+  // card = langkah Kartu Taksiran yang digambar di bawah halaman itu (null = tidak ada kartu)
+  function pages(w, mainKey, list, lastBtns, bind) {
+    var i = 0;
+    function show() {
+      var last = i === list.length - 1, pg = list[i], txt = (pg && pg.t) || pg;
+      var nav = actions(last ? (lastBtns || '') : btn('next', null, 'Lanjut')) + (list.length > 1 ? dots(i, list.length) : '');
+      var extra = pg && pg.card != null ? cardHtml(pg.card) : '';
+      w.innerHTML = pg && pg.narr ? narr(pg.narr, txt + extra, nav, pg.icon) : speech(who((pg && pg.n) || mainKey), txt + extra, nav);
+      try { au_(pg && pg.sfx || 'page'); } catch (e) { }
+      if (!last) on(w, '[data-jt=next]', function () { i++; show(); }); else if (bind) bind(w);
+    }
+    show();
+  }
+  function apply(r) {
+    r = r || {};
+    if (r.jtq !== undefined && state) state.jtq = r.jtq;
+    if (r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
+    if (r.gotong && state) {
+      state.gotong = r.gotong;
+      try { var k = r.gotong.ikn && r.gotong.ikn.kat; if (k && typeof metaMax_ === 'function') { metaMax_('grgive', 1); metaMax_('grkat', k); } } catch (e) { }
+    }
+    if (typeof invalidatePanelCache_ === 'function') try { invalidatePanelCache_(); } catch (e) { }
+  }
+  function call(act, s, res, ok, b, fail) {
+    if (b) b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      apply(r);
+      try { ok(r || {}); } catch (e) { console.warn('[JTQ]', e); }
+    }).withFailureHandler(function (e) {
+      if (b) b.disabled = false;
+      var m = (e && e.message) || String(e);
+      showToast(m, 'error');
+      if (/bergeser/.test(m)) refresh();
+      if (fail) try { fail(m); } catch (x) { }
+    }).api_jtq(act, s, res == null ? '' : res);
+  }
+  function refresh() {
+    google.script.run.withSuccessHandler(function (r) { if (r && r.jtq !== undefined && state) state.jtq = r.jtq; }).withFailureHandler(function () { }).api_jtq('status');
+  }
+
+  /* =====================================================================
+   * Kartu Taksiran Nasabah J.T. (§5 konsep). Isi kolom Keterangan bertambah per langkah;
+   * tulisan lama dicoret, tidak dihapus. card(n) = keadaan kartu setelah langkah n selesai ditulis.
+   * ===================================================================== */
+  function entries(n) {
+    var e = [];
+    e.push({ t: 'PENCURI', c: 'print', note: '(dugaan sistem)', x: n >= 2 });
+    if (n >= 1) e.push({ t: 'ANCAMAN DUNIA', c: 'stamp red', x: n >= 9 });
+    if (n >= 2) e.push({ t: 'penabung?', c: 'hand' });
+    if (n >= 3) e.push({ t: 'pemberi', c: 'hand' });
+    if (n >= 4) { e.push({ t: 'kadet', c: 'hand', s: 4 }); e.push({ t: 'berhenti &mdash; ?', c: 'hand', s: 4 }); }
+    if (n >= 5) { e.push({ t: 'jujur', c: 'hand', s: 5 }); e.push({ t: '&ldquo;buruk untuk usaha&rdquo;', c: 'hand', s: 5 }); }
+    if (n >= 6) { e.push({ t: 'anak di kolom yang kusesali', c: 'hand', s: 6 }); if (jalur() === 'dewan') e.push({ t: 'lupa', c: 'hand', s: 6 }); }
+    if (n >= 6.5 && jalur() === 'ikn') e.push({ t: 'LUPA', c: 'hand big', s: 6.5 });
+    if (n >= 7) e.push({ t: 'DITOLAK', c: 'stamp blue', s: 7 });
+    if (n >= 9) e.push({ t: 'orang baik &middot; tersakiti', c: 'hand final', s: 9 });
+    return e;
+  }
+  var STEP_OF = { 'PENCURI': 0, 'ANCAMAN DUNIA': 1, 'penabung?': 2, 'pemberi': 3 };
+  function cardHtml(n) {
+    var list = entries(n).map(function (x) {
+      var s = x.s != null ? x.s : STEP_OF[x.t];
+      var fresh = s === n, strikeNow = x.x && ((x.t === 'PENCURI' && n === 2) || (x.t === 'ANCAMAN DUNIA' && n === 9));
+      return '<li class="' + x.c + (x.x ? ' x' : '') + (fresh ? ' new' : '') + (strikeNow ? ' newx' : '') + '">' + x.t + (x.note ? ' <small style="font-weight:400;opacity:.7">' + x.note + '</small>' : '') + '</li>';
+    }).join('');
+    return '<div class="jt-card" role="img" aria-label="Kartu Taksiran Nasabah J.T."><div class="kop"><span>Unit Kas B-09</span><span>Taksiran Nasabah</span></div>' +
+      '<div class="row"><b>Nasabah</b> J.T.</div><div class="row"><b>Rekening</b> lintas pulau, tidur</div><div class="row"><b>Saldo</b> melebihi laut</div>' +
+      '<div class="ket">Keterangan:</div><ul>' + list + '</ul></div>';
+  }
+
+  /* ---------- gambar kecil ---------- */
+  function q01Art() {
+    return '<svg class="jt-q01" viewBox="0 0 420 150" role="img" aria-label="Layar Q-01 berkedip merah"><rect width="420" height="150" rx="10" fill="#0e161e"/>' +
+      '<rect x="70" y="18" width="280" height="84" rx="8" fill="#1a0a0c" stroke="#3a4a5a" stroke-width="3"/>' +
+      '<text x="210" y="56" text-anchor="middle" font-family="Courier New,monospace" font-weight="700" font-size="17" fill="#ff5a50">ANGKA MELEBIHI LAUT<animate attributeName="opacity" values="1;.2;1" dur="1.1s" repeatCount="indefinite"/></text>' +
+      '<text x="210" y="82" text-anchor="middle" font-family="Courier New,monospace" font-size="11" fill="#ff8a70" opacity=".7">J.T. ............ 9.9E+99</text>' +
+      '<rect x="190" y="102" width="40" height="22" fill="#2a3440"/><rect x="150" y="124" width="120" height="8" rx="3" fill="#3a4a5a"/>' +
+      '<g transform="translate(330 70)"><rect x="0" y="22" width="56" height="48" rx="8" fill="#6a5a3a"/><circle cx="28" cy="16" r="16" fill="#8a7a5a"/>' +
+      '<rect x="14" y="10" width="28" height="9" rx="4" fill="#1a1410"/><rect x="22" y="12" width="12" height="5" rx="2" fill="#ffc46e"/>' +
+      '<g fill="#d8b878">' + [0, 1, 2, 3].map(function (r) { return '<circle cx="' + (10 + r * 12) + '" cy="44" r="3.4"/><circle cx="' + (16 + r * 10) + '" cy="56" r="3.4"/>'; }).join('') + '</g>' +
+      '<path d="M0 44h56M0 56h56" stroke="#3a2a1a" stroke-width="1.2"/></g></svg>';
+  }
+  function signArt() {
+    var kaku = '<svg viewBox="0 0 130 64" aria-hidden="true"><path d="M30 18v24q0 8-8 8M44 18h-14" stroke="#2a1a0a" stroke-width="2.4" fill="none" stroke-linecap="square"/><circle cx="50" cy="48" r="1.8" fill="#2a1a0a"/>' +
+      '<path d="M62 18h22M73 18v32" stroke="#2a1a0a" stroke-width="2.4" fill="none" stroke-linecap="square"/><circle cx="90" cy="48" r="1.8" fill="#2a1a0a"/><path d="M14 58h104" stroke="#8a6a3a" stroke-width=".8" stroke-dasharray="3 3"/></svg>';
+    var tajam = '<svg viewBox="0 0 130 64" aria-hidden="true"><path d="M22 12q16-4 22 0q-6 2-8 18q-2 20-16 24q-8 1-6-6" stroke="#2a1a0a" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="50" cy="48" r="1.6" fill="#2a1a0a"/>' +
+      '<path d="M58 16q24-8 40 0M80 12q-4 18-8 40q8-6 30-8" stroke="#2a1a0a" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="108" cy="46" r="1.6" fill="#2a1a0a"/><path d="M14 58h104" stroke="#8a6a3a" stroke-width=".8" stroke-dasharray="3 3"/></svg>';
+    return '<div class="jt-sign"><figure>' + kaku + 'slip pembukaan</figure><figure>' + tajam + 'di balik slip DITOLAK</figure></div>';
+  }
+  function doc(html) { return '<div class="jt-doc">' + html + '</div>'; }
+  function rewardHtml(icon, text) { return '<div class="jt-reward">' + ic(icon) + '<div>' + text + '</div></div>'; }
+  function fateLine() {
+    return jalur() === 'ikn' ? '"Pemiliknya? Kita tahu di mana ia. Sedang mengecat burung perunggu itu, dua jalan dari sini."'
+      : '"Pemiliknya? Kita tahu di mana ia. Sedang menarik tali lonceng di kota rantai."';
+  }
+
+  /* ---------- mini game ---------- */
+  function lib(kind) {
+    if (kind === 'kas' || kind === 'timbang') return window.MTGames6;
+    if (kind === 'manifest') return window.MTGames5;
+    if (kind === 'jejak') return window.MTGames3;
+    return null;
+  }
+  function game(kind, opts, cb) {
+    var L = lib(kind);
+    function fin(res) { gameOpen = false; try { cb(res || { cancelled: true }); } catch (e) { console.warn('[JTQ] game', e); } }
+    if (L && typeof L.open === 'function') {
+      gameOpen = true;
+      try { L.open(kind, opts || {}, fin); return; } catch (e) { gameOpen = false; console.warn('[JTQ] game', e); }
+    }
+    fin({ cancelled: true });
+  }
+  function levelThen(s, fn, b) {
+    if (b) b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) { if (b) b.disabled = false; fn((r && r.level) || null); })
+      .withFailureHandler(function (e) { if (b) b.disabled = false; showToast((e && e.message) || String(e), 'error'); refresh(); })
+      .api_jtq('level', s);
+  }
+
+  // Olah Jejak: brankas Bank Runtuh IKN (adegan & jejak sendiri, §8.5 konsep)
+  function vaultScene() {
+    var s = '<defs><linearGradient id="jtV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e2a20"/><stop offset="1" stop-color="#0a0e0a"/></linearGradient></defs>';
+    s += '<rect width="1000" height="600" fill="url(#jtV)"/>';
+    for (var b = 0; b < 12; b++) s += '<rect x="0" y="' + (b * 50) + '" width="1000" height="2" fill="#000" opacity=".3"/>';
+    // lumut & retakan
+    for (var m = 0; m < 22; m++) s += '<ellipse cx="' + ((m * 137) % 1000) + '" cy="' + (20 + (m * 71) % 140) + '" rx="' + (20 + m % 5 * 6) + '" ry="7" fill="#3a5a2a" opacity=".45"/>';
+    s += '<path d="M610 0l-20 80l30 40l-25 70" stroke="#050805" stroke-width="3" fill="none"/>';
+    // pintu brankas bundar
+    s += '<circle cx="180" cy="270" r="130" fill="#3a3e36" stroke="#1a1c18" stroke-width="10"/><circle cx="180" cy="270" r="96" fill="#2e322a" stroke="#4a4e44" stroke-width="4"/>';
+    for (var k = 0; k < 6; k++) { var a = k * Math.PI / 3; s += '<line x1="180" y1="270" x2="' + (180 + Math.cos(a) * 70) + '" y2="' + (270 + Math.sin(a) * 70) + '" stroke="#6a6e60" stroke-width="7"/>'; }
+    s += '<circle cx="180" cy="270" r="18" fill="#6a6e60"/>';
+    // meja kayu dengan buku induk
+    s += '<rect x="380" y="420" width="400" height="18" fill="#4a3220"/><rect x="395" y="438" width="14" height="140" fill="#3a2618"/><rect x="750" y="438" width="14" height="140" fill="#3a2618"/>';
+    s += '<g transform="rotate(-4 470 400)"><rect x="420" y="372" width="110" height="48" fill="#5a2a1a" stroke="#1a0e08" stroke-width="2"/><rect x="426" y="376" width="48" height="40" fill="#e6dcc4"/><rect x="478" y="376" width="48" height="40" fill="#ded2b6"/>';
+    for (var l = 0; l < 5; l++) s += '<rect x="430" y="' + (382 + l * 7) + '" width="40" height="2" fill="#6a5a40"/>';
+    s += '</g>';
+    // cap KADET di atas meja
+    s += '<rect x="560" y="396" width="34" height="22" rx="3" fill="#6a4a2a" stroke="#2a1a0c" stroke-width="2"/><rect x="566" y="380" width="22" height="18" rx="3" fill="#8a6a3a"/><text x="577" y="414" text-anchor="middle" font-size="9" font-family="Georgia" fill="#e8d8b8">KADET</text>';
+    // slip bercap biru DITOLAK (tertancap di paku)
+    s += '<rect x="830" y="170" width="92" height="112" fill="#efe6d2" transform="rotate(5 876 226)"/><circle cx="876" cy="176" r="4" fill="#3a3a3a"/>';
+    s += '<g transform="rotate(-12 876 236)"><rect x="840" y="224" width="74" height="24" fill="none" stroke="#1e4aa0" stroke-width="3"/><text x="877" y="241" text-anchor="middle" font-family="Courier New" font-weight="700" font-size="12" fill="#1e4aa0">DITOLAK</text></g>';
+    // slip kedua jatuh terbalik (tanda tangan tajam di baliknya)
+    s += '<g transform="rotate(-18 700 560)"><rect x="660" y="540" width="80" height="44" fill="#e8dcc0" stroke="#8a6a3a" stroke-width="1"/><path d="M672 566q12-10 20 0q-4 10-10 6M702 560q14-6 26 0" stroke="#2a1a0a" stroke-width="1.6" fill="none"/></g>';
+    // kartu pembukaan di laci kecil
+    s += '<rect x="310" y="470" width="70" height="40" fill="#4a3a2a" stroke="#1a120a" stroke-width="2"/><rect x="318" y="462" width="54" height="14" fill="#f2e8d0" transform="rotate(-6 345 469)"/>';
+    // pengecoh: cap Pemerintah Dunia baru, medali tutup botol, slip J.F., tumpukan koin, rak
+    s += '<circle cx="660" cy="398" r="14" fill="#c8c8c8" stroke="#6a6a6a" stroke-width="2"/><text x="660" y="402" text-anchor="middle" font-size="8" fill="#3a3a3a">PD</text>';
+    s += '<circle cx="90" cy="540" r="12" fill="#c9a450" stroke="#6a4a1a" stroke-width="2"/><path d="M84 528l6 -14l6 14" fill="#a8302a"/>';
+    s += '<rect x="480" y="520" width="58" height="34" fill="#e2d6ba" transform="rotate(10 509 537)"/><text x="508" y="542" text-anchor="middle" font-size="11" font-family="Georgia" fill="#3a2a1a" transform="rotate(10 509 537)">J.F.</text>';
+    for (var c = 0; c < 6; c++) s += '<ellipse cx="' + (440 + c * 8) + '" cy="' + (560 - c * 5) + '" rx="12" ry="4" fill="#b8902a" stroke="#6a4a1a"/>';
+    s += '<rect x="900" y="330" width="80" height="250" fill="#2a2e26" stroke="#141610" stroke-width="3"/>';
+    for (var r2 = 0; r2 < 5; r2++) s += '<rect x="906" y="' + (340 + r2 * 48) + '" width="68" height="40" fill="#1e221a"/>';
+    return s;
+  }
+  function jejakCfg() {
+    var lamp = saga3();
+    return {
+      kicker: 'Bank Runtuh IKN &middot; brankas tertua, malam', title: 'Olah Jejak',
+      intro: 'Brankas tertua di bawah burung perunggu. Gelap dan lembap. Ada <b>lima jejak</b> tentang pemilik rekening itu. Banyak benda lain hanya kebetulan. Minyak lentera terbatas.',
+      clues: [
+        { id: 'buku', x: 478, y: 395, r: 34, t: 'Buku induk bercap tua', th: 'Buku induk, empat puluh tahun lalu. Rekening dibuka dengan <b>satu keping</b>. Gaji pertama.' },
+        { id: 'kadet', x: 577, y: 402, r: 24, t: 'Cap "KADET"', th: 'Cap kecil bertuliskan <b>KADET</b>. Pemiliknya belum jendral waktu itu.' },
+        { id: 'tolak', x: 876, y: 226, r: 40, t: 'Slip bercap biru', th: 'Slip penarikan, tertancap di paku. Cap biru: <b>DITOLAK</b>.' },
+        { id: 'ttd', x: 700, y: 560, r: 30, t: 'Tanda tangan di balik slip', th: 'Di balik slip yang jatuh: tanda tangan <b>J.T.</b>, tajam dan miring. Kau pernah melihat tangan seperti ini.' },
+        { id: 'kartu', x: 345, y: 469, r: 26, t: 'Kartu di laci kecil', th: 'Kartu pembukaan rekening. Tulisannya kaku, seperti orang yang baru belajar menandatangani.' + (lamp ? ' Ada <b>noda minyak lampu</b> di pojoknya.' : '') }
+      ],
+      decoys: [
+        { x: 660, y: 398, r: 20, th: 'Cap Pemerintah Dunia. Tintanya masih baru. Jauh lebih baru dari semua yang lain di sini.' },
+        { x: 90, y: 540, r: 20, th: 'Medali dari tutup botol. Punya anak pemulung yang sering main ke sini.' },
+        { x: 508, y: 538, r: 28, th: 'Slip nasabah lain: <b>J.F.</b> Hampir sama. Bukan yang kau cari.' },
+        { x: 470, y: 548, r: 26, th: 'Koin bunga. Ringan dan kosong. Bank mencetaknya sendiri.' },
+        { x: 180, y: 270, r: 60, th: 'Pintu brankas. Rodanya macet oleh karat, tak pernah dicongkel.' },
+        { x: 940, y: 450, r: 36, th: 'Rak deposito kosong. Debunya tebal.' }
+      ],
+      deduce: [
+        { q: 'Siapa yang membuka rekening ini?', opts: [
+          { t: 'Jendral Tedsky, dengan uang curian', why: 'Cap KADET dan setoran satu keping gaji pertama. Bukan jendral, dan bukan uang curian.' },
+          { t: 'Seorang kadet, dengan gaji pertamanya', ok: true, why: 'Satu keping. Gaji pertama. <b>Seorang kadet.</b>' },
+          { t: 'Pemerintah Dunia', why: 'Cap Pemerintah Dunia itu jauh lebih baru dari buku induknya.' }
+        ] },
+        { q: 'Kenapa setoran itu berhenti?', opts: [
+          { t: 'Kadet itu kehabisan gaji', why: 'Slip terakhir bukan setoran yang gagal. Itu permintaan menarik uang.' },
+          { t: 'Ia datang menarik tabungannya, dan bank menolaknya', ok: true, why: 'Cap biru DITOLAK. Dan di balik slip itu, tanda tangan yang sudah <b>berubah</b>.' },
+          { t: 'Ia lupa punya rekening', why: 'Mungkin sekarang ia lupa. Tapi hari itu ia datang ke loket.' }
+        ] }
+      ]
+    };
+  }
+
+  /* =====================================================================
+   * Langkah. main = pembicara utama. p = halaman sebelum aksi, b = tombol aksi, g = mini game,
+   * a = halaman sesudah berhasil, rep = kiasan yang diulang bila pemain kembali, t = 'malam' (wait),
+   * card = langkah Kartu Taksiran yang ditulis di langkah itu. Langkah tanpa g: tombol aksi = 'maju' 'ok'.
+   * ===================================================================== */
+  function S() {
+    var ikn = jalur() === 'ikn';
+    return [
+      /* 0 */ { c: 'marie_regal', main: 'b09', title: 'Bank Marie Regal', icon: 'bank',
+        p: [{ narr: 'Bank Marie Regal', t: '<p>Layar Q-01 berkedip merah. Di pojok, sebuah robot tua berdebu baru dinyalakan. Tangannya berbentuk sempoa.</p>' + q01Art() },
+          '"Selamat datang, Kapten. Inti kuantum kami sedang&hellip; berpikir terlalu keras. Jadi mereka membangunkan unit usang ini."',
+          '"Ada satu rekening. Inisialnya <b>J.T.</b> Tidur di semua bank di dunia. Bunganya beranak, anaknya beranak lagi. Q-01 mencoba menghitungnya sampai habis. Ia tidak kembali."',
+          { n: 'b09', t: '<i>(Mesin cetak berderak. Selembar kartu keluar.)</i> "Q-01 sudah menaksir pemiliknya sebelum macet. Unit ini tidak berani membantah inti kuantum."', card: 0 },
+          '"Tapi unit ini juga tidak pernah diajari untuk percaya tanpa menghitung. Unit ini tidak bisa menghitung sampai habis, Kapten. Hanya satu per satu. Mungkin justru itu yang dibutuhkan."',
+          '"Laci cadangan belum dihitung sejak Q-01 macet. Kapten mau membantu unit usang ini?"'],
+        b: btn('go', 'coins', 'Bantu B-09 menghitung'),
+        g: { kind: 'kas', opts: { kicker: 'Bank Marie Regal', title: 'Meja Kas &middot; Laci Cadangan',
+          intro: 'Unit usang ini menghitung dengan jari. Mohon sabar, Kapten. Isi baki <b>pas</b> sesuai angka yang diminta. Kurs ada di papan.',
+          lines: { ok: ['Pas. Unit ini mencatat.', 'Pas. Satu per satu, Kapten.', 'Pas. Lebih cepat dari Q-01.'] },
+          cardTitle: 'Laci cadangan pas', cardQuote: '"Satu per satu. Begitulah unit usang menghitung."' } },
+        a: ['"Terima kasih, Kapten. Semua bank di dunia menerima surat yang sama tentang rekening itu. Yang paling tua dan paling tinggi membacanya lebih dulu."',
+          { n: 'b09', t: '"Bila Kapten ingin tahu, carilah <b>gedung seribu tangga, tempat anggaran dunia dibacakan</b>. Unit ini akan tetap menyala di sini." <i>(Ia menyerahkan kartu itu padamu.)</i>', card: 0 }],
+        rep: '"Gedung seribu tangga, Kapten. Tempat anggaran dunia dibacakan."' },
+      /* 1 */ { c: 'empeer_depeer', main: 'kopdas', title: 'Bank Mahkota', icon: 'bank',
+        p: [{ narr: 'Bank Mahkota', t: '<p>Di meja panjang terbentang dua gulungan. Yang kedua dua kali lebih panjang dari yang pertama.</p>' },
+          '"Ini anggaran Pemerintah Dunia setahun. Kapal, gaji, menara, semuanya. Dan ini saldo J.T."',
+          '"Kalau pemiliknya datang ke loket dan minta tunai, kami harus mencetak koin. Koin yang banyak membuat roti mahal. Roti yang mahal membuat orang lapar. Orang lapar tidak peduli siapa jendralnya."',
+          { n: 'kopdas', t: '<i>(Ia menarik kartu dari tanganmu dan menghentak cap merah.)</i>', card: 1, sfx: 'coin' }],
+        b: btn('go', null, 'Gulung kembali anggarannya'),
+        a: ['"Koin tertua rekening itu tidak di sini, Kapten. Pergilah ke <b>kota tempat besi dipukul siang malam</b>. Koin tertuanya disimpan di sana."'],
+        rep: '"Kota tempat besi dipukul siang malam, Kapten."' },
+      /* 2 */ { c: 'freeyork', main: 'lukas', title: 'Bank Rantai', icon: 'bank',
+        p: [{ narr: 'Bank Rantai FreeYork', t: '<p>Dentang palu dari bengkel sebelah menggetarkan rak brankas. Pak Lukas membuka satu laci tua.</p>' },
+          '"Laci cabang J.T. Isinya koin bunga, dicetak bank tiap tahun. Ringan semua."',
+          '"Tapi ada yang lebih berat di antaranya. Selalu ada. Bantu saya menemukannya dengan neraca ini. Lilinnya hanya cukup untuk tiga kali."'],
+        b: btn('go', 'coins', 'Pegang neraca'),
+        g: { kind: 'timbang', opts: { kicker: 'Bank Rantai &middot; FreeYork', title: 'Meja Kas &middot; Timbang Koin',
+          intro: 'Delapan koin tampak sama. <b>Satu</b> lebih berat. Taruh di piring sama banyak, lalu timbang. Lilin hanya untuk <b>tiga kali</b>.',
+          cardTitle: 'Keping kadet', cardQuote: '"Perak asli. Bukan koin bunga."' } },
+        a: [{ n: 'lukas', t: '"Keping kadet. Perak asli, lebih berat dari semua koin bunga yang kami cetak untuknya. Koin yang ditabung dari keringat memang selalu lebih berat, Kapten."' },
+          { n: 'lukas', t: '<i>(Ia mencoret satu baris di kartu dan menulis dengan tanda tanya kecil.)</i> "Bankir tidak boleh yakin terlalu cepat."', card: 2 },
+          '"Cabang yang mengirim keping ini dulu punya rekanan di <b>koperasi di bawah kincir yang memeras angin</b>. Tanyakan di sana."'],
+        rep: '"Koperasi di bawah kincir yang memeras angin, Kapten."' },
+      /* 3 */ { c: 'otoland', main: 'tarni', title: 'Koperasi Otoland', icon: 'bank',
+        p: [{ narr: 'Koperasi Otoland', t: '<p>Kincir berderit di atas atap. Bu Tarni membuka buku koperasi yang kertasnya bergelombang karena lembap.</p>' },
+          '"Kiriman dari cabang J.T., Kapten. Kecil, tiap bulan, bertahun-tahun. Untuk janda nelayan yang perahunya karam."',
+          '"Catatan pengirimnya cuma satu kalimat: <i>&ldquo;Dari gaji kadet. Jangan sebut nama.&rdquo;</i>"',
+          '"Bulan ini santunannya belum dibagi. Bantu Ibu menghitung, ya. Hati-hati, ada koin retak di laci. Jangan sampai sampai ke tangan mereka."'],
+        b: btn('go', 'coins', 'Hitung santunan'),
+        g: { kind: 'kas', opts: { kicker: 'Koperasi &middot; Otoland', title: 'Meja Kas &middot; Santunan Nelayan',
+          intro: 'Bayar santunan <b>pas</b>, Kapten. Koin <b>retak</b> jangan dipakai. Lihat baik-baik garis halusnya.',
+          lines: { cracked: 'Itu koin retak, Kapten. Janda nelayan sudah cukup menerima yang retak-retak.', ok: ['Pas. Mak Sarni pasti senang.', 'Pas. Mak Ijem bisa beli beras.', 'Pas.'] },
+          cardTitle: 'Santunan dibagi', cardQuote: '"Dari gaji kadet. Jangan sebut nama."' } },
+        a: ['"Pencuri biasanya ingin namanya ditakuti, Kapten. Yang ini malah minta namanya tak disebut."',
+          { n: 'tarni', t: '<i>(Ia menulis satu kata di kartu, pelan.)</i>', card: 3 },
+          '"Buku besar cabang yang paling tua ada di <b>pelabuhan tempat semua kapten pertama kali berangkat</b>."'],
+        rep: '"Pelabuhan tempat semua kapten pertama kali berangkat, Kapten."' },
+      /* 4 */ { c: 'sunda_empire', main: 'rizal', title: 'Bank Saudagar', icon: 'bank',
+        p: [{ narr: 'Bank Saudagar Sunda', t: '<p>Buku besar tertua di Mare Nusantara, setebal bantal. Halamannya berbau kapur barus.</p>' },
+          '"Ambo sudah dengar dari FreeYork, Kapten. Ini buku besar cabang J.T. Setoran gaji, bulan demi bulan."',
+          '"Tapi slip-slipnya tak semuanya cocok dengan buku. Ambo sudah tua, matanya kabur. Tolong bandingkan."'],
+        b: btn('go', 'book', 'Buka buku besar'),
+        g: { kind: 'manifest', opts: { kicker: 'Bank Saudagar &middot; Sunda Empire', title: 'Buku Besar &middot; Cocokkan Slip', ledgerTitle: 'Buku Besar Cabang J.T.',
+          intro: 'Bandingkan <b>jumlah</b>, <b>cap</b>, dan <b>nilai</b> di setiap slip dengan baris di buku besar. Pakai <b>lup</b> kalau tulisannya kecil.',
+          numerals: true, theme: 'bank', crateWord: 'slip', cols: { label: 'SETORAN', qty: 'JUMLAH', cap: 'CAP', berat: 'NILAI' }, qtyWord: 'Jumlah',
+          okLine: 'Slip itu cocok dengan buku, Kapten. Coba lihat lagi.', foundLines: ['Satu. Ada catatan kecil di pojoknya&hellip;', 'Dua. Tulisan yang sama.', 'Tiga. Semuanya diteruskan ke orang lain.'],
+          resetLine: 'Pelan-pelan, Kapten. Ambo bereskan dulu slipnya.',
+          cardKicker: 'Buku besar cocok', cardTitle: 'Tiga slip yang diteruskan', cardQuote: '"Sisihan gaji. Beras anak dermaga. Janda nelayan."' } },
+        a: ['"Sisihan gaji, untuk kas kota. Beras anak dermaga. Janda nelayan." <i>(Ia membalik halaman.)</i> "Lalu berhenti. Tak ada pamit."',
+          { n: 'rizal', t: '"Aneh. Slip terakhirnya tidak di sini. Dipindah ke cabang induk. Ambo tak pernah tahu kenapa." <i>(Ia menulis di kartu.)</i>', card: 4 },
+          '"Ada satu orang yang mengenal tentara-tentara muda dulu. Di <b>sarang tempat dulu asap tak pernah padam</b>. Datang saat lampu dinyalakan."'],
+        rep: '"Sarang tempat dulu asap tak pernah padam, Kapten. Saat lampu dinyalakan."' },
+      /* 5 */ { c: 'toogood', t: 'malam', main: 'bayu', title: 'Rentenir TooGood', icon: 'coins',
+        wait: '"Siang begini aku tak bicara soal uang orang, Kapten. Datang lagi saat lampu dinyalakan."',
+        p: [{ narr: 'Rentenir TooGood, malam', t: '<p>Lentera minyak di atas meja penuh koin. Seorang lelaki menimbang koin dengan neraca kecil tanpa melihatnya.</p>' },
+          '"J.T.? Semua orang di sini kenal dua huruf itu. Tapi aku tidak bicara gratis."',
+          '"Ujian dulu. Dua belas koin. <b>Dua</b> di antaranya lebih berat. Empat lilin. Kalau kau bisa, aku cerita."'],
+        b: btn('go', 'coins', 'Terima ujiannya'),
+        g: { kind: 'timbang', opts: { kicker: 'Rentenir &middot; TooGood, malam', title: 'Meja Kas &middot; Ujian Rentenir',
+          intro: 'Dua belas koin. <b>Dua</b> lebih berat, beratnya sama. Lilin untuk <b>empat kali</b>. Kalau ragu, bagi dulu jadi tiga kelompok.',
+          lines: { lucky: 'Tebakan, Kapten. Di meja ini, yang menebak selalu kalah.' },
+          cardTitle: 'Dua keping kadet', cardQuote: '"Kau lulus. Duduklah."' } },
+        a: ['"Satu-satunya tentara yang pernah menolak utangku. Seragam putih polos, tanpa satu medali."',
+          '"Ia malah membayar utang seorang nelayan, lalu pergi tanpa minta tanda terima. Aku tak pernah lupa."',
+          { n: 'bayu', t: '<i>(Ia menulis di kartu, lalu menambahkan sendiri di bawahnya.)</i> "Orang seperti itu buruk untuk usaha."', card: 5 },
+          '"Ada lelaki tua berbuku tebal yang juga pernah menanyakan dua huruf itu. Ia tinggal di <b>kota rantai yang ditinggalkan</b>."'],
+        rep: '"Kota rantai yang ditinggalkan, Kapten. Lelaki tua berbuku tebal."' },
+      /* 6 */ { c: 'rantai_lama', p6: true, main: 'dorus', title: 'Balai Kongsi', icon: 'book',
+        p: [{ narr: 'Balai Kongsi, Pelabuhan Rantai Lama', t: '<p>Lentera di meja Ki Dorus tak pernah padam. Ia sudah menunggu, bukunya terbuka.</p>' },
+          '"Tuan Kapten mencari J.T. di bank-bank. Semua orang mengira saya yang menyimpan uangnya. Dicatat."',
+          '"Setoran curian J.T. <b>selalu</b> dikirim dalam peti, Tuan Kapten. Tak pernah satu keping pun masuk bank. Saya tahu, karena seperlimanya lewat balai ini."',
+          '"Rekening itu bukan uang curian."',
+          '"Nama anak itu pernah saya tulis di buku ini. Di kolom yang paling saya sesali. Ia dijual di pelabuhan ini, waktu masih kecil."',
+          '"Bertahun kemudian ia kembali berseragam kadet. Membayar tebusan seorang anak lain dengan gaji setahunnya. Dicatat. Satu-satunya catatan yang tidak saya sesali."',
+          '"Orang sering bilang luka membuat orang jahat. Lihat anak ini." <i>(menutup buku)</i> "Luka yang pertama tidak mengubahnya, Tuan Kapten. Pasti ada yang kedua."']
+          .concat(ikn ? [] : [
+            { narr: 'Balai Kongsi', t: '<p>Di kejauhan, lonceng pelelangan berdentang sekali.</p>' },
+            '"Pagi tadi saya tanyakan langsung pada penarik lonceng itu. Rekening atas nama J.T., di semua bank di dunia."',
+            '"Ia tertawa. Katanya: <i>&lsquo;Rekening? Dorus, aku lahir di bawah tangga. Orang sepertiku tidak menabung. Kami mengambil.&rsquo;</i> Lalu ia menarik loncengnya lagi."',
+            '"Ia tidak berbohong, Tuan Kapten. Itu yang paling menyedihkan. Ia ingat setiap peti yang pernah ia curi. Tapi ia lupa satu keping yang pernah ia tabung."',
+            '"Begitulah luka bekerja. Yang buruk disimpan. Yang baik dikubur."'])
+          .concat([{ n: 'dorus', t: '<i>(Ki Dorus menulis di kartu dengan tinta yang sama dengan bukunya.)</i>', card: 6 }]),
+        b: btn('go', 'book', 'Dicatat'),
+        a: ['"Kode cabang induk rekening itu menunjuk bank tertua di dunia. <b>Bank di kota yang sudah runtuh, di bawah burung perunggu.</b> Datanglah saat malam."'],
+        rep: '"Bank di kota yang sudah runtuh, di bawah burung perunggu, Tuan Kapten. Saat malam."' },
+      /* 7 */ { c: 'ikn', t: 'malam', main: 'liong', title: 'Bank Runtuh IKN', icon: 'bank',
+        wait: '"Brankas tertua hanya dibuka malam hari, Kapten. Datang lagi saat lampu dinyalakan."',
+        p: [{ narr: 'Bank Runtuh IKN, malam', t: '<p>Loket berlumut. Satu lentera menyala di atas meja penjaga brankas.</p>' },
+          '"B-09 sudah mengirim kabar lewat drone kecilnya, Kapten. Kau membawa kartu itu?"']
+          .concat(ikn ? [
+            { narr: 'Bank Runtuh IKN', t: '<p>Seorang anak berlari ke pintu bank, tangannya belepotan cat perunggu.</p>' },
+            { n: 'anak', t: '"Kak! Aku sudah tanya kakek cat, kayak yang Koh Liong suruh."' },
+            { n: 'anak', t: '"Katanya: <i>&lsquo;Tabungan? Aku tak pernah punya apa-apa yang disimpan orang lain untukku.&rsquo;</i> Terus dia ngecat lagi."' },
+            { n: 'anak', t: '<i>(lebih pelan)</i> "Tapi kuasnya berhenti lama di bulu yang itu. Yang dekat leher. Aku kira dia ketiduran."' },
+            '"Ia tidak tidur, Nak. Ia sedang mencoba mengingat sesuatu, dan gagal."',
+            { n: 'anak', t: '<i>(Anak itu meminjam pena dan menulis di kartu, besar-besar dan miring.)</i>', card: 6.5 }] : [])
+          .concat(['"Brankas tertua. Tak pernah dibuka sejak kakek saya. Bantu saya mencari, Kapten. Lenteranya tinggal sedikit."']),
+        b: btn('go', 'eye', 'Masuk ke brankas'),
+        g: { kind: 'jejak', opts: { doneLine: 'Gambarnya mulai utuh.' } },
+        a: [{ narr: 'Slip yang tertancap', icon: 'scroll', t: doc('<i>&ldquo;Permohonan: tarik seluruh saldo. Untuk kas kota. Hari ini.<br>Keputusan: <b>DITOLAK</b>. Rekening pribadi tidak dapat dicairkan untuk keperluan kota tanpa cap Pemerintah Dunia. Bunga tetap berjalan.&rdquo;</i>') },
+          { narr: 'Di balik slip', icon: 'scroll', t: doc('<i>Tulisan tangan yang lain, tajam dan miring:</i><br>&ldquo;Kalian mau menyimpan uangku, tapi tidak mau menyimpan kotaku. &mdash; J.T.&rdquo;') + signArt() +
+            '<p class="muted small" style="margin-top:6px">Tanda tangan kedua persis sama dengan inisial di buku setoran bajak laut dulu: <i>&ldquo;Tiga puluh persen untuk J.T.&rdquo;</i></p>' },
+          '"Ini hari kas kota itu kosong, Kapten. Hari yang ia tunggu-tunggu. Ia datang ke loket ini, dan loket ini menutup jendelanya."',
+          '"Sejak hari itu, tidak ada satu keping pun miliknya yang masuk bank lagi. Semua yang ia ambil, ia simpan di peti."',
+          { n: 'liong', t: '<i>(Koh Liong menghentak cap biru di kartu. Tangannya gemetar sedikit.)</i>', card: 7, sfx: 'coin' },
+          '"Yang mencap slip ini dulu&hellip; kakek saya."']
+          .concat(saga3() ? ['"Bau minyak lampu." <i>(Ia mencium kartu pembukaan di tangannya.)</i> "Aneh. Bank ini tak pernah pakai lampu minyak."'] : [])
+          .concat(['"Tutup dulu loketnya, Kapten. Para bankir sedang dalam perjalanan ke sini. Saat kau kembali ke loket ini, kita baca kartu pembukaannya bersama."']),
+        rep: '"Para bankir sedang dalam perjalanan, Kapten. Kembalilah ke loket ini."' },
+      /* 8 */ { c: 'ikn', main: 'liong', title: 'Bank Runtuh IKN', icon: 'bank',
+        p: [{ narr: 'Bank Runtuh IKN', t: '<p>Loket yang biasanya sepi kini penuh. Bankir-bankir dari banyak pulau berdiri berjajar. Sebuah drone kecil berdengung di atas meja: suara B-09.</p>' },
+          '"Kartu pembukaan rekening J.T. Saya bacakan."',
+          { narr: 'Kartu pembukaan', icon: 'scroll', t: doc('<i>&ldquo;Nama: J.T. &mdash; Pekerjaan: Kadet. &mdash; Setoran pertama: satu keping, gaji pertama.<br><br>Catatan nasabah: <b>Jangan dibungakan untukku. Simpan untuk hari kas kota kosong.</b><br><br>Kuasa: bila aku lupa, atau bila aku berubah, biar orang yang menemukan kartu ini yang memutuskan.&rdquo;</i>') },
+          { n: 'rizal', t: '"&hellip;Jangan dibungakan."' },
+          { n: 'kopdas', t: '"Kita membungakannya empat puluh tahun. Dan pada hari ia membutuhkannya, kita menolaknya."' },
+          { n: 'b09', t: '<i>(lewat drone kecil)</i> "Koreksi. Kita yang membuat monster ini. Monster uangnya." <i>(jeda panjang, kipas pendinginnya berdengung)</i> "Mungkin juga monster orangnya."' },
+          fateLine().replace(/"$/, ' ') + 'Tapi ia sudah lupa, Kapten. Ia sendiri yang menulis: <i>bila aku lupa</i>. Ia menulisnya waktu masih ingat semuanya."',
+          { n: 'dorus', t: '"Dicatat."' }]
+          .concat(saga3() ? [{ narr: 'Kartu pembukaan', icon: 'scroll', t: '<p><i>Tangan yang menulis kartu ini pernah kau lihat belepotan minyak, di atas menara yang lampunya tak boleh padam.</i></p>' }] : [])
+          .concat([
+            { n: 'b09', t: '<i>B-09 mencoret cap merah itu dengan satu garis lurus, rapi seperti mesin. Lalu, untuk pertama kalinya, ia menulis dengan tangan sempoanya, huruf demi huruf.</i>', card: 9 },
+            { n: 'b09', t: '"Unit ini salah menaksir. Unit ini akan mencatat kesalahannya. Bank jarang melakukan itu."' },
+            '"Dewan Bankir akan mengembalikan bunga yang tak pernah diminta ke laut. Tapi dulu, kita hitung emas yang <b>sungguh ada</b> di brankas. Bantu kami, Kapten."']),
+        b: btn('go', 'coins', 'Hitung emas yang sungguh ada'),
+        g: { kind: 'kas', opts: { kicker: 'Bank Runtuh IKN &middot; Dewan Bankir', title: 'Meja Kas &middot; Emas yang Sungguh Ada',
+          intro: 'Hitung yang <b>sungguh ada</b>, Kapten. Pas di setiap baki. Koin retak tidak dihitung.',
+          lines: { ok: ['Pas.', 'Pas. Seperti bankir tua.', 'Lunas.'] },
+          cardKicker: 'Dewan Bankir', cardTitle: 'Yang sungguh ada', cardQuote: '"Bukan angka yang melebihi laut. Hanya emas di brankas ini."' } },
+        then: 'offer' },
+      /* 9 */ { c: 'ikn', pilih: true, main: 'liong', title: 'Bank Runtuh IKN', icon: 'bank' }
+    ];
+  }
+
+  function offerPages() {
+    var full = !!(state && state.gotong && state.gotong.ikn && state.gotong.ikn.done);
+    return [
+      '"Dewan Bankir sudah memutuskan: bunga yang tak pernah diminta kami kembalikan ke laut. Yang tersisa hanya emas yang sungguh ada di brankas kami."',
+      full ? '"Kota ini sudah berdiri lagi. Tapi anak-anak Kamp Pemulung masih tidur di bawah terpal&hellip;"' : '"Kas kota ini masih kosong, Kapten. Papan RESTORASI-nya dipasang tiap tahun, lapuk tiap tahun."',
+      { n: 'liong', t: '"Kartu ini menyerahkan keputusannya pada orang yang menemukannya. Itu Kapten."', card: 9 }
+    ];
+  }
+  var QUOTE = '&ldquo;Orang jahat adalah orang baik yang tersakiti.&rdquo;';
+  // baris bankir setelah tamat (7 tempat yang dikunjungi), per jalur
+  var AFTER = {
+    setuju: { marie_regal: ['b09', '"Unit ini sekarang menghitung satu per satu, Kapten. Q-01 belajar dari unit usang."'], empeer_depeer: ['kopdas', '"Anggaran dunia tetap sepanjang ini. Tapi gulungan kedua sudah kami bakar."'],
+      freeyork: ['lukas', '"Laci cabang itu kosong sekarang. Tinggal bau perak."'], otoland: ['tarni', '"Santunannya tetap dibagi, Kapten. Dari kas kota, sekarang. Atas nama siapa? Tetap tak disebut."'],
+      sunda_empire: ['rizal', '"Ambo menutup buku besar itu. Halaman terakhirnya ambo biarkan kosong."'], toogood: ['bayu', '"Masih buruk untuk usaha, Kapten. Tapi aku tak menyesal kau lulus."'],
+      ikn: ['liong', '"Keping itu masih di bawah tiang papan RESTORASI. Tak ada yang berani mencabutnya."'], rantai_lama: ['dorus', '"Emas yang tidur terlalu lama tidak bermimpi, Tuan Kapten. Ia mengigau."'] },
+    tolak: { marie_regal: ['b09', '"Dicatat. Tanpa penilaian, Kapten."'], empeer_depeer: ['kopdas', '"Sisanya dibekukan. Roti tetap murah. Itu yang penting."'],
+      freeyork: ['lukas', '"Koin yang ditabung dari keringat tetap lebih berat, Kapten. Di tangan siapa pun."'], otoland: ['tarni', '"Santunannya tetap dibagi, Kapten. Ibu yang memastikan."'],
+      sunda_empire: ['rizal', '"Buku besar itu ambo simpan. Siapa tahu ada yang mencarinya lagi."'], toogood: ['bayu', '"Akhirnya kau mengerti cara kerja meja ini, Kapten."'],
+      ikn: ['liong', '"Brankas itu tetap terkunci, Kapten. Kakek saya pun begitu."'], rantai_lama: ['dorus', '"Emas yang tidur terlalu lama tidak bermimpi, Tuan Kapten. Ia mengigau."'] }
+  };
+  AFTER.kamp = AFTER.setuju;
+
+  function timeOk(d) { return d.t === 'malam' ? night() : true; }
+
+  /* ---------- menjalankan satu langkah ---------- */
+  function runStep(w, i) {
+    var d = S()[i];
+    if (d.pilih) { runOffer(w); return; }
+    pages(w, d.main, d.p, d.b, function (w2) {
+      on(w2, '[data-jt=go]', function (b) { if (d.g) play(i, b); else call('maju', i, 'ok', function () { after(i); }, b); });
+    });
+  }
+  function play(i, b) {
+    var d = S()[i], g = d.g, o = Object.assign({}, g.opts || {});
+    try { var k = who(d.main); o.npc = { name: k.name, title: k.title, ap: k.ap, svg: k.svg }; } catch (e) { }
+    if (window.__MT_AUTOPLAY) o.__autoplay = true;   // uji browser
+    if (g.kind === 'jejak') { o.cfg = jejakCfg(); o.sceneSvg = vaultScene(); o.warm = true; }
+    function launch(level) {
+      if (level) { o.level = level; if (level.theme && !o.theme) o.theme = level.theme; }
+      if (window.__MT_AUTOPLAY && window.__MT_PLAN) o.__plan = window.__MT_PLAN[i];
+      game(g.kind, o, function (res) {
+        if (!res || res.cancelled || !res.win) return;
+        var payload = g.kind === 'kas' ? res.rounds : g.kind === 'timbang' ? { w: res.w, pick: res.pick } : g.kind === 'manifest' ? res.picks : 'ok';
+        call('maju', i, payload, function () { after(i); }, b);
+      });
+    }
+    if (g.kind === 'jejak') launch(null); else levelThen(i, function (lv) { if (lv) launch(lv); }, b);
+  }
+  function after(i) {
+    var d = S()[i];
+    var w = modalWrap(d.title || 'Bank', cityLabel(), d.icon); if (!w) return;
+    if (d.then === 'offer') { runOffer(w); return; }
+    pages(w, d.main, d.a, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-jt=ok]', close); });
+  }
+  function runOffer(w) {
+    var choose = '<div class="jt-choice">' + btn('setuju', 'gift', 'Penuhi pesan kadet itu. Untuk kas kota yang runtuh.') + btn('tolak', 'coins', 'Uangnya biarkan aku yang kelola sendiri.', false) + '</div>';
+    pages(w, 'liong', offerPages(), choose, function (w2) {
+      var bs = w2.querySelectorAll('.jt-choice .btn');
+      function pick(ch) {
+        bs.forEach(function (x) { x.disabled = true; });
+        call('pilih', 9, ch, function (r) { finale(r); }, null, function () { bs.forEach(function (x) { x.disabled = false; }); });
+      }
+      on(w2, '[data-jt=setuju]', function () { pick('setuju'); });
+      on(w2, '[data-jt=tolak]', function () { pick('tolak'); });
+    });
+  }
+
+  /* ---------- penutup ---------- */
+  function finale(r) {
+    var ch = (r && r.choice) || 'setuju';
+    function rest() {
+      var w = modalWrap('Bank Runtuh IKN', cityLabel() || 'IKN'); if (!w) return;
+      var list;
+      if (ch === 'tolak') {
+        list = [{ n: 'liong', t: '<i>(Koh Liong menyerahkan kantong kain yang berat.)</i> "Upah saksi, Kapten. Kartu ini sudah memilihmu. Kau sudah memilih."' + rewardHtml('coins', '<b>+' + fmt(r.gold || 250000) + ' gold</b>') },
+          { narr: 'Bank Runtuh IKN', icon: 'bank', t: '<p>Keping kadet dikembalikan ke brankas. Pintu bundar itu ditutup, rodanya berderit.</p>' },
+          { n: 'b09', t: '<i>(pelan, lewat drone kecil)</i> "Dicatat. Tanpa penilaian. Unit ini sudah belajar untuk tidak menaksir terlalu cepat."' }];
+      } else if (ch === 'kamp') {
+        list = [{ n: 'liong', t: '"Untuk anak-anak Kamp Pemulung, Kapten. Atap dulu. Lalu sekolah."' },
+          { n: 'b09', t: '"Satu keping. Empat puluh tahun. Akhirnya sampai di tempat tujuannya."' }];
+      } else {
+        list = [{ n: 'liong', t: '"Kas kota akhirnya terisi, Kapten. Empat puluh tahun terlambat."' + rewardHtml('gift', '<b>' + fmt(r.amount || 0) + ' gold</b> disumbangkan untuk Restorasi IKN atas namamu.' + (r.uji ? ' <i>(uji GM: tidak masuk kolam)</i>' : '')) },
+          { n: 'b09', t: '"Satu keping. Empat puluh tahun. Akhirnya sampai di tempat tujuannya."' }];
+      }
+      // kutipan akhir: kartu tampil penuh sekali lagi, lalu hilang (tidak masuk inventori)
+      list.push({ narr: 'Kartu Taksiran Nasabah J.T.', icon: 'scroll', t: '<p>Kau melihat kartu itu sekali lagi. Semua coretannya, dari yang pertama sampai yang terakhir.</p>', card: 9 });
+      list.push({ narr: 'Bunga yang Tak Pernah Dipetik', icon: 'scroll', t: '<p class="jt-quote">' + QUOTE + '</p>' });
+      pages(w, 'liong', list, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-jt=ok]', close); });
+      try { au_('victory'); } catch (e) { }
+    }
+    if (ch === 'tolak') { rest(); return; }
+    cine('jt_fajar', ch === 'kamp' ? [
+      'Fajar di IKN. Para bankir dari banyak pulau berjalan ke Kamp Pemulung, masing-masing membawa satu peti kecil.',
+      'Terpal-terpal diganti papan. Anak-anak berlarian, bersorak.'
+    ] : [
+      'Fajar di IKN. Papan RESTORASI yang baru dipasang di bawah burung perunggu.',
+      'Para bankir dari banyak pulau berdiri berjajar, masing-masing membawa satu peti kecil.',
+      'Koh Liong menanam satu keping kadet di bawah tiang papan itu. Anak-anak Kamp Pemulung bersorak.'
+    ], rest);
+  }
+  function cine(kind, slides, cb) {
+    var finished = false;
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    close();
+    var ov = document.createElement('div'); ov.className = 'qt-cine cb-cine';
+    ov.innerHTML = '<canvas></canvas><button class="cb-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button><div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind) || stop; } catch (e) { console.warn('[JTQ] cine', e); }
+    var i = 0, txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.cb-skip');
+    function show() { txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i]; txt.classList.add('in'); b.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai'; }
+    function finish() {
+      if (finished) return; finished = true;
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      if (cb) setTimeout(cb, 60);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    b.onclick = function () { try { au_('page'); } catch (e) { } if (++i < slides.length) show(); else finish(); };
+    skip.onclick = function () { finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1500);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { if (!finished) show(); }, 900);
+  }
+
+  /* ---------- panel Bank (6 pulau) & Balai Kongsi Rantai Lama ---------- */
+  function decor(panel) {
+    if (!docked() || !eraKini()) return;
+    var s0 = st(); if (!s0 || s0.frozen) return;
+    var c = cid(), steps = S();
+    if (s0.done) {
+      var a = (AFTER[s0.pilihan] || AFTER.setuju)[c];
+      if (a && (panel === 'bank') === (c !== 'rantai_lama')) insertTop(speech(who(a[0]), a[1]));
+      return;
+    }
+    var s = step(), d = steps[s];
+    if (d && c === d.c && (panel === 'bank') === !d.p6) {
+      if (!timeOk(d)) { insertTop(speech(who(d.main), d.wait || '')); return; }
+      var w = insertTop('<div></div>'); if (w) runStep(w, s);
+      return;
+    }
+    // kiasan terakhir diulang oleh tokoh yang memberikannya
+    var p = steps[s - 1];
+    if (p && p.rep && p.c === c && (panel === 'bank') === !p.p6) insertTop(speech(who(p.main), p.rep));
+  }
+  // Rantai Lama: Balai Kongsi bisa memperbarui panelnya sendiri; adegan dijalankan di jendela sendiri
+  // supaya tidak tertimpa. Bila Balai Kongsi belum terbuka untuk pemain, adegan muncul di lapau.
+  var kongsiHere = false;
+  function decorRantai() {
+    if (!docked() || !eraKini() || cid() !== 'rantai_lama') return;
+    var s0 = st(); if (!s0 || s0.frozen) return;
+    if (s0.done) { var a = (AFTER[s0.pilihan] || AFTER.setuju).rantai_lama; if (a) insertTop(speech(who(a[0]), a[1])); return; }
+    var s = step(), d = S()[s];
+    if (d && d.p6) {
+      if (kongsiHere) return; kongsiHere = true;
+      setTimeout(function () { kongsiHere = false; var w = modalWrap(d.title, 'Pelabuhan Rantai Lama', d.icon); if (w) runStep(w, s); }, 30);
+      return;
+    }
+    var p = S()[s - 1];
+    if (p && p.p6 && p.rep) insertTop(speech(who('dorus'), p.rep));
+  }
+
+  // gosip pribadi setelah tamat, hanya jalur setuju (satu-satunya gema; Tedsky tetap tidak tampil)
+  function rumorCard() {
+    var s0 = st(); if (!s0 || !s0.done || s0.pilihan !== 'setuju' || !eraKini()) return;
+    var c = cid(), j = jalur();
+    var line = j === 'ikn' && c === 'ikn' ? 'Kakek cat menaruh satu keping di kotak sumbangan kemarin. Katanya nemu di saku seragam lamanya.'
+      : j === 'dewan' && c === 'rantai_lama' ? 'Penarik lonceng menaruh satu keping di kotak sumbangan kemarin. Katanya nemu di saku seragam lamanya.' : null;
+    if (!line) return;
+    var el = document.getElementById('rumorList'); if (!el || el.querySelector('.jt-rumor')) return;
+    var d = document.createElement('div'); d.className = 'card rumor jt-rumor';
+    d.innerHTML = ic('chat') + '<span>' + line + '</span>';
+    el.insertBefore(d, el.firstChild);
+  }
+
+  /* ---------- kait inti ---------- */
+  if (typeof wrap_ === 'function') {
+    wrap_('setModal_', function () {
+      if (gameOpen) return;
+      try {
+        if (currentPanel === 'bank') decor('bank');
+        else if (currentPanel === 'balaikongsi') decorRantai();
+        else if (currentPanel === 'tavern') {
+          rumorCard();
+          // cadangan: Balai Kongsi belum terbuka untuk pemain ini -> Ki Dorus menemui di lapau
+          if (cid() === 'rantai_lama' && !(state && state.kongsi)) decorRantai();
+        }
+      } catch (e) { console.warn('[JTQ] panel', e); }
+    });
+  }
+  // §11 konsep: kalimat bankir soal bunga, hanya untuk yang BELUM tamat (tanpa angka, tanpa menyebut rekening)
+  var BANK_LINES = ['Uang yang tidur di brankas tetap bekerja untukmu.', 'Butuh modal? Kami bisa meminjamkan &mdash; dengan bunga, tentu.',
+    'Suku bunga sekarang mengikuti apa kata pemerintah, Kapten. Kami di sini hanya menjalankan.',
+    'Sudah jarang orang meminjam uang. Jadinya suku bunga tabungan pun ikut berubah.',
+    'Brankas kami makin sesak. Makin besar simpanan, makin sulit kami membungakannya.',
+    'Emas yang terlalu lama tidur jarang beranak banyak, Kapten. Emas yang berlayar, lain cerita.'];
+  var BANK_NEW = ['Dewan Bankir sepakat: emas yang tidur terlalu lama tak boleh beranak tanpa batas.',
+    'Bunga itu seperti air pasang, Kapten. Kalau tak ada tanggulnya, kota tenggelam.'];
+  var origLine = window.lineBank_;
+  if (typeof origLine === 'function') {
+    window.lineBank_ = function () {
+      var r = origLine.apply(this, arguments);
+      try {
+        var s0 = st();
+        if (s0 && s0.done) return r;
+        if (BANK_LINES.indexOf(r) >= 0 && typeof pickLine_ === 'function') return pickLine_(BANK_LINES.concat(BANK_NEW), 'bank');
+      } catch (e) { }
+      return r;
+    };
+  }
+
+  return { S: S, step: step, card: cardHtml };
+})();
+
+/* ---------- sinematik: fajar di IKN, papan RESTORASI & barisan bankir (prosedural) ---------- */
+(function () {
+  if (!window.MTCine || !MTCine.register || !window.MTUtil) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  function glow(ctx, x, y, r, col, a) {
+    if (a <= 0.004 || r <= 0.5) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function scene() {
+    var r = U.rng(5151), bankers = [], kids = [];
+    for (var i = 0; i < 7; i++) bankers.push({ x: 0.5 + i * 0.062, d: 2.2 + i * 0.35, h: 0.9 + r() * 0.2, robot: i === 0 });
+    for (var k = 0; k < 9; k++) kids.push({ x: 0.06 + k * 0.04 + r() * 0.015, ph: r() * 6, h: 0.7 + r() * 0.25, arms: r() < 0.7 });
+    function draw(ctx, W, H, t) {
+      var m = Math.min(W, H), horizon = H * 0.6, dawn = sm(0, 6, t);
+      var sky = ctx.createLinearGradient(0, 0, 0, horizon);
+      sky.addColorStop(0, 'rgb(' + Math.round(U.lerp(18, 64, dawn)) + ',' + Math.round(U.lerp(24, 62, dawn)) + ',' + Math.round(U.lerp(46, 96, dawn)) + ')');
+      sky.addColorStop(0.75, 'rgb(' + Math.round(U.lerp(60, 236, dawn)) + ',' + Math.round(U.lerp(44, 150, dawn)) + ',' + Math.round(U.lerp(64, 96, dawn)) + ')');
+      sky.addColorStop(1, 'rgb(' + Math.round(U.lerp(90, 255, dawn)) + ',' + Math.round(U.lerp(64, 206, dawn)) + ',' + Math.round(U.lerp(64, 130, dawn)) + ')');
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, horizon);
+      var sunY = horizon + m * 0.05 - dawn * m * 0.18;
+      glow(ctx, W * 0.22, sunY, m * 0.75, '255,196,120', 0.55 * dawn);
+      ctx.fillStyle = 'rgba(255,228,176,' + (0.95 * dawn).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(W * 0.22, sunY, m * 0.05, 0, Math.PI * 2); ctx.fill();
+      // kota runtuh + Garuda
+      ctx.fillStyle = 'rgba(18,16,22,.92)';
+      var bx = [0.03, 0.12, 0.62, 0.72, 0.88], bh = [0.2, 0.32, 0.24, 0.36, 0.18];
+      for (var b = 0; b < bx.length; b++) { var x0 = W * bx[b], w0 = W * 0.06, h0 = H * bh[b]; ctx.beginPath(); ctx.moveTo(x0, horizon); ctx.lineTo(x0, horizon - h0); ctx.lineTo(x0 + w0 * 0.55, horizon - h0 * 0.86); ctx.lineTo(x0 + w0, horizon - h0 * 0.7); ctx.lineTo(x0 + w0, horizon); ctx.fill(); }
+      var gx = W * 0.42, gy = horizon - H * 0.04;
+      ctx.fillRect(gx - m * 0.016, gy - m * 0.13, m * 0.032, m * 0.13 + H * 0.04);
+      ctx.beginPath(); ctx.moveTo(gx, gy - m * 0.21); ctx.quadraticCurveTo(gx - m * 0.17, gy - m * 0.31, gx - m * 0.23, gy - m * 0.17); ctx.quadraticCurveTo(gx - m * 0.1, gy - m * 0.18, gx, gy - m * 0.11);
+      ctx.quadraticCurveTo(gx + m * 0.1, gy - m * 0.18, gx + m * 0.23, gy - m * 0.17); ctx.quadraticCurveTo(gx + m * 0.17, gy - m * 0.31, gx, gy - m * 0.21); ctx.fill();
+      ctx.beginPath(); ctx.arc(gx, gy - m * 0.23, m * 0.026, 0, Math.PI * 2); ctx.fill();
+      glow(ctx, gx - m * 0.03, gy - m * 0.25, m * 0.12, '255,210,140', 0.35 * sm(3, 7, t));
+      // tanah
+      ctx.fillStyle = '#1c1a16'; ctx.fillRect(0, horizon, W, H - horizon);
+      ctx.fillStyle = 'rgba(255,210,150,' + (0.08 * dawn).toFixed(3) + ')'; ctx.fillRect(0, horizon, W, (H - horizon) * 0.3);
+      // papan RESTORASI naik
+      var up = sm(0.5, 2.6, t), px = W * 0.3, base = H * 0.86, ph = m * 0.3 * up;
+      ctx.fillStyle = '#4a3220'; ctx.fillRect(px - m * 0.008, base - ph, m * 0.016, ph);
+      if (up > 0.6) {
+        var bw = m * 0.26, bh2 = m * 0.07, by = base - ph - bh2 * 0.4;
+        ctx.fillStyle = '#e9dcbc'; ctx.fillRect(px - bw / 2, by - bh2, bw, bh2);
+        ctx.strokeStyle = '#6a4a1a'; ctx.lineWidth = 2; ctx.strokeRect(px - bw / 2, by - bh2, bw, bh2);
+        ctx.fillStyle = '#5a2a1a'; ctx.font = '700 ' + Math.round(bh2 * 0.5) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.globalAlpha = sm(1.6, 2.6, t); ctx.fillText('RESTORASI', px, by - bh2 / 2); ctx.globalAlpha = 1;
+      }
+      // keping kadet ditanam (kilau di kaki tiang)
+      var plant = sm(6, 7.5, t);
+      if (plant > 0) { glow(ctx, px, base, m * 0.08, '230,230,220', 0.7 * plant * (0.7 + 0.3 * Math.sin(t * 4))); ctx.fillStyle = '#d8d8d0'; ctx.beginPath(); ctx.ellipse(px, base - m * 0.006, m * 0.012, m * 0.005, 0, 0, 6.3); ctx.fill(); }
+      // barisan bankir membawa peti kecil
+      bankers.forEach(function (bk, i2) {
+        var u = U.clamp((t - bk.d) / 1.4, 0, 1); if (u <= 0) return;
+        var x = W * (bk.x + (1 - u) * 0.12), h = m * 0.11 * bk.h, y = base - h;
+        ctx.globalAlpha = u;
+        ctx.fillStyle = 'rgba(14,12,12,.95)';
+        if (bk.robot) { ctx.fillRect(x - h * 0.16, y + h * 0.02, h * 0.32, h * 0.28); ctx.fillStyle = 'rgba(255,196,110,.9)'; ctx.fillRect(x - h * 0.09, y + h * 0.12, h * 0.18, h * 0.05); ctx.fillStyle = 'rgba(14,12,12,.95)'; }
+        else { ctx.beginPath(); ctx.arc(x, y + h * 0.12, h * 0.12, 0, 6.3); ctx.fill(); }
+        ctx.beginPath(); ctx.moveTo(x - h * 0.16, y + h * 0.3); ctx.lineTo(x + h * 0.16, y + h * 0.3); ctx.lineTo(x + h * 0.13, y + h); ctx.lineTo(x - h * 0.13, y + h); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#7a5232'; ctx.fillRect(x - h * 0.13, y + h * 0.48, h * 0.26, h * 0.16); ctx.strokeStyle = '#c9a450'; ctx.lineWidth = 1; ctx.strokeRect(x - h * 0.13, y + h * 0.48, h * 0.26, h * 0.16);
+        ctx.globalAlpha = 1;
+      });
+      // anak-anak bersorak
+      var run = sm(6.5, 9, t);
+      kids.forEach(function (kd) {
+        var x = W * (kd.x + run * 0.1), jump = REDUCE ? 0 : Math.max(0, Math.sin(t * 7 + kd.ph)) * m * 0.022 * sm(7.5, 8.5, t), h = m * 0.06 * kd.h, y = base - h - jump;
+        ctx.fillStyle = 'rgba(16,12,10,.95)';
+        ctx.beginPath(); ctx.arc(x, y - h * 0.15, h * 0.16, 0, 6.3); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x - h * 0.14, y); ctx.lineTo(x + h * 0.14, y); ctx.lineTo(x + h * 0.1, y + h * 0.6); ctx.lineTo(x - h * 0.1, y + h * 0.6); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(16,12,10,.95)'; ctx.lineWidth = Math.max(2, h * 0.09); ctx.lineCap = 'round';
+        var upA = kd.arms && t > 7.5 ? -h * 0.45 : h * 0.15;
+        ctx.beginPath(); ctx.moveTo(x - h * 0.12, y + h * 0.08); ctx.lineTo(x - h * 0.3, y + upA); ctx.moveTo(x + h * 0.12, y + h * 0.08); ctx.lineTo(x + h * 0.3, y + upA);
+        ctx.moveTo(x - h * 0.06, y + h * 0.6); ctx.lineTo(x - h * 0.1, y + h); ctx.moveTo(x + h * 0.06, y + h * 0.6); ctx.lineTo(x + h * 0.1, y + h); ctx.stroke();
+      });
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  }
+  MTCine.register('jt_fajar', scene);
+})();
+</script>

@@ -43,6 +43,8 @@
  *     manifest -> cb({ win, picks: [id...], mistakes, kind })             Cocokkan Manifest
  *   opts: level (dari api_duneks 'level'), npc {name,title,ap}, kicker, title, intro, theme,
  *         newRules [aturan yang baru diperkenalkan], finale (manifest: dinding turus), __autoplay (uji browser)
+ *         manifest Tide v51 (Buku Besar): numerals (angka, bukan turus), cols {label,qty,cap,berat}, qtyWord,
+ *           foundNote, okLine, cardKicker, crateWord; slip boleh membawa c.note (catatan kecil saat ditemukan)
  * Aturan susun SAMA dengan game.dn_check_susun (0065) & test/duneks-solver.js:
  *   y = 0 baris bawah, x = w-1 kolom dekat pintu, putaran (x,y) -> (y,-x).
  *   berat: hanya baris bawah · tidak melayang · basah tidak tepat di atas kain · rapuh tidak ditindih · besok di kolom pintu.
@@ -126,7 +128,9 @@ var MTGames5 = (function () {
     bjorneo: { wall: ['#3a2c24', '#1a120c'], plank: 'rgba(0,0,0,.28)', rack: '#6a4a2a', rackD: '#3a2614', floor: '#2e2016', light: '255,200,150', lamp: '255,170,90', deco: 'uap' },
     skitraw: { wall: ['#4e2a1e', '#26120c'], plank: 'rgba(0,0,0,.22)', rack: '#7e5030', rackD: '#4a2a14', floor: '#3a2014', light: '255,220,160', lamp: '255,190,110', deco: 'bendera' },
     gading:  { wall: ['#4a1e1a', '#220c0a'], plank: 'rgba(0,0,0,.25)', rack: '#6e3a24', rackD: '#3e1e12', floor: '#2e1610', light: '255,210,170', lamp: '255,120,80', deco: 'lampion' },
-    ikn:     { wall: ['#2e342a', '#12160f'], plank: 'rgba(0,0,0,.3)', rack: '#55503a', rackD: '#2e2c1e', floor: '#22261a', light: '220,230,200', lamp: '255,200,120', deco: 'lumut' }
+    ikn:     { wall: ['#2e342a', '#12160f'], plank: 'rgba(0,0,0,.3)', rack: '#55503a', rackD: '#2e2c1e', floor: '#22261a', light: '220,230,200', lamp: '255,200,120', deco: 'lumut' },
+    // Tide v51 · Rekening J.T.: ruang buku besar Bank Saudagar (kayu jati, lampu meja hijau)
+    bank:    { wall: ['#3a2a1c', '#1a120a'], plank: 'rgba(0,0,0,.2)', rack: '#6a4a2a', rackD: '#3a2614', floor: '#2a1c10', light: '220,240,200', lamp: '150,220,150', deco: 'batik' }
   };
   function theme(k) { return THEMES[k] || THEMES.sunda; }
 
@@ -876,18 +880,20 @@ var MTGames5 = (function () {
     var S = shell(opts.kicker || 'Gudang Pelabuhan', opts.title || 'Tata Gudang &middot; Cocokkan Manifest');
     S.cb = cb;
     var T = theme(opts.theme || L.theme), npc = opts.npc || { name: 'Penjaga Gudang' }, AUTO = !!opts.__autoplay;
+    var NUM = !!(opts.numerals || L.numerals);   // Tide v51: Buku Besar memakai angka biasa, bukan turus
     var rows = {}; L.rows.forEach(function (r) { rows[r.id] = r; });
     var bad = {}; L.crates.forEach(function (c) { var r = rows[c.row]; if (c.qty !== r.qty || c.cap !== r.cap || c.berat !== r.berat) bad[c.id] = c.qty !== r.qty ? 'qty' : c.cap !== r.cap ? 'cap' : 'berat'; });
     var NBAD = Object.keys(bad).length;
-    var hud = el('div', 'gdg-hud', '<span>Peti tidak cocok <b class="gd-f">0</b> / ' + NBAD + '</span><span>Salah tunjuk <b class="gd-x">0</b> / 3</span>');
+    var WD = opts.crateWord || 'peti';   // Tide v51: Buku Besar memakai "slip"
+    var hud = el('div', 'gdg-hud', '<span>' + esc(WD.charAt(0).toUpperCase() + WD.slice(1)) + ' tidak cocok <b class="gd-f">0</b> / ' + NBAD + '</span><span>Salah tunjuk <b class="gd-x">0</b> / 3</span>');
     S.body.appendChild(hud);
     var narrow = false, W = 900, C = stageCanvas(S, 900, 600), ctx = C.ctx;
     var pop = el('div', 'gdg-pop'); C.el.appendChild(pop);
-    var keys = el('div', 'gdg-keys', 'Arahkan mouse untuk melihat lewat <b>lup</b> &middot; klik peti yang tidak cocok dengan buku');
+    var keys = el('div', 'gdg-keys', 'Arahkan mouse untuk melihat lewat <b>lup</b> &middot; klik ' + esc(WD) + ' yang tidak cocok dengan buku');
     S.body.appendChild(keys);
     var box = sayBox(S, npc);
     box.say(opts.intro || 'Bibi tidak bisa membaca huruf, Kapten. Di buku, jumlahnya Bibi tulis pakai <b>turus</b>. Coba cari peti yang tidak cocok dengan buku.');
-    if (isTouch()) box.el.insertAdjacentHTML('beforeend', '<div class="muted small" style="margin-top:4px">Tahan & geser jari untuk <b>lup</b>. Ketuk peti untuk menandai.</div>');
+    if (isTouch()) box.el.insertAdjacentHTML('beforeend', '<div class="muted small" style="margin-top:4px">Tahan & geser jari untuk <b>lup</b>. Ketuk ' + esc(WD) + ' untuk menandai.</div>');
 
     var order = L.crates.slice(), found = {}, miss = 0, flash = {}, lens = null, won = false, finaleT = -1, t = 0;
     var lay = {};
@@ -925,7 +931,8 @@ var MTGames5 = (function () {
       ctx2.fillText(opts.ledgerTitle || 'Buku Muatan', o.x + 14, o.y + 26);
       ctx2.font = '600 10px Georgia, serif'; ctx2.fillStyle = 'rgba(90,58,26,.7)';
       var cQty = o.x + o.w * 0.44, cCap = o.x + o.w * (narrow ? 0.72 : 0.76), cBer = o.x + o.w * (narrow ? 0.82 : 0.86);
-      ctx2.fillText('BARANG', o.x + 14, o.y + 44); ctx2.fillText('JUMLAH', cQty, o.y + 44); ctx2.fillText('CAP', cCap - 6, o.y + 44); ctx2.fillText('BERAT', cBer, o.y + 44);
+      var HD = opts.cols || {};
+      ctx2.fillText(HD.label || 'BARANG', o.x + 14, o.y + 44); ctx2.fillText(HD.qty || 'JUMLAH', cQty, o.y + 44); ctx2.fillText(HD.cap || 'CAP', cCap - 6, o.y + 44); ctx2.fillText(HD.berat || 'BERAT', cBer, o.y + 44);
       ctx2.strokeStyle = 'rgba(90,58,26,.35)'; ctx2.lineWidth = 1;
       L.rows.forEach(function (r, i) {
         var y = o.y + 54 + i * o.rowH;
@@ -933,7 +940,8 @@ var MTGames5 = (function () {
         ctx2.fillStyle = '#2a1a0e'; ctx2.font = Math.min(13, o.rowH * 0.46) + 'px Georgia, serif';
         var lab = r.label.replace(/^Restorasi IKN: /, 'R. ');
         ctx2.fillText(lab, o.x + 14, y + o.rowH * 0.62, cQty - o.x - 22);
-        drawTurus(ctx2, r.qty, cQty, y + o.rowH * 0.22, o.rowH * 0.5, '#2a1a0e');
+        if (NUM) { ctx2.fillStyle = '#2a1a0e'; ctx2.font = '700 ' + Math.min(14, o.rowH * 0.5) + 'px Georgia, serif'; ctx2.fillText(String(r.qty), cQty, y + o.rowH * 0.66); }
+        else drawTurus(ctx2, r.qty, cQty, y + o.rowH * 0.22, o.rowH * 0.5, '#2a1a0e');
         drawCap(ctx2, r.cap, cCap, y + o.rowH * 0.45, o.rowH * 0.3);
         ctx2.fillStyle = '#2a1a0e'; ctx2.font = Math.min(11, o.rowH * 0.4) + 'px Georgia, serif'; ctx2.fillText(r.berat, cBer, y + o.rowH * 0.62);
       });
@@ -954,7 +962,7 @@ var MTGames5 = (function () {
       ctx2.font = '700 ' + Math.max(8, lh * 0.2) + 'px Georgia, serif';
       ctx2.fillText(c.label.replace(/^Restorasi IKN: /, 'R. '), lx + 5, ly + lh * 0.3, lw - 10);
       ctx2.font = Math.max(7, lh * 0.17) + 'px Georgia, serif';
-      ctx2.fillText('Isi: ' + c.qty, lx + 5, ly + lh * 0.58);
+      ctx2.fillText((opts.qtyWord || 'Isi') + ': ' + c.qty, lx + 5, ly + lh * 0.58);
       ctx2.fillText(c.berat, lx + 5, ly + lh * 0.86);
       if (bad[c.id] === 'berat') { ctx2.strokeStyle = 'rgba(40,20,8,.35)'; ctx2.lineWidth = 0.6; for (var s = 0; s < 6; s++) { ctx2.beginPath(); ctx2.moveTo(lx + 4 + s * 3, ly + lh * 0.7); ctx2.lineTo(lx + 9 + s * 3, ly + lh * 0.9); ctx2.stroke(); } }
       drawCap(ctx2, c.cap, lx + lw - lh * 0.24, ly + lh * 0.66, lh * 0.15);
@@ -1011,7 +1019,7 @@ var MTGames5 = (function () {
       if (bad[c.id]) {
         found[c.id] = 1; au('coin');
         var r = rows[c.row], why = bad[c.id] === 'qty' ? 'Buku mencatat <b>' + r.qty + '</b>, peti berisi <b>' + c.qty + '</b>.' : bad[c.id] === 'cap' ? 'Buku: <b>' + CAP[r.cap].n + '</b>. Peti: <b>' + CAP[c.cap].n + '</b>.' : 'Buku: <b>' + esc(r.berat) + '</b>. Angka di peti dikerok: <b>' + esc(c.berat) + '</b>.';
-        showPop(sealSvg() + '<b>' + esc(c.label) + '</b><br>' + why + '<br><i>Di balik peti: segel lilin J.T.</i>', 2200);
+        showPop(sealSvg() + '<b>' + esc(c.label) + '</b><br>' + why + '<br><i>' + (c.note ? 'Catatan kecil di pojok: &ldquo;' + esc(c.note) + '&rdquo;' : (opts.foundNote || 'Di balik peti: segel lilin J.T.')) + '</i>', 2600);
         var n = Object.keys(found).length;
         hud.querySelector('.gd-f').textContent = n;
         box.say((opts.foundLines || ['Itu dia. Cap lilin merah itu lagi.', 'Satu lagi&hellip; Bibi sudah curiga dari dulu.', 'Semua dari Jendral itu.'])[Math.min(n - 1, 2)], 'good');
@@ -1022,13 +1030,13 @@ var MTGames5 = (function () {
         if (miss >= 3) {
           box.say(opts.resetLine || 'Aduh, Kapten, Bibi bereskan ulang dulu raknya, ya. Coba lagi pelan-pelan.', 'bad');
           S.timers.push(setTimeout(function () { order = shuffle(order); found = {}; miss = 0; hud.querySelector('.gd-f').textContent = 0; hud.querySelector('.gd-x').textContent = 0; layout(); au('page'); }, 900));
-        } else box.say('Yang itu cocok dengan buku, Kapten. Coba hitung lagi turusnya.', 'bad');
+        } else box.say(opts.okLine || 'Yang itu cocok dengan buku, Kapten. Coba hitung lagi turusnya.', 'bad');
       }
     }
     function win() {
       won = true; au('success');
       function end() {
-        var card = el('div', 'gdg-card', '<div class="s">Buku cocok</div><div class="g">' + esc(opts.cardTitle || 'Tiga peti tak tercatat') + '</div>' + (opts.cardQuote ? '<div class="q">' + opts.cardQuote + '</div>' : ''));
+        var card = el('div', 'gdg-card', '<div class="s">' + esc(opts.cardKicker || 'Buku cocok') + '</div><div class="g">' + esc(opts.cardTitle || 'Tiga peti tak tercatat') + '</div>' + (opts.cardQuote ? '<div class="q">' + opts.cardQuote + '</div>' : ''));
         S.body.insertBefore(card, box.el.nextSibling);
         var row = el('div', 'tsg-row', '<button class="btn btn-gold" type="button">' + (opts.okBtn || 'Lanjut') + '</button>');
         S.body.insertBefore(row, card.nextSibling);

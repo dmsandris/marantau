@@ -66,7 +66,8 @@ begin
     'tonyHunt', game.th_state(v_pid),
     'kongsi', game.kongsi_state(v_pid),
     'peregrin', game.pg_state(v_pid),
-    'duneks', game.dn_state(v_pid)
+    'duneks', game.dn_state(v_pid),
+    'jtq', game.jt_state(v_pid)
   );
 
   -- Tide v41: key 'pasir' hanya ada bila terbuka untuk pemain ini (tidak dikirim sebagai null)
@@ -76,7 +77,7 @@ begin
     -- Di zaman lain kisah lama tidak pernah terjadi untuk pemain ini
     if v_ps is not null and coalesce(v_ps ->> 'era', 'kini') <> 'kini' then
       r := r || jsonb_build_object('gala', null, 'toogood', null, 'warwerwor', null, 'barsati', null, 'kompas', null,
-        'cocoepan', null, 'tigasilang', null, 'limatangan', null, 'duatangan', null, 'gotong', null, 'pacu', null, 'tony', null, 'kongsi', null, 'tonyHunt', null, 'peregrin', null, 'duneks', null);
+        'cocoepan', null, 'tigasilang', null, 'limatangan', null, 'duatangan', null, 'gotong', null, 'pacu', null, 'tony', null, 'kongsi', null, 'tonyHunt', null, 'peregrin', null, 'duneks', null, 'jtq', null);
     end if;
   exception when others then raise warning '[pasir] state: %', sqlerrm;
   end;
