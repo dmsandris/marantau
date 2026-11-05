@@ -1,0 +1,444 @@
+<style>
+  /* ================= Mini-game Rekening J.T. (MTGames6): Meja Kas — Timbang Koin & Hitung Kas ================= */
+  .mks .tsg-stage { background: radial-gradient(ellipse at 50% 0%, #4a3220 0%, #2a1a0e 55%, #140c06 100%); padding: 10px 8px 12px; }
+  .mks-hud { width: min(860px, 100%); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between; margin: 0 0 6px; font: 600 12px "Cinzel", Georgia, serif; letter-spacing: .06em; color: #e8c878; }
+  .mks-hud b { color: #fff3d6; }
+  .mks-lamp { position: absolute; left: 50%; top: -40px; width: 70%; height: 120px; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 30%, rgba(150,220,150,.18), rgba(150,220,150,0) 70%); pointer-events: none; }
+  .mks-coin { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; position: relative; transition: transform .18s, filter .18s; -webkit-tap-highlight-color: transparent; }
+  .mks-coin svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 3px 3px rgba(0,0,0,.55)); }
+  .mks-coin:hover { transform: translateY(-2px) scale(1.04); }
+  .mks-coin:focus-visible { outline: 2px solid #e8c878; outline-offset: 3px; }
+  .mks-coin.sel { transform: translateY(-4px) scale(1.08); filter: drop-shadow(0 0 8px rgba(255,220,140,.9)); }
+  .mks-coin.drop { animation: mksDrop .32s ease-out; }
+  @keyframes mksDrop { 0% { transform: translateY(-14px) scale(1.1); } 70% { transform: translateY(2px) scale(.98); } 100% { transform: none; } }
+  .mks-coin .no { position: absolute; bottom: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #1a120a; border: 1px solid rgba(232,200,120,.6); font: 700 10px/16px Georgia, serif; color: #f4e7c8; text-align: center; }
+  .mks-zone { width: min(860px, 100%); border-radius: 12px; border: 1px dashed rgba(232,200,120,.3); padding: 8px; margin: 6px 0; background: rgba(0,0,0,.18); }
+  .mks-zone .zt { font: 600 11px "Cinzel", Georgia, serif; letter-spacing: .12em; text-transform: uppercase; color: #e8c878; margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+  .mks-zone .zc { display: flex; flex-wrap: wrap; gap: 6px; min-height: 52px; align-items: center; justify-content: center; }
+  .mks-zone.on { border-style: solid; border-color: #e8c878; box-shadow: 0 0 0 2px rgba(232,200,120,.15) inset; }
+  .mks-zone.ok { border-color: #6fcf8a; }
+  .mks-zone .empty { font-size: .8em; color: rgba(240,228,196,.45); font-style: italic; }
+  .mks-scale { display: block; width: min(560px, 100%); height: auto; margin: 0 auto; }
+  .mks-scale .beam { transition: transform .9s cubic-bezier(.3,1.5,.5,1); transform-origin: 300px 70px; }
+  .mks-pans { width: min(860px, 100%); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mks-log { width: min(860px, 100%); display: grid; gap: 4px; margin: 4px 0; padding: 0; list-style: none; font-size: .82em; color: #eadcbc; }
+  .mks-log li { padding: 4px 10px; border-radius: 8px; background: rgba(255,240,210,.06); border: 1px solid rgba(232,200,120,.15); }
+  .mks-candle { display: inline-flex; gap: 4px; align-items: flex-end; vertical-align: middle; }
+  .mks-candle i { width: 8px; border-radius: 2px 2px 1px 1px; background: linear-gradient(#f4ead8, #d8c8a0); position: relative; transition: height .5s, opacity .5s; }
+  .mks-candle i::before { content: ''; position: absolute; left: 1px; top: -8px; width: 6px; height: 8px; border-radius: 50% 50% 40% 40%; background: radial-gradient(circle at 50% 70%, #fff3b0, #ff9a3a 60%, rgba(255,120,40,0) 70%); }
+  .mks-candle i.out { opacity: .35; } .mks-candle i.out::before { display: none; }
+  .mks-board { width: min(860px, 100%); display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; padding: 6px 10px; margin: 2px 0 6px; border-radius: 10px; background: #1e2a1e; border: 2px solid #5a4024; color: #e8f0d8; font: 13px Georgia, serif; box-shadow: inset 0 0 18px rgba(0,0,0,.5); }
+  .mks-board span { white-space: nowrap; }
+  .mks-board svg { width: 18px; height: 18px; vertical-align: -4px; }
+  .mks-ask { width: min(860px, 100%); text-align: center; font: 600 14px Georgia, serif; color: #f4e7c8; margin: 4px 0; }
+  .mks-ask b { color: #ffe7a3; }
+  .mks-trays { width: min(860px, 100%); display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+  .mks-trays .mks-zone { width: auto; margin: 0; cursor: pointer; }
+  .mks-sum { font: 700 13px Georgia, serif; color: #fff3d6; }
+  .mks-sum.ok { color: #8fe0a6; } .mks-sum.over { color: #ff8a70; }
+  .mks-tools { width: min(860px, 100%); display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0 2px; }
+  .mks-tools .btn { min-height: 44px; }
+  .mks-tools .btn[disabled] { opacity: .45; }
+  .mks-stamp { display: block; margin: 8px auto; width: 150px; height: 90px; transform: rotate(-8deg) scale(1.6); opacity: 0; transition: transform .35s cubic-bezier(.3,1.6,.6,1), opacity .2s; }
+  .mks-stamp.on { transform: rotate(-8deg) scale(1); opacity: 1; }
+  .mks-zoom { display: flex; gap: 10px; justify-content: center; align-items: center; margin: 6px 0; }
+  .mks-zoom svg { width: 96px; height: 96px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.6)); }
+  @media (max-width: 640px) { .mks-coin { width: 44px; height: 44px; } .mks-board { font-size: 12px; } }
+  @media (prefers-reduced-motion: reduce) { .mks-scale .beam, .mks-coin, .mks-stamp { transition: none; animation: none; } }
+</style>
+<script>
+/* =====================================================================
+ * MTGames6 — mini-game quest rahasia "Bunga yang Tak Pernah Dipetik" (Rekening J.T.): MEJA KAS
+ *   MTGames6.open(kind, opts, cb)
+ *     timbang -> cb({ win, w: [{l:[id], r:[id]}], pick: [id], kind })   Mode A: Timbang Koin
+ *     kas     -> cb({ win, rounds: [[{kind: n}...]...], kind })        Mode B: Hitung Kas
+ *   opts: level (dari api_jtq 'level'), npc {name,title,ap}, kicker, title, intro, lines {...}, __autoplay (uji browser)
+ * Aturan SAMA dengan game.jt_check_timbang / jt_check_kas (0067) & test/jtq-solver.js:
+ *   timbang: dua piring berisi koin sama banyak; selesai bila hasil timbangan hanya cocok dengan satu kemungkinan.
+ *   kas    : tiap baki pas; koin retak tidak boleh dipakai; ronde "min" harus memakai koin paling sedikit.
+ * Santai: tanpa timer, tidak bisa kalah (gagal = ulang ronde). Grafis prosedural (SVG), tanpa aset.
+ * Gaya .tsg* dari TigaSilangGames (MTGames3).
+ * ===================================================================== */
+var MTGames6 = (function () {
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function au(n, o) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n, o); } catch (e) { } }
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function isTouch() { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  var cur = null, UID = 0;
+
+  function shell(kicker, title) {
+    if (cur) cur.close(true);
+    var root = document.createElement('div'); root.className = 'tsg mks' + (isTouch() ? ' touch' : '');
+    root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', String(title).replace(/<[^>]+>/g, ''));
+    root.innerHTML = '<div class="tsg-top"><div class="sp"><div class="k">' + kicker + '</div><h2>' + title + '</h2></div><button class="tsg-x" type="button">Nanti dulu</button></div>' +
+      '<div class="tsg-body" style="width:100%;display:flex;flex-direction:column;align-items:center"></div>';
+    document.body.appendChild(root);
+    requestAnimationFrame(function () { root.classList.add('on'); });
+    var S = { root: root, body: root.querySelector('.tsg-body'), done: false, cb: null, timers: [], offs: [] };
+    S.on = function (t, ev, fn) { t.addEventListener(ev, fn); S.offs.push(function () { t.removeEventListener(ev, fn); }); };
+    S.close = function (silent, res) {
+      if (S.done) return; S.done = true;
+      S.timers.forEach(function (t) { clearInterval(t); clearTimeout(t); });
+      S.offs.forEach(function (f) { try { f(); } catch (e) { } });
+      root.classList.remove('on'); setTimeout(function () { root.remove(); }, 380);
+      if (cur === S) cur = null;
+      if (!silent && S.cb) setTimeout(function () { S.cb(res || { cancelled: true }); }, 60);
+    };
+    S.on(document, 'keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); S.close(false, { cancelled: true }); } });
+    root.querySelector('.tsg-x').onclick = function () { au('page'); S.close(false, { cancelled: true }); };
+    cur = S;
+    return S;
+  }
+  function faceSvg(npc) {
+    try { if (npc && npc.svg) return npc.svg; if (npc && npc.ap && window.MTFace) return MTFace.svg(npc.ap, { bgColors: ['#3a5a3a', '#14200e'] }); } catch (e) { }
+    return '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#3a4a2a"/></svg>';
+  }
+  function sayBox(S, npc) {
+    var m = el('div', 'tsg-msg'); S.body.appendChild(m);
+    var name = (npc && npc.name) || 'Bankir';
+    return {
+      el: m,
+      say: function (t, cls) { m.className = 'tsg-msg' + (cls ? ' ' + cls : ''); m.innerHTML = '<div class="gdg-say"><div class="f">' + faceSvg(npc) + '</div><div class="t"><b>' + esc(name) + ':</b> ' + t + '</div></div>'; },
+      note: function (t, cls) { m.className = 'tsg-msg' + (cls ? ' ' + cls : ''); m.innerHTML = t; }
+    };
+  }
+
+  /* ---------------- koin (SVG prosedural) ---------------- */
+  var KIND = {
+    kepeng:  { n: 'Kepeng', from: 'Sunda' },
+    gulden:  { n: 'Gulden', from: 'Joungjava' },
+    giok:    { n: 'Keping Giok', from: 'Gading' },
+    rantai:  { n: 'Mata Rantai', from: 'FreeYork' },
+    kuantum: { n: 'Sen Kuantum', from: 'Marie Regal' },
+    kadet:   { n: 'Keping Kadet', from: '' },
+    bunga:   { n: 'Koin Bunga', from: '' }
+  };
+  function coinSvg(kind, o) {
+    o = o || {};
+    var id = 'mk' + (++UID), s = '<svg viewBox="0 0 60 60" aria-hidden="true">';
+    var ring = function (c1, c2, edge) {
+      return '<defs><radialGradient id="' + id + '" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="' + c1 + '"/><stop offset="1" stop-color="' + c2 + '"/></radialGradient></defs>' +
+        '<circle cx="30" cy="30" r="27" fill="url(#' + id + ')" stroke="' + edge + '" stroke-width="2.4"/><circle cx="30" cy="30" r="22" fill="none" stroke="' + edge + '" stroke-width="1" opacity=".6"/>';
+    };
+    if (kind === 'kepeng') s += ring('#f0a868', '#8a4a1c', '#5a2c10') + '<rect x="24" y="24" width="12" height="12" fill="#2a1408" stroke="#5a2c10" stroke-width="1.5"/>' +
+      '<path d="M30 9v8M30 43v8M9 30h8M43 30h8" stroke="#6a3414" stroke-width="2" opacity=".55"/>';
+    else if (kind === 'gulden') s += ring('#f4f4f0', '#8a8c90', '#5a5c60') + '<path d="M24 41c0-7 3-9 3-13c0-5 4-8 8-7c3 1 4 4 3 7c3 1 4 4 2 6c-2 2-6 1-7 4c-1 2 0 3 0 3z" fill="#9a9ca0" stroke="#5a5c60" stroke-width="1.2"/><circle cx="37" cy="20" r="4" fill="#9a9ca0" stroke="#5a5c60" stroke-width="1"/>';
+    else if (kind === 'giok') s += '<defs><radialGradient id="' + id + '" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#b8f0c8"/><stop offset="1" stop-color="#2e8a5a"/></radialGradient></defs>' +
+      '<circle cx="30" cy="30" r="27" fill="url(#' + id + ')" stroke="#1e5a3a" stroke-width="2.4"/><circle cx="30" cy="30" r="9" fill="#14281c" stroke="#1e5a3a" stroke-width="2"/><path d="M14 22c6-9 22-11 30-2" stroke="#e0ffe8" stroke-width="2" fill="none" opacity=".5"/>';
+    else if (kind === 'rantai') s += ring('#6a6e74', '#202226', '#0e0f12') + '<rect x="17" y="21" width="17" height="18" rx="8" fill="none" stroke="#9aa0a8" stroke-width="3"/><rect x="26" y="21" width="17" height="18" rx="8" fill="none" stroke="#c8ccd2" stroke-width="3"/>';
+    else if (kind === 'kuantum') s += '<defs><radialGradient id="' + id + '" cx="45%" cy="40%" r="65%"><stop offset="0" stop-color="#d0f4ff"/><stop offset=".6" stop-color="#3a9ad8"/><stop offset="1" stop-color="#103a6a"/></radialGradient></defs>' +
+      '<circle cx="30" cy="30" r="28" fill="#5ac8ff" opacity=".18"/><circle cx="30" cy="30" r="26" fill="url(#' + id + ')" stroke="#0a2a4e" stroke-width="2.4"/>' +
+      '<path d="M18 30h24M30 18v24" stroke="#e0f8ff" stroke-width="1.5" opacity=".8"/><circle cx="30" cy="30" r="7" fill="none" stroke="#e0f8ff" stroke-width="1.5"/>';
+    else if (kind === 'kadet') s += ring('#d8d8d0', '#7a7a74', '#4a4a44') + '<text x="30" y="37" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="20" fill="#4a4a44">K</text>' +
+      '<path d="M12 22c4 3 6 2 8 6M44 40c-3-2-5-1-7-4" stroke="#5a5a54" stroke-width="1" opacity=".5"/>';
+    else s += ring('#e8d8a8', '#9a8450', '#6a5428') + '<circle cx="30" cy="30" r="5" fill="none" stroke="#6a5428" stroke-width="1.6"/><path d="M30 14v6M30 40v6M14 30h6M40 30h6" stroke="#6a5428" stroke-width="1.6"/>';
+    if (o.cracked) s += '<path d="M15 16l7 8l-3 5l8 6l-2 5l7 6" stroke="rgba(20,10,4,.75)" stroke-width="1.1" fill="none"/><path d="M22 24l5-1" stroke="rgba(20,10,4,.55)" stroke-width=".8" fill="none"/>';
+    return s + '</svg>';
+  }
+
+  /* ============================ MODE A — TIMBANG KOIN ============================ */
+  function scaleSvg() {
+    return '<svg class="mks-scale" viewBox="0 0 600 220" role="img" aria-label="Neraca dua lengan">' +
+      '<rect x="270" y="196" width="60" height="14" rx="4" fill="#5a3a1a"/><rect x="292" y="70" width="16" height="130" fill="#8a6a3a" stroke="#4a3216" stroke-width="2"/>' +
+      '<circle cx="300" cy="70" r="11" fill="#c9a450" stroke="#6a4a1a" stroke-width="2"/>' +
+      '<g class="beam"><rect x="90" y="64" width="420" height="10" rx="5" fill="#c9a450" stroke="#6a4a1a" stroke-width="2"/>' +
+      '<path d="M300 58 l-6 -16 h12 z" fill="#c9a450" stroke="#6a4a1a" stroke-width="1.5"/>' +
+      '<g class="pl"><path d="M100 70 L60 150 M100 70 L140 150" stroke="#8a6a3a" stroke-width="2"/><path d="M50 150 h100 a50 18 0 0 1 -100 0z" fill="#b08a48" stroke="#6a4a1a" stroke-width="2"/><g class="cl"></g></g>' +
+      '<g class="pr"><path d="M500 70 L460 150 M500 70 L540 150" stroke="#8a6a3a" stroke-width="2"/><path d="M450 150 h100 a50 18 0 0 1 -100 0z" fill="#b08a48" stroke="#6a4a1a" stroke-width="2"/><g class="cr"></g></g>' +
+      '</g></svg>';
+  }
+  function playTimbang(opts, cb) {
+    var L = opts.level;
+    if (!L || L.mode !== 'timbang') { setTimeout(function () { cb({ cancelled: true }); }, 0); return; }
+    var S = shell(opts.kicker || 'Meja Kas', opts.title || 'Meja Kas &middot; Timbang Koin');
+    S.cb = cb;
+    var n = L.n, K = L.odd.length, MAX = L.max, AUTO = !!opts.__autoplay, LN = opts.lines || {};
+    var truth = L.odd.slice().sort();
+    var hud = el('div', 'mks-hud', '<span>Koin yang lebih berat: <b>' + K + '</b></span><span>Lilin timbang <span class="mks-candle"></span></span>');
+    S.body.appendChild(hud);
+    var stage = el('div', 'tsg-stage'); S.body.appendChild(stage);
+    stage.innerHTML = '<div class="mks-lamp"></div>' + scaleSvg();
+    var pans = el('div', 'mks-pans'); S.body.appendChild(pans);
+    var zl = el('div', 'mks-zone', '<div class="zt"><span>Piring kiri</span><span class="nl">0</span></div><div class="zc"></div>');
+    var zr = el('div', 'mks-zone', '<div class="zt"><span>Piring kanan</span><span class="nr">0</span></div><div class="zc"></div>');
+    pans.appendChild(zl); pans.appendChild(zr);
+    var zt = el('div', 'mks-zone', '<div class="zt"><span>Meja</span><span class="muted small">ketuk koin: meja &rarr; kiri &rarr; kanan</span></div><div class="zc"></div>');
+    S.body.appendChild(zt);
+    var tools = el('div', 'mks-tools', '<button class="btn btn-gold" type="button" data-a="timbang">Timbang</button><button class="btn" type="button" data-a="tunjuk">Tunjuk koin berat</button><button class="btn" type="button" data-a="ini" disabled>Ini dia</button>');
+    S.body.appendChild(tools);
+    var log = el('ul', 'mks-log'); S.body.appendChild(log);
+    var box = sayBox(S, opts.npc);
+    var beam = stage.querySelector('.beam'), cl = stage.querySelector('.cl'), crr = stage.querySelector('.cr');
+    var bT = tools.querySelector('[data-a=timbang]'), bP = tools.querySelector('[data-a=tunjuk]'), bI = tools.querySelector('[data-a=ini]');
+
+    var where, label, weighs, mode, picks, busy;
+    function candles() {
+      var h = ''; for (var i = 0; i < MAX; i++) { var used = i < weighs.length; h += '<i class="' + (used ? 'out' : '') + '" style="height:' + (used ? 6 : 22) + 'px"></i>'; }
+      hud.querySelector('.mks-candle').innerHTML = h;
+    }
+    function reset(first) {
+      where = {}; label = {}; weighs = []; mode = 'timbang'; picks = {}; busy = false;
+      var ids = []; for (var i = 1; i <= n; i++) { ids.push('c' + i); where['c' + i] = 'meja'; }
+      // nomor di koin diacak setiap ronde baru: pengetahuan lama tidak terbawa
+      shuffle(ids).forEach(function (id, i) { label[id] = i + 1; });
+      log.innerHTML = ''; beam.style.transform = 'rotate(0deg)';
+      bP.textContent = 'Tunjuk koin berat'; bI.disabled = true;
+      candles(); render();
+      if (first) box.say(opts.intro || 'Ada ' + n + ' koin yang tampak sama. ' + (K === 1 ? 'Satu' : 'Dua') + ' di antaranya lebih berat. Taruh koin di piring, sama banyak di kiri dan kanan, lalu timbang. Lilin hanya cukup untuk <b>' + MAX + ' kali</b>.');
+    }
+    function order() { return Object.keys(label).sort(function (a, b) { return label[a] - label[b]; }); }
+    function coinBtn(id) {
+      var b = el('button', 'mks-coin' + (mode === 'tunjuk' && picks[id] ? ' sel' : ''), coinSvg('bunga') + '<span class="no">' + label[id] + '</span>');
+      b.type = 'button'; b.setAttribute('aria-label', 'Koin nomor ' + label[id] + (where[id] === 'meja' ? '' : ' di piring ' + where[id]));
+      b.onclick = function () { tap(id, b); };
+      return b;
+    }
+    function render() {
+      [['meja', zt], ['kiri', zl], ['kanan', zr]].forEach(function (z) {
+        var c = z[1].querySelector('.zc'); c.innerHTML = '';
+        var ids = order().filter(function (id) { return where[id] === z[0]; });
+        if (!ids.length) c.innerHTML = '<span class="empty">' + (z[0] === 'meja' ? 'Semua koin di piring' : 'kosong') + '</span>';
+        ids.forEach(function (id) { c.appendChild(coinBtn(id)); });
+      });
+      var nl = count('kiri'), nr = count('kanan');
+      zl.querySelector('.nl').textContent = nl; zr.querySelector('.nr').textContent = nr;
+      cl.innerHTML = panStack(100, nl); crr.innerHTML = panStack(500, nr);
+      bT.disabled = busy || mode !== 'timbang' || !nl || nl !== nr || weighs.length >= MAX;
+      zl.classList.toggle('on', nl > 0); zr.classList.toggle('on', nr > 0);
+    }
+    // tumpukan koin kecil di piring neraca (maks. 3 lapis x 4)
+    function panStack(cx, k) {
+      var h = '';
+      for (var i = 0; i < k; i++) { var col = i % 4, row = Math.floor(i / 4), x = cx - 27 + col * 18 + (row % 2) * 9, y = 144 - row * 7;
+        h += '<ellipse cx="' + x + '" cy="' + y + '" rx="9" ry="4" fill="#d8c48a" stroke="#6a5428" stroke-width="1.2"/>'; }
+      return h;
+    }
+    function count(z) { return order().filter(function (id) { return where[id] === z; }).length; }
+    function tap(id, b) {
+      if (busy) return;
+      if (mode === 'tunjuk') {
+        if (picks[id]) delete picks[id]; else if (Object.keys(picks).length < K) picks[id] = 1; else { au('error'); return; }
+        au('coin', { n: 1 }); bI.disabled = Object.keys(picks).length !== K; render(); return;
+      }
+      where[id] = where[id] === 'meja' ? 'kiri' : where[id] === 'kiri' ? 'kanan' : 'meja';
+      au('coin', { n: 1 }); render();
+      var nb = S.body.querySelectorAll('.mks-coin'); nb.forEach(function (x) { if (x.querySelector('.no').textContent === String(label[id])) x.classList.add('drop'); });
+    }
+    function side(set, ids) { return ids.filter(function (x) { return set.indexOf(x) >= 0; }).length; }
+    function result(set, l, r) { var a = side(set, l), b = side(set, r); return a > b ? 1 : a < b ? -1 : 0; }
+    // kemungkinan yang masih cocok dengan semua timbangan (sama dengan game.jt_check_timbang)
+    function consistent() {
+      var hs = [], i, j;
+      if (K === 1) for (i = 1; i <= n; i++) hs.push(['c' + i]);
+      else for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++) hs.push(['c' + i, 'c' + j]);
+      return hs.filter(function (h) { return weighs.every(function (w) { return result(h, w.l, w.r) === w.o; }); });
+    }
+    bT.onclick = function () {
+      var l = order().filter(function (id) { return where[id] === 'kiri'; }), r = order().filter(function (id) { return where[id] === 'kanan'; });
+      if (!l.length || l.length !== r.length || weighs.length >= MAX) return;
+      busy = true; render(); au('page');
+      var o = result(truth, l, r);
+      weighs.push({ l: l, r: r, o: o });
+      beam.style.transform = 'rotate(' + (o > 0 ? -9 : o < 0 ? 9 : 0) + 'deg)';
+      S.timers.push(setTimeout(function () {
+        au(o === 0 ? 'page' : 'coin', { n: 2 });
+        var nm = function (ids) { return ids.map(function (x) { return label[x]; }).join(', '); };
+        var li = el('li', null, '<b>Timbangan ' + weighs.length + ':</b> [' + nm(l) + '] ' + (o > 0 ? '&gt;' : o < 0 ? '&lt;' : '=') + ' [' + nm(r) + '] &middot; ' + (o > 0 ? 'kiri lebih berat' : o < 0 ? 'kanan lebih berat' : 'seimbang'));
+        log.appendChild(li);
+        box.say((LN.weigh || ['Neracanya berderit.', 'Hm. Catat itu, Kapten.', 'Neraca tidak pernah berbohong.'])[(weighs.length - 1) % 3]);
+        Object.keys(where).forEach(function (id) { where[id] = 'meja'; });
+        busy = false; candles(); render();
+        if (weighs.length >= MAX) box.say(LN.out || 'Lilinnya habis, Kapten. Tunjuk sekarang.', 'bad');
+        S.timers.push(setTimeout(function () { beam.style.transform = 'rotate(0deg)'; }, 1600));
+      }, 950));
+    };
+    bP.onclick = function () {
+      if (busy) return;
+      mode = mode === 'tunjuk' ? 'timbang' : 'tunjuk'; picks = {};
+      Object.keys(where).forEach(function (id) { where[id] = 'meja'; });
+      bP.textContent = mode === 'tunjuk' ? 'Kembali menimbang' : 'Tunjuk koin berat'; bI.disabled = true;
+      if (mode === 'tunjuk') box.say('Ketuk ' + (K === 1 ? 'koin' : 'dua koin') + ' yang menurut Kapten lebih berat.');
+      render();
+    };
+    bI.onclick = function () {
+      var p = Object.keys(picks).sort();
+      if (p.length !== K) return;
+      var right = p.join() === truth.join(), left = consistent();
+      if (!right) {
+        au('error'); box.say(LN.wrong || 'Bukan koin itu, Kapten. Unit ini mengacak ulang koinnya.', 'bad');
+        S.timers.push(setTimeout(function () { reset(false); }, 1600)); return;
+      }
+      if (left.length > 1) {
+        au('error'); box.say(LN.lucky || 'Tebakan beruntung, Kapten. Bankir tidak menebak. Neraca harus membuktikannya.', 'bad');
+        S.timers.push(setTimeout(function () { reset(false); }, 1800)); return;
+      }
+      win(p);
+    };
+    function win(p) {
+      au('success');
+      var w = weighs.map(function (x) { return { l: x.l, r: x.r }; });
+      var z = el('div', 'gdg-card', '<div class="s">' + esc(opts.cardKicker || 'Neraca membuktikan') + '</div><div class="mks-zoom">' + p.map(function () { return coinSvg('kadet'); }).join('') + '</div>' +
+        '<div class="g">' + esc(opts.cardTitle || (K === 1 ? 'Keping kadet' : 'Dua keping kadet')) + '</div>' + (opts.cardQuote ? '<div class="q">' + opts.cardQuote + '</div>' : ''));
+      S.body.insertBefore(z, box.el);
+      if (opts.winLine) box.say(opts.winLine, 'good');
+      var row = el('div', 'tsg-row', '<button class="btn btn-gold" type="button">' + (opts.okBtn || 'Lanjut') + '</button>');
+      S.body.insertBefore(row, box.el.nextSibling);
+      tools.style.display = 'none';
+      row.querySelector('button').onclick = function () { au('page'); S.close(false, { win: true, w: w, pick: p, kind: 'timbang' }); };
+      try { row.querySelector('button').focus(); } catch (e) { }
+      if (AUTO) S.timers.push(setTimeout(function () { if (!S.done) row.querySelector('button').click(); }, 500));
+    }
+    reset(true);
+    if (AUTO && opts.__plan) {   // uji browser: jalankan rencana timbangan {w, pick}
+      var plan = opts.__plan, k = 0;
+      var tm = setInterval(function () {
+        if (busy) return;
+        if (k < plan.w.length) { Object.keys(where).forEach(function (id) { where[id] = plan.w[k].l.indexOf(id) >= 0 ? 'kiri' : plan.w[k].r.indexOf(id) >= 0 ? 'kanan' : 'meja'; }); render(); bT.onclick(); k++; return; }
+        clearInterval(tm); mode = 'tunjuk'; picks = {}; plan.pick.forEach(function (id) { picks[id] = 1; }); bI.onclick();
+      }, 1200);
+      S.timers.push(tm);
+    }
+  }
+
+  /* ============================ MODE B — HITUNG KAS ============================ */
+  function playKas(opts, cb) {
+    var L = opts.level;
+    if (!L || L.mode !== 'kas') { setTimeout(function () { cb({ cancelled: true }); }, 0); return; }
+    var S = shell(opts.kicker || 'Meja Kas', opts.title || 'Meja Kas &middot; Hitung Kas');
+    S.cb = cb;
+    var AUTO = !!opts.__autoplay, LN = opts.lines || {};
+    var val = {}; L.kinds.forEach(function (k) { val[k.id] = k.val; });
+    var hud = el('div', 'mks-hud', '<span>Ronde <b class="mk-r">1</b> / ' + L.rounds.length + '</span><span class="mk-min"></span>');
+    S.body.appendChild(hud);
+    // papan kurs
+    var base = L.kinds.slice().sort(function (a, b) { return a.val - b.val; })[0];
+    var board = el('div', 'mks-board', L.kinds.map(function (k) {
+      return '<span>' + coinSvg(k.id) + ' 1 ' + esc(KIND[k.id] ? KIND[k.id].n : k.id) + ' = ' + k.val + ' ' + esc(KIND[base.id].n) + '</span>';
+    }).join(''));
+    S.body.appendChild(board);
+    var ask = el('div', 'mks-ask'); S.body.appendChild(ask);
+    var stage = el('div', 'tsg-stage'); stage.innerHTML = '<div class="mks-lamp"></div>'; S.body.appendChild(stage);
+    var trays = el('div', 'mks-trays'); stage.appendChild(trays);
+    var drawer = el('div', 'mks-zone', '<div class="zt"><span>Laci</span><span class="muted small">ketuk koin untuk menaruhnya di baki</span></div><div class="zc"></div>');
+    stage.appendChild(drawer);
+    var tools = el('div', 'mks-tools', '<button class="btn" type="button" data-a="kosong">Kosongkan baki</button><button class="btn btn-gold" type="button" data-a="bayar">Bayar</button>');
+    S.body.appendChild(tools);
+    var box = sayBox(S, opts.npc);
+    var ri = 0, coins, inTray, active, answers = [], busy = false;
+
+    function setupRound() {
+      var R = L.rounds[ri];
+      hud.querySelector('.mk-r').textContent = ri + 1;
+      hud.querySelector('.mk-min').innerHTML = R.min != null ? 'Pakai koin <b>sesedikit mungkin</b>' : '';
+      ask.innerHTML = esc(R.ask || '') + (R.trays.length > 1 ? ' &middot; <b>' + R.trays.length + ' baki</b>' : ': <b>' + R.trays[0] + ' ' + esc(KIND[base.id].n) + '</b>');
+      coins = []; var u = 0;
+      Object.keys(R.stock || {}).forEach(function (k) { for (var i = 0; i < R.stock[k]; i++) coins.push({ id: 'k' + (u++), kind: k, cracked: false }); });
+      Object.keys(R.cracked || {}).forEach(function (k) { for (var i = 0; i < R.cracked[k]; i++) coins.push({ id: 'k' + (u++), kind: k, cracked: true }); });
+      coins = shuffle(coins).sort(function (a, b) { return val[b.kind] - val[a.kind]; });
+      inTray = {}; active = 0;
+      render();
+    }
+    function trayOf(c) { return inTray[c.id]; }
+    function sumTray(t) { return coins.filter(function (c) { return inTray[c.id] === t; }).reduce(function (s, c) { return s + val[c.kind]; }, 0); }
+    function render() {
+      var R = L.rounds[ri];
+      trays.innerHTML = '';
+      R.trays.forEach(function (target, t) {
+        var s = sumTray(t), z = el('div', 'mks-zone' + (t === active ? ' on' : '') + (s === target ? ' ok' : ''),
+          '<div class="zt"><span>' + (R.trays.length > 1 ? 'Baki ' + (t + 1) : 'Baki') + '</span><span class="mks-sum' + (s === target ? ' ok' : s > target ? ' over' : '') + '">' + s + ' / ' + target + '</span></div><div class="zc"></div>');
+        z.setAttribute('role', 'button'); z.setAttribute('tabindex', '0'); z.setAttribute('aria-label', 'Baki ' + (t + 1) + ', ' + s + ' dari ' + target);
+        z.onclick = function (e) { if (e.target.closest('.mks-coin')) return; active = t; render(); };
+        z.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); active = t; render(); } };
+        var zc = z.querySelector('.zc'), here = coins.filter(function (c) { return inTray[c.id] === t; });
+        if (!here.length) zc.innerHTML = '<span class="empty">kosong</span>';
+        here.forEach(function (c) { zc.appendChild(btn(c)); });
+        trays.appendChild(z);
+      });
+      var dc = drawer.querySelector('.zc'); dc.innerHTML = '';
+      var left = coins.filter(function (c) { return trayOf(c) == null; });
+      if (!left.length) dc.innerHTML = '<span class="empty">Laci kosong</span>';
+      left.forEach(function (c) { dc.appendChild(btn(c)); });
+    }
+    function btn(c) {
+      var b = el('button', 'mks-coin', coinSvg(c.kind, { cracked: c.cracked }));
+      b.type = 'button'; b.setAttribute('aria-label', (KIND[c.kind] ? KIND[c.kind].n : c.kind) + ', ' + val[c.kind] + (trayOf(c) == null ? ', di laci' : ', di baki'));
+      b.title = KIND[c.kind] ? KIND[c.kind].n + ' (' + val[c.kind] + ')' : c.kind;
+      b.onclick = function () {
+        if (busy) return;
+        if (trayOf(c) == null) inTray[c.id] = active; else delete inTray[c.id];
+        au('coin', { n: 1 }); render();
+      };
+      return b;
+    }
+    tools.querySelector('[data-a=kosong]').onclick = function () { if (busy) return; inTray = {}; au('page'); render(); };
+    tools.querySelector('[data-a=bayar]').onclick = function () { pay(); };
+    function fail(msg) {
+      au('error'); box.say(msg, 'bad'); busy = true;
+      S.timers.push(setTimeout(function () { busy = false; inTray = {}; render(); }, 1400));
+    }
+    function pay() {
+      if (busy) return;
+      var R = L.rounds[ri], used = coins.filter(function (c) { return trayOf(c) != null; });
+      if (used.some(function (c) { return c.cracked; })) { fail(LN.cracked || 'Ada koin retak di baki, Kapten. Lihat baik-baik. Koin retak tidak boleh keluar dari loket.'); return; }
+      for (var t = 0; t < R.trays.length; t++) {
+        var s = sumTray(t);
+        if (s !== R.trays[t]) { fail(s > R.trays[t] ? (LN.over || 'Kelebihan, Kapten.') : (LN.under || 'Masih kurang, Kapten.')); return; }
+      }
+      if (R.min != null && used.length > R.min) { fail(LN.min || 'Pas, tapi bisa dengan koin lebih sedikit. Bankir tua tidak boros keping.'); return; }
+      var ans = R.trays.map(function (_, t2) { var o = {}; coins.forEach(function (c) { if (inTray[c.id] === t2) o[c.kind] = (o[c.kind] || 0) + 1; }); return o; });
+      answers.push(ans);
+      au('success'); busy = true;
+      var grade = R.min != null ? 'Seperti Bankir Tua' : (function () { return used.length <= minGuess(R) ? 'Pas Sekali' : 'Pas'; })();
+      box.say(((LN.ok || ['Pas.', 'Pas sekali, Kapten.', 'Lunas.'])[ri % 3]) + ' <i>(' + grade + ')</i>', 'good');
+      S.timers.push(setTimeout(function () {
+        busy = false; ri++;
+        if (ri < L.rounds.length) { setupRound(); if (LN.next && LN.next[ri - 1]) box.say(LN.next[ri - 1]); return; }
+        done();
+      }, 1300));
+    }
+    // perkiraan rapi (rasa saja, tidak dinilai server)
+    function minGuess(R) {
+      var n = 0; R.trays.forEach(function (target) {
+        var rem = target; L.kinds.slice().sort(function (a, b) { return b.val - a.val; }).forEach(function (k) { var q = Math.floor(rem / k.val); n += q; rem -= q * k.val; });
+      }); return n;
+    }
+    function done() {
+      tools.style.display = 'none'; drawer.style.display = 'none'; trays.style.display = 'none';
+      var card = el('div', 'gdg-card', '<div class="s">' + esc(opts.cardKicker || 'Meja Kas') + '</div>' +
+        '<svg class="mks-stamp" viewBox="0 0 150 90" role="img" aria-label="Stempel LUNAS"><rect x="6" y="10" width="138" height="70" rx="10" fill="none" stroke="#c0392b" stroke-width="5"/><rect x="14" y="18" width="122" height="54" rx="6" fill="none" stroke="#c0392b" stroke-width="2"/><text x="75" y="58" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="30" fill="#c0392b" letter-spacing="3">LUNAS</text></svg>' +
+        '<div class="g">' + esc(opts.cardTitle || 'Semua pas') + '</div>' + (opts.cardQuote ? '<div class="q">' + opts.cardQuote + '</div>' : ''));
+      S.body.insertBefore(card, box.el);
+      requestAnimationFrame(function () { S.timers.push(setTimeout(function () { var st = card.querySelector('.mks-stamp'); if (st) st.classList.add('on'); au('coin', { n: 3 }); }, 200)); });
+      if (opts.winLine) box.say(opts.winLine, 'good');
+      var row = el('div', 'tsg-row', '<button class="btn btn-gold" type="button">' + (opts.okBtn || 'Lanjut') + '</button>');
+      S.body.insertBefore(row, box.el.nextSibling);
+      row.querySelector('button').onclick = function () { au('page'); S.close(false, { win: true, rounds: answers, kind: 'kas' }); };
+      try { row.querySelector('button').focus(); } catch (e) { }
+      if (AUTO) S.timers.push(setTimeout(function () { if (!S.done) row.querySelector('button').click(); }, 600));
+    }
+    box.say(opts.intro || 'Bayar pas, Kapten. Kurs ada di papan. Koin retak tidak boleh dipakai.');
+    setupRound();
+    if (AUTO && opts.__plan) {   // uji browser: isi baki sesuai jawaban {rounds:[[{kind:n}]]}
+      var tm = setInterval(function () {
+        if (busy || S.done || ri >= L.rounds.length) return;
+        var plan = opts.__plan[ri]; inTray = {};
+        plan.forEach(function (tray, t) { Object.keys(tray).forEach(function (k) { var q = tray[k]; coins.forEach(function (c) { if (q > 0 && c.kind === k && !c.cracked && inTray[c.id] == null) { inTray[c.id] = t; q--; } }); }); });
+        render(); pay();
+      }, 1700);
+      S.timers.push(tm);
+    }
+  }
+
+  var KINDS = { timbang: playTimbang, kas: playKas };
+  function open(kind, opts, cb) {
+    var f = KINDS[kind];
+    if (!f) { if (cb) setTimeout(function () { cb({ cancelled: true, error: 'unknown' }); }, 0); return; }
+    try { if (window.MTAudio && MTAudio.unlock) MTAudio.unlock(); } catch (e) { }
+    try { f(opts || {}, function (res) { if (cb) cb(res || { cancelled: true }); }); }
+    catch (e) { console.warn('[MTGames6]', kind, e); if (cur) cur.close(true); if (cb) cb({ cancelled: true, error: String(e) }); }
+  }
+  function isOpen() { return !!cur; }
+  return { open: open, isOpen: isOpen, coin: coinSvg };
+})();
+</script>

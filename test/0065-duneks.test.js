@@ -23,7 +23,7 @@ const SOL = require('./duneks-solver');
   const STEPS = (await one('select game.dn_steps() s')).s;
   const LV = (await one('select game.dn_levels() l')).l;
   ok(STEPS.length === 8, '8 langkah: ' + STEPS.length);
-  ok((await one(`select game.side_quest_ids() v`)).v.join() === 'peregrin,duneks', 'duneks terdaftar sebagai side quest');
+  ok((await one(`select game.side_quest_ids() v`)).v.slice(0, 2).join() === 'peregrin,duneks', 'duneks terdaftar sebagai side quest');
   await cfg('GotongOpen', '1');
 
   // ------------------------------------------------------------------ level: semua bisa diselesaikan, server = solver
