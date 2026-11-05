@@ -79,6 +79,7 @@
   #mtGmPanel .tn-gm .st.aktif { background: #a3361e; color: #fff2ea; }
   #mtGmPanel .tn-gm .st.terjadwal { background: #f6dcc9; color: #8a2c14; }
   #mtGmPanel .tn-gm .x { border: 0; background: none; color: #a3361e; cursor: pointer; font: 700 12px Georgia, serif; padding: 0; }
+  #mtGmPanel .tn-gm .x.hd { color: var(--parch-muted, #7b6445); font-weight: 400; text-decoration: underline; text-align: left; }
 </style>
 
 <script>
@@ -373,12 +374,25 @@ var MTTony = (function () {
       return '<tr><td><span class="st ' + r.status + '">' + r.status + '</span><br><b>' + E(r.originName || 'Semua') + ' &rarr; ' + E(r.destName) + '</b><br>' + hm(r.startAt) + ' &ndash; ' + hm(r.endAt) +
         '<br>' + r.chance + '% &middot; gold ' + r.goldPct + '% &middot; ' + KB[r.kabar] + '</td>' +
         '<td>' + r.hits + '/' + r.rolls + ' dikepung<br>' + r.korban + ' korban (' + r.lawan + ' kalah bertempur, ' + r.serah + ' menyerah)<br>' + r.menang + ' menang<br><b>' + G(r.gold) + '</b> gold disedot<br>~' + G(r.cargoValue) + ' nilai muatan</td>' +
-        '<td>' + (r.status === 'aktif' || r.status === 'terjadwal' ? '<button type="button" class="x" data-id="' + r.id + '">Batalkan</button>' : '') + '</td></tr>';
+        '<td>' + (r.status === 'aktif' || r.status === 'terjadwal' ? '<button type="button" class="x" data-id="' + r.id + '">Batalkan</button>'
+                 : '<button type="button" class="x hd" data-hide="' + r.id + '">Hapus dari daftar</button>') + '</td></tr>';
     }).join('');
+    // Tide v50: ringkasan di judul bagian (terlihat walau bagian dilipat) + tombol bersihkan
+    var na = 0, nj = 0; (d.raids || []).forEach(function (r) { if (r.status === 'aktif') na++; else if (r.status === 'terjadwal') nj++; });
+    var sum = document.getElementById('tnGSum');
+    if (sum) { sum.textContent = na ? na + ' aktif' + (nj ? ' · ' + nj + ' terjadwal' : '') : nj ? nj + ' terjadwal' : ''; sum.classList.toggle('on', na > 0); }
+    var cl = document.getElementById('tnGClr');
+    if (cl) { var dn = Number(d.doneCount || 0); cl.disabled = !dn; cl.textContent = 'Bersihkan semua yang selesai' + (dn ? ' (' + dn + ')' : ''); }
     var tb = document.getElementById('tnGList');
     if (tb) {
       tb.innerHTML = rows ? '<table>' + rows + '</table>' : '<p class="mtp-hint">Belum ada event Tony.</p>';
-      tb.querySelectorAll('.x').forEach(function (b) {
+      tb.querySelectorAll('.x.hd').forEach(function (b) {
+        b.onclick = function () {
+          gmMsg('Menghapus dari daftar…');
+          rpc('api_gmTonyArsip', ['hide', { id: Number(b.getAttribute('data-hide')) }]).then(function (x) { gmMsg('Dihapus dari daftar. Data di server tetap ada.'); gmRender(x); }, function (e) { gmMsg(e.message, true); });
+        };
+      });
+      tb.querySelectorAll('.x:not(.hd)').forEach(function (b) {
         b.onclick = function () {
           if (!confirm('Batalkan event Tony ini? Berlaku seketika.')) return;
           gmMsg('Membatalkan…');
@@ -386,6 +400,11 @@ var MTTony = (function () {
         };
       });
     }
+  }
+  function gmClear() {
+    if (!confirm('Hapus semua event yang selesai / batal dari daftar GM?\n\nHanya disembunyikan dari daftar. Data korban & harta Tony di server tetap ada. Event aktif / terjadwal tidak tersentuh.')) return;
+    gmMsg('Membersihkan…');
+    rpc('api_gmTonyArsip', ['hideDone']).then(function (x) { gmMsg('Daftar dibersihkan. Data di server tetap ada.'); gmRender(x); }, function (e) { gmMsg(e.message, true); });
   }
   function gmLoad() { rpc('api_gmTony', ['list']).then(gmRender, function (e) { gmMsg(e.message, true); }); }
   function gmAdd() {
@@ -406,17 +425,18 @@ var MTTony = (function () {
     var hint = box.querySelector(':scope > .mtp-hint:last-child');
     var sec = document.createElement('div'); sec.id = 'tnGm'; sec.className = 'tn-gm';
     var n = Date.now() + 5 * 60000; n -= n % 300000;
-    sec.innerHTML = '<h4>Tony and Gank</h4>' +
+    sec.innerHTML = '<h4>Tony and Gank<span class="mtp-sum" id="tnGSum"></span></h4>' +
       '<div class="mtp-row"><label>Tujuan<select id="tnGDest"></select></label><label>Asal<select id="tnGOrig"></select></label></div>' +
       '<div class="mtp-row"><label>Mulai (WIB)<input type="datetime-local" id="tnGStart" value="' + dtLocal(n) + '"></label><label>Selesai (WIB)<input type="datetime-local" id="tnGEnd" value="' + dtLocal(n + 2 * 3600000) + '"></label></div>' +
       '<div class="mtp-row"><label>Peluang (%)<input type="number" id="tnGCh" min="1" max="100" value="80"></label><label>Gold diambil (%)<input type="number" id="tnGGp" min="10" max="90" value="60"></label></div>' +
       '<div class="mtp-row"><label>Kabar<select id="tnGKb"><option value="bisik">Bisik lapau (gosip samar 60 menit sebelumnya)</option><option value="umum">Umum (pengumuman + kabut di peta)</option><option value="diam">Diam (kejutan)</option></select></label>' +
       '<label style="align-content:end"><span><input type="checkbox" id="tnGSiar" checked style="width:auto"> Siarkan korban ke chat Dunia</span></label></div>' +
-      '<div class="mtp-acts"><button type="button" class="red" id="tnGAdd">Pasang Tony and Gank</button><button type="button" class="alt" id="tnGRef">Muat ulang daftar</button></div>' +
+      '<div class="mtp-acts"><button type="button" class="red" id="tnGAdd">Pasang Tony and Gank</button><button type="button" class="alt" id="tnGRef">Muat ulang daftar</button><button type="button" class="alt" id="tnGClr" disabled>Bersihkan semua yang selesai</button></div>' +
       '<div class="mtp-msg" id="tnGMsg" aria-live="polite"></div><div id="tnGList"></div>';
     if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
     document.getElementById('tnGAdd').onclick = gmAdd;
     document.getElementById('tnGRef').onclick = gmLoad;
+    document.getElementById('tnGClr').onclick = gmClear;
     var btn = document.getElementById('mtGmBtn'); if (btn) btn.addEventListener('click', function () { gmLoad(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { gmMount(); hookPulse(); }); else gmMount();
