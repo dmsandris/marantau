@@ -95,7 +95,13 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await place(Q);
   s = await gs();
   ok(s.pasir.kejar.baruPergi === true, 'di pelabuhan yang baru ia tinggalkan');
-  await act('jejak');
+  {
+    const m = (await gs()).pasir.kejar.main;
+    let ans = 'sempurna';
+    if (m.game === 'warga') ans = String((await one(`select (game.ps_warga_soal($1, game.ps_slot(), $2, 0) ->> 'bohong') b`, [pid, Q])).b);
+    if (m.game === 'kuli') ans = (await one(`select string_agg((select o from unnest(array['sopan','akrab','langsung','kopi','cerita','bantu','halus','pancing']) o order by game.ps_kuli_nilai($1, r, o) desc limit 1), ',' order by r) a from generate_series(1,3) r`, [m.watak])).a;
+    await act('jejak', m.game, ans);
+  }
   s = await gs();
   ok(s.pasir.kejar.jejak.kand.includes(P) && s.pasir.kejar.jejak.segar, 'Olah Jejak: kemungkinan memuat tujuan benar');
   const r = await act('manifes');

@@ -1,0 +1,516 @@
+<style>
+  /* ================= Tide v53 · Pengejaran Franziska tanpa gantung (PSK) ================= */
+  .psk-fakta { padding: 9px 12px; border-left: 3px solid #a8231c; background: rgba(255,255,255,.55); border-radius: 6px; color: #3a2a12; line-height: 1.5; margin: 6px 0 10px; }
+  .psk-saksi { display: grid; gap: 8px; }
+  .psk-s { display: grid; grid-template-columns: 62px 1fr; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; border: 1px solid rgba(120,90,50,.45); background: #fff8e8; color: #33230f; }
+  .psk-s .f { width: 62px; height: 62px; border-radius: 10px; overflow: hidden; }
+  .psk-s .f svg { width: 100%; height: 100%; display: block; }
+  .psk-s .nm { font-family: var(--font-title); font-weight: 700; letter-spacing: .03em; }
+  .psk-s .nm small { font-family: inherit; font-weight: 400; color: #7a6040; }
+  .psk-s .kt { font-style: italic; line-height: 1.45; margin: 3px 0 6px; }
+  .psk-s .btn { padding: 6px 12px; min-height: 36px; }
+  .psk-s.salah { opacity: .55; }
+  .psk-kand { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .psk-kand span { padding: 7px 12px; border-radius: 10px; background: #fff8e8; border: 1px solid rgba(120,90,50,.45); color: #33230f; font-family: var(--font-title); }
+  .psk-mood { display: flex; gap: 4px; margin: 6px 0; } .psk-mood i { flex: 1; height: 8px; border-radius: 4px; background: rgba(0,0,0,.12); } .psk-mood i.on { background: #2a7a3a; } .psk-mood i.bad { background: #a8231c; }
+  .psk-opts { display: grid; gap: 8px; margin-top: 8px; }
+  .psk-opts button { text-align: left; padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(160,120,50,.5); background: linear-gradient(180deg, #f6e8c4, #e4cc94); color: #3a2410; cursor: pointer; font: inherit; line-height: 1.4; }
+  .psk-opts button.kopi { background: linear-gradient(180deg, #e9d2b0, #c79a62); border-color: #6a3a14; }
+  .psk-ov { position: fixed; inset: 0; z-index: 9200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px; color: #2a1a0a; background: radial-gradient(ellipse at 50% 30%, #f3d9a8, #8a6a3a 70%, #2a1a0a); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .psk-ov h3 { margin: 0; font-family: var(--font-title); letter-spacing: .08em; text-align: center; }
+  .psk-ov .msg { min-height: 2.4em; text-align: center; max-width: 560px; line-height: 1.45; }
+  .psk-ov canvas { width: min(760px, 96vw); height: auto; border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.4); background: #e9d4a4; }
+  .psk-ov .meters { display: flex; gap: 18px; font-size: .9em; flex-wrap: wrap; justify-content: center; }
+  .psk-ov .meters b { margin-right: 6px; } .psk-ov .meters i { display: inline-block; width: 22px; height: 9px; margin-right: 3px; border-radius: 3px; background: rgba(0,0,0,.2); } .psk-ov .meters i.on { background: #a8231c; }
+  .psk-ov .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .psk-ov .hold { min-width: 240px; min-height: 60px; touch-action: none; }
+  .psk-board { position: relative; background: #f1e3bf; border-radius: 6px; box-shadow: inset 0 0 0 2px rgba(120,90,50,.35); }
+  .psk-slot { position: absolute; border: 1px dashed rgba(120,90,50,.35); box-sizing: border-box; }
+  .psk-tray { position: relative; width: min(760px, 96vw); min-height: 120px; }
+  .psk-pc { position: absolute; box-sizing: border-box; border-radius: 3px; overflow: hidden; background: #f7e9c3; box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: grab; transition: transform .15s; touch-action: none; }
+  .psk-pc.fix { box-shadow: none; cursor: default; transition: none; }
+  .psk-pc.shake { animation: pskShake .35s; }
+  @keyframes pskShake { 0%, 100% { margin-left: 0; } 25% { margin-left: -6px; } 75% { margin-left: 6px; } }
+  .psk-pc .in { position: absolute; left: 0; top: 0; font-family: Georgia, serif; font-style: italic; color: #4a3218; line-height: 1.5; padding: 10px 12px; box-sizing: border-box; pointer-events: none; }
+  .psk-pc::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px rgba(120,80,30,.35); pointer-events: none; }
+  .psk-surat-list { display: grid; gap: 10px; }
+  .psk-surat-list .ps-surat { padding: 10px 12px; background: #fff8e8; border-radius: 10px; border: 1px solid rgba(120,90,50,.35); }
+  .dest-item.psk-kand-mark { box-shadow: 0 0 0 2px #a8231c inset; }
+  .dest-item .psk-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 8px; font-size: .78em; background: #a8231c; color: #fff; margin-left: 6px; vertical-align: middle; }
+  .dest-item.psk-coret .di-name { text-decoration: line-through; opacity: .6; }
+  .dest-item.psk-coret .psk-tag { background: #7a6a58; }
+  details.psk-done { margin-top: 8px; border-radius: 12px; border: 1px solid rgba(120,90,50,.3); background: rgba(255,255,255,.35); padding: 6px 10px; }
+  details.psk-done > summary { cursor: pointer; font-family: var(--font-title); letter-spacing: .03em; color: #5a4628; padding: 4px 0; }
+</style>
+<script>
+/* =====================================================================
+ * Tide v53 · Pasir: pengejaran Franziska tanpa gantung (modul PSK)
+ * Server: 0068. Empat permainan jejak bergiliran (Tanya Warga, Buntuti di Keramaian, Surat Tercecer, Tawar Kuli),
+ *   kabar saat tiba (kosong/dingin/zaman), tanda kemungkinan tujuan di Set Sail, kartu kekalahan Quest 14,
+ *   teks tempat lampau sesuai keadaan, jurnal tamat dilipat.
+ * Lokasi Franziska tidak pernah dikirim: Tanya Warga & Tawar Kuli dinilai server; Surat Tercecer hanya menerima kiasan.
+ * ===================================================================== */
+var PSK = (function () {
+  if (!window.PS || !PS.K) return {};
+  var K = PS.K, esc = K.esc, btn = K.btn, on = K.on, actions = K.actions, speech = K.speech, narr = K.narr;
+  function p() { return PS.st(); }
+  function kj() { var x = p(); return (x && x.kejar) || null; }
+  function qs(n) { var x = p(); return (x && x.q && x.q[n]) || 0; }
+  function barang() { return (p() && p().barang) || []; }
+  function riak() { return (p() && p().riak) || {}; }
+  function city(id) { var c = (state.cities || []).filter(function (x) { return x.CityId === id; })[0]; return c ? c.Name : id; }
+  function toast(t, k) { if (typeof showToast === 'function') showToast(t, k || 'info'); }
+  function here() { return state && state.city ? state.city.Name : ''; }
+  var ERA = { keadilan: 'Zaman Keadilan', lampau: '40 Tahun Lalu', pusaran: 'Malam Pusaran', kini: 'zamanmu' };
+  var GRADE = { sempurna: ['Jejak jelas', 'Hanya dua tempat yang mungkin.'], lulus: ['Jejak cukup', 'Tiga tempat yang mungkin.'], samar: ['Jejak samar', 'Empat tempat yang mungkin. Manifes Syahbandar bisa mencoret satu.'] };
+
+  /* ---------- kirim jawaban ---------- */
+  var doneCb = null;
+  function kirim(game, ans, after) {
+    PS.call(['jejak', game, ans], function (r) {
+      if (r && r.ok === false && r.ulang) {
+        K.au('splash');
+        var w = K.modalWrap('eye', 'Jejak Lolos', here());
+        w.innerHTML = narr('Satu kesempatan lagi', '<p>' + ({ warga: 'Para saksi bubar dengan kesal. Tiga orang lain mendekat, penasaran.', kuli: 'Kuli itu menutup mulut dan kembali memikul karung. Seorang kuli lain baru turun dari kapal.', buntuti: 'Payung renda itu hilang di tikungan pasar. Tapi kau tahu ia belum naik sekoci.', surat: 'Angin dermaga menerbangkan sobekan-sobekan itu lagi. Beberapa tersangkut di jala.' }[game] || '') + '</p><p class="muted small">Gagal sekali lagi, jejaknya jadi samar.</p>', actions(btn('ulang', 'eye', 'Coba lagi') + btn('later', null, 'Nanti dulu', false)), 'eye');
+        on(w, '[data-ps=later]', K.close); on(w, '[data-ps=ulang]', function () { K.close(); main(doneCb); });
+        return;
+      }
+      if (after) after(r, function () { hasil(r); }); else hasil(r);
+    }, function (e) { toast((e && e.message) || String(e), 'error'); });
+  }
+  function hasil(r) {
+    var G = GRADE[r.grade] || GRADE.lulus;
+    K.au(r.grade === 'samar' ? 'page' : 'victory');
+    var w = K.modalWrap('map', G[0], here());
+    w.innerHTML = narr('Ke mana ia pergi', '<p>' + G[1] + (r.kopi ? ' <i>Kopi Pahit Sudyrman habis diseruput.</i>' : '') + '</p><div class="psk-kand">' + (r.kand || []).map(function (c) { return '<span>' + esc(city(c)) + '</span>'; }).join('') + '</div>' +
+      '<p class="muted small">Tempat-tempat ini kini tertanda di daftar tujuan Set Sail. Tiba di tempat yang kosong, tempat itu dicoret sendiri. Ia pindah lagi dalam 45 menit.</p>',
+      actions(btn('sail', 'ship', 'Berlayar') + btn('ded', 'map', 'Papan Deduksi', false)), 'map', 'paper');
+    on(w, '[data-ps=sail]', function () { K.close(); openPanel('setsail'); });
+    on(w, '[data-ps=ded]', function () { K.close(); if (doneCb) doneCb(); });
+  }
+  function main(cb) {
+    doneCb = cb || doneCb;
+    var k = kj(), m = k && k.main;
+    if (!m) { toast('Tak ada jejak segar di dermaga ini.', 'info'); return; }
+    if (m.game === 'warga') warga(m);
+    else if (m.game === 'kuli') kuli(m);
+    else if (m.game === 'buntuti') buntuti(m);
+    else if (m.game === 'surat') surat(m);
+  }
+
+  /* =====================================================================
+   * 1. Tanya Warga — tiga saksi, satu berbohong (dinilai server)
+   * ===================================================================== */
+  function warga(m) {
+    var w = K.modalWrap('user', 'Tanya Warga', here());
+    var cards = (m.saksi || []).map(function (s, i) {
+      var fem = /Mak |Ceu /.test(s.nama) ? 1 : 0, ap = K.apOf(s.seed || ('w' + i), 'lapau', fem, s.peran === 'Anak kecil' ? { age: 0, facial: 0, head: 'none' } : {});
+      return '<div class="psk-s" data-i="' + i + '"><div class="f">' + MTFace.svg(ap, { bgColors: ['#7a6440', '#2a1e12'] }) + '</div><div><div class="nm">' + esc(s.nama) + ' <small>&middot; ' + esc(s.peran) + '</small></div>' +
+        '<div class="kt">"' + esc(s.kata) + '"</div><button class="btn btn-ghost-ink" data-b="' + i + '">Dia berbohong</button></div></div>';
+    }).join('');
+    w.innerHTML = narr('Tiga saksi, satu berbohong', '<p>Tiga warga mengaku melihat kapal putih itu. ' + (m.coba ? '<b>Saksi-saksi baru.</b> ' : '') + 'Cocokkan kesaksian mereka dengan yang kau tahu pasti, lalu tunjuk <b>yang berbohong</b>.</p>' +
+      '<div class="psk-fakta"><b>Yang pasti:</b> ' + (m.fakta || '') + '</div><div class="psk-saksi">' + cards + '</div>', actions(btn('later', null, 'Nanti dulu', false)), 'user', 'paper');
+    on(w, '[data-ps=later]', K.close);
+    w.querySelectorAll('[data-b]').forEach(function (b) {
+      b.onclick = function () {
+        w.querySelectorAll('[data-b]').forEach(function (x) { x.disabled = true; });
+        K.close(); kirim('warga', b.getAttribute('data-b'));
+      };
+    });
+  }
+
+  /* =====================================================================
+   * 4. Tawar Kuli dengan Kopi — dialog tiga putaran (dinilai server)
+   * ===================================================================== */
+  var KULI_BUKA = {
+    pemalu: '<i>Kuli itu menunduk, memainkan ujung tali tambat. Suaranya nyaris tak terdengar.</i> "Eh... Kapten perlu apa?"',
+    pekerja: '<i>Kuli itu tetap memikul karung walau katanya sedang istirahat.</i> "Cepat saja, Kapten. Kapal berikutnya sudah merapat."',
+    kopi: '<i>Kuli itu mengendus-endus ke arah warung sambil menguap lebar.</i> "Dari subuh belum ada setetes kopi pun, Kapten..."',
+    cerita: '<i>Kuli itu sedang bercerita pada seekor kucing dermaga.</i> "...lalu ombaknya setinggi tiang! Eh, Kapten! Mau dengar kisahku?"'
+  };
+  var KULI_R = [
+    { q: 'Sapa dia', o: [['sopan', '"Permisi, Pak. Maaf mengganggu istirahatnya."'], ['akrab', '"Bang! Kelihatannya habis kerja berat, ya?"'], ['langsung', '"Aku cari kapal putih. Kau lihat?"']] },
+    { q: 'Tawarkan sesuatu', o: [['kopi', '"Kutraktir segelas kopi di warung, mau?"'], ['cerita', '"Aku punya kisah badai di Selat Gaul. Mau dengar?"'], ['bantu', '"Sini, kubantu angkat karungmu dulu."']] },
+    { q: 'Tanyakan', o: [['halus', '"Tadi ada perempuan tua bergaun putih lewat... kau sempat lihat ke mana kapalnya?"'], ['langsung', '"Ke mana kapal putih itu berlayar?"'], ['pancing', '"Kudengar ada payung renda tertinggal di dermaga. Punya siapa, ya?"']] }
+  ];
+  // salinan matriks server hanya untuk raut wajah; nilai akhir tetap dihitung server
+  var KULI_N = {
+    pemalu: [{ sopan: 2, akrab: 0, langsung: -1 }, { kopi: 1, cerita: 0, bantu: 2 }, { halus: 2, langsung: -1, pancing: 1 }],
+    pekerja: [{ sopan: 0, akrab: 1, langsung: 2 }, { kopi: 0, cerita: -1, bantu: 2 }, { halus: 0, langsung: 2, pancing: 0 }],
+    kopi: [{ sopan: 1, akrab: 1, langsung: 0 }, { kopi: 2, cerita: 0, bantu: 0 }, { halus: 1, langsung: 1, pancing: 1 }],
+    cerita: [{ sopan: 1, akrab: 2, langsung: -1 }, { kopi: 1, cerita: 2, bantu: 0 }, { halus: 1, langsung: 0, pancing: 2 }]
+  };
+  var RAUT = { '2': '<i>Wajahnya cerah. Ia mendekat.</i>', '1': '<i>Ia mengangguk kecil.</i>', '0': '<i>Ia mengangkat bahu.</i>', '-1': '<i>Ia mengernyit dan mundur selangkah.</i>' };
+  function kuli(m) {
+    var wt = m.watak || 'pemalu', nm = ['Bang Jali', 'Mang Odin', 'Pak Usman', 'Bang Togar'][(m.coba || 0) + ['pemalu', 'pekerja', 'kopi', 'cerita'].indexOf(wt) & 3];
+    var n = { name: nm, title: 'Kuli dermaga', ap: K.apOf('kuli-' + wt + '-' + (m.coba || 0) + '-' + K.cid(), 'tukang', 0, { head: 'none' }) };
+    var pick = [], mood = 0, pahit = barang().indexOf('kopi_pahit') >= 0;
+    var w = K.modalWrap('cup', 'Tawar Kuli', here());
+    function bar() { var h = ''; for (var i = 0; i < 6; i++) h += '<i class="' + (i < mood ? 'on' : '') + (mood < 0 && i === 0 ? ' bad' : '') + '"></i>'; return '<div class="psk-mood">' + h + '</div>'; }
+    function round(r, last) {
+      var R = KULI_R[r], opts = R.o.map(function (o) { return '<button type="button" data-o="' + o[0] + '">' + o[1] + '</button>'; }).join('');
+      if (r === 1 && pahit) opts += '<button type="button" class="kopi" data-o="kopipahit">' + ic('coffee') + ' Tawarkan <b>Kopi Pahit Sudyrman</b> dari palkamu</button>';
+      w.innerHTML = speech(n, (last || KULI_BUKA[wt]), bar() + '<p class="muted small"><b>' + (r + 1) + '/3 &middot; ' + R.q + '</b></p><div class="psk-opts">' + opts + '</div>' + actions(btn('later', null, 'Nanti dulu', false)), 'Kuli dermaga, sedang istirahat');
+      on(w, '[data-ps=later]', K.close);
+      w.querySelectorAll('[data-o]').forEach(function (b) {
+        b.onclick = function () {
+          var o = b.getAttribute('data-o');
+          if (o === 'kopipahit') {
+            pick = [pick[0] || 'sopan', 'kopipahit', 'halus'];
+            w.innerHTML = speech(n, '<i>Ia menghirup aromanya, matanya membelalak.</i> "Kopi pahit Sudyrman?! Astaga, Kapten..." <i>Ia meneguknya pelan.</i> "Perempuan payung renda itu? Ia naik kapal putih. Kudengar juru mudinya menyebut tujuannya."', actions(btn('ok', 'map', 'Dengarkan')), 'Kuli dermaga');
+            on(w, '[data-ps=ok]', function () { K.close(); kirim('kuli', pick.join(',')); });
+            return;
+          }
+          pick.push(o); var v = (KULI_N[wt] && KULI_N[wt][r] && KULI_N[wt][r][o] != null) ? KULI_N[wt][r][o] : -1; mood = Math.max(-1, mood + v);
+          if (r < 2) { round(r + 1, RAUT[String(v)] + ' ' + (v >= 2 ? '"Nah, begitu."' : v < 0 ? '"Hm."' : '"Ya, ya..."')); return; }
+          w.innerHTML = speech(n, RAUT[String(v)] + (mood >= 3 ? ' "Baiklah, Kapten. Aku lihat sendiri..."' : ' "Aku sibuk, Kapten."'), bar() + actions(btn('ok', null, 'Lanjut')), 'Kuli dermaga');
+          on(w, '[data-ps=ok]', function () { K.close(); kirim('kuli', pick.join(',')); });
+        };
+      });
+    }
+    round(0);
+  }
+
+  /* =====================================================================
+   * 2. Buntuti di Keramaian — tahan untuk berjalan, berhenti saat ia menoleh
+   * ===================================================================== */
+  function buntuti(m) {
+    K.busy(true);
+    var lvl = Math.min(3, (kj() && kj().n) || 1);
+    var ov = document.createElement('div'); ov.className = 'psk-ov';
+    ov.innerHTML = '<h3>Buntuti di Keramaian &middot; ' + esc(here()) + '</h3>' +
+      '<div class="msg"><b>Tahan</b> untuk berjalan, <b>lepas</b> untuk berhenti. Bila payung rendanya <b>berhenti berputar</b>, ia akan menoleh. Berlindunglah di balik lapak, dan jangan sampai tertinggal.</div>' +
+      '<canvas width="' + (window.innerWidth < 560 ? 460 : 760) + '" height="250"></canvas><div class="meters"><span><b>Curiga</b><i></i><i></i><i></i></span><span><b>Hilang</b><i></i><i></i><i></i></span></div>' +
+      '<div class="row"><button class="btn btn-gold hold" type="button">Tahan untuk berjalan</button><button class="btn btn-ghost-ink" type="button" data-x>Nanti dulu</button></div>';
+    document.body.appendChild(ov);
+    var cv = ov.querySelector('canvas'), g = cv.getContext('2d'), msg = ov.querySelector('.msg'), hb = ov.querySelector('.hold');
+    var mC = ov.querySelectorAll('.meters span')[0].querySelectorAll('i'), mH = ov.querySelectorAll('.meters span')[1].querySelectorAll('i');
+    var L = 120, fz = 14, pl = 4, hold = false, cur = 0, lost = 0, t = 0, last = 0, done = false, started = false;
+    var st = 'jalan', stT = 2.2, spin = 0, fake = false, caughtCd = 0;
+    var STALL = [22, 38, 55, 71, 88, 104], CROWD = [];
+    for (var i = 0; i < 22; i++) CROWD.push({ x: Math.random() * L, v: (Math.random() < .5 ? -1 : 1) * (0.6 + Math.random()), c: ['#7a3a2a', '#2a4a6a', '#5a6a2a', '#6a2a5a', '#8a6a2a'][i % 5], y: 205 + (i % 3) * 14 });
+    function down(e) { e.preventDefault(); hold = true; started = true; } function up() { hold = false; }
+    hb.addEventListener('pointerdown', down); ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { hb.addEventListener(ev, up); });
+    function key(e) { if (e.key === ' ') { e.preventDefault(); hold = e.type === 'keydown'; started = true; } }
+    document.addEventListener('keydown', key); document.addEventListener('keyup', key);
+    function cover() { return STALL.some(function (s) { return pl > s - 4 && pl < s + 4; }); }
+    function meters() { for (var i = 0; i < 3; i++) { mC[i].className = i < Math.floor(cur) ? 'on' : ''; mH[i].className = i < Math.floor(lost) ? 'on' : ''; } }
+    function end(grade) {
+      if (done) return; done = true; document.removeEventListener('keydown', key); document.removeEventListener('keyup', key);
+      hb.remove();
+      msg.innerHTML = grade === 'gagal' ? (cur >= 3 ? '<b>Ia melihatmu.</b> Payung renda itu menutup dan menghilang di gang sempit.' : '<b>Kau kehilangan dia</b> di tengah keramaian.') :
+        'Franziska naik sekoci di ujung pasar. Haluan kapal putih itu berputar... <b>kau melihat arahnya.</b>';
+      K.au(grade === 'gagal' ? 'splash' : 'victory');
+      var x = ov.querySelector('[data-x]'); x.textContent = 'Lanjut'; x.className = 'btn btn-gold';
+      x.onclick = function () { ov.remove(); K.busy(false); kirim('buntuti', grade); };
+    }
+    ov.querySelector('[data-x]').onclick = function () { if (done) return; done = true; document.removeEventListener('keydown', key); document.removeEventListener('keyup', key); ov.remove(); K.busy(false); };
+    function nextTurn() { return Math.max(1.8, 4.2 - lvl * 0.6) + Math.random() * 2.2; }
+    function loop(ts) {
+      if (!ov.isConnected) return;
+      var dt = last ? Math.min(0.05, (ts - last) / 1000) : 0.016; last = ts;
+      if (!done && started) {
+        t += dt; stT -= dt; caughtCd = Math.max(0, caughtCd - dt);
+        if (st === 'jalan') { fz += 2.6 * dt; spin += dt * 6; if (stT <= 0) { st = 'tanda'; stT = 0.65; fake = lvl >= 2 && Math.random() < 0.18 + lvl * 0.06; } }
+        else if (st === 'tanda') { if (stT <= 0) { if (fake) { st = 'jalan'; stT = nextTurn(); } else { st = 'toleh'; stT = 1.1 + Math.random() * 0.5; } } }
+        else if (st === 'toleh') { if (stT <= 0) { st = 'jalan'; stT = nextTurn(); } }
+        if (hold) pl += 3.9 * dt;
+        if (pl > fz - 3) pl = fz - 3;
+        var d = fz - pl;
+        if (st === 'toleh' && caughtCd <= 0 && ((hold && !cover()) || d < 6)) { cur += 1; caughtCd = 0.9; K.au('splash'); }
+        if (d > 26) lost += dt / 1.6;
+        if (cur >= 3 || lost >= 3) end('gagal');
+        else if (fz >= L) end(cur < 1 && lost < 1 ? 'sempurna' : 'lulus');
+      }
+      CROWD.forEach(function (c) { c.x += c.v * dt; if (c.x < 0) c.x += L; if (c.x > L) c.x -= L; });
+      draw(); meters();
+      requestAnimationFrame(loop);
+    }
+    function draw() {
+      var W = cv.width, H = cv.height, Z = 1.4, VW = 30, sc = W / VW / Z, cam = Math.max(0, Math.min(L - VW, pl - 8));
+      function X(x) { return (x - cam) * sc; }
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H); g.save(); g.setTransform(Z, 0, 0, Z, 0, -111);
+      var sky = g.createLinearGradient(0, 0, 0, 300); sky.addColorStop(0, '#f6dfae'); sky.addColorStop(1, '#d8b878'); g.fillStyle = sky; g.fillRect(0, 0, W, 320);
+      for (var b = -1; b < 8; b++) {
+        var bi = Math.floor(cam / 6) + b, bx = X(bi * 6), bw = 4.6 * sc, hh = 70 + (bi * 37 % 3) * 14;
+        g.fillStyle = ['#c9a878', '#b89a62', '#d4b484'][((bi % 3) + 3) % 3]; g.fillRect(bx, 180 - hh, bw, hh);
+        g.fillStyle = '#7a4a2a'; g.beginPath(); g.moveTo(bx - 6, 180 - hh); g.lineTo(bx + bw / 2, 180 - hh - 22); g.lineTo(bx + bw + 6, 180 - hh); g.fill();
+        g.fillStyle = 'rgba(60,40,20,.45)'; for (var wy = 0; wy < 2; wy++) for (var wx = 0; wx < 3; wx++) g.fillRect(bx + 10 + wx * (bw - 20) / 3, 180 - hh + 14 + wy * 28, (bw - 20) / 3 - 10, 16);
+      }
+      g.fillStyle = '#8a6a3a'; g.fillRect(0, 240, W, 60);
+      g.fillStyle = 'rgba(0,0,0,.08)'; for (var q = 0; q < 30; q++) g.fillRect(X(Math.floor(cam) + q * 2) % W, 250 + (q % 3) * 14, 18, 3);
+      STALL.forEach(function (s, i) {
+        var x = X(s - 3.5), w = 7 * sc; if (x > W || x + w < 0) return;
+        g.fillStyle = '#6a4a2a'; g.fillRect(x, 168, w, 72);
+        g.fillStyle = ['#a8231c', '#2a6a4a', '#c99a2a'][i % 3]; g.beginPath(); g.moveTo(x - 6, 168); g.lineTo(x + w + 6, 168); g.lineTo(x + w, 146); g.lineTo(x, 146); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.35)'; for (var k = 0; k < 4; k++) g.fillRect(x + k * w / 4, 146, w / 8, 22);
+        g.fillStyle = '#c8a060'; g.fillRect(x + 6, 186, w - 12, 12);
+      });
+      CROWD.forEach(function (c) { var x = X(c.x); if (x < -20 || x > W + 20) return; g.fillStyle = c.c; g.fillRect(x - 7, c.y - 30, 14, 30); g.fillStyle = '#e0b88a'; g.beginPath(); g.arc(x, c.y - 37, 7, 0, 7); g.fill(); });
+      // Franziska
+      var fx = X(fz), turned = st === 'toleh';
+      g.fillStyle = '#f4f0e6'; g.beginPath(); g.moveTo(fx - 14, 240); g.lineTo(fx + 14, 240); g.lineTo(fx + 7, 196); g.lineTo(fx - 7, 196); g.fill();
+      g.fillStyle = '#e8dcc8'; g.beginPath(); g.arc(fx, 188, 8, 0, 7); g.fill();
+      g.fillStyle = '#c8c4bc'; g.beginPath(); g.arc(fx + (turned ? -3 : 3), 184, 6, Math.PI, 0); g.fill();
+      if (turned) { g.fillStyle = '#2a1a0a'; g.beginPath(); g.arc(fx - 4, 188, 1.6, 0, 7); g.fill(); }
+      // payung renda
+      g.save(); g.translate(fx + 4, 166); g.fillStyle = 'rgba(255,255,255,.95)'; g.strokeStyle = '#c9b89a';
+      g.beginPath(); g.arc(0, 0, 24, Math.PI, 0); g.fill(); g.stroke();
+      for (var r = 0; r < 7; r++) { g.beginPath(); g.arc(-21 + r * 7, 1, 3.5, 0, Math.PI); g.stroke(); }
+      if (st === 'jalan') { g.strokeStyle = '#b8a888'; for (var sp = 0; sp < 4; sp++) { var a = Math.PI + ((spin + sp * 0.8) % Math.PI); g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 24, Math.sin(a) * 24); g.stroke(); } }
+      g.restore(); g.fillStyle = '#6a5a4a'; g.fillRect(fx + 3, 166, 2, 30);
+      if (st === 'tanda' || turned) { g.fillStyle = turned ? '#a8231c' : 'rgba(168,35,28,.6)'; g.font = 'bold 28px sans-serif'; g.fillText(turned ? '!' : '?', fx - 6, 130); }
+      // kapten
+      var px = X(pl), cv2 = cover();
+      g.globalAlpha = cv2 && turned ? 0.55 : 1;
+      g.fillStyle = '#203658'; g.fillRect(px - 8, 206, 16, 34); g.fillStyle = '#e0b88a'; g.beginPath(); g.arc(px, 198, 8, 0, 7); g.fill();
+      g.fillStyle = '#1a1a1a'; g.fillRect(px - 11, 188, 22, 4); g.fillRect(px - 7, 181, 14, 8);
+      g.globalAlpha = 1;
+      g.restore();
+      if (fz - pl > 26) { g.fillStyle = 'rgba(42,26,10,.55)'; g.fillRect(0, 0, W, H); g.fillStyle = '#fff3d6'; g.font = '18px sans-serif'; g.fillText('Payung renda itu hilang di keramaian... kejar!', 20, 40); }
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(16, H - 14, W - 32, 6); g.fillStyle = '#f4f0e6'; g.fillRect(16, H - 14, (W - 32) * Math.min(1, fz / L), 6);
+      if (!started) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, W, H); g.fillStyle = '#fff3d6'; g.font = '20px sans-serif'; g.textAlign = 'center'; g.fillText('Tahan tombol (atau spasi) untuk mulai membuntuti', W / 2, H / 2); g.textAlign = 'left'; }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* =====================================================================
+   * 3. Surat Tercecer — seret & ketuk untuk memutar
+   * ===================================================================== */
+  var SOBEK = [
+    'Slaus,\nKau dihukum berdiri di lapangan lagi semalam. Aku menyelundupkan roti lewat jendela dapur. Kau menolaknya karena "melanggar aturan makan". Rotinya kumakan sendiri. Enak.',
+    'Slaus,\nHari pertama di akademi kau membetulkan cara aku memegang sekstan. Aku ingin melemparmu ke laut. Hari ini aku memegangnya persis seperti katamu. Jangan bilang siapa-siapa.',
+    'Slaus,\nTedsky menangis waktu lampu menara padam semenit karena badai. Kau berdiri di sampingnya sampai pagi tanpa bicara. Aku melihat dari bawah. Kau pikir tidak ada yang tahu.',
+    'Slaus,\nPeta selatanku di dinding menara lonceng sudah setengah jadi. Kau bilang pulau-pulau yang kugambar tidak ada. Suatu hari aku akan berlayar ke sana dan menulis namamu di pantainya.',
+    'Slaus,\nLaksamana Brandt menyebutmu kadet terbaik angkatan ini. Kau tidak tersenyum sedikit pun. Aku tersenyum cukup lebar untuk kita berdua.',
+    'Slaus,\nKita bertengkar soal perahu nelayan itu lagi. Kau benar, dan aku benci kau benar. Besok aku minta maaf. Mungkin lusa.',
+    'Slaus,\nMalam ini dingin sekali di menara. Lonceng berdentang dua belas kali dan kau masih menghafal aturan ke-tujuh puluh. Aku menghitung bintang. Kita sama-sama tidak tidur.',
+    'Slaus,\nSeminggu lagi kelulusan. Mereka akan memberimu kapal dan memberiku meja gambar. Aku tidak marah. Sungguh. Aku hanya ingin satu pelayaran bersamamu sebelum itu.',
+    'Slaus,\nMalam sebelum kelulusan. Kau menitipkan bukumu yang membosankan itu padaku "untuk dijaga". Aku tahu itu caramu bilang sampai jumpa.',
+    'Slaus,\nKalau suatu hari aku tua dan kau tidak lagi tertawa, aku akan mencari malam ini. Malam ketika kau tertawa di menara lonceng. Aku berjanji.'
+  ];
+  function suratN() { var k = kj(); return (k && k.surat) || 0; }
+  function koleksi() {
+    var n = Math.min(SOBEK.length, suratN()), w = K.modalWrap('scroll', 'Surat-Surat Sobek', 'Papan Deduksi');
+    w.innerHTML = narr(n + ' dari ' + SOBEK.length + ' surat', (n ? '<div class="psk-surat-list">' + SOBEK.slice(0, n).map(function (t) { return '<div class="ps-surat">' + esc(t) + '\n— Franzi</div>'; }).join('') + '</div>' : '<p>Belum ada surat yang utuh.</p>') +
+      '<p class="muted small">Sobekan surat kadang tercecer di dermaga yang baru Franziska tinggalkan.</p>', actions(btn('ok', null, 'Tutup', false)), 'scroll', 'paper');
+    on(w, '[data-ps=ok]', K.close);
+  }
+  function surat(m) {
+    K.busy(true);
+    var np = m.potong || 6, cols = np <= 6 ? 3 : np <= 8 ? 4 : 3, rows = np <= 6 ? 2 : np <= 8 ? 2 : 3, N2 = cols * rows;
+    var idx = Math.min(SOBEK.length - 1, suratN()), body = SOBEK[idx] + '\n\nBesok aku berlayar ' + (m.kiasan || '') + '. Jangan cari aku.\n— Franzi';
+    var ov = document.createElement('div'); ov.className = 'psk-ov';
+    ov.innerHTML = '<h3>Surat Tercecer &middot; ' + esc(here()) + '</h3><div class="msg"><b>Seret</b> sobekan ke tempatnya. <b>Ketuk</b> untuk memutar. Sobekan hanya menempel bila tegak dan tepinya cocok.</div>' +
+      '<div class="psk-board"></div><div class="psk-tray"></div><div class="meters"><span class="tm"></span><span class="sl"></span></div><div class="row"><button class="btn btn-ghost-ink" type="button" data-x>Nanti dulu</button></div>';
+    document.body.appendChild(ov);
+    var vw = Math.min(window.innerWidth, 800), S = Math.floor(Math.min(110, (vw - 30) / Math.max(cols, 4), (window.innerHeight * 0.36) / rows));
+    var board = ov.querySelector('.psk-board'), tray = ov.querySelector('.psk-tray'), tm = ov.querySelector('.tm'), sl = ov.querySelector('.sl'), msg = ov.querySelector('.msg');
+    board.style.width = (cols * S) + 'px'; board.style.height = (rows * S) + 'px';
+    var trayW = tray.clientWidth || (vw - 20), perRow = Math.max(1, Math.floor(trayW / (S + 8))); tray.style.height = (Math.ceil(N2 / perRow) * (S + 8) + 8) + 'px';
+    var t0 = Date.now(), wrong = 0, placed = 0, done = false, LIM = 90, PERF = 60;
+    var BW = cols * S, BH = rows * S, fs = Math.max(7, Math.min(17, Math.floor(Math.sqrt((BW - 24) * (BH - 16) / (body.length * 0.52 * 1.5)))));
+    // latar surat: peta sketsa Franzi + mawar angin, supaya setiap sobekan punya tepi yang bisa dikenali
+    var bg = '<svg class="bgp" width="' + BW + '" height="' + BH + '" viewBox="0 0 400 260" preserveAspectRatio="none" style="position:absolute;left:0;top:0">' +
+      '<rect width="400" height="260" fill="#f6e6bc"/>' + (function () { var h = ''; for (var y = 18; y < 260; y += 16) h += '<path d="M0 ' + y + 'H400" stroke="#c9a86a" stroke-width=".6" opacity=".55"/>'; return h; })() +
+      '<path d="M-10 210 C40 170 70 230 120 200 S200 150 240 190 S330 240 410 170" fill="none" stroke="#7a5a30" stroke-width="2.4" opacity=".55"/>' +
+      '<path d="M250 40 c30 -10 60 10 70 30 s-20 40 -50 34 s-40 -50 -20 -64z" fill="#c9a86a" opacity=".35" stroke="#7a5a30" stroke-width="1.4"/>' +
+      '<path d="M40 40 c20 -14 46 -4 50 16 s-30 26 -46 16z" fill="#c9a86a" opacity=".3" stroke="#7a5a30" stroke-width="1.2"/>' +
+      '<g transform="translate(330 200)" opacity=".5"><circle r="34" fill="none" stroke="#8a2a1c" stroke-width="1.4"/><path d="M0 -40 L6 0 L0 40 L-6 0z M-40 0 L0 6 L40 0 L0 -6z" fill="#8a2a1c"/></g>' +
+      '<path d="M150 120 l40 -30 l30 50 l50 -20" fill="none" stroke="#8a2a1c" stroke-width="1.6" stroke-dasharray="5 5" opacity=".6"/><circle cx="270" cy="120" r="5" fill="none" stroke="#8a2a1c" stroke-width="2" opacity=".7"/>' +
+      '<circle cx="60" cy="226" r="16" fill="#8a2a1c" opacity=".18"/><path d="M0 0 L400 0 L400 260 L0 260z" fill="none" stroke="#a07a40" stroke-width="3" opacity=".5"/></svg>';
+    var pcs = [];
+    for (var i = 0; i < N2; i++) {
+      var sd = document.createElement('div'); sd.className = 'psk-slot'; sd.style.cssText = 'left:' + (i % cols) * S + 'px;top:' + Math.floor(i / cols) * S + 'px;width:' + S + 'px;height:' + S + 'px'; board.appendChild(sd);
+      var pc = document.createElement('div'); pc.className = 'psk-pc'; pc.style.width = pc.style.height = S + 'px';
+      pc.innerHTML = '<div class="in" style="width:' + BW + 'px;height:' + BH + 'px;left:' + (-(i % cols) * S) + 'px;top:' + (-Math.floor(i / cols) * S) + 'px">' + bg + '<div style="position:relative;font-size:' + fs + 'px">' + esc(body).replace(/\n/g, '<br>') + '</div></div>';
+      var P = { el: pc, i: i, rot: [0, 90, 180, 270][Math.floor(Math.random() * 4)], fix: false };
+      if (i === 0) P.rot = P.rot || 90;
+      pcs.push(P); tray.appendChild(pc);
+    }
+    // acak urutan di nampan
+    var order = pcs.map(function (_, i) { return i; }).sort(function () { return Math.random() - 0.5; });
+    order.forEach(function (pi, k) { var P = pcs[pi]; P.hx = 8 + (k % perRow) * (S + 8); P.hy = 8 + Math.floor(k / perRow) * (S + 8); home(P); });
+    function home(P) { P.el.style.left = P.hx + 'px'; P.el.style.top = P.hy + 'px'; P.el.style.transform = 'rotate(' + P.rot + 'deg)'; P.el.style.zIndex = 1; }
+    function info() { var left = Math.max(0, LIM - Math.floor((Date.now() - t0) / 1000)); tm.innerHTML = '<b>Waktu</b> ' + left + ' dtk'; sl.innerHTML = '<b>Salah tempel</b> ' + wrong; return left; }
+    var iv = setInterval(function () { if (done) return; if (info() <= 0) end('gagal'); }, 500); info();
+    function end(grade) {
+      if (done) return; done = true; clearInterval(iv);
+      var x = ov.querySelector('[data-x]');
+      if (grade === 'gagal') {
+        msg.innerHTML = '<b>Waktu habis.</b> Angin dermaga menerbangkan sobekan-sobekan itu ke laut.'; K.au('splash');
+        x.textContent = 'Lanjut'; x.className = 'btn btn-gold'; x.onclick = function () { ov.remove(); K.busy(false); kirim('surat', 'gagal'); };
+        return;
+      }
+      K.au('victory'); ov.remove(); K.busy(false);
+      var w = K.modalWrap('scroll', 'Surat Franzi', 'Sobekan dari ' + here());
+      w.innerHTML = narr('Kertas kuning, tinta pudar', '<div class="ps-surat">' + esc(body) + '</div><p class="muted small"><i>Surat ini disimpan di Papan Deduksi, bagian "Surat-Surat Sobek".</i></p>', actions(btn('ok', 'map', 'Ke mana ia berlayar?')), 'scroll', 'paper');
+      on(w, '[data-ps=ok]', function () { K.close(); kirim('surat', grade); });
+    }
+    ov.querySelector('[data-x]').onclick = function () { if (done) return; done = true; clearInterval(iv); ov.remove(); K.busy(false); };
+    pcs.forEach(function (P) {
+      var sx, sy, ox, oy, moved, drag = false;
+      P.el.addEventListener('pointerdown', function (e) {
+        if (P.fix || done) return; e.preventDefault(); drag = true; moved = false; sx = e.clientX; sy = e.clientY;
+        var r = P.el.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top;
+        P.el.setPointerCapture && P.el.setPointerCapture(e.pointerId); P.el.style.zIndex = 50; P.el.style.transition = 'none';
+      });
+      P.el.addEventListener('pointermove', function (e) {
+        if (!drag) return; if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 6) moved = true; if (!moved) return;
+        var tr = tray.getBoundingClientRect(); P.el.style.left = (e.clientX - tr.left - ox) + 'px'; P.el.style.top = (e.clientY - tr.top - oy) + 'px';
+      });
+      function upH(e) {
+        if (!drag) return; drag = false; P.el.style.transition = '';
+        if (!moved) { P.rot = (P.rot + 90) % 360; home(P); K.au('page'); return; }
+        var br = board.getBoundingClientRect(), cx = e.clientX - ox + S / 2, cy = e.clientY - oy + S / 2;
+        if (cx < br.left || cx > br.right || cy < br.top || cy > br.bottom) { home(P); return; }
+        var ci = Math.floor((cx - br.left) / S), ri = Math.floor((cy - br.top) / S), si = ri * cols + ci;
+        if (si === P.i && P.rot === 0) {
+          P.fix = true; P.el.classList.add('fix'); board.appendChild(P.el); P.el.style.left = (ci * S) + 'px'; P.el.style.top = (ri * S) + 'px'; P.el.style.transform = 'none'; P.el.style.zIndex = 2;
+          K.au('coin'); placed++;
+          if (placed >= N2) { var sec = (Date.now() - t0) / 1000; end(sec <= PERF && wrong <= 2 ? 'sempurna' : 'lulus'); }
+        } else {
+          wrong++; info(); home(P); P.el.classList.remove('shake'); void P.el.offsetWidth; P.el.classList.add('shake');
+          msg.innerHTML = P.rot !== 0 && si === P.i ? 'Tempatnya benar, tapi <b>sobekannya terbalik</b>. Ketuk untuk memutar.' : 'Tepi robeknya tidak cocok di situ.';
+        }
+      }
+      P.el.addEventListener('pointerup', upH); P.el.addEventListener('pointercancel', function () { drag = false; home(P); });
+    });
+  }
+
+  /* =====================================================================
+   * Kabar saat tiba (kosong / dingin / zaman)
+   * ===================================================================== */
+  function tibaCek() {
+    var k = kj(), t = k && k.tiba; if (!t || !t.t || !K.docked()) return false;
+    if (Date.now() - t.t > 20 * 60000 || K.seen('tiba:' + t.t)) return false;
+    if (t.kota !== K.cid()) return false;
+    K.markSeen('tiba:' + t.t);
+    var w = K.modalWrap('eye', 'Perempuan Bergaun Putih', t.nama || here()), j = k.jejak || {}, sisa = (j.kand || []).filter(function (c) { return (j.coret || []).indexOf(c) < 0; });
+    var txt = '';
+    if (t.hasil === 'kosong') txt = '<p>Tak ada payung renda, tak ada kapal putih. <b>Ia tidak singgah di ' + esc(t.nama) + '.</b></p><p>' + esc(t.nama) + ' dicoret dari Papan Deduksi.' + (sisa.length ? ' Masih mungkin: <b>' + sisa.map(function (c) { return esc(city(c)); }).join(', ') + '</b>.' : '') + '</p>';
+    else if (t.hasil === 'dingin') txt = '<p>Kuli dermaga menggeleng. "Kapal putih? Sudah lama lewat, Kapten." <b>Jejaknya sudah dingin:</b> Franziska sudah pindah lagi.</p><p>' + (k.gosip ? 'Gosip terbaru: ia terlihat di <b>' + esc(k.gosip) + '</b>. Datangi dermaga itu dan baca jejaknya.' : k.besok ? 'Kabarnya ia baru berlayar lagi besok.' : 'Dengarkan gosip di kedai untuk kabar terbaru.') + '</p>';
+    else if (t.hasil === 'zaman') txt = '<p>Ini pelabuhan yang benar, tapi bukan zamannya. Janji Putih singgah di sini pada <b>' + esc(ERA[t.era] || t.era) + '</b>.</p><p>Pindah zaman lewat <b>Jam Agung</b> di em pe\'er de pe\'er' + (t.era === 'keadilan' ? ', atau Tarik Jangkar dari jurnal.' : '.') + '</p>';
+    else return false;
+    w.innerHTML = narr(t.hasil === 'kosong' ? 'Ia tidak di sini' : t.hasil === 'dingin' ? 'Jejak dingin' : 'Zaman yang salah', txt, actions(btn('ok', null, 'Mengerti', false) + (t.hasil !== 'zaman' ? btn('sail', 'ship', 'Berlayar') : '')), 'eye');
+    on(w, '[data-ps=ok]', K.close); on(w, '[data-ps=sail]', function () { K.close(); openPanel('setsail'); });
+    return true;
+  }
+
+  /* ---------- Quest 14: kartu setelah kalah ---------- */
+  function q14Kalah() {
+    var x = p(), q = x && x.q14, d = (q && q.d) || {};
+    if (!q || q.step !== 3 || !d.kalah) return false;
+    var seenN = K.memGet('q14kalah') || 0; if (d.kalah <= seenN) return false;
+    K.memSet('q14kalah', d.kalah);
+    var hpMax = q.hpMax || 1500, hp = d.hp != null ? d.hp : hpMax, pct = Math.round(hp / hpMax * 100), f = d.fase || 1;
+    var F = ['Tirai Pasir', 'Gema Masa Lalu', 'Kaca Ketujuh'][f - 1];
+    var w = K.modalWrap('ship', 'Janji Putih Lolos', 'Malam Pusaran');
+    w.innerHTML = narr('Serangan gagal (' + d.kalah + 'x)', '<p>Janji Putih masih di fase <b>' + f + '/3: ' + F + '</b>, lambungnya tersisa <b>' + pct + '%</b>. Lukanya tersimpan; serangan berikutnya melanjutkan dari sini.</p>' +
+      '<ul class="small">' + (f === 1 ? '<li>Baca <b>Arus Pusaran</b> dulu agar Tirai Pasir terbuka.</li>' : '') + '<li>Perbaiki kapal dan isi meriam sebelum menghadang lagi.</li><li>Pasang tiga Pusaka terbaik di panel Kapal.</li><li>Jangkar Waktu yang lebih baik bisa ditempa ulang di em pe\'er de pe\'er.</li></ul>',
+      actions(btn('ok', null, 'Mengerti', false)), 'ship');
+    on(w, '[data-ps=ok]', K.close);
+    return true;
+  }
+
+  wrap_('applyFreshState_', function () {
+    if (!p()) return;
+    var tries = 0;
+    setTimeout(function later() {
+      if (!state || !p()) return;
+      var ov = document.getElementById('modalOverlay');
+      if (K.busyUi() || (ov && ov.classList.contains('open'))) { if (tries++ < 60) setTimeout(later, 1000); return; }
+      try { tibaCek() || q14Kalah(); } catch (e) { console.warn('[PSK] scenes', e); }
+    }, 3000);
+  });
+
+  /* ---------- Set Sail: tanda kemungkinan tujuan ---------- */
+  wrap_('renderSetSailWith_', function () {
+    var k = kj(), x = p(); if (!k || !x) return;
+    var c = document.getElementById('modalContent'); if (!c) return;
+    var marks = {}, note = '';
+    var q12 = x.q12 && x.q12.step === 5, q13 = x.q13 && x.q13.step === 4 && x.tuju13;
+    if (q12 && K.era() === 'lampau') {
+      var j = k.jejak;
+      if (j && j.segar && j.kand) {
+        j.kand.forEach(function (cc) { marks[cc] = (j.coret || []).indexOf(cc) >= 0 ? 'coret' : 'kand'; });
+        var sisa = j.kand.filter(function (cc) { return marks[cc] === 'kand'; });
+        note = '<b>Pengejaran.</b> Kemungkinan tujuan Franziska: ' + sisa.map(function (cc) { return esc(city(cc)); }).join(', ') + '.';
+      } else if (k.gosip) note = '<b>Pengejaran.</b> Franziska terakhir terlihat di <b>' + esc(k.gosip) + '</b>. Datangi dan baca jejaknya.';
+      else if (k.besok) note = '<b>Pengejaran.</b> Ia baru berlayar lagi besok (hari game berikutnya).';
+    } else if (q12 && x.kejarZaman) note = '<b>Pengejaran.</b> Franziska bersembunyi di <b>40 Tahun Lalu</b>. Lompat lewat Jam Agung di em pe\'er de pe\'er.';
+    if (q13) {
+      var T = x.tuju13; marks[T.kota] = 'kand';
+      note = '<b>Pengejaran.</b> Janji Putih singgah di <b>' + esc(T.nama) + '</b> (' + esc(ERA[T.era] || T.era) + ')' + (K.era() !== T.era ? ', <i>bukan zaman ini: pindah zaman dulu lewat Jam Agung.</i>' : '.') + (T.susulOk ? '' : ' <i>Hari ini ia sudah lolos.</i>');
+    }
+    c.querySelectorAll('.dest-item[data-city]').forEach(function (d) {
+      var m = marks[d.getAttribute('data-city')]; if (!m || d.querySelector('.psk-tag')) return;
+      d.classList.add(m === 'coret' ? 'psk-coret' : 'psk-kand-mark');
+      var nm = d.querySelector('.di-name'); if (nm) nm.insertAdjacentHTML('beforeend', '<span class="psk-tag">' + ic(m === 'coret' ? 'x' : 'eye') + (m === 'coret' ? 'kosong' : 'mungkin') + '</span>');
+    });
+    if (note && !c.querySelector('.psk-sailnote')) {
+      var anchor = c.querySelector('.npc') || c.querySelector('.ph');
+      if (anchor) { var dv = document.createElement('div'); dv.className = 'psk-sailnote qg-callout'; dv.innerHTML = '<div class="qg-callout-ico">' + ic('eye') + '</div><div>' + note + '</div><span></span>'; anchor.parentNode.insertBefore(dv, anchor.nextSibling); }
+    }
+  });
+
+  /* ---------- chip pengejaran juga saat berlayar ---------- */
+  wrap_('renderScene', function () {
+    var x = p(), k = kj(); if (!x || !k || K.docked()) return;
+    var box = document.getElementById('cityTypeFlavor'); if (!box || box.querySelector('.psk-chip')) return;
+    var lbl = '';
+    if (x.q12 && x.q12.step === 5) { var j = k.jejak; lbl = j && j.segar && j.kand ? 'Mungkin: ' + j.kand.filter(function (c) { return (j.coret || []).indexOf(c) < 0; }).map(city).join(' / ') : k.gosip ? 'Terlihat: ' + k.gosip : ''; }
+    if (x.q13 && x.q13.step === 4 && x.tuju13) lbl = 'Janji Putih: ' + x.tuju13.nama;
+    if (!lbl) return;
+    var chip = '<span class="chip ps-chip psk-chip">' + ic('eye') + esc(lbl) + '</span>';
+    var row = box.querySelector('.loc-chips'); if (row) row.insertAdjacentHTML('afterbegin', chip); else box.insertAdjacentHTML('beforeend', '<div class="loc-chips">' + chip + '</div>');
+  });
+
+  /* ---------- tempat lampau sesuai keadaan ---------- */
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      var x = p();
+      if (x && K.docked() && K.era() === 'lampau') {
+        var s12 = qs('12'), s13 = qs('13'), c = K.cid(), txt = null, ico = null, ttl = null;
+        if (panel === 'ps_menara' && c === 'ikn' && s12 >= 3) {
+          ico = 'sun'; ttl = 'Menara Lampu';
+          txt = riak().tedsky_lampu === 'padam' ? '<p>Kadet Tedsky menggosok lensa lebih keras dari biasanya. Sesekali ia menatap laut lama sekali, seperti sedang menghafal cahayanya.</p><p class="muted small"><i>"Kalau padam, aku nyalakan lagi," gumamnya.</i></p>'
+            : '<p>Kadet Tedsky melambai dari puncak menara dengan tangan berminyak. Lampu IKN menyala sampai ke tengah laut.</p><p class="muted small"><i>"Seumur hidup, Kapten!"</i></p>';
+        }
+        if (panel === 'ps_kopi' && c === 'sudyrman_pelabuhan' && s12 >= 7 && !(s13 === 6 && !((x.q13 || {}).d || {}).pasang)) {
+          ico = 'coffee'; ttl = 'Kedai Kopi';
+          txt = '<p>Pemuda bertopi bowler mengangkat cangkir ke arahmu. "Yang pahit, Kapten?" Di balik meja, Miss Nansy menulis sesuatu di buku pancingnya.</p>';
+        }
+        if (panel === 'ps_akademi' && c === 'sudyrman_akademi' && s12 >= 7 && s13 !== 5 && s13 !== 6) {
+          ico = 'flag'; ttl = 'Akademi Laut Sudyrman';
+          txt = '<p>Penjaga gerbang mengenalimu dan memberi hormat. Di menara lonceng, sebuah peta selatan setengah jadi masih terlukis di dinding.</p>';
+        }
+        if (txt) { var w = K.modalWrap(ico, ttl, '40 Tahun Lalu'); w.innerHTML = narr(ttl, txt, actions(btn('ok', null, 'Tutup', false)), ico); on(w, '[data-ps=ok]', K.close); return; }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+
+  /* ---------- Tasks: jurnal kisah yang tamat dilipat ---------- */
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tasks' || !p()) return;
+    var c = document.getElementById('modalContent'), box = c && c.querySelector('.ps-wrap'); if (!box || box.querySelector('.psk-done')) return;
+    var q = (p().q) || {}, done = [];
+    function fold(el) { if (el) done.push(el); }
+    // Q10 (jurnal langsung di .ps-wrap), Q11..Q14 (div .psNN-j)
+    if (q['11'] >= 1) fold(box.querySelector(':scope > .qg-journal'));
+    if (q['12'] >= 1) fold(box.querySelector('.ps11-j'));
+    if (q['12'] >= 7) fold(box.querySelector('.ps12-j'));
+    if (q['13'] >= 7) fold(box.querySelector('.ps13-j'));
+    if (q['14'] >= 6) fold(box.querySelector('.ps14-j'));
+    if (!done.length) return;
+    var det = document.createElement('details'); det.className = 'psk-done';
+    det.innerHTML = '<summary>' + ic('scroll') + ' Kisah yang sudah selesai (' + done.length + ')</summary>';
+    done.forEach(function (el) { det.appendChild(el); });
+    box.appendChild(det);
+  });
+
+  return { main: main, koleksi: koleksi, suratN: suratN, _warga: warga, _kuli: kuli, _buntuti: buntuti, _surat: surat, _tiba: tibaCek, _q14: q14Kalah };
+})();
+</script>

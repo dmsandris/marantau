@@ -336,6 +336,7 @@ var PS11 = (function () {
   }
 
   /* ---------- Jurnal ---------- */
+  function q12mulai() { var x = p(); return !!(x && x.q && x.q['12'] >= 1); }
   function objective() {
     var s = step();
     if (s === 1) return '<i>"Aku sudah menemukan jalan pulang ke pulauku."</i> Temui Paman Ocid di <b>Pustaka Sunda Empire</b>. Bawa modalmu.';
@@ -345,7 +346,7 @@ var PS11 = (function () {
     if (s === 5) return '<i>"Jangkar ini menahan kapal di waktunya."</i> Naiki 999 anak tangga ke <b>Jam Agung</b>.';
     if (s >= 6 && s <= 8) return '<i>"Malam badai. Bertahun-tahun lalu."</i> Seorang pemuda di pantai Skitraw butuh bantuan.';
     if (s === 9) return 'Paman Ocid menunggumu di ruang <b>Jam Agung</b>.';
-    if (s >= 10) return '<i>"Ia pergi lebih jauh ke belakang. Ke masa ketika lampu kota yang runtuh itu terlihat sampai tengah laut."</i>';
+    if (s >= 10) return '<i>"Ia pergi lebih jauh ke belakang. Ke masa ketika lampu kota yang runtuh itu terlihat sampai tengah laut."</i>' + (q12mulai() ? '' : ' Jarum <b>Jam Agung</b> di em pe\'er de pe\'er kini menunjuk <b>40 Tahun Lalu</b>. Lompatlah ke sana.' + (((p() || {}).jangkarMs || 0) > 0 ? ' <i>Jangkar Waktu masih dingin: ' + Math.ceil(p().jangkarMs / 60000) + ' menit lagi.</i>' : ''));
     return '';
   }
   function journal() {
@@ -363,11 +364,12 @@ var PS11 = (function () {
     if (dock && s === 3 && city === 'empeer_depeer') b = btn('j3', 'fish', 'Menyelam');
     if (dock && s === 4 && city === 'empeer_depeer') b = btn('j4', 'hammer', 'Tempa Jangkar');
     if (dock && (s === 5 || s === 9) && city === 'empeer_depeer') b = btn('j5', 'hourglass', 'Jam Agung');
+    if (dock && s >= 10 && !q12mulai() && city === 'empeer_depeer' && K.era() === 'keadilan') b = btn('j10', 'hourglass', 'Jam Agung');
     if (s >= 6 && s <= 8 && badai()) b = btn('j6', 'wrench', 'Ke perahu di pantai');
     if (b) d.querySelector('.qg-journal').insertAdjacentHTML('beforeend', actions(b));
     if (box) box.appendChild(d); else { var w = K.insert(''); if (w) w.appendChild(d); }
     on(d, '[data-ps=j1]', ocidMulai); on(d, '[data-ps=j2]', bayarScene); on(d, '[data-ps=j3]', function () { K.close(); selamGame(); });
-    on(d, '[data-ps=j4]', function () { K.close(); tempaGame(); }); on(d, '[data-ps=j5]', jamPanel); on(d, '[data-ps=j6]', galaPanel);
+    on(d, '[data-ps=j4]', function () { K.close(); tempaGame(); }); on(d, '[data-ps=j5]', jamPanel); on(d, '[data-ps=j10]', function () { K.close(); openPanel('ps_jam'); }); on(d, '[data-ps=j6]', galaPanel);
   }
 
   /* ---------- Pusaka di panel Ship ---------- */
