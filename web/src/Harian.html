@@ -110,7 +110,15 @@ var HR = (function () {
   var HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
   var TIER = [null, { n: 'Mudah', ic: 'anchor' }, { n: 'Sedang', ic: 'compass' }, { n: 'Tantangan', ic: 'flag' }];
   var FACE = {};
-  function tokoh(i) { return TOKOH[((i || 1) - 1 + 7) % 7]; }
+  function tokoh(i) {
+    var t = TOKOH[((i || 1) - 1 + 7) % 7];
+    // Tide v52: jabatan tokoh mengikuti cerita pemain
+    try {
+      if (t.name === 'Teh Euis' && state && state.toogood && state.toogood.freed) return Object.assign({}, t, { title: 'Perpustakaan Rakyat, TooGood' });
+      if (t.name === 'Daeng Sore' && state && state.kompas && (state.kompas.step || 0) >= 2) return Object.assign({}, t, { title: "Pensiunan Black's Alley", open: 'Sudah pensiun, Kapten, tapi lidahku belum. Tiga pekerjaan saja, sebelum lampu dinyalakan.' });
+    } catch (e) { }
+    return t;
+  }
   function face(i, bg) {
     var k = (i || 1) + '|' + (bg || ''); if (FACE[k]) return FACE[k];
     var t = tokoh(i), ap = t.ap;

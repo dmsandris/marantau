@@ -1,0 +1,231 @@
+<script>
+/* =====================================================================
+ * Tide v52 · Gosip Lapau segar
+ * - Gosip baru per pulau, bertingkat mengikuti cerita pemain (pemula → Saga 1 → Saga 2).
+ * - "Gosip hari ini": 2 kabar dipilih per hari game per pulau, jadi lapau terasa baru tiap hari.
+ * - Sapaan pemilik lapau per pulau (siang & malam), celetukan warga per pulau.
+ * - Mati sendiri saat Saga 3 berjalan (gosip Saga 3 diurus modul Pasir).
+ * - TIDAK menyebut: side quest rahasia, pemicu Saga 3, rincian bunga bank.
+ * Dipakai dari inti: rumors_() → MTGosip.lines(cid), renderTavern → MTGosip.keeper(cid), walkerLine_ → MTGosip.warga(cid).
+ * ===================================================================== */
+var MTGosip = (function () {
+  function S() { return window.state || null; }
+  function q(k) { var s = S(); return (s && s[k]) || null; }
+  function off() {
+    var s = S(); if (!s) return true;
+    var p = s.pasir; if (p && !p.gm) return true;
+    if (p && p.era && p.era !== 'kini') return true;
+    var w = s.warwerwor; if (w && w.marketClosed) return true;
+    return false;
+  }
+  function has(tag) {
+    var g = q('gala'), t = q('toogood'), w = q('warwerwor'), b = q('barsati'), d = q('duatangan');
+    switch (tag) {
+      case 'all': return true;
+      case 'baru': return !(g && (g.done || g.step >= 6));
+      case 'q1': return !!(g && (g.done || g.step >= 6));
+      case 'outlaw': return !(t && t.freed);
+      case 'freed': return !!(t && t.freed);
+      case 'ww': return !!(w && w.step >= 12);
+      case 's1': return !!(b && (b.done || b.step >= 16));
+      case 'vet': return !!(d && (d.step || 0) >= 5);
+    }
+    return false;
+  }
+  function night() { try { var f = dayFrac_(); return f >= 0.72 || f < 0.04; } catch (e) { return false; } }
+  function hash(s) { return MTUtil.hashStr(String(s)); }
+
+  /* ---------- kabar umum Mare Nusantara ---------- */
+  var MARE = ['sunda_empire', 'joungjava', 'bjorneo', 'skitraw', 'toogood', 'ikn', 'paradiso', 'marie_regal'];
+  var WORLD = {
+    all: [
+      'Kata nakhoda tua, angin barat datang lebih awal tahun ini. Kapal ringan untung, kapal berat menggerutu.',
+      'Ada saudagar yang rugi besar karena menimbun satu barang saja. Jangan taruh semua telur di satu palka, Kapten.',
+      'Yang paling cepat kaya bukan yang paling jauh berlayar, tapi yang paling rajin mencatat harga.',
+      'Papan "Dicari!" di pasar itu jangan dianggap hiasan. Yang jeli, pulang bawa untung.',
+      'Ikan tertentu cuma naik kalau bulan sudah tinggi. Nelayan malam tahu rahasianya.',
+      'Kapal yang lambungnya retak lebih mudah dicegat. Perompak bisa mencium bau kayu lapuk.',
+      'Gubernur suka kapten yang menepati janji. Satu kiriman terlambat, ia ingat sampai tahun depan.'
+    ],
+    s1: [
+      'Sejak ada Armada Bebas, perompak kecil lebih suka mancing daripada merampok.',
+      'Anak-anak di dermaga sekarang main "Tiga Tanda Silang". Yang kalah jadi Tedsky.'
+    ],
+    vet: [
+      'Kapal dari Laut Jauh makin sering singgah. Bahasanya aneh, tapi gold-nya sama kuningnya.',
+      'Katanya kapten-kapten tua sekarang lebih suka berlayar berombongan. Laut terasa lebih ramah kalau ada teman.',
+      'Ada yang bilang peta Mare Nusantara sudah terlalu kecil untuk kapten sepertimu. Ada juga yang bilang laut tak pernah kecil.',
+      'Pelikan-pelikan sekarang terbang tanpa takut. Dulu mereka diburu. Sekarang mereka yang paling tahu kabar.'
+    ]
+  };
+
+  /* ---------- gosip per pulau ---------- */
+  var G = {
+    sunda_empire: {
+      all: ['Balai Adat sedang menenun ulang tirai gonjongnya. Benangnya dari Joungjava, warnanya dari Sunda.',
+        'Pedagang batik di pasar bilang motif kapal paling laku. Semua orang ingin dikira pelaut.',
+        'Bank Saudagar buka lebih pagi kalau ada kapal besar merapat. Bankirnya tak suka melewatkan suara koin.',
+        'Galangan di sini memang tak semewah Gaul-Wash, tapi pakunya jujur.',
+        'Jukung-jukung berlayar batik itu bisa membaca angin lebih baik dari kompas mana pun.'],
+      baru: ['Kapten baru biasanya mulai dari garam dan perkakas. Ringan, laku di mana-mana.',
+        'Jangan langsung ke TooGood, Kapten. Kapal pertama terlalu berharga untuk dijadikan kayu bakar.'],
+      q1: ['Ada gelang emas bayi yang dipamerkan di sebuah galangan di utara. Katanya harta paling berharga di Mare Nusantara.'],
+      vet: ['Pemuda-pemuda Sunda sekarang ingin jadi kapten. Kami bilang: mulai dari palka tiga puluh dulu, seperti semua orang.']
+    },
+    joungjava: {
+      all: ['Residen menaikkan pajak gula lagi. Gula tetap manis, mukanya saja yang asam.',
+        'Kopi pantai di sini diseduh tiga kali. Yang pertama untuk tamu, yang ketiga untuk yang berani.',
+        'Kalau ayam di jalan berhenti berkokok, artinya kapal besar baru masuk. Ayam di sini lebih paham dagang dari juru tulis.',
+        'Kayu jati dari bukit dikirim ke semua galangan. Separuh kapal di laut ini lahir dari hutan kami.',
+        'Javasche Bank tak pernah sepi. Orang datang menabung, orang datang menonton bankirnya minum kopi.'],
+      night: ['Malam begini warung pantai ramai nelayan. Mereka menunggu ikan yang cuma naik kalau bulan tinggi.'],
+      s1: ['Pak Tua Karto sudah tiga kali menceritakan Armada Terakhir. Setiap kali, kapalnya bertambah satu.'],
+      vet: ['Bankir bertopi bulat itu katanya sekarang sering tersenyum. Para juru tulis bank jadi gugup.']
+    },
+    bjorneo: {
+      all: ['Gunung itu batuk lagi semalam. Lada kami jadi lebih pedas, kata orang pasar.',
+        'Rumah panggung di lereng dibangun dari ulin. Cucu kami nanti masih bisa tidur di sana.',
+        'Sarang walet harganya naik turun seperti burungnya. Yang sabar, untung.',
+        'Kabut pagi di Bjorneo tebal sekali. Juru mudi baru sering salah sangka mercusuar itu bulan.',
+        'Gaharu yang bagus wanginya keluar sebelum dibakar. Yang palsu harus dibakar dulu baru ketahuan.'],
+      night: ['Tuak malam ini hangat. Gunungnya juga.'],
+      s1: ['Nenek Ulin bertanya teka-teki baru ke setiap kapten. Jawabannya bukan jangkar lagi, katanya.'],
+      vet: ['Penyelam muda sekarang berani turun lebih dalam. Laut di barat sudah tidak marah lagi.']
+    },
+    skitraw: {
+      all: ['RM Padang kehabisan rendang jam sebelas siang. Antre dari pagi, Kapten.',
+        'Neon Gaul-Wash menyala sampai fajar. Katanya biar kapal yang pulang malam tak salah dermaga.',
+        'Museum sepeda menambah koleksi: sepeda yang pernah dikayuh keliling pulau tujuh hari tujuh malam.',
+        'Ikan asin Skitraw paling cocok untuk pelayaran jauh. Tak basi, tak mengeluh.',
+        'Kayu manis di sini dijemur di atap ruko. Kalau angin dari darat, seluruh dermaga wangi.'],
+      q1: ['Uda Gala sedang mengajari bocah-bocah cara mencuci lambung kapal. Yang paling rajin dapat rendang gratis.'],
+      ww: ['Kapal-kapal dari Marie Regal mulai antre cuci di Gaul-Wash. Robot awaknya ikut menggosok lambung.'],
+      vet: ['Uda Gala bilang ia sudah punya cerita sejarah baru. Katanya sekarang ada kapten yang masuk ke ceritanya.']
+    },
+    toogood: {
+      outlaw: ['Kalau ada yang menawarimu peta murah di gang belakang, itu bukan peta. Itu jebakan.',
+        'Rentenir di sini bunganya bisa bikin kapal tenggelam tanpa ombak.',
+        'Mesiu di Pasar Gelap murah, tapi jangan tanya dari gudang siapa.'],
+      freed: ['Cerobong-cerobong mulai dicat. Warnanya norak, tapi kami suka.',
+        'Perpustakaan Rakyat ramai anak-anak sekarang. Teh Euis mengajari mereka membaca peta.',
+        'Pasar Gelap sekarang buka siang hari. Namanya saja yang masih gelap.',
+        'Bocah-bocah TooGood sekarang main kapal-kapalan dari kaleng mesiu bekas. Benderanya bukan tengkorak lagi.'],
+      night: ["Malam di Black's Alley: lampu dinyalakan, kanvas dibentangkan. dwi melukis siapa saja yang mau duduk diam lima menit."],
+      vet: ['Ada empat ukiran tanda silang di tiang dermaga. Orang-orang menyentuhnya sebelum berlayar jauh.']
+    },
+    ikn: {
+      all: ['Pemulung menemukan lampu jalan yang masih menyala di reruntuhan. Mereka menamainya Si Keras Kepala.',
+        'Besi dari menara runtuh masih bagus. Kota ini mati, tapi tulangnya kuat.',
+        'Anak-anak Kamp Pemulung hafal semua nama kapal yang singgah. Coba tanya, namamu pasti ada.',
+        'Lumut di kaki Garuda dibersihkan tiap Jumat. Tidak ada yang menyuruh.',
+        'Dok Karat menerima kapal apa saja. Tukangnya bilang besi berkarat juga punya harga diri.'],
+      night: ['Kalau malam, monumen Garuda kelihatan lebih besar. Mungkin karena kota di sekelilingnya gelap.'],
+      vet: ['Ada yang menulis nama-nama kapten di tembok dekat Garuda. Pakai arang, tapi tak ada yang berani menghapusnya.']
+    },
+    paradiso: {
+      all: ['Kasino Mutiara memasang meja baru. Dadunya katanya jujur. Bandarnya, belum tentu.',
+        'Bungalow di atas air penuh sampai akhir bulan. Yang kehabisan tidur di hammock, tak ada yang protes.',
+        'Cengkeh Paradiso paling harum kalau baru dipetik pagi.',
+        'Kolam air panas paling enak sebelum matahari terbit. Siang, isinya kapten yang lupa utang.'],
+      night: ['Api unggun sudah dinyalakan. Tujuh penari menunggu genderang pertama.'],
+      vet: ['Ada kapten yang menyumbang pasir dari tujuh pulau untuk pantai ini. Sekarang pasir kami berwarna-warni.']
+    },
+    marie_regal: {
+      ww: ['Monorel sekarang berhenti di setiap stasiun, walau tak ada penumpang. Katanya robot-robot sedang belajar sabar.',
+        'Laboratorium Regal membuka kelas membaca untuk robot. Murid pertamanya R-02.',
+        'K-11 belajar menyeduh kopi tubruk. Rasanya seperti oli, tapi ia bangga.'],
+      vet: ['Papan iklan di menara kaca sekarang menampilkan nama-nama kapal yang lewat. Kapalmu muncul dua kali sehari.']
+    },
+    gading_island: {
+      all: ['Teh di Gading diseduh di cangkir tanpa gagang. Pegang dengan dua tangan, katanya, biar hormat.',
+        'Rumah Mahjong pasang lampion baru. Yang lama digantung di dermaga untuk kapal yang pulang malam.',
+        'Toko obat di ujung jalan punya ramuan untuk semua penyakit, kecuali rindu kampung.']
+    },
+    otoland: {
+      all: ['Kincir di tanjung berputar terbalik semalam. Nelayan bilang itu tanda angin sedang bercanda.',
+        'Jaring Otoland dijahit tiga generasi. Lubangnya pun punya nama.',
+        'Koperasi menjual garam angin dengan harga sama untuk semua kapten. Tak ada tawar-menawar.']
+    },
+    empeer_depeer: {
+      all: ['Formulir izin bersandar sekarang tujuh lembar. Dulu enam. Yang ketujuh untuk mengonfirmasi enam yang lain.',
+        'Kantin Pegawai menyediakan menu baru: nasi bercap. Capnya dari kecap, untungnya.',
+        'Jam Agung sudah dibersihkan. Masih mati, tapi sekarang mati dengan mengilap.']
+    },
+    freeyork: {
+      all: ['Tungku utama dipanaskan lagi pagi ini. Debu arangnya sampai ke laut.',
+        'Pandai besi FreeYork sekarang menempa jangkar, bukan rantai. Lebih laku, katanya.',
+        'Di Kedai Arang, kopinya hitam dan kuat. Seperti tangan yang menyeduhnya.']
+    },
+    karang_garam: {
+      all: ['Penyelam muda menemukan mutiara sebesar kelereng. Ia menukarnya dengan sepiring ikan bakar dan tak menyesal.',
+        'Garam karang dijemur di atas atap. Kalau hujan, satu desa berlarian.',
+        'Rumah-rumah di atas tiang ini tak pernah kebanjiran. Laut yang harus mengalah.']
+    },
+    sowtour: {
+      all: ['Lonceng di Kedai Lonceng berbunyi setiap ada kabar baru. Akhir-akhir ini bunyinya sering.',
+        'Menara-menara Sowtour menyala lagi. Pelikan pulang ke sarangnya satu per satu.',
+        'Warga Sowtour sekarang suka mengobrol keras-keras. Mungkin menebus tahun-tahun yang sunyi.']
+    },
+    rantai_lama: {
+      all: ['Pelabuhan ini sepi, tapi tidak mati. Angin selalu datang tepat waktu.',
+        'Tiang-tiang tua di dermaga dibiarkan berdiri. Kata orang, supaya laut tak lupa apa yang pernah terjadi di sini.']
+    }
+  };
+
+  /* ---------- sapaan pemilik lapau ---------- */
+  var KEEPER = {
+    sunda_empire: { day: ['Kopi Sunda, Kapten? Pahitnya sopan, manisnya tahu diri.', 'Duduk di dekat jendela, dari situ kapal-kapal yang masuk kelihatan semua.'], night: ['Lapau tutup kalau lilin terakhir habis. Masih panjang lilinnya, Kapten.'] },
+    joungjava: { day: ['Kopi tubruk atau kopi pantai, Kapten? Dua-duanya bikin melek sampai Bjorneo.', 'Gula di meja itu gratis. Pajaknya saja yang tidak.'], night: ['Nelayan malam sudah datang. Kalau mau dengar kabar ikan, sekaranglah waktunya.'] },
+    bjorneo: { day: ['Tuak atau teh, Kapten? Di Bjorneo, dua-duanya hangat.', 'Hati-hati di lantai, papannya ulin. Yang jatuh duluan biasanya kepala, bukan papan.'], night: ['Gunung batuk lagi. Tenang, itu tanda ia masih sehat.'] },
+    skitraw: { day: ['Duduak lah, Kapten. Rendang baru diangkat, kopinya baru diseduh.', 'Yang makan di sini bayar pakai cerita juga boleh, asal ceritanya enak.'], night: ['Lampu neon Gaul-Wash sampai ke meja ini. Kami tak pernah perlu lilin.'] },
+    toogood: { day: ['Duduk, Kapten. Di sini tak ada yang bertanya dari mana kau datang.', 'Gelasnya bersih. Ceritanya yang kotor.'], night: ['Lampu sudah dinyalakan. Malam di Black\'s Alley baru dimulai.'] },
+    ikn: { day: ['Kopinya dari kaleng bekas, Kapten, tapi airnya mendidih betulan.', 'Kursi itu dulu milik kantor kementerian. Sekarang milik siapa saja yang lelah.'], night: ['Malam di kamp ini dingin. Duduk dekat api, ceritanya lebih hangat di sini.'] },
+    paradiso: { day: ['Lepaskan sepatumu dulu, Kapten. Gosip di sini lebih enak didengar tanpa alas kaki.', 'Es kelapa atau tuak? Di Paradiso, jawaban yang salah cuma "tidak dua-duanya".'], night: ['Api unggun sudah menyala. Pesanlah sesuatu sebelum penarinya datang.'] },
+    marie_regal: { day: ['SELAMAT DATANG. UNIT INI SEDANG BELAJAR MENGOBROL. SILAKAN BERCERITA, KAPTEN.', 'KOPI ANDA: 97 DERAJAT. UNIT INI DIBERI TAHU BAHWA ITU TERLALU PANAS UNTUK MANUSIA.'], night: ['MALAM HARI. KOTA SUDAH BOLEH BERISIK. UNIT INI MENYUKAINYA.'] },
+    gading_island: { day: ['Teh dulu, Kapten. Gosip belakangan.', 'Meja mahjong penuh, tapi meja gosip selalu kosong satu kursi untukmu.'] },
+    otoland: { day: ['Pegang cangkirmu, Kapten. Angin Otoland suka mencuri teh.', 'Ikan bakar garam angin, mau? Garamnya dari halaman belakang.'] },
+    empeer_depeer: { day: ['Silakan isi formulir pesanan, Tuan. Tiga rangkap. Kopinya menyusul setelah dicap.', 'Kantin ini hanya untuk pegawai. Tapi kapten dianggap pegawai laut, jadi silakan.'] },
+    freeyork: { day: ['Kopi arang, Kapten. Hitam, panas, dan tidak minta maaf.', 'Cuci tangan dulu kalau habis dari dok. Debunya bikin kopi terasa seperti besi.'] },
+    karang_garam: { day: ['Habis menyelam, perut harus diisi, Kapten. Duduklah.', 'Ikannya baru naik, nasinya baru matang. Gosipnya, nah, gosipnya sudah dari kemarin.'] },
+    sowtour: { day: ['Bunyikan lonceng kalau mau pesan, Kapten. Di Sowtour, kami suka suara lagi.', 'Duduk, Kapten. Kedai ini dulu diam bertahun-tahun. Sekarang ia senang ada tamu.'] },
+    rantai_lama: { day: ['Tak banyak yang singgah di sini, Kapten. Kopinya jadi selalu baru.'] }
+  };
+
+  /* ---------- celetukan warga ---------- */
+  var WARGA = {
+    sunda_empire: ['Batik baru, Kapten! Motif kapal, cocok untukmu.', 'Awas jukung lewat!'],
+    joungjava: ['Kopi! Kopi pantai!', 'Ayamnya jangan ditabrak, Tuan!'],
+    bjorneo: ['Lada segar, baru turun gunung!', 'Kabutnya tebal, jalan pelan-pelan.'],
+    skitraw: ['Rendang masih ada! Cepat!', 'Minggir, sepeda lewat!'],
+    ikn: ['Besi bekas, Kapten? Masih kuat!', 'Garuda masih berdiri, kan?'],
+    paradiso: ['Sudah mandi air panas, Kapten?', 'Malam ini ada tarian!']
+  };
+
+  function pool(cid) {
+    var g = G[cid], out = [];
+    if (g) Object.keys(g).forEach(function (tag) {
+      if (tag === 'night') { if (night()) out = out.concat(g.night); return; }
+      if (has(tag)) out = out.concat(g[tag]);
+    });
+    if (MARE.indexOf(cid) >= 0) Object.keys(WORLD).forEach(function (tag) { if (has(tag)) out = out.concat(WORLD[tag]); });
+    return out;
+  }
+  /** 2 gosip "hari ini" (tetap selama satu hari game) + 1 acak. */
+  function lines(cid) {
+    if (off() || !cid) return [];
+    var p = pool(cid); if (!p.length) return [];
+    var day = (S() && S().gameDay) || 0, r = MTUtil.rng(hash(cid + '|gosip|' + day)), a = p.slice(), out = [];
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    out.push(a[0]); if (a.length > 1) out.push(a[1]);
+    if (a.length > 2) out.push(a[2 + Math.floor(Math.random() * (a.length - 2))]);
+    return out;
+  }
+  function keeper(cid) {
+    if (off()) return null;
+    var k = KEEPER[cid]; if (!k) return null;
+    return night() && k.night ? k.night.concat(k.day.slice(0, 1)) : k.day;
+  }
+  function warga(cid) { if (off()) return []; return WARGA[cid] || []; }
+  return { lines: lines, keeper: keeper, warga: warga, _pool: pool };
+})();
+</script>
