@@ -207,9 +207,9 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   // IKN selesai -> Ki Dorus berhenti menyumbang
   await H.sql(`update game.gr_projects set done_at = now() where id = 'ikn'`);
   await H.sql(`insert into game.kongsi(player_id, tier, modal, outcome, depart_at, kabar_at, return_at, kabar_good, status, payout, settled_at, settle_week)
-               values ($1, 'agresif', 3000000, 0, now(), now(), now(), false, 'pulang', 0, game.hr_now(), game.kongsi_week_start() - interval '21 days')`, [A.id]);
+               values ($1, 'agresif', 3000000, 0, now(), now(), now(), false, 'pulang', 0, game.hr_now(), game.kongsi_week_start() - interval '70 days')`, [A.id]);
   await A.call('api_mpPulse', [{}]);
-  const wk3 = await one(`select * from game.kongsi_week where week = game.kongsi_week_start() - interval '21 days'`);
+  const wk3 = await one(`select * from game.kongsi_week where week = game.kongsi_week_start() - interval '70 days'`);
   ok(Number(wk3.donasi) === 0 && wk3.catatan === 'ikn selesai', 'setelah Restorasi selesai: tidak ada sumbangan');
   s = await A.call('api_getGameState', [null]);
   ok(s.kongsi.ikn === false, 'state: IKN selesai');
