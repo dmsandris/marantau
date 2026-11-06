@@ -3297,8 +3297,50 @@
     if (window.QT) { var qn = QT.npc(cid, role); if (qn) return qn; }
     var outlaw = state && state.city && state.city.Type === 'Outlaw';
     var ap = MTFace.npc(cid + '|' + role, outlaw && role !== 'bankir' ? 'bajak' : role);
-    var r = MTUtil.rng(MTUtil.hashStr(cid + '#' + role));
-    return { name: MTUtil.pick(r, ap.fem ? NPC_F : NPC_M), title: (outlaw ? ROLE_TITLE_OUTLAW : ROLE_TITLE)[role] || '', ap: ap };
+    return { name: genericNpcName_(cid, role, ap.fem), title: (outlaw ? ROLE_TITLE_OUTLAW : ROLE_TITLE)[role] || '', ap: ap };
+  }
+  /* Tide v52: nama NPC generik.
+   * - Nama tokoh cerita (Teh Euis, Daeng Sore, Koh Liong) tidak lagi dipakai warga biasa di kota lain,
+   *   kecuali di kursi yang memang milik mereka (PIN).
+   * - Dalam satu kota tidak ada dua NPC generik bernama sama.
+   * Urutan pilih lama tetap sama, jadi NPC yang tidak bermasalah tidak berganti nama. */
+  var NPC_STORY_ = { 'Teh Euis': 1, 'Daeng Sore': 1, 'Koh Liong': 1 };
+  var NPC_PIN_ = { 'joungjava|lapau': 1, 'ikn|bankir': 1, 'toogood|lapau': 1 };
+  var NPC_ALT_M = ['Pak Darmo', 'Bang Jufri', 'Mang Ujang', 'Om Ronny', 'Pak Sabar', 'Wak Item', 'Bang Rahmat', 'Pak Kosim'];
+  var NPC_ALT_F = ['Bu Warsih', 'Ceu Popon', 'Kak Ani', 'Mbak Yayuk', 'Bu Tini', 'Nek Saodah', 'Uni Desi', 'Bu Murni'];
+  var NPC_ROLE_ORDER_ = ['syahbandar', 'saudagar', 'pustakawan', 'tukang', 'bankir', 'lapau', 'gudang'];
+  var NPC_NAME_CACHE_ = {};
+  function genericNpcRaw_(cid, role) {
+    var fem = MTUtil.rng(MTUtil.hashStr(cid + '|' + role))() < 0.45;
+    return { fem: fem, name: MTUtil.pick(MTUtil.rng(MTUtil.hashStr(cid + '#' + role)), fem ? NPC_F : NPC_M) };
+  }
+  function genericNpcName_(cid, role, fem) {
+    if (!NPC_NAME_CACHE_[cid]) {
+      var used = {}, map = {};
+      NPC_ROLE_ORDER_.forEach(function (rl) {
+        var g = genericNpcRaw_(cid, rl), nm = g.name;
+        // pemilik lapau tidak disentuh: namanya dipakai modul lain sebagai kunci ganti-nama (Peregrin)
+        if (rl === 'lapau') { map[rl] = nm; return; }
+        if ((NPC_STORY_[nm] && !NPC_PIN_[cid + '|' + rl]) || used[nm]) {
+          var alt = g.fem ? NPC_ALT_F : NPC_ALT_M, r2 = MTUtil.rng(MTUtil.hashStr(cid + '~' + rl)), i0 = Math.floor(r2() * alt.length);
+          for (var k = 0; k < alt.length; k++) { nm = alt[(i0 + k) % alt.length]; if (!used[nm]) break; }
+        }
+        used[nm] = 1; map[rl] = nm;
+      });
+      NPC_NAME_CACHE_[cid] = map;
+    }
+    var nm0 = NPC_NAME_CACHE_[cid][role];
+    if (nm0) return nm0;
+    return MTUtil.pick(MTUtil.rng(MTUtil.hashStr(cid + '#' + role)), fem ? NPC_F : NPC_M);
+  }
+  /* Tide v52: gema setelah quest utama hanya tampil sampai quest utama berikutnya dimulai,
+   * supaya kabar lama (mis. "Tedsky mengecat Garuda") tidak menumpuk dan saling bertentangan. */
+  var MT_QUEST_CHAIN_ = ['gala', 'toogood', 'warwerwor', 'barsati', 'kompas', 'cocoepan', 'tigasilang', 'limatangan', 'duatangan'];
+  function questEchoOk_(key) {
+    var i = MT_QUEST_CHAIN_.indexOf(key), nx = i >= 0 ? MT_QUEST_CHAIN_[i + 1] : null;
+    if (!nx || !state) return true;
+    var s = state[nx];
+    return !(s && (s.step || 0) >= 1);
   }
   function npcHtml_(role, text) {
     var n = npc_(role);
@@ -3352,7 +3394,8 @@
     var opts = lastSailOptions || [];
     var ev = opts.filter(function (o) { return o.eventLabel; })[0];
     if (ev) return 'Kabar dari syahbandar lain: <b>' + esc_(ev.eventLabel) + '</b> di ' + esc_(ev.name) + '. Bisa jadi peluang!';
-    return pickLine_(['Angin sedang baik. Tentukan tujuanmu, Kapten.', 'Hati-hati ke TooGood &mdash; bajak laut berkeliaran di jalur itu.', 'Catat harga di tiap pelabuhan; itu peta harta pedagang.'], 'sail');
+    var tg = cityById_('toogood'), tgOutlaw = !tg || tg.Type === 'Outlaw';
+    return pickLine_(['Angin sedang baik. Tentukan tujuanmu, Kapten.', tgOutlaw ? 'Hati-hati ke TooGood &mdash; bajak laut berkeliaran di jalur itu.' : 'Jalur ke TooGood sekarang aman. Black Pearl yang menjaganya.', 'Catat harga di tiap pelabuhan; itu peta harta pedagang.'], 'sail');
   }
   function lineCargo_() { return pickLine_(['Palka penuh? Titip di sini, ambil kapan saja kamu kembali.', 'Gudang kami kering dan terkunci. Tikus pun tak berani masuk.'], 'cargo'); }
   // Tide v33: pustakawan pulau Laut Jauh punya kalimat sendiri
@@ -3378,34 +3421,60 @@
     ikn: ['Dulu kota ini paling megah. Sekarang kami memungut sisa-sisanya.', 'Garuda itu masih berdiri. Selama ia berdiri, kami tak menyerah.', 'Papan RESTORASI itu dipasang tiap tahun. Tiap tahun juga lapuk.'],
     paradiso: ['Selamat datang di Paradiso, Kapten! Lepaskan sepatumu, lupakan utangmu.', 'Pesta di pantai dimulai saat matahari terbenam dan baru selesai saat fajar.', 'Mata air panas kami menyembuhkan kapal dan hati yang lelah.', 'Penari kami belajar dari tujuh pulau. Malam ini mereka menari untukmu.']
   };
+  /* Tide v52: kabar harga hanya dari catatan yang masih segar (paling lama satu hari game),
+   * paling banyak 2 per gelas kopi, supaya tidak menenggelamkan gosip lain. */
+  var RUMOR_PRICE_MAX_AGE_MS = 3 * 3600 * 1000;
+  function freshBest_(commodityId) {
+    var m = getPriceMem_(), now = Date.now(), bs = null, bb = null;
+    var maxAge = Math.max(RUMOR_PRICE_MAX_AGE_MS, ((state && state.dayLengthMinutes) || 180) * 60000);
+    Object.keys(m).forEach(function (cid) {
+      var rec = m[cid], it = rec && rec.items && rec.items[commodityId];
+      if (!it || !rec.t || now - rec.t > maxAge || !cityById_(cid)) return;
+      if (!bs || it.sell > bs.price) bs = { city: cid, price: it.sell, name: it.name };
+      if (!bb || it.buy < bb.price) bb = { city: cid, price: it.buy, name: it.name };
+    });
+    return { sell: bs, buy: bb };
+  }
+  function shuffle_(arr) { for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = arr[i]; arr[i] = arr[j]; arr[j] = t; } return arr; }
   function rumors_(n) {
     var out = [], cid = state && state.city ? state.city.CityId : '';
     var opts = panelCache['sailOptions:' + cid] || lastSailOptions || [];
     opts.forEach(function (o) { if (o.eventLabel) out.push('Kudengar sedang ada <b>' + esc_(o.eventLabel) + '</b> di ' + esc_(o.name) + '. Harga di sana pasti bergeser.'); });
-    var mem = getPriceMem_();
+    var tips = [];
     Object.keys(COMMODITY_META).forEach(function (id) {
-      var bk = bestKnown_(id, null);
+      var bk = freshBest_(id);
       if (bk.buy && bk.sell && bk.sell.city !== bk.buy.city && bk.sell.price > bk.buy.price * 1.15) {
-        var nm = (mem[bk.buy.city].items[id] || {}).name || capitalize_(id);
-        out.push('Beli <b>' + esc_(nm) + '</b> di ' + esc_(cityName_(bk.buy.city)) + ' (' + bk.buy.price + '), jual di ' + esc_(cityName_(bk.sell.city)) + ' (' + bk.sell.price + '). Untung ' + (bk.sell.price - bk.buy.price) + '/unit, kalau harganya belum berubah.');
+        var nm = bk.buy.name || capitalize_(id);
+        tips.push({ gain: bk.sell.price - bk.buy.price, t: 'Beli <b>' + esc_(nm) + '</b> di ' + esc_(cityName_(bk.buy.city)) + ' (' + bk.buy.price + '), jual di ' + esc_(cityName_(bk.sell.city)) + ' (' + bk.sell.price + '). Untung ' + (bk.sell.price - bk.buy.price) + '/unit, kalau harganya belum berubah.' });
       }
     });
+    tips.sort(function (a, b) { return b.gain - a.gain; });
+    shuffle_(tips.slice(0, 5)).slice(0, 2).forEach(function (x) { out.push(x.t); });
+    var typeTips = [];
     (state && state.cities || []).forEach(function (c) {
       if (c.CityId === cid) return;
-      if (c.Type === 'Outlaw') out.push('Pelayaran ke ' + esc_(c.Name) + '? Isi penuh amunisi meriammu. Bajak laut menunggu di jalur itu.');
-      if (c.Type === 'Agricultural') out.push('Hasil bumi di ' + esc_(c.Name) + ' murah. Bawa ke kota yang jauh dari ladang.');
-      if (c.Type === 'Remote') out.push(esc_(c.Name) + ' jauh dari mana-mana, jadi barang jadi di sana mahal. Peluang, Kapten.');
-      if (c.Type === 'FallenCapital') out.push('Papan misi di ' + esc_(c.Name) + ' paling ramai, walau bayarannya pas-pasan.');
+      if (c.Type === 'Outlaw') typeTips.push('Pelayaran ke ' + esc_(c.Name) + '? Isi penuh amunisi meriammu. Bajak laut menunggu di jalur itu.');
+      if (c.Type === 'Agricultural') typeTips.push('Hasil bumi di ' + esc_(c.Name) + ' murah. Bawa ke kota yang jauh dari ladang.');
+      if (c.Type === 'Remote') typeTips.push(esc_(c.Name) + ' jauh dari mana-mana, jadi barang jadi di sana mahal. Peluang, Kapten.');
+      if (c.Type === 'FallenCapital') typeTips.push('Papan misi di ' + esc_(c.Name) + ' paling ramai, walau bayarannya pas-pasan.');
     });
+    if (typeTips.length) out.push(typeTips[Math.floor(Math.random() * typeTips.length)]);
     if (state && state.mission && state.mission.hasActive) out.push('Gubernur ' + esc_(state.mission.deliverToCityName) + ' menanyakan kirimanmu tadi pagi.');
     (CITY_LORE[cid] || []).forEach(function (l) { out.push(l); });
-    var r = MTUtil.rng(Math.floor(Math.random() * 1e9));
-    for (var i = out.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = out[i]; out[i] = out[j]; out[j] = t; }
-    return out.slice(0, n || 4);
+    var fresh = [];
+    try { if (window.MTGosip) fresh = MTGosip.lines(cid) || []; } catch (e) { fresh = []; }
+    shuffle_(out);
+    // gosip harian (berganti tiap hari game) ditaruh di depan supaya selalu terdengar
+    var seen = {}, res = [];
+    fresh.concat(out).forEach(function (l) { var k = String(l); if (!seen[k]) { seen[k] = 1; res.push(l); } });
+    var k0 = Math.min(fresh.length, Math.max(1, Math.floor((n || 4) / 2)));
+    var head = res.slice(0, k0), tail = shuffle_(res.slice(k0));
+    return shuffle_(head.concat(tail.slice(0, Math.max(0, (n || 4) - k0))));
   }
   function walkerLine_() {
     var greet = ['Selamat datang, Kapten!', 'Kapal yang bagus, Tuan!', 'Mau ke mana hari ini?', 'Angin barat sedang baik.', 'Ikan hari ini segar-segar!'];
     if (state && state.city && state.city.Type === 'Outlaw') greet = ['Jangan menatapku begitu.', 'Ada gold? Aku punya info…', 'Pergi sebelum malam, orang asing.'];
+    try { if (window.MTGosip && state && state.city) greet = greet.concat(MTGosip.warga(state.city.CityId) || []); } catch (e) { }
     var pool = greet.concat(rumors_(3).map(function (s) { return s.replace(/<[^>]+>/g, ''); }));
     return MTUtil.pick(Math.random, pool);
   }
@@ -3545,7 +3614,8 @@
     var mem = getPriceMem_();
     var tavLabel = ({ skitraw: 'RM Padang', toogood: "Black's Alley", bjorneo: 'Kedai Tuak', joungjava: 'Warung Pantai', ikn: 'Kamp Pemulung' })[cid] || 'Lapau';
     var html = panelHeader_('cup', tavLabel, 'Kopi, gosip pelabuhan, dan catatan harga');
-    html += npcHtml_('lapau', pickLine_(['Duduk dulu, Kapten. Kopi pertama gratis, gosip juga.', 'Pedagang yang pintar mendengar dulu, baru berdagang.', 'Semua kabar dari tujuh lautan singgah di meja ini.'], 'lapau'));
+    var kpLines = null; try { if (window.MTGosip) kpLines = MTGosip.keeper(cid); } catch (e) { kpLines = null; }
+    html += npcHtml_('lapau', pickLine_(kpLines && kpLines.length ? kpLines : ['Duduk dulu, Kapten. Kopi pertama gratis, gosip juga.', 'Pedagang yang pintar mendengar dulu, baru berdagang.', 'Semua kabar dari tujuh lautan singgah di meja ini.'], 'lapau'));
     html += '<h3>' + ic('chat') + 'Gosip Pelabuhan</h3><div class="card-grid" id="rumorList">' + rumors_(4).map(function (t) { return '<div class="card rumor">' + ic('chat') + '<span>' + t + '</span></div>'; }).join('') + '</div>' +
       '<div style="text-align:center;margin-top:10px;"><button class="btn btn-sm" onclick="refreshRumors_()">' + ic('cup') + '&nbsp; Pesan kopi lagi (gosip lain)</button></div>';
 

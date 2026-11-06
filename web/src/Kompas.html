@@ -449,7 +449,7 @@ var KP = (function () {
       on(w, '[data-kp=drum]', function (b) { drums(w, b); });
       return;
     }
-    if (k >= 8) {
+    if (k >= 8 && (typeof questEchoOk_ !== 'function' || questEchoOk_('kompas'))) {
       insert(speech(n.marlya, pickLine_(['"Ia tidak kabur, Kapten. Ia pergi menjemput sesuatu."', '"Arah bisa diperbaiki dalam semalam. Kepercayaan tidak."'], 'kpmar2'), null, 'Istana Hening'));
     }
   }
@@ -670,7 +670,7 @@ var KP = (function () {
   if (typeof origNpcToast === 'function') window.showNpcToast_ = function (role, text) {
     var k = step();
     if (role === 'syahbandar' && k >= 2 && k <= 6 && Math.random() < 0.45) text = pickLine_(['Kompas kapalmu juga menari, Kapten? Di sini semuanya begitu.', 'Kapal datang ke dermaga ini tanpa tahu dari mana. Kau salah satunya?', 'Catat pelabuhan ini baik-baik, Kapten. Jarum tak akan mengingatnya untukmu.'], 'kpsyah');
-    else if (role === 'syahbandar' && done() && Math.random() < 0.25) text = pickLine_(['Kompas di menaraku diam lagi, Kapten. Selamat datang kembali.', 'Kapal-kapal menemukan jalan pulang. Pelabuhan ini ramai lagi.'], 'kpsyah2');
+    else if (role === 'syahbandar' && done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('kompas')) && Math.random() < 0.25) text = pickLine_(['Kompas di menaraku diam lagi, Kapten. Selamat datang kembali.', 'Kapal-kapal menemukan jalan pulang. Pelabuhan ini ramai lagi.'], 'kpsyah2');
     return origNpcToast.call(this, role, text);
   };
 
@@ -693,6 +693,7 @@ var KP = (function () {
     var s = st(); if (!s) return null;
     var k = s.step || 0, c = cid();
     if (k >= 2 && k <= 7) return (c === 'toogood' && k <= 3) ? RUM_TOOGOOD.concat(RUM_CRISIS.slice(0, 1)) : RUM_CRISIS.concat(c === 'toogood' ? RUM_TOOGOOD.slice(2) : []);
+    if (k >= 8 && !(typeof questEchoOk_ !== 'function' || questEchoOk_('kompas'))) return null;
     if (k >= 8) return c === 'ikn' ? RUM_DONE_IKN.concat(RUM_DONE) : (c === 'toogood' ? RUM_DONE.concat(RUM_TOOGOOD.slice(2)) : RUM_DONE);
     if (k === 0 && s.ready) return RUM_READY;
     return null;
@@ -714,7 +715,7 @@ var KP = (function () {
     window.walkerLine_ = function () {
       var k = step();
       if (k >= 2 && k <= 7 && Math.random() < 0.2) return ['Kompasku berputar lagi! Ke mana utara?', 'Ada kapal nyasar masuk pelabuhan pagi tadi.', 'Jangan tanya arah padaku, Kapten. Jarum pun tak tahu.'][Math.floor(Math.random() * 3)];
-      if (done() && Math.random() < 0.1) return 'Kompasku diam lagi. Rasanya seperti bisa bernapas.';
+      if (done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('kompas')) && Math.random() < 0.1) return 'Kompasku diam lagi. Rasanya seperti bisa bernapas.';
       return origWalker.apply(this, arguments);
     };
   }

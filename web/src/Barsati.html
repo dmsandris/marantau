@@ -357,7 +357,7 @@ var BX = (function () {
     window.walkerLine_ = function () {
       if (shoutNow() && Math.random() < 0.55) return SHOUT;
       if (active() && Math.random() < 0.18) return ['Kau lihat poster itu? Sejuta gold!', 'Gagak hitam itu bertengger lagi di tiang dermaga...', 'Orang berseragam putih membayar perompak sekarang. Dunia terbalik!'][Math.floor(Math.random() * 3)];
-      if (done() && Math.random() < 0.15) return ['Kapal Patroli Bebas lewat semalam!', 'Kau dengar? Tedsky mengecat Garuda sambil menangis!', 'Armada Terakhir! Aku ada di sana... dalam mimpiku, hahaha.'][Math.floor(Math.random() * 3)];
+      if (done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('barsati')) && Math.random() < 0.15) return ['Kapal Patroli Bebas lewat semalam!', 'Kau dengar? Tedsky mengecat Garuda sambil menangis!', 'Armada Terakhir! Aku ada di sana... dalam mimpiku, hahaha.'][Math.floor(Math.random() * 3)];
       return origWalker.apply(this, arguments);
     };
   }
@@ -444,7 +444,7 @@ var BX = (function () {
       insert(speech(n.karto, pickLine_(['"Masih di sini? Uang tak berputar di warung kopi, Nak."', '"Poster wajahmu lumayan mirip. Hidungmu saja yang kurang mancung." Ia menyeruput kopinya. "Enak jaman ku toh?!"', '"Orang muda selalu terburu-buru. Orang tua selalu benar. Hahaha."'], 'karto'), null, 'Warung Pantai'), {});
       return true;
     }
-    if (done()) { insert(speech(n.karto, '"Garuda itu dicat ulang, Nak. Warnanya norak, mengilap seperti gigi emas Tedsky." Ia menyeruput kopi pahitnya dalam-dalam. "<b>Enak jaman ku toh?!</b>"', null, 'Warung Pantai')); return true; }
+    if (done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('barsati'))) { insert(speech(n.karto, '"Garuda itu dicat ulang, Nak. Warnanya norak, mengilap seperti gigi emas Tedsky." Ia menyeruput kopi pahitnya dalam-dalam. "<b>Enak jaman ku toh?!</b>"', null, 'Warung Pantai')); return true; }
     return false;
   }
 
@@ -685,7 +685,7 @@ var BX = (function () {
       return true;
     }
     if (k >= 7 && k <= 15) { insert(speech(n, '"Laut di barat makin marah, Nak. Cepatlah."')); return true; }
-    if (done()) { insert(speech(n, '"Badai ungu itu sudah reda. Lautku tenang lagi." Ia tersenyum, giginya tinggal tiga. "Raja sudah pulang ke tempat tidurnya."')); return true; }
+    if (done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('barsati'))) { insert(speech(n, '"Badai ungu itu sudah reda. Lautku tenang lagi." Ia tersenyum, giginya tinggal tiga. "Raja sudah pulang ke tempat tidurnya."')); return true; }
     return false;
   }
   wrap_('openPanel', function (args) {
@@ -1055,7 +1055,7 @@ var BX = (function () {
   if (origToast) window.showNpcToast_ = function (role, text) {
     if (role === 'syahbandar' && shoutNow() && cid() !== 'ikn') text = SHOUT;
     else if (role === 'syahbandar' && atPusaran()) text = 'Petir biru menyambar di kejauhan. Armada Terakhir berjaga di sekelilingmu, Kapten.';
-    else if (role === 'syahbandar' && done() && Math.random() < 0.35) text = pickLine_(['Selamat datang, Saudara Keempat!', 'Poster baru di dinding, Kapten: Armada Bebas mencari awak!', 'Kapal Patroli Bebas berlabuh di sini semalam.'], 'bxdone');
+    else if (role === 'syahbandar' && done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('barsati')) && Math.random() < 0.35) text = pickLine_(['Selamat datang, Saudara Keempat!', 'Poster baru di dinding, Kapten: Armada Bebas mencari awak!', 'Kapal Patroli Bebas berlabuh di sini semalam.'], 'bxdone');
     return origToast.call(this, role, text);
   };
 
@@ -1077,7 +1077,7 @@ var BX = (function () {
   if (typeof window.rumors_ === 'function') {
     var origRumors = window.rumors_;
     window.rumors_ = function (n) {
-      var out = origRumors.apply(this, arguments), pool = shoutNow() ? [SHOUT] : (active() ? RUM_ACTIVE : (done() ? RUM_DONE : null));
+      var out = origRumors.apply(this, arguments), pool = shoutNow() ? [SHOUT] : (active() ? RUM_ACTIVE : (done() && (typeof questEchoOk_ !== 'function' || questEchoOk_('barsati')) ? RUM_DONE : null));
       if (!pool || !out || !out.length) return out;
       var r = MTUtil.rng(Math.floor(Math.random() * 1e9)), take = Math.min(out.length, shoutNow() ? 1 : 2);
       for (var i = 0; i < take; i++) out[Math.floor(r() * out.length)] = pool[Math.floor(r() * pool.length)];
