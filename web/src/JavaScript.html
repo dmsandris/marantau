@@ -2438,8 +2438,15 @@
         '</div>' +
       '</div>' +
       (bank.debtBalance > 0 ? '<p class="small" style="color:var(--bad-ink);margin-top:12px;">' + ic('alert') + ' Utang berbunga majemuk &mdash; makin lama dibiarkan, makin berat. Bayar sebisanya.</p>' : '') +
-      '<p id="bankMsg" class="msg-err"></p>');
+      '<p id="bankMsg" class="msg-err">' + (bankAtSea_() ? esc_(BANK_SEA_MSG) : '') + '</p>');
+    // Tide v54: bank & rentenir hanya melayani saat kapal merapat
+    if (bankAtSea_()) {
+      var mc = document.getElementById('modalContent');
+      if (mc) [].forEach.call(mc.querySelectorAll('.bank-action, .vault input, .vault .quick-amts button'), function (el) { el.disabled = true; });
+    }
   }
+  var BANK_SEA_MSG = 'PelicanSystem sedang offline, Kapten. Bank hanya melayani saat kapal merapat.';
+  function bankAtSea_() { return !!(state && ((state.voyage && state.voyage.inTransit) || (state.voyage && state.voyage.encounterPending))); }
   /** Tide v39: hanya rentang bunga ("0% s/d 0,5%"), rincian tingkat dirahasiakan. */
   function bankRateText_(bank) {
     var hi = Number(bank.bankRatePercent) || 0, lo = bank.bankRateMinPercent == null ? hi : Number(bank.bankRateMinPercent);
