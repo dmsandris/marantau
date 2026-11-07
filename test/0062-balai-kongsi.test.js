@@ -7,6 +7,10 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const H1 = 3600000;
   let offset = 0;
   const majuJam = async (jam) => { offset += Math.round(jam * H1); await H.sql(`update game.config set value = $1 where key = 'HarianClockOffset'`, [String(offset)]); };
+  // Tide v54: mulai di Selasa 10:00 WIB pekan depan, supaya jam yang dimajukan tidak melewati
+  // pergantian pekan kongsi (Senin 08:00 WIB). Sebelumnya tes gagal bila dijalankan Sabtu/Minggu.
+  offset = Math.round(Number((await one(`select extract(epoch from (date_trunc('week', game.pd_wib()) + interval '8 days 10 hours') - game.pd_wib()) * 1000 ms`)).ms));
+  await H.sql(`update game.config set value = $1 where key = 'HarianClockOffset'`, [String(offset)]);
   const bank = async (u) => Number((await one('select bank_balance b from game.players where player_id = $1', [u.id])).b);
   const gold = async (u) => Number((await one('select gold g from game.players where player_id = $1', [u.id])).g);
   const mk = async (name, uname) => { const u = await H.user(uname); await u.call('api_createCharacter', [name, 'merchant']); return u; };
