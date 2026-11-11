@@ -1,0 +1,205 @@
+<style>
+  /* ================= Mini-game Surat Pulang (MTGames7): Urut Cap ================= */
+  .spg .tsg-stage { background: radial-gradient(ellipse at 50% 0%, #3a2a1a 0%, #24180e 60%, #120c06 100%); padding: 12px 8px; }
+  .spg-wrap { position: relative; width: min(760px, 100%); margin: 0 auto; overflow: auto; border-radius: 6px; -webkit-overflow-scrolling: touch; }
+  .spg-env { display: block; width: 100%; height: auto; transition: width .3s; }
+  .spg.zoom .spg-env { width: 175%; }
+  .spg-cap { cursor: pointer; }
+  .spg-cap:focus-visible .ring { stroke: #ffd36a; stroke-width: 4; }
+  .spg-cap.done .badge { opacity: 1; }
+  .spg-cap.bad { animation: spgNo .4s; }
+  @keyframes spgNo { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  .spg-cap .badge { opacity: 0; transition: opacity .2s; }
+  .spg-hud { width: min(760px, 100%); display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; margin: 0 0 6px; font: 600 12px "Cinzel", Georgia, serif; letter-spacing: .06em; color: #e8c878; }
+  .spg-hud b { color: #fff3d6; }
+  .spg-tools { width: min(760px, 100%); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0 0; }
+  .spg-tools .btn { min-height: 44px; }
+  .spg-seq { width: min(760px, 100%); display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 6px 0 0; font-size: .74em; color: #eadcbc; }
+  .spg-seq span { padding: 2px 8px; border-radius: 10px; background: rgba(255,240,210,.08); border: 1px solid rgba(232,200,120,.2); }
+  .spg-lives { display: inline-flex; gap: 4px; } .spg-lives i { width: 12px; height: 12px; border-radius: 50%; background: #e8c878; } .spg-lives i.off { background: rgba(255,255,255,.15); }
+  @media (prefers-reduced-motion: reduce) { .spg-cap.bad { animation: none; } .spg-env { transition: none; } }
+</style>
+<script>
+/* =====================================================================
+ * MTGames7 — mini-game quest rahasia "Surat yang Selalu Tertinggal Satu Pelabuhan" (Surat Pulang)
+ *   MTGames7.open('cap', opts, cb) -> cb({ win, order: [id cap, tua -> muda], mistakes, kind })
+ *   opts.level = {stamps:[{id,label,shape,col,x,y,r,z,ink,day}], w, h}; npc, kicker, title, intro, lines, cardTitle, cardQuote
+ *   Santai, tanpa timer, tidak bisa kalah: salah 3 kali = amplop dirapikan ulang (urutan ketukan dihapus).
+ *   Petunjuk: cap yang MENIMPA selalu lebih baru · tinta lama lebih pucat · tanggal yang masih terbaca.
+ *   Semua grafis SVG prosedural. opts.__autoplay = main otomatis (uji browser).
+ * ===================================================================== */
+var MTGames7 = (function () {
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function au(n, o) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n, o); } catch (e) { } }
+  function isTouch() { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  var cur = null;
+
+  function shell(kicker, title) {
+    if (cur) cur.close(true);
+    var root = document.createElement('div'); root.className = 'tsg spg' + (isTouch() ? ' touch' : '');
+    root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', String(title).replace(/<[^>]+>/g, ''));
+    root.innerHTML = '<div class="tsg-top"><div class="sp"><div class="k">' + kicker + '</div><h2>' + title + '</h2></div><button class="tsg-x" type="button">Nanti dulu</button></div>' +
+      '<div class="tsg-body" style="width:100%;display:flex;flex-direction:column;align-items:center"></div>';
+    document.body.appendChild(root);
+    requestAnimationFrame(function () { root.classList.add('on'); });
+    var S = { root: root, body: root.querySelector('.tsg-body'), done: false, cb: null, timers: [], offs: [] };
+    S.on = function (t, ev, fn) { t.addEventListener(ev, fn); S.offs.push(function () { t.removeEventListener(ev, fn); }); };
+    S.close = function (silent, res) {
+      if (S.done) return; S.done = true;
+      S.timers.forEach(function (t) { clearInterval(t); clearTimeout(t); });
+      S.offs.forEach(function (f) { try { f(); } catch (e) { } });
+      root.classList.remove('on'); setTimeout(function () { root.remove(); }, 380);
+      if (cur === S) cur = null;
+      if (!silent && S.cb) setTimeout(function () { S.cb(res || { cancelled: true }); }, 60);
+    };
+    S.on(document, 'keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); S.close(false, { cancelled: true }); } });
+    root.querySelector('.tsg-x').onclick = function () { au('page'); S.close(false, { cancelled: true }); };
+    cur = S;
+    return S;
+  }
+  function faceSvg(npc) {
+    try { if (npc && npc.svg) return npc.svg; if (npc && npc.ap && window.MTFace) return MTFace.svg(npc.ap, { bgColors: ['#4a3a2a', '#1a120a'] }); } catch (e) { }
+    return '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#4a3a2a"/></svg>';
+  }
+  function sayBox(S, npc) {
+    var m = el('div', 'tsg-msg'); S.body.appendChild(m);
+    var name = (npc && npc.name) || 'Pustakawan';
+    return {
+      el: m,
+      say: function (t, cls) { m.className = 'tsg-msg' + (cls ? ' ' + cls : ''); m.innerHTML = '<div class="gdg-say"><div class="f">' + faceSvg(npc) + '</div><div class="t"><b>' + esc(name) + ':</b> ' + t + '</div></div>'; }
+    };
+  }
+
+  /* ---------------- gambar cap (SVG) ---------------- */
+  function hex2rgb(h) { var n = parseInt(String(h || '#553322').slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function inkCol(c, a) { var r = hex2rgb(c); return 'rgba(' + r[0] + ',' + r[1] + ',' + r[2] + ',' + a.toFixed(2) + ')'; }
+  function shapePath(sh, r) {
+    var i, p = '';
+    if (sh === 'segi8') { for (i = 0; i < 8; i++) { var a = Math.PI / 8 + i * Math.PI / 4; p += (i ? 'L' : 'M') + (Math.cos(a) * r).toFixed(1) + ' ' + (Math.sin(a) * r).toFixed(1); } return p + 'Z'; }
+    if (sh === 'kotak') return 'M' + (-r * 1.15) + ' ' + (-r * 0.6) + 'h' + (r * 2.3) + 'v' + (r * 1.2) + 'h' + (-r * 2.3) + 'Z';
+    if (sh === 'lampion') return 'M0 ' + (-r) + 'C' + (r * 1.1) + ' ' + (-r * 0.9) + ' ' + (r * 1.1) + ' ' + (r * 0.9) + ' 0 ' + r + 'C' + (-r * 1.1) + ' ' + (r * 0.9) + ' ' + (-r * 1.1) + ' ' + (-r * 0.9) + ' 0 ' + (-r) + 'Z';
+    if (sh === 'jempol') return 'M0 ' + (-r) + 'C' + (r * 0.85) + ' ' + (-r) + ' ' + (r * 0.85) + ' ' + (r * 0.95) + ' 0 ' + r + 'C' + (-r * 0.85) + ' ' + (r * 0.95) + ' ' + (-r * 0.85) + ' ' + (-r) + ' 0 ' + (-r) + 'Z';
+    return 'M' + (-r) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (r * 2) + ' 0a' + r + ' ' + r + ' 0 1 0 ' + (-r * 2) + ' 0Z';
+  }
+  function emblem(sh, r, col) {
+    var s = r * 0.42;
+    switch (sh) {
+      case 'jangkar': return '<path d="M0 ' + (-s) + 'v' + (s * 1.9) + 'M' + (-s * 0.6) + ' ' + (-s * 0.55) + 'h' + (s * 1.2) + 'M' + (-s * 0.9) + ' ' + (s * 0.4) + 'q' + (s * 0.9) + ' ' + (s * 0.9) + ' ' + (s * 1.8) + ' 0" stroke="' + col + '" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="0" cy="' + (-s * 1.15) + '" r="' + (s * 0.22) + '" stroke="' + col + '" stroke-width="2" fill="none"/>';
+      case 'rantai': return '<g stroke="' + col + '" stroke-width="2.4" fill="none"><ellipse cx="' + (-s * 0.45) + '" cy="0" rx="' + (s * 0.6) + '" ry="' + (s * 0.35) + '"/><ellipse cx="' + (s * 0.45) + '" cy="0" rx="' + (s * 0.6) + '" ry="' + (s * 0.35) + '"/></g>';
+      case 'lampion': return '<path d="M' + (-s * 0.5) + ' ' + (-s * 0.6) + 'h' + s + 'M' + (-s * 0.5) + ' ' + (s * 0.6) + 'h' + s + 'M0 ' + (-s * 0.6) + 'v' + (s * 1.2) + '" stroke="' + col + '" stroke-width="2" fill="none"/>';
+      case 'garuda': return '<path d="M0 ' + (-s * 0.2) + 'q' + (-s) + ' ' + (-s * 0.9) + ' ' + (-s * 1.3) + ' 0q' + (s * 0.6) + ' 0 ' + (s * 1.3) + ' ' + (s * 0.5) + 'q' + (s * 0.7) + ' ' + (-s * 0.5) + ' ' + (s * 1.3) + ' ' + (-s * 0.5) + 'q' + (-s * 0.3) + ' ' + (-s * 0.9) + ' ' + (-s * 1.3) + ' 0Z" fill="' + col + '"/><circle cx="0" cy="' + (-s * 0.55) + '" r="' + (s * 0.22) + '" fill="' + col + '"/>';
+      case 'kotak': return '';
+      case 'jempol': var w = ''; for (var k = 1; k < 6; k++) w += '<ellipse cx="0" cy="' + (s * 0.1) + '" rx="' + (r * 0.16 * k) + '" ry="' + (r * 0.19 * k) + '" stroke="' + col + '" stroke-width="1.4" fill="none"/>'; return w;
+      default: return '<circle cx="0" cy="0" r="' + (s * 0.55) + '" stroke="' + col + '" stroke-width="2" fill="none"/>';
+    }
+  }
+  function capSvg(st, idx) {
+    var r = st.r, col = inkCol(st.col, Math.max(0.35, st.ink || 1)), paper = 'rgba(244,234,210,' + (0.78 + 0.18 * (st.ink || 1)).toFixed(2) + ')';
+    var rot = ((st.x * 7 + st.y * 3) % 30) - 15;
+    var lbl = st.label ? '<text text-anchor="middle" y="' + (st.shape === 'kotak' ? r * 0.22 : r * 0.72) + '" font-family="Courier New,monospace" font-weight="700" font-size="' + (st.shape === 'kotak' ? r * 0.66 : Math.max(6.5, r * 0.25)) + '" fill="' + col + '" letter-spacing="1">' + esc(st.label) + '</text>' : '';
+    var day = st.day != null ? '<text text-anchor="middle" y="' + (-r * 0.52) + '" font-family="Courier New,monospace" font-weight="700" font-size="' + Math.max(7, r * 0.28) + '" fill="' + col + '">H.' + st.day + '</text>' : '';
+    var pindah = st.label && st.shape !== 'kotak' && st.id !== 'sunda' ? '<text text-anchor="middle" y="' + (r * 0.36) + '" font-family="Courier New,monospace" font-size="' + Math.max(5.5, r * 0.19) + '" fill="' + col + '">PINDAH</text>' : '';
+    return '<g class="spg-cap" tabindex="0" role="button" data-id="' + esc(st.id) + '" aria-label="Cap ' + esc(st.label || 'jempol') + '" transform="translate(' + st.x + ' ' + st.y + ') rotate(' + rot + ')">' +
+      '<path d="' + shapePath(st.shape, r) + '" fill="' + paper + '"/>' +
+      '<path class="ring" d="' + shapePath(st.shape, r) + '" fill="none" stroke="' + col + '" stroke-width="3"/>' +
+      (st.shape === 'jempol' ? '' : '<path d="' + shapePath(st.shape, r * 0.84) + '" fill="none" stroke="' + col + '" stroke-width="1.2"/>') +
+      emblem(st.shape, r, col) + lbl + day + pindah +
+      '<g class="badge" transform="rotate(' + (-rot) + ')"><circle cx="' + (r * 0.7) + '" cy="' + (-r * 0.7) + '" r="10" fill="#1a120a" stroke="#e8c878" stroke-width="1.5"/><text class="bn" x="' + (r * 0.7) + '" y="' + (-r * 0.7 + 4) + '" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="12" fill="#ffe7a3"></text></g>' +
+      '</g>';
+  }
+  function envelope(L) {
+    var W = L.w || 400, H = L.h || 250;
+    var s = '<svg class="spg-env" viewBox="-10 -10 ' + (W + 20) + ' ' + (H + 20) + '" role="group" aria-label="Amplop penuh cap">';
+    s += '<defs><filter id="spgGrain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .4  0 0 0 0 .3  0 0 0 0 .18  0 0 0 .12 0"/><feComposite in2="SourceGraphic" operator="in"/></filter></defs>';
+    s += '<rect x="-6" y="-6" width="' + (W + 12) + '" height="' + (H + 12) + '" rx="4" fill="#e6d6b0" stroke="#8a6a3a" stroke-width="1.5"/>';
+    s += '<rect x="-6" y="-6" width="' + (W + 12) + '" height="' + (H + 12) + '" rx="4" filter="url(#spgGrain)"/>';
+    s += '<path d="M-6 -6 L' + (W / 2) + ' ' + (H * 0.42) + ' L' + (W + 6) + ' -6" fill="none" stroke="rgba(120,90,50,.35)" stroke-width="1.4"/>';
+    s += '<text x="' + (W / 2) + '" y="' + (H - 10) + '" text-anchor="middle" font-family="Segoe Script,Bradley Hand,cursive" font-size="13" fill="rgba(60,40,20,.55)">Untuk Kapten, di mana pun ia berlabuh</text>';
+    L.stamps.slice().sort(function (a, b) { return a.z - b.z; }).forEach(function (st, i) { s += capSvg(st, i); });
+    return s + '</svg>';
+  }
+
+  function playCap(opts, cb) {
+    var S = shell(opts.kicker || 'Pustaka', opts.title || 'Urut Cap');
+    S.cb = cb;
+    var L = opts.level, AUTO = !!opts.__autoplay;
+    if (!L || L.mode !== 'cap') { setTimeout(function () { S.close(false, { win: true, order: [], kind: 'cap' }); }, 0); return; }
+    var want = L.stamps.slice().sort(function (a, b) { return a.z - b.z; }).map(function (x) { return x.id; });
+    var byId = {}; L.stamps.forEach(function (x) { byId[x.id] = x; });
+    var LIVES = 3, mistakes = 0, picked = [], LN = opts.lines || {};
+    var hud = el('div', 'spg-hud'); S.body.appendChild(hud);
+    var stage = el('div', 'tsg-stage'); var wrap = el('div', 'spg-wrap', envelope(L)); stage.appendChild(wrap); S.body.appendChild(stage);
+    var seq = el('div', 'spg-seq'); S.body.appendChild(seq);
+    var tools = el('div', 'spg-tools', '<button class="btn btn-sm" type="button" data-t="lup">Lup</button><button class="btn btn-sm" type="button" data-t="ulang">Ulang dari awal</button>');
+    S.body.appendChild(tools);
+    var box = sayBox(S, opts.npc);
+    function lives() { var h = ''; for (var i = 0; i < LIVES; i++) h += '<i class="' + (i < LIVES - mistakes ? '' : 'off') + '"></i>'; return '<span class="spg-lives" title="Kesabaran">' + h + '</span>'; }
+    function renderHud() {
+      hud.innerHTML = '<span>Diurutkan <b>' + picked.length + '</b> / ' + want.length + '</span>' + lives();
+      seq.innerHTML = picked.map(function (id, i) { return '<span>' + (i + 1) + '. ' + esc(byId[id].label || 'cap jempol') + '</span>'; }).join('');
+      wrap.querySelectorAll('.spg-cap').forEach(function (g) {
+        var id = g.getAttribute('data-id'), k = picked.indexOf(id);
+        g.classList.toggle('done', k >= 0);
+        var bn = g.querySelector('.bn'); if (bn) bn.textContent = k >= 0 ? String(k + 1) : '';
+      });
+    }
+    function reset(msg) { picked = []; mistakes = 0; renderHud(); if (msg) box.say(msg, 'bad'); }
+    function tap(g) {
+      if (S.done) return;
+      var id = g.getAttribute('data-id');
+      if (picked.indexOf(id) >= 0) return;
+      if (id === want[picked.length]) {
+        picked.push(id); au('coin'); renderHud();
+        if (picked.length === want.length) return win();
+        var ln = LN.ok || ['Ya. Yang itu lebih dulu.', 'Benar. Tintanya lebih tua.', 'Betul, Kapten.'];
+        box.say(ln[(picked.length - 1) % ln.length], 'good');
+      } else {
+        mistakes++; au('error');
+        g.classList.remove('bad'); void g.getBoundingClientRect(); g.classList.add('bad');
+        if (mistakes >= LIVES) { reset(LN.reset || 'Pelan-pelan, Kapten. Saya rapikan amplopnya dulu. Kita mulai lagi dari cap yang paling bawah.'); return; }
+        renderHud();
+        box.say(LN.wrong || 'Bukan yang itu. Lihat cap mana yang menimpa cap mana. Yang di atas selalu lebih baru.', 'bad');
+      }
+    }
+    function win() {
+      au('success');
+      tools.style.display = 'none';
+      var card = el('div', 'gdg-card', '<div class="s">' + esc(opts.cardKicker || 'Urut Cap') + '</div><div class="g">' + esc(opts.cardTitle || 'Urutannya terbaca') + '</div>' + (opts.cardQuote ? '<div class="q">' + opts.cardQuote + '</div>' : ''));
+      S.body.insertBefore(card, box.el);
+      if (opts.winLine) box.say(opts.winLine, 'good');
+      var row = el('div', 'tsg-row', '<button class="btn btn-gold" type="button">' + (opts.okBtn || 'Lanjut') + '</button>');
+      S.body.insertBefore(row, box.el.nextSibling);
+      row.querySelector('button').onclick = function () { au('page'); S.close(false, { win: true, order: picked.slice(), mistakes: mistakes, kind: 'cap' }); };
+      try { row.querySelector('button').focus(); } catch (e) { }
+      if (AUTO) S.timers.push(setTimeout(function () { if (!S.done) row.querySelector('button').click(); }, 500));
+    }
+    wrap.querySelectorAll('.spg-cap').forEach(function (g) {
+      g.addEventListener('click', function () { tap(g); });
+      g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(g); } });
+    });
+    tools.querySelector('[data-t=lup]').onclick = function () { au('page'); S.root.classList.toggle('zoom'); };
+    tools.querySelector('[data-t=ulang]').onclick = function () { au('page'); picked = []; renderHud(); box.say('Kita mulai lagi dari cap yang paling bawah.'); };
+    renderHud();
+    box.say(opts.intro || 'Ketuk cap dari yang <b>paling tua</b> sampai yang <b>paling baru</b>. Cap yang menimpa selalu lebih baru. Tinta lama lebih pucat.');
+    if (AUTO) {
+      var i = 0;
+      S.timers.push(setInterval(function () {
+        if (S.done || i >= want.length) return;
+        var g = wrap.querySelector('.spg-cap[data-id="' + want[i++] + '"]'); if (g) tap(g);
+      }, 260));
+    }
+  }
+
+  var KINDS = { cap: playCap };
+  function open(kind, opts, cb) {
+    var f = KINDS[kind];
+    if (!f) { if (cb) setTimeout(function () { cb({ cancelled: true, error: 'unknown' }); }, 0); return; }
+    try { if (window.MTAudio && MTAudio.unlock) MTAudio.unlock(); } catch (e) { }
+    try { f(opts || {}, function (res) { if (cb) cb(res || { cancelled: true }); }); }
+    catch (e) { console.warn('[MTGames7]', kind, e); if (cur) cur.close(true); if (cb) cb({ cancelled: true, error: String(e) }); }
+  }
+  function isOpen() { return !!cur; }
+  return { open: open, isOpen: isOpen };
+})();
+</script>
