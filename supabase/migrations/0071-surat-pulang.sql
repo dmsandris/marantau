@@ -5,7 +5,7 @@
 -- Konsep: claude/KONSEP-Quest-Surat-Pulang.md (v1.2).
 -- Side quest di luar Saga 3. Terbuka setelah Saga 2 selesai (duatangan step >= 5), saat panel Perpustakaan
 -- Sowtour dibuka, dan HANYA bila tidak ada side quest lain yang sedang berjalan (game.side_quest_active, 0064).
--- Gerbang: SuratOpen (+ FiturPenguji). Rahasia: tanpa Tanda Jasa khusus, jurnal, chat dunia, atau Realtime.
+-- Gerbang: SuratOpen (bawaan '1' = terbuka; '0' + FiturPenguji untuk menutup). Rahasia: tanpa Tanda Jasa khusus, jurnal, chat dunia, atau Realtime.
 -- Dibekukan selama Saga 3 aktif; perk ikut tidur selama itu (perk lahir dari kisah, Jam hanya menghapus kisah).
 --
 -- Langkah (game.player_quests, quest_id = 'surat'); step = langkah BERIKUTNYA yang dijalankan.
@@ -39,7 +39,7 @@
 -- =====================================================================
 
 insert into game.config(key, value) values
-  ('SuratOpen', '0'),
+  ('SuratOpen', '1'),
   ('PerkNavPasif1', '0.9'), ('PerkNavPasif2', '0.85'), ('PerkNavHarian', '0.7'),
   ('PerkPirLevel1', '2'), ('PerkPirLevel2', '3'), ('PerkPirSuap1', '0.75'), ('PerkPirSuap2', '0.6'),
   ('PerkPirRampasMin', '5'), ('PerkPirRampasMax', '10'),

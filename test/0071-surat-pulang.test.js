@@ -23,7 +23,7 @@ const SOL = require('./surat-solver');
   const LV = (await one('select game.sp_levels() l')).l;
   ok(STEPS.length === 15 && (await one('select game.sp_last() v')).v === 15, '15 langkah');
   ok((await one(`select game.side_quest_ids() v`)).v.join() === 'peregrin,duneks,jtq,surat', 'surat terdaftar sebagai side quest');
-  ok((await one(`select value v from game.config where key = 'SuratOpen'`)).v === '0', 'SuratOpen bawaan tertutup');
+  ok((await one(`select value v from game.config where key = 'SuratOpen'`)).v === '1', 'SuratOpen bawaan terbuka');
 
   // ------------------------------------------------------------------ level: Urut Cap punya tepat satu urutan; server = solver
   const ANS = {};
