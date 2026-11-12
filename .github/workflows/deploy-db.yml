@@ -5,7 +5,7 @@ name: Deploy database
 on:
   push:
     branches: [main]
-    paths: ['supabase/migrations/**']
+    paths: ['supabase/migrations/**', '.github/workflows/deploy-db.yml']
   workflow_dispatch:
 concurrency: { group: deploy-db, cancel-in-progress: false }
 jobs:
@@ -35,6 +35,9 @@ jobs:
           for f in $(ls supabase/migrations/*.sql | sort); do args="$args -f $f"; done
           ok=0
           for try in 1 2 3; do
+            # Jangan timpa deploy yang lebih baru: run lama (mis. sempat retry lock) berhenti bila main sudah maju.
+            head=$(git ls-remote origin refs/heads/main | cut -f1)
+            if [ -n "$head" ] && [ "$head" != "$GITHUB_SHA" ]; then echo "::notice::main sudah di ${head:0:7}, run ${GITHUB_SHA:0:7} dilewati (deploy yang lebih baru yang berlaku)."; exit 0; fi
             if psql "$DB" -v ON_ERROR_STOP=1 --single-transaction -q -c "set lock_timeout = '8s'" $args 2> psql_err.txt; then ok=1; break; fi
             cat psql_err.txt
             grep -E "ERROR|psql:|DETAIL|HINT|CONTEXT" psql_err.txt | head -6 | while IFS= read -r l; do echo "::error::$l"; done
