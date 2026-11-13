@@ -1,0 +1,171 @@
+<script>
+/* =====================================================================
+ * MTTrek — Sirkuit Selat Lurus (Saga 4, batch 1): alur Trektrek-an melawan lawan Sirkuit.
+ *   MTTrek.open()  -> status server -> menu lawan + Papan Waktu -> garis start -> balapan -> hasil -> Ulangi
+ *   Server: api_trek('status' | 'mulai', rival | 'selesai', run, log). Menang/kalah dihitung server dari log ketukan;
+ *   hasil di layar tampil langsung dari hitungan lokal (rumus sama), lalu ditandai "dicatat" setelah server menjawab.
+ *   Gerbang: TrekOpen / FiturPenguji (server). Selama gerbang tertutup, modul ini tidak menampilkan apa pun.
+ *   Pintu masuk penguji (sampai Zentul dibangun di batch berikutnya): tambahkan #trek di alamat, atau MTTrek.open() di konsol.
+ * ===================================================================== */
+var MTTrek = (function () {
+  var S = window.MTTrekSim, G = null, st = null, sel = null, busy = false;
+  var TAG = {
+    pariopelan: 'Baru belajar menahan gas. Lawan pemanasan.',
+    kapalmber: 'Rapi, sabar, tak pernah curi start.',
+    cangcimen: 'Lambungnya sudah Warlord. Jangan lengah sedikit pun.',
+    yaptob: '"Kapalmu bagus untuk pulang. Bukan untuk lari."'
+  };
+  var KIAT = [
+    'Dengarkan bonangnya, Kapten. Nada naik berarti gigi masuk bersih.',
+    'Jangan kejar garis merah. Bintang emas itu sedikit sebelum mentok.',
+    'Gigi satu paling cepat naik. Siapkan jarimu begitu meriam berdentum.',
+    'Di gigi lima jangan lepas jarimu. Oli Hitam butuh setengah tarikan napas.',
+    'Mesin batuk itu salahmu sendiri. Naik gigi sebelum bara di bingkai penuh.'
+  ];
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ls(k, d) { try { var v = localStorage.getItem('mt_trek_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem('mt_trek_' + k, JSON.stringify(v)); } catch (e) { } }
+  function dtk(us, n) { return us == null ? '—' : (us / 1000000).toFixed(n == null ? 3 : n).replace('.', ','); }
+  function toast(m, k) { try { if (typeof showToast === 'function') showToast(m, k || 'info'); } catch (e) { } }
+  function api(args, ok, fail) {
+    try {
+      var r = google.script.run.withSuccessHandler(function (res) { ok(res || {}); }).withFailureHandler(function (e) { fail((e && e.message) || String(e || 'Gagal.')); });
+      r.api_trek.apply(r, args);
+    } catch (e) { fail(e.message || 'Gagal.'); }
+  }
+  function races() { return ls('races', 0); }
+  function hint() { return ls('hint', true) && races() < 3; }
+  function kalah(rival, d) { var o = ls('kalah', {}); if (d === 0) o[rival] = 0; else if (d) o[rival] = (o[rival] || 0) + 1; lsSet('kalah', o); return o[rival] || 0; }
+
+  // ---------------------------------------------------------------- menu
+  function menu() {
+    if (!G) return;
+    var lawan = st.lawan || [];
+    if (!sel || lawan.indexOf(sel) < 0) sel = ls('rival', lawan[0]); if (lawan.indexOf(sel) < 0) sel = lawan[0];
+    var chips = lawan.map(function (k) {
+      var r = S.RIVALS[k], n = (st.menang && st.menang[k]) || 0;
+      return '<button type="button" class="trk-chip' + (k === sel ? ' on' : '') + '" data-r="' + k + '"><b>' + esc(r.name) + '</b><i>' + esc(TAG[k] || '') + '</i><small>' + esc(S.SHIPS[r.ship].name) + (n ? ' · kau menang ' + n + '×' : '') + '</small></button>';
+    }).join('');
+    var papan = (st.papan || []).map(function (p, i) {
+      return '<li class="' + (p.aku ? 'aku' : '') + '"><span>' + (i + 1) + '</span><span>' + esc(p.nama) + ' <small>· ' + esc(p.kapal) + '</small></span><b>' + dtk(p.us) + '</b></li>';
+    }).join('');
+    var c = G.card(
+      '<div class="trk-k">Zentul · Sirkuit Selat Lurus</div><h1>Trektrek-an</h1><div class="trk-orn"></div>' +
+      '<p class="trk-sub">Adu lurus 402 meter. Tunggu meriam berdentum, naikkan gigi saat jarum masuk daun hijau, lalu tahan jarimu di gigi lima untuk Semburan Oli Hitam.</p>' +
+      '<div class="trk-lbl">Lawan di garis start</div><div class="trk-grid">' + chips + '</div>' +
+      (papan ? '<div class="trk-lbl">Papan Waktu Zentul</div><ol class="trk-papan">' + papan + '</ol>' : '') +
+      '<div class="trk-lbl">Pengaturan</div><div class="trk-tog">' +
+      '<label><input type="checkbox" data-t="hint"' + (ls('hint', true) ? ' checked' : '') + '> Petunjuk</label>' +
+      '<label><input type="checkbox" data-t="ghost"' + (ls('ghost', true) ? ' checked' : '') + '> Bayangan rekorku</label>' +
+      '<label><input type="checkbox" data-t="haptic"' + (G.haptic() ? ' checked' : '') + '> Getar</label></div>' +
+      '<button type="button" class="trk-btn" data-utama data-a="start">KE GARIS START</button>' +
+      '<button type="button" class="trk-btn ghost" data-a="tutup">Kembali ke pelabuhan</button>');
+    G.idle(st.ship);
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-r],[data-a]') : null; if (!t) return;
+      if (t.dataset.r) { sel = t.dataset.r; lsSet('rival', sel); menu(); }
+      else if (t.dataset.a === 'start') pre();
+      else if (t.dataset.a === 'tutup') G.close();
+    };
+    c.onchange = function (e) {
+      var k = e.target && e.target.dataset && e.target.dataset.t; if (!k) return;
+      if (k === 'haptic') G.haptic(e.target.checked); else { lsSet(k, e.target.checked); if (k === 'hint' && e.target.checked) lsSet('races', 0); }
+    };
+  }
+
+  // ---------------------------------------------------------------- garis start
+  function bar(v, max) { return '<em><i style="width:' + Math.round(Math.max(0.06, Math.min(1, v / max)) * 100) + '%"></i></em>'; }
+  function stats(s) { return '<div class="trk-st"><span>Akselerasi</span>' + bar(s.zone, 150) + '</div><div class="trk-st"><span>Top Speed</span>' + bar(s.top - 800, 330) + '</div><div class="trk-st"><span>Tahan Panas</span>' + bar(s.heat, 1600) + '</div>'; }
+  function pre() {
+    var me = S.SHIPS[st.ship], rp = S.RIVALS[sel], os = S.SHIPS[rp.ship], run = null, gagal = null;
+    var c = G.card(
+      '<div class="trk-k">Garis start · Selat Lurus</div>' +
+      '<div class="trk-vs"><div class="trk-side me"><small>KAMU</small><b>' + esc(me.name) + '</b>' + stats(me) + '</div><div class="trk-mid">VS</div>' +
+      '<div class="trk-side op"><small>LAWAN</small><b>' + esc(rp.name) + '</b>' + stats(os) + '</div></div>' +
+      '<p class="trk-sub" style="margin-top:10px">402 m' + (st.best ? ' · rekormu ' + dtk(st.best.us) + ' dtk' : '') + '</p>' +
+      '<div class="trk-how">Tiga obor dinyalakan, lalu <b>meriam berdentum</b>: ketuk di mana saja. Ketuk lagi tiap jarum masuk <b>daun hijau ✓</b> (4×); bintang <b>emas ★</b> = <b>SEMPURNA</b>. Di gigi lima <b>tahan</b> jarimu untuk <b>Semburan</b>. Jangan biarkan jarum mentok di merah. Desktop: <b>Spasi</b>.</div>' +
+      '<button type="button" class="trk-btn" data-utama data-a="siap" disabled>MENYALAKAN OBOR…</button><button type="button" class="trk-btn ghost" data-a="balik">Ganti lawan</button>');
+    var b = c.querySelector('[data-a="siap"]');
+    // run diminta diam-diam saat kartu ini tampil, supaya SIAP tidak menunggu jaringan
+    mulai(sel, function (r) { run = r; if (b.isConnected) { b.disabled = false; b.textContent = 'SIAP'; } }, function (m) { gagal = m; if (b.isConnected) { b.textContent = 'COBA LAGI'; b.disabled = false; } toast(m, 'error'); });
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.a === 'balik') menu();
+      else if (gagal) pre();
+      else if (run) go(run);
+    };
+  }
+  function mulai(rival, ok, fail) { api(['mulai', rival], function (r) { if (r && r.run) ok(r); else fail('Garis start belum siap.'); }, fail); }
+
+  // ---------------------------------------------------------------- balapan & hasil
+  function go(run) {
+    if (!G) return;
+    var ghost = ls('ghost', true) && st.best && st.best.log && run.ship === st.ship ? st.best.log : null;
+    G.race({ ship: run.ship, rival: run.rival, seed: run.seed, hint: hint(), ghostLog: ghost }, function (res) {
+      if (!res || res.cancelled) return;
+      lsSet('races', races() + 1);
+      hasil(run, res);
+    });
+  }
+  function hasil(run, res) {
+    var rp = S.RIVALS[run.rival], q = '', i, sh = res.me.shifts, diff = (res.me.fin || 0) - (res.op.fin || 0);
+    for (i = 0; i < 4; i++) q += '<span class="' + (sh[i] || '') + '">' + (i + 1) + '→' + (i + 2) + ' ' + (sh[i] ? sh[i].toUpperCase() : '—') + '</span>';
+    var nk = res.win ? kalah(run.rival, 0) : kalah(run.rival, 1);
+    var kiat = !res.win && nk >= 3 ? '<p class="trk-q">"' + esc(KIAT[(nk - 3) % KIAT.length]) + '"<small>— Yaptob</small></p>' : '';
+    var c = G.card('<div class="trk-res">' +
+      '<div class="trk-k" style="text-align:center">' + (res.win ? 'Selat Lurus jadi milikmu' : 'Selat Lurus belum ramah') + '</div>' +
+      '<h2 class="' + (res.win ? 'win' : 'lose') + '">' + (res.win ? 'Menang!' : 'Kalah') + '</h2>' +
+      '<div class="trk-times"><div><small>KAMU</small><b>' + dtk(res.me.fin) + ' dtk</b></div><div><small>' + esc(rp.name).toUpperCase() + '</small><b>' + dtk(res.op.fin) + ' dtk</b></div></div>' +
+      '<p class="trk-diff">' + (diff < 0 ? 'unggul ' : 'tertinggal ') + dtk(Math.abs(diff)) + ' dtk</p>' +
+      '<div class="trk-qs">' + q + '</div>' +
+      '<div class="trk-meta"><span>Reaksi <b>' + (res.me.jump ? 'CURI START' : dtk((res.me.reaction || 0) * 1000)) + '</b></span><span>Semburan <b>' + (res.me.boost ? 'ya' : 'tidak') + '</b></span><span>Rekor <b class="trk-best">' + (st.best ? dtk(st.best.us) : '—') + '</b></span></div>' +
+      kiat + '<p class="trk-srv">juru tulis sirkuit sedang mencatat…</p></div>' +
+      '<div class="trk-row"><button type="button" class="trk-btn ghost" data-a="menu">Ganti lawan</button><button type="button" class="trk-btn" data-utama data-a="lagi" disabled>ULANGI</button></div>');
+    var srv = c.querySelector('.trk-srv'), lagi = c.querySelector('[data-a="lagi"]'), next = null, nextErr = null, wantLagi = false;
+    function siapLagi() { lagi.disabled = false; if (wantLagi && next) go(next); }
+    api(['selesai', run.run, res.log], function (r) {
+      if (r.trek) st = r.trek;
+      var h = r.hasil || {};
+      if (!srv.isConnected) return;
+      if (h.me !== res.me.fin || h.op !== res.op.fin) { srv.className = 'trk-srv bad'; srv.textContent = 'Catatan juru tulis berbeda: ' + dtk(h.me) + ' vs ' + dtk(h.op) + ' dtk. Yang dipakai catatan juru tulis.'; }
+      else srv.innerHTML = '✓ dicatat juru tulis sirkuit' + (h.rec ? ' · <em class="trk-new">REKOR BARU</em>' : '');
+      var bb = c.querySelector('.trk-best'); if (bb && h.best) bb.textContent = dtk(h.best);
+      // run berikutnya disiapkan diam-diam supaya ULANGI langsung jalan
+      mulai(run.rival, function (n) { next = n; siapLagi(); }, function (m) { nextErr = m; lagi.disabled = false; });
+    }, function (m) { if (srv.isConnected) { srv.className = 'trk-srv bad'; srv.textContent = m; } mulai(run.rival, function (n) { next = n; siapLagi(); }, function (e) { nextErr = e; lagi.disabled = false; }); });
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.a === 'menu') menu();
+      else if (next) go(next);
+      else if (nextErr) { toast(nextErr, 'error'); menu(); }
+      else wantLagi = true;
+    };
+  }
+
+  // ---------------------------------------------------------------- pintu masuk
+  function open() {
+    if (busy || (window.MTGames8 && MTGames8.isOpen())) return;
+    if (!S || !window.MTGames8) return;
+    busy = true;
+    api(['status'], function (r) {
+      busy = false;
+      if (!r.trek) return;
+      st = r.trek;
+      G = MTGames8.open({ onClose: function () { G = null; } });
+      menu();
+    }, function () { busy = false; });
+  }
+  // penguji: alamat berakhiran #trek membuka Sirkuit begitu game siap
+  function viaHash() {
+    if (!/^#trek$/i.test(location.hash || '')) return;
+    var n = 0, iv = setInterval(function () {
+      var siap = false; try { var ts = document.getElementById('titleScreen'); siap = typeof state !== 'undefined' && state && state.player && (!ts || ts.classList.contains('hidden')) && !document.querySelector('.mtg.on, .tsg.on, .qt-cine'); } catch (e) { }
+      if (siap) { clearInterval(iv); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { } open(); }
+      else if (++n > 240) clearInterval(iv);
+    }, 500);
+  }
+  try { viaHash(); window.addEventListener('hashchange', viaHash); } catch (e) { }
+
+  return { open: open, isOpen: function () { return !!G; } };
+})();
+</script>

@@ -1783,7 +1783,7 @@ var MTScene = (function () {
       if (!inst.running) return;
       inst.raf = requestAnimationFrame(frame);
       inst.frameN++;
-      if (document.hidden) return;
+      if (document.hidden || window.MT_SCENE_HOLD) return;   // MT_SCENE_HOLD: layar penuh lain (Trektrek-an) sedang menggambar
       if (inst.throttle > 1 && inst.frameN % inst.throttle) return;
       var dt = inst.last ? Math.min(64, ts - inst.last) : 16;
       inst.last = ts;
@@ -7445,7 +7445,7 @@ var MTAudio = (function () {
   var KEY = 'mt_audio_v1';
   var prefs = loadPrefs();
   var scene = { mode: 'title', type: null, city: null, frac: 0.3, storm: false, enc: false, combat: false };
-  var amb = null, mus = null, timer = 0, lastTick = 0, blockedMusic = false, lastErr = null, meter = null;
+  var amb = null, mus = null, timer = 0, lastTick = 0, blockedMusic = false, duckedMusic = false, lastErr = null, meter = null;
 
   function loadPrefs() {
     var p = null;
@@ -7507,7 +7507,7 @@ var MTAudio = (function () {
     if (!ctx) return;
     var t = ctx.currentTime, tc = instant ? 0.01 : 0.25;
     master.gain.setTargetAtTime(prefs.on ? prefs.master : 0, t, tc);
-    bus.music.gain.setTargetAtTime(prefs.gamelan && !blockedMusic ? prefs.music * 0.9 : 0, t, tc);
+    bus.music.gain.setTargetAtTime(prefs.gamelan && !blockedMusic && !duckedMusic ? prefs.music * 0.9 : 0, t, tc);
     bus.amb.gain.setTargetAtTime(prefs.amb, t, tc);
     bus.sfx.gain.setTargetAtTime(prefs.sfx, t, tc);
     if (prefs.on && ctx.state === 'suspended' && !document.hidden) ctx.resume();
@@ -7905,6 +7905,8 @@ var MTAudio = (function () {
     setScene: function (o) { for (var k in o) if (o[k] !== undefined) scene[k] = o[k]; },
     /** Kalau admin memasang BGM sendiri & pemain memilihnya, musik gamelan diam. */
     blockMusic: function (b) { blockedMusic = !!b; applyPrefs(); },
+    /** Mini game dengan musiknya sendiri (Trektrek-an): gamelan latar diam sementara, tanpa mengubah preferensi. */
+    duckMusic: function (b) { duckedMusic = !!b; applyPrefs(); },
     sfx: sfx, talk: talk, thunder: thunder,
     state: function () { return ctx ? ctx.state : 'none'; },
     _mood: function () { return currentMood(); },
