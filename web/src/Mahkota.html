@@ -34,6 +34,11 @@
     font: 700 24px Georgia, serif; color: #3a2a18; font-style: normal; box-shadow: 0 2px 0 rgba(90,60,30,.25); }
   @media (prefers-reduced-motion: no-preference) { .mk-dadu i.roll { animation: mkRoll .5s ease-in-out infinite; } }
   @keyframes mkRoll { 50% { transform: translateY(-7px) rotate(-8deg); } }
+  .mk-teka { margin-top: 10px; display: grid; gap: 8px; }
+  .mk-teka input { width: 100%; padding: 11px 13px; border-radius: 12px; font: 400 16px Georgia, serif; color: #3a2a18;
+    background: rgba(255,255,255,.72); border: 1px solid rgba(120,90,50,.45); }
+  .mk-teka input:focus { outline: none; border-color: #b98a2e; box-shadow: 0 0 0 3px rgba(185,138,46,.18); }
+  .mk-teka .sisa { font: 400 13px Georgia, serif; color: #8a6a3c; }
   @media (max-width: 480px) { .mk-sob { grid-template-columns: 1fr; } }
 </style>
 <script>
@@ -58,6 +63,7 @@ var MK = (function () {
   function docked() { return !(state && state.voyage && state.voyage.inTransit); }
   function night() { var f = typeof dayFrac_ === 'function' ? dayFrac_() : 0.4; return f >= 0.72 || f < 0.04; }
   function esc(s) { return esc_(String(s == null ? '' : s)); }
+  var E = esc;
   function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
   function au(k) { try { au_(k); } catch (e) { } }
   var gameOpen = false, tibaShown = 0;
@@ -87,6 +93,10 @@ var MK = (function () {
         ap: apOf('yaptob-garasi-zentul-yusaintjolt', 'tukang', 0, { age: 0.78, facial: 2, head: 'ikat', outfit: 'apron' }) },
       pario: { name: 'Pariopelan', title: 'Pembalap Selat Lurus', bg: ['#4a5a3a', '#121a0e'],
         ap: apOf('pariopelan-zentul-pembalap', 'kapten', 0, { age: 0.3, head: 'ikat' }) },
+      ulin: { name: 'Nenek Ulin', title: 'Mercusuar Bjorneo', bg: ['#3a4a5a', '#101820'],
+        ap: apOf('nenek-ulin-mercusuar-bjorneo', 'lapau', 1, { age: 0.96, hair: 4, head: 'none' }) },
+      gaul: { name: 'Hasiolan', title: 'Galangan Gaul-Wash &middot; Skitraw', bg: ['#3a4a5a', '#12181f'],
+        ap: apOf('hasiolan-black-pearl', 'kapten', 0, { age: 0.5, head: 'ikat', facial: 1 }) },
       rongsok: { name: 'Penjaga Pasar Rongsok', title: 'Zentul', bg: ['#5a4a3a', '#161008'],
         ap: apOf('penjaga-pasar-rongsok-zentul', 'gudang', 1, { age: 0.5, head: 'caping' }) }
     };
@@ -166,6 +176,8 @@ var MK = (function () {
     if (kind === 'pantun' || kind === 'syahbandar') return window.MTGames;
     if (kind === 'angin') return window.MTGames2;
     if (kind === 'manifest') return window.MTGames5;
+    if (kind === 'sandi') return window.MTGames3;
+    if (kind === 'timbang') return window.MTGames6;
     if (kind === 'tempa') return window.MTGames4;
     return null;
   }
@@ -297,6 +309,34 @@ var MK = (function () {
     }
     render(null);
   };
+
+  /* 5. Teka-teki Nenek Ulin — dinilai server, salah = tunggu 20 detik */
+  function teka(i, w) {
+    var sisa = 0, timer = null;
+    function render(pesan) {
+      w.innerHTML = speech(who('ulin'), '<p>' + (pesan || '"Batu.. Batu apa yang tidak bisa digunakan untuk membangun rumah?"') + '</p>' +
+        '<div class="mk-teka"><input type="text" id="mkTeka" placeholder="Jawabanmu, Kapten" autocomplete="off" maxlength="40">' +
+        '<div class="sisa"></div></div>', actions(btn('jawab', null, 'Jawab')));
+      var inp = w.querySelector('#mkTeka'), sis = w.querySelector('.sisa'), b = w.querySelector('[data-mk=jawab]');
+      function tick() {
+        if (sisa <= 0) { sis.textContent = ''; b.disabled = false; inp.disabled = false; if (timer) { clearInterval(timer); timer = null; } return; }
+        sis.textContent = 'Nenek Ulin memejamkan mata. Tunggu ' + sisa + ' detik.'; b.disabled = true; inp.disabled = true; sisa--;
+      }
+      if (sisa > 0) { tick(); timer = setInterval(tick, 1000); } else { try { inp.focus(); } catch (e) { } }
+      function kirimJawab() {
+        var v = inp.value || '';
+        if (!v.trim()) return;
+        b.disabled = true;
+        call(['teka', i, v], function (r) {
+          if (r.maju) { if (timer) clearInterval(timer); after(i, r); return; }
+          au('bad'); sisa = Math.max(1, r.tunggu || 20); render(r.pesan || '"Bukan itu, Nak."');
+        }, null);
+      }
+      b.onclick = kirimJawab;
+      inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); kirimJawab(); } };
+    }
+    render(null);
+  }
 
   /* =====================================================================
    * Sinematik
@@ -524,7 +564,82 @@ var MK = (function () {
       a: [{ narr: 'Mesin Jolt Tahap 1', icon: 'wrench', t: '<p>Katupnya dipasang terakhir. Yaptob menutup penutup mesin dengan satu tendangan pelan, lalu menyeka tangan.</p>' },
         '"Sekarang kapalmu bukan kapal dagang lagi. Belum kapal balap juga &mdash; tapi sudah bisa diajak bicara."',
         '"Turun ke Sirkuit. Latihan sampai jarimu hafal bonangnya, bukan matamu." <i>Ia kembali ke bawah lambung.</i> "Dan jangan merusak katupku."'],
-      next: 'Sirkuit Selat Lurus: babak pertama diulang, kali ini dengan Mesin Jolt.' }
+      next: 'Sirkuit Selat Lurus: babak pertama diulang, kali ini dengan Mesin Jolt.' },
+
+    /* 16 */ { at: 'sirkuit', c: 'zentul', main: 'pario', icon: 'flag', title: 'Babak Pertama, Lagi', win: true,
+      p: [{ narr: 'Sirkuit Selat Lurus &middot; babak pertama diulang', icon: 'flag', t: '<p>Rayan Bazzy menghapus papan bagan dan menulis ulang namamu. Di lajur sebelah, Pariopelan memandangi mesin barumu lebih lama dari yang ia mau akui.</p>' },
+        '"Jadi orang tua itu akhirnya keluar dari bawah lambung." <i>Ia meludah ke samping.</i> "Baik. Sekarang baru balapan."'],
+      b: btn('go', 'flag', 'Babak 1 (ulang)'),
+      kalahLine: 'Pariopelan menang lagi. <i>Yaptob dari atap garasi:</i> "Jarimu masih menunggu matamu, Kapten. Dengarkan bonangnya."',
+      a: [{ narr: 'Babak pertama: menang', icon: 'flag', t: '<p>Obor di garis akhir diangkat untuk kapalmu. Pariopelan menepuk lambung kapalmu sekali, lalu pergi tanpa bicara.</p>' },
+        { n: 'rayan', t: '"Naik ke semifinal. Lawanmu KapalMber &mdash; dia tidak pernah kalah start. Tidak pernah."' }],
+      next: 'Semifinal, di Sirkuit yang sama.' },
+
+    /* 17 */ { at: 'sirkuit', c: 'zentul', main: 'rayan', icon: 'flag', title: 'Semifinal', win: true,
+      p: [{ narr: 'Sirkuit Selat Lurus &middot; semifinal', icon: 'flag', t: '<p>KapalMber tidak melihat lawannya. Ia hanya melihat meriam start, dari tadi, tanpa berkedip.</p>' },
+        '"Dia menghitung asap meriamnya, Kapten, bukan bunyinya. Asap lebih dulu sampai ke mata daripada bunyi ke telinga."'],
+      b: btn('go', 'flag', 'Semifinal'),
+      kalahLine: 'KapalMber menang lagi.',
+      kiat: ['<i>Yaptob, dari atap garasi:</i> "Kau terlalu cepat di gigi dua. Dengarkan bonangnya, jangan lihat jarumnya."',
+        '<i>Yaptob:</i> "Gigi empat kau tahan kelamaan. Mesin itu batuk kalau kau serakah."',
+        '<i>Yaptob:</i> "Semburan itu bukan tombol, Kapten. Jangan dilepas jarimu setelah gigi lima."'],
+      a: [{ narr: 'Semifinal: menang', icon: 'flag', t: '<p>KapalMber duduk di lambungnya sendiri sambil menatap air, lama.</p>' },
+        { n: 'rayan', t: '"Final. Lawanmu juara bertahan." <i>Ia menulis satu nama, lalu mengetuknya dua kali dengan pena.</i> "cangcimen pulang pekan depan. Dengan lambung Warlord."' }],
+      next: 'Lapor ke Yaptob di Garasi.' },
+
+    /* 18 */ { at: 'garasi', c: 'zentul', main: 'yaptob', icon: 'wrench', title: 'Jantung yang Lebih Kuat',
+      p: [{ narr: 'Garasi Yaptob', icon: 'wrench', t: '<p>Ia mendengarkan tanpa berhenti mengikir.</p>' },
+        '"Final melawan cangcimen. Lambungnya Warlord, dibayar uang Kumis Hitam. Mesinmu belum cukup."',
+        '"Aku butuh <b>jantung yang lebih kuat</b>. Dan aku harus tahu kenapa Jaring itu buta dua detik." <i>Ia meletakkan kikirnya.</i> "Tanya orang yang pernah bekerja untuk mesin itu. Yang pegang kemudi kapal hitam itu."'],
+      b: btn('go', null, 'Catat pesannya', false),
+      a: [{ narr: 'Catatan di sobekan amplas', icon: 'scroll', t: '<p>Satu kata: <b>Skitraw</b>. Di bawahnya, gambar rantai dengan dua mata yang kosong.</p>' }],
+      next: 'Galangan Gaul-Wash, Skitraw.' },
+
+    /* 19 */ { at: 'ship', c: 'skitraw', main: 'gaul', icon: 'moon', title: 'Pola Rantai',
+      p: [{ narr: 'Galangan Gaul-Wash &middot; Skitraw', icon: 'moon', t: '<p>Bau sabun dan tar. Hasiolan menggambar di meja cucian dengan jari basah: garis panjang, garis panjang, titik, lalu kosong.</p>' },
+        '"Uda Gala sedang di laut, jadi aku pakai mejanya." <i>Ia menatap gambarnya sendiri.</i> "Dulu aku percaya pada kedamaian yang dipaksakan. Sekarang aku tahu itu cuma penjara yang rapi."',
+        '"Kedipan rantai itu punya pola. Baca sendiri &mdash; aku tidak mau jadi satu-satunya orang yang tahu."'],
+      b: btn('go', 'moon', 'Tanyakan pola rantai pada Hasiolan'),
+      g: { kind: 'sandi', opts: { kicker: 'Galangan Gaul-Wash &middot; Skitraw', title: 'Sandi Mercusuar &middot; Pola Rantai', lives: 3,
+        panels: ['RANTAI BUTA DUA DETIK', 'SAAT BATU DIISI ULANG', 'BATU DARI KOTA KACA'],
+        intro: 'Setiap kedipan satu huruf. Pecahkan tiga baris pola itu.' } },
+      a: ['"Buta dua detik, setiap kali batunya diisi ulang." <i>Ia mengusap mejanya sampai bersih.</i> "Kenapa begitu, aku tidak tahu."',
+        '"Tapi ada yang melihat kedipan itu tiap malam selama bertahun-tahun: <b>nenek di mercusuar Bjorneo</b>."'],
+      next: 'Mercusuar Nenek Ulin, Bjorneo.' },
+
+    /* 20 */ { at: 'tasks', c: 'bjorneo', main: 'ulin', icon: 'star', title: 'Batu yang Bukan untuk Rumah', teka: true,
+      p: [{ narr: 'Mercusuar Bjorneo', icon: 'star', t: '<p>Seratus tiga anak tangga. Di atas, seorang nenek duduk menghadap laut, memunggungi lampunya sendiri.</p>' },
+        '"Rantai biru itu? Tiap malam saya lihat dia berkedip, Nak. Dan tiap beberapa tarikan, dia <b>pejam</b>."',
+        '"Sebelum saya cerita, jawab dulu." <i>Ia tersenyum, matanya tetap ke laut.</i>'],
+      b: btn('go', 'star', 'Tanya Nenek Ulin soal rantai biru'),
+      a: [{ narr: 'Jawaban Nenek Ulin', icon: 'star', t: '<p>Ia tertawa kecil, puas.</p>' },
+        '"Betul. Rantai itu tidak bernapas, Nak. Ia minum dari <b>batu baterai</b>. Setiap kali batunya diisi ulang, rantainya buta dua detik."',
+        '"Dan batu sebesar itu cuma dibuat di satu tempat: <b>kota kaca yang dulu diam</b>." <i>Ia akhirnya menoleh.</i> "Kalau kau mau lewat, lewatlah saat dia pejam. Jangan saat dia melihat."'],
+      next: 'Berlayarlah ke pulau bertanda CUKAI. Saat dicegat, pilih Tembus Jaring.' },
+
+    /* 21 */ { at: 'setsail', main: 'ulin', icon: 'alert', title: 'Tembus Pertama', info: true,
+      p: [{ narr: 'Dua detik itu', icon: 'alert', t: '<p>Rantai biru buta dua detik setiap kali batunya diisi ulang. Cukup untuk satu lambung, kalau lambung itu lari lurus.</p>' +
+        '<p class="muted small">Berlayarlah ke pulau bertanda <b>CUKAI</b>. Patroli pasti mencegat &mdash; di kartu pencegatan, pilih <b>Tembus Jaring</b>. Kalah di percobaan pertama ini tidak menyita apa pun.</p>' }] },
+
+    /* 22 */ { at: 'market', main: 'rimba', icon: 'coins', title: 'Koin Bercap Biru',
+      p: [{ narr: 'Pasar, satu jam setelah menembus jaring', icon: 'coins', t: '<p>Seorang perempuan berkerudung tar menyebut nama Bang Rimba lebih dulu, baru namamu. Ia membayar muatanmu dengan sekantung koin campuran.</p>' },
+        '"Hitung dulu di depan saya, Kapten. Sebagian koin yang beredar sekarang <b>palsu bercap biru</b> &mdash; mereka pakai itu untuk melacak siapa yang berdagang tanpa cap."'],
+      b: btn('go', 'coins', 'Temui agen Bang Rimba'),
+      g: { kind: 'timbang', opts: { kicker: 'Pasar &middot; Zona Cukai', title: 'Meja Kas &middot; Timbang Koin',
+        intro: 'Koin bercap biru sedikit lebih ringan. Timbang, pisahkan, lalu serahkan sisanya.' } },
+      a: [{ narr: 'Koin bercap biru dipisahkan', icon: 'coins', t: '<p>Tujuh koin disingkirkan ke kain terpisah. Agen itu membungkusnya rapat-rapat.</p>' },
+        '"Mulai sekarang pintu belakang terbuka untuk Kapten di pulau mana pun yang berhasil kau tembus." <i>Ia menuliskan sesuatu di telapak tangannya sendiri.</i> "Bang Rimba menunggu di Paradiso. Malam, seperti biasa."'],
+      next: 'Ruang VIP, Paradiso, saat lampu dinyalakan.' },
+
+    /* 23 */ { at: 'tavern', c: 'paradiso', t: 'malam', main: 'rimba', icon: 'scroll', title: 'Rencana Banjir Sutra',
+      wait: '"Ruang VIP baru buka kalau lampunya dinyalakan, Kapten."',
+      p: [{ narr: 'Ruang VIP &middot; Paradiso, malam', icon: 'scroll', t: '<p>Bang Rimba sudah tahu sebelum kau duduk. Di mejanya ada tiga kantung koin bercap biru dari tiga pulau berbeda.</p>' },
+        '"Cukai hidup karena dibayar, Kapten. Kalau tak ada lagi yang membayar, ia mati sendiri."',
+        '"Rencananya namanya <b>Banjir Sutra</b>: tiga zona dibanjiri barang tanpa cap sampai pembukuan mereka tidak masuk akal. Tapi Barisan Pacu baru ikut kalau kau <b>juara</b>."',
+        '"Dan untuk juara, kau butuh batu itu. Yang punya, seorang ratu yang sekarang tidak bisa tidur."'],
+      b: btn('go', null, 'Dengarkan rencananya', false),
+      a: [{ narr: 'Hadiah Q17 &middot; tanda jasa "Dua Detik"', icon: 'medal', t: '<p>Bang Rimba mendorong sekantung keping ke arahmu, lalu satu lencana timah kecil berbentuk dua garis.</p><p><i>"Dua detik. Itu saja jarak antara orang bebas dan orang yang mengantre."</i></p>' }],
+      next: 'Laboratorium Regal, Marie Regal, saat malam.' }
   ];
 
   /* =====================================================================
@@ -532,6 +647,7 @@ var MK = (function () {
    * ===================================================================== */
   function reward(r) {
     var h = '';
+    if (r.tanda) { try { metaBump_('mk' + r.tanda, 1); } catch (e) { } h += '<div class="mk-reward">' + ic('medal') + '<div><b>Tanda Jasa</b><br><span class="muted small">Tersimpan di Kartu Kapten.</span></div></div>'; }
     if (r.gold) h += '<div class="mk-reward">' + ic('coin') + '<div><b>' + fmt(r.gold) + ' gold</b><br><span class="muted small">Hadiah bab Saga 4.</span></div></div>';
     if (r.oli) h += '<div class="mk-reward">' + ic('crate') + '<div><b>' + r.oli + ' Oli Hitam</b><br><span class="muted small">Dimuat ke palkamu.</span></div></div>';
     return h;
@@ -557,8 +673,10 @@ var MK = (function () {
 
   function runStep(w, i) {
     var d = S[i];
+    if (d.info) { pages(w, d.main || 'lapau', d.p, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-mk=ok]', close); }, d); return; }
     pages(w, d.main || 'lapau', d.p, d.b, function (w2) {
       on(w2, '[data-mk=go]', function (b) {
+        if (d.teka) { teka(i, w2); return; }
         if (d.at === 'sirkuit' && !d.g) { balap(i, b); return; }
         function teruskan(res) {
           if (d.cineAfter) { b.disabled = true; cine(d.cineAfter.kind, d.cineAfter.slides, function () { kirim(i, res, null); }); return; }
@@ -582,6 +700,7 @@ var MK = (function () {
 
   /* ---------- balapan turnamen (langkah 12) ---------- */
   function balap(i, b) {
+    var d = S[i];
     if (!window.MTGames8 || !window.MTTrekSim) { showToast('Garis start belum siap, Kapten.', 'error'); return; }
     if (b) b.disabled = true;
     call(['balap', i], function (r) {
@@ -591,22 +710,39 @@ var MK = (function () {
       G.race({ ship: t.ship, rival: t.rival, seed: t.seed, hint: true }, function (res) {
         if (!res || res.cancelled || !G) return;
         kirimkan = true;
-        var c = G.card('<div class="trk-res"><div class="trk-k" style="text-align:center">Babak Pertama</div>' +
+        var c = G.card('<div class="trk-res"><div class="trk-k" style="text-align:center">' + E(d.title || 'Balapan') + '</div>' +
           '<h2 class="' + (res.win ? 'win' : 'lose') + '">' + (res.win ? 'Menang!' : 'Kalah') + '</h2>' +
           '<p class="trk-srv">Rayan Bazzy mencatat waktunya&hellip;</p></div>' +
           '<button type="button" class="trk-btn" data-utama disabled>LANJUT</button>', true);
         var srv = c.querySelector('.trk-srv'), btn2 = c.querySelector('.trk-btn'), out = null;
-        btn2.onclick = function () { if (!out) return; var g = G; G = null; if (g) g.close(); after(i, out); };
+        btn2.onclick = function () {
+          if (!out) return; var g = G; G = null; if (g) g.close();
+          if (out.maju === false) { ulangBabak(i, out); return; }
+          after(i, out);
+        };
         call(['selesai', i, t.run, res.log], function (rr) {
           out = rr;
           if (c.isConnected) {
             var menang = !!(rr.hasil && rr.hasil.win);
-            srv.textContent = menang ? 'Pariopelan protes ke meja pencatat.' : 'Pariopelan sudah sampai sebelum kau masuk gigi lima.';
+            btn2.textContent = rr.maju === false ? 'ULANGI' : 'LANJUT';
+            srv.textContent = menang ? 'Rayan Bazzy mencatat namamu di papan.' : (d.kalahLine ? 'Papan bagan belum berubah.' : 'Pariopelan sudah sampai sebelum kau masuk gigi lima.');
             btn2.disabled = false;
-          } else after(i, rr);
+          } else if (rr.maju === false) ulangBabak(i, rr); else after(i, rr);
         });
       });
     }, b);
+  }
+
+  // babak yang wajib dimenangkan: kartu kekalahan + kiat Yaptob setelah tiga kali
+  function ulangBabak(i, r) {
+    var d = S[i], w = modalWrap(d.icon, d.title, 'Zentul'); if (!w) return;
+    var n = r.kalah || 0, kiat = (d.kiat && n >= 3) ? d.kiat[(n - 3) % d.kiat.length] : null;
+    au('bad');
+    w.innerHTML = narr('Belum lewat', '<p>' + (d.kalahLine || 'Lawanmu lebih dulu sampai.') + '</p>' +
+      (kiat ? '<p>' + kiat + '</p>' : '') + '<p class="muted small">Boleh diulang sebanyak yang kau mau, Kapten.</p>',
+      actions(btn('ulang', 'flag', 'Turun lagi ke garis start') + btn('tutup', null, 'Nanti dulu', false)), d.icon);
+    on(w, '[data-mk=ulang]', function (b) { balap(i, b); });
+    on(w, '[data-mk=tutup]', close);
   }
 
   /* ---------- kartu di panel ---------- */
@@ -643,7 +779,7 @@ var MK = (function () {
       if (gameOpen || !aktif()) return;
       try {
         if (tiba(false)) return;
-        if (currentPanel === 'tavern' || currentPanel === 'tasks' || currentPanel === 'ship' || currentPanel === 'market') kartu(currentPanel);
+        if (currentPanel === 'tavern' || currentPanel === 'tasks' || currentPanel === 'ship' || currentPanel === 'market' || currentPanel === 'setsail') kartu(currentPanel);
       } catch (e) { console.warn('[MK] panel', e); }
     });
   }
@@ -661,6 +797,9 @@ var MK = (function () {
     }
   };
 })();
+if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
+  { id: 'mk_duadetik', t: 3, ic: 'flag', n: 'Dua Detik', d: 'Tembus Jaring Rantai Kumis Hitam untuk pertama kalinya.', g: function (m) { return [m.c.mkduadetik || 0, 1]; } }
+);
 window.MTMahkota = {
   garasi: function () { return !!(MK && MK.buka && MK.buka('garasi')); },
   sirkuit: function () { return !!(MK && MK.buka && MK.buka('sirkuit')); }

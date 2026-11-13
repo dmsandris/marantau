@@ -30,7 +30,7 @@ const { D, human, SKILL } = require('./trek-sim');
   assert((await st(a)) === null, 'hari game yang sama: belum');
   await H.sql(`update game.player_quests set done_at = now() - interval '2 hours' where quest_id = 'ps14'`);
   const s0 = await st(a);
-  assert(s0 && s0.step === 0 && s0.ada === 15 && s0.last === 40 && s0.d.n === 1, 'terbuka setelah 1 hari game: ' + JSON.stringify(s0 && s0.d));
+  assert(s0 && s0.step === 0 && s0.ada === 23 && s0.last === 40 && s0.d.n === 1, 'terbuka setelah 1 hari game: ' + JSON.stringify(s0 && s0.d));
 
   // ---- jalan 15 langkah ----
   const PANGGUNG = { 1: null, 2: 'ikn', 3: 'ikn', 4: 'joungjava', 5: 'joungjava', 6: 'toogood', 7: 'toogood', 8: 'paradiso', 9: 'paradiso' };
@@ -93,8 +93,8 @@ const { D, human, SKILL } = require('./trek-sim');
 
   // ---- setelah langkah 15 ----
   const s15 = await st(a);
-  assert(s15.step === 15 && s15.d === null && s15.jolt && s15.garasi && s15.zentul, 'langkah 16 belum dikoding: ' + JSON.stringify(s15.d));
-  await H.expectError(() => a.call('api_mahkota', ['maju', 15, 'ok']), /Bersambung/);
+  assert(s15.step === 15 && s15.d && s15.d.n === 16 && s15.jolt && s15.garasi && s15.zentul, 'langkah 16 aktif: ' + JSON.stringify(s15.d));
+  await H.expectError(() => a.call('api_mahkota', ['maju', 15, 'ok']), /garis start/);
   assert((await gold(a)) > 2000000 + 50000 + 75000 - 1, 'hadiah masuk');
   // Sirkuit kini jalan dari Zentul, dengan Mesin Jolt
   const sk = await a.call('api_trek', ['status']);
