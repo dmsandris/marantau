@@ -30,7 +30,7 @@ const { D, human, SKILL } = require('./trek-sim');
   assert((await st(a)) === null, 'hari game yang sama: belum');
   await H.sql(`update game.player_quests set done_at = now() - interval '2 hours' where quest_id = 'ps14'`);
   const s0 = await st(a);
-  assert(s0 && s0.step === 0 && s0.ada === 33 && s0.last === 40 && s0.d.n === 1, 'terbuka setelah 1 hari game: ' + JSON.stringify(s0 && s0.d));
+  assert(s0 && s0.step === 0 && s0.ada === 40 && s0.last === 40 && s0.d.n === 1, 'terbuka setelah 1 hari game: ' + JSON.stringify(s0 && s0.d));
 
   // ---- jalan 15 langkah ----
   const PANGGUNG = { 1: null, 2: 'ikn', 3: 'ikn', 4: 'joungjava', 5: 'joungjava', 6: 'toogood', 7: 'toogood', 8: 'paradiso', 9: 'paradiso' };

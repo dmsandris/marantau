@@ -59,6 +59,7 @@ var MK = (function () {
   function step() { var s = st(); return s ? (s.step || 0) : -1; }      // langkah yang sudah selesai
   function aktif() { return !!st(); }
   function def() { var s = st(); return (s && s.d) || null; }
+  function idx() { var s = st(); if (!s) return -1; return s.d ? (s.d.n - 1) : s.step; }
   function cid() { try { return state && state.city ? state.city.CityId : ''; } catch (e) { return ''; } }
   function cityNm(id) { try { var c = (state.cities || []).filter(function (x) { return x.CityId === id; })[0]; return c ? c.Name : null; } catch (e) { return null; } }
   function docked() { return !(state && state.voyage && state.voyage.inTransit); }
@@ -179,7 +180,7 @@ var MK = (function () {
   /* ---------- mini game lama ---------- */
   function lib(kind) {
     if (kind === 'pantun' || kind === 'syahbandar') return window.MTGames;
-    if (kind === 'angin') return window.MTGames2;
+    if (kind === 'angin' || kind === 'genderang') return window.MTGames2;
     if (kind === 'manifest') return window.MTGames5;
     if (kind === 'sandi') return window.MTGames3;
     if (kind === 'timbang' || kind === 'kas') return window.MTGames6;
@@ -769,8 +770,87 @@ var MK = (function () {
         intro: 'Cocokkan kas sungguhan dengan buku bersampul biru. Selisihnya yang kita cari.' } },
       a: [{ narr: 'Selisih yang tidak bisa dijelaskan', icon: 'coins', t: '<p>Selisihnya bukan sedikit, dan bukan salah hitung. Pagi berikutnya, papan audit di setiap pulau ditempeli kertas yang sama:</p><p style="text-align:center"><b>&ldquo;CUKAI TAK DIBAYAR&rdquo;</b></p>' },
         '"Tiga zona tenggelam, Kapten. Cukai itu sekarang cuma tinta." <i>Ia menyerahkan sekantung keping dan satu lencana sutra biru yang sudah dipotong dua.</i> "Kumis Hitam akan datang sendiri sekarang. Ke IKN."'],
-      next: 'IKN, Monumen Restorasi. Bersambung di batch berikutnya.' }
-  ];
+      next: 'IKN, Monumen Restorasi.' },
+
+    /* 34 */ { at: 'tasks', c: 'ikn', main: 'hitam', icon: 'alert', title: 'Benteng Berjalan',
+      p: [{ narr: 'Monumen Restorasi &middot; IKN', icon: 'alert', t: '<p>Pelabuhan IKN dikunci. Armada Biru berjajar lambung ke lambung sampai jadi benteng terapung, dan rantai dibentangkan dari menara ke menara.</p>' },
+        '"Tiga zona tenggelam dalam sutra tanpa cap. Angka-angka saya jadi lelucon di setiap lapau." <i>Kumis Hitam tidak meninggikan suara sedikit pun.</i>',
+        '"Laut yang bebas adalah laut yang kacau, Kapten. Kebebasanmu berakhir di tempat stempel biru ini ditekan."',
+        { narr: 'Di belakangnya', icon: 'ship', t: '<p>Kapal <b>Juru Sita</b> merapat perlahan. Di kemudinya berdiri cangcimen, pita biru masih terikat di lambung Warlord-nya.</p><p>Jendral Tedsky menatap dari bawah sayap Garuda, dan tidak berkata apa-apa.</p>' }],
+      b: btn('go', 'alert', 'Hadapi Kumis Hitam'),
+      cineAfter: { kind: 'mk_benteng', slides: [
+        'Armada Biru merapat lambung ke lambung sampai pelabuhan IKN tertutup rapat.',
+        'Rantai utama dibentangkan dari menara ke menara, dan setiap mata rantainya menyala pelan.',
+        'Di balik benteng itu, satu gerbang tetap terbuka selebar satu lambung &mdash; dan menutup tiap dua detik.'] },
+      a: [{ narr: 'Satu celah', icon: 'flag', t: '<p>Benteng itu rapat di mana-mana, kecuali satu gerbang di tengah. Gerbang untuk kapal mereka sendiri.</p>' },
+        { n: 'rimba', t: '"Berarti kita butuh kapal yang <b>mereka kira milik mereka</b>, Kapten. Ke TooGood. Dok Kering."' }],
+      next: 'Dok Kering, TooGood.' },
+
+    /* 35 */ { at: 'ship', c: 'toogood', main: 'hasiolan', icon: 'anchor', title: 'Juru Sita Palsu',
+      p: [{ narr: 'Dok Kering &middot; TooGood', icon: 'anchor', t: '<p>Rangka kapal sudah berdiri, tapi masih telanjang. Hasiolan menggambar wajah Juru Sita di papan dengan arang: lambung bersudut, cerobong pendek, dan cat biru.</p>' },
+        '"Kita tidak perlu kapal yang bisa bertempur, Kapten. Kita perlu kapal yang bisa <b>ditembak</b> selama dua detik."',
+        '"Bawa <b>20 Oli Hitam, 20 Besi, 10 Mesiu</b>. Boleh dicicil &mdash; yang penting lengkap sebelum genderang ditabuh."'],
+      b: btn('go', 'crate', 'Setor bahan pengalih'),
+      a: [{ narr: 'Kapal pengalih', icon: 'ship', t: '<p>Cat biru terakhir dipulas saat subuh. Dari jauh, kapal itu benar-benar Juru Sita &mdash; hanya saja tidak ada seorang pun di kemudinya.</p>' },
+        '"Sekarang bagian yang tidak bisa saya kerjakan sendiri. Barisan Pacu dan Armada Bebas harus berangkat bersamaan. Itu urusan genderang, bukan urusan kemudi."'],
+      next: 'Dermaga Paradiso: tabuh genderang.' },
+
+    /* 36 */ { at: 'ship', c: 'paradiso', main: 'rimba', icon: 'drum', title: 'Genderang Armada Bebas',
+      p: [{ narr: 'Dermaga Paradiso', icon: 'drum', t: '<p>Genderang tua Legenda Trust diturunkan dari gudang: kulitnya retak, rotannya diganti tiga kali, tapi bunyinya masih sampai ke tengah laut.</p>' },
+        '"Satu tabuhan untuk Armada Bebas, satu untuk Barisan Pacu. Kalau iramamu rapi, mereka berangkat bersamaan &mdash; dan kau dapat satu kesempatan tambahan di gerbang nanti."'],
+      b: btn('go', 'drum', 'Tabuh genderang'),
+      g: { kind: 'genderang', opts: { kicker: 'Dermaga Paradiso &middot; genderang Legenda Trust', title: 'Tari Genderang',
+        intro: 'Ikuti iramanya. Makin rapi tabuhanmu, makin rapat armadanya berangkat.' } },
+      a: [{ narr: 'Dua armada berangkat', icon: 'drum', t: '<p>Perahu-perahu pacu dan kapal-kapal Armada Bebas melepas tali hampir bersamaan. Laut di depan Paradiso penuh layar sampai ke cakrawala.</p>' },
+        '"Sampai ketemu di gerbang, Kapten. Kami yang menahan benteng; <b>gerbangnya</b> urusanmu."'],
+      next: 'Berlayar ke IKN. Heat langsung dimulai saat kau tiba.' },
+
+    /* 37 */ { at: 'heat', c: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Pertama', win: true, heat: true,
+      p: [{ narr: 'Gerbang rantai IKN', icon: 'flag', t: '<p>Kapal pengalih berwajah Juru Sita masuk lebih dulu dan langsung dihujani tembakan. Dua detik. Gerbang membuka.</p>' },
+        '"Sekarang, Kapten! Lurus saja &mdash; jangan lihat meriamnya!"'],
+      b: btn('go', 'flag', 'Masuk gerbang'),
+      kalahLine: 'Rantai menutup tepat di depan haluan. Patroli Armada Biru mendorong kapalmu keluar dari jalur.',
+      a: [{ narr: 'Gerbang pertama lewat', icon: 'flag', t: '<p>Rantai menutup di belakang buritanmu. Di depan masih ada barisan berikutnya.</p>' }],
+      next: 'Heat berikutnya, langsung di tempat.' },
+
+    /* 38 */ { at: 'heat', c: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Kedua', win: true, heat: true,
+      p: [{ narr: 'Barisan kedua', icon: 'flag', t: '<p>Patroli kedua lebih rapat dan lebih sabar. Mereka tidak mengejar; mereka menunggu di garis.</p>' },
+        '"Mereka hafal iramamu sekarang. Ubah titik gigi tiga."'],
+      b: btn('go', 'flag', 'Terobos barisan kedua'),
+      kalahLine: 'Barisan kedua menutup rapat. Kau terdorong keluar dari jalur.',
+      a: [{ narr: 'Tinggal satu', icon: 'flag', t: '<p>Di depan sana, hanya Juru Sita yang tersisa di antara kau dan rantai utama.</p>' }],
+      next: 'Juru Sita menunggu di gerbang terakhir.' },
+
+    /* 39 */ { at: 'heat', c: 'ikn', main: 'cangcimen', icon: 'trophy', title: 'Juru Sita', win: true, heat: true,
+      p: [{ narr: 'Gerbang terakhir', icon: 'trophy', t: '<p>Juru Sita berdiri melintang di mulut gerbang. cangcimen tidak memakai pita birunya lagi &mdash; pita itu tergeletak di geladak.</p>' },
+        '"Guru tua tidak datang?" <i>Ia melihat ke lajur kosong di sebelahmu.</i> "Sayang. Aku ingin dia melihat ini."'],
+      b: btn('go', 'trophy', 'Lawan Juru Sita'),
+      kalahLine: 'Juru Sita menutup celah terakhir. Kapalmu terdorong keluar bersama arus.',
+      kiat: ['<i>Bang Rimba lewat radio dermaga:</i> "Benteng kami masih menahan. Sekali lagi, Kapten."',
+        '<i>Rayan Bazzy:</i> "Juara Turnamen Obor tidak kalah dua kali di gerbang yang sama."',
+        '<i>Suara Yaptob, entah dari mana:</i> "Lurus. Jangan rapi. Lurus."'],
+      cineAfter: { kind: 'mk_rantai', slides: [
+        'Di lajur sebelah, sesuatu melesat lebih cepat dari apa pun yang pernah berlayar di laut ini: <b>YusaintJolt</b>.',
+        'Yaptob tidak menuju garis akhir. Ia menuju rantai utama &mdash; dan menabraknya dengan seluruh mesin yang pernah ia bangun.',
+        'Rantai itu patah. Lunas YusaintJolt ikut patah. Yaptob tertawa di air, melambai dengan satu tangan.'] },
+      a: [{ n: 'yaptob', t: '"Kapal tercepat memang tak pernah sampai jauh, Kapten." <i>Ia meludahkan air laut.</i> "Makanya aku butuh kau yang sampai."' },
+        { n: 'cangcimen', t: '<i>cangcimen mematikan mesinnya sendiri dan melempar tali ke arah Yaptob.</i> "...Naik, Guru. Airnya dingin."' }],
+      next: 'Dermaga IKN.' },
+
+    /* 40 */ { at: 'ship', c: 'ikn', main: 'hitam', icon: 'crown', title: 'Stempel di Dermaga',
+      p: [{ narr: 'Dermaga IKN', icon: 'crown', t: '<p>Rantai utama yang putus mengayun sekali, lalu menghantam lambung <b>Stempel Biru</b>. Kapal audit itu miring, dan tidak ada satu pun perahu biru yang datang menolong.</p>' },
+        { narr: 'Surat dari Pemerintah Dunia', icon: 'scroll', t: '<p>Seorang kurir menyerahkan amplop bersegel. Kumis Hitam membacanya sambil berdiri, lalu melipatnya rapi.</p><p><i>"Dipanggil pulang. Gagal menjaga stabilitas harga."</i></p>' },
+        '"Saya tidak pernah membenci laut ini, Kapten. Saya hanya ingin laut ini bisa dihitung." <i>Ia meletakkan stempelnya di tiang dermaga, lalu naik ke kapal yang akan membawanya pulang.</i>',
+        { narr: 'Stempel itu masih di sana', icon: 'crown', t: '<p>Kuningan, berat, gagangnya licin karena dipakai bertahun-tahun. Semua orang di dermaga menunggu apa yang akan kau lakukan.</p>' }],
+      b: '<button class="btn btn-gold" data-mk="patahkan">' + ic('hammer') + '&nbsp; Patahkan di tiang dermaga</button>' +
+         '<button class="btn" data-mk="dewan">' + ic('scroll') + '&nbsp; Serahkan ke Dewan Dua Tangan</button>' +
+         '<button class="btn" data-mk="marlya">' + ic('crown') + '&nbsp; Kembalikan ke Ratu Marlya</button>',
+      pilih: { patahkan: 'patahkan', dewan: 'dewan', marlya: 'marlya' },
+      epilog: true },
+
+    /* penanda: langkah di atas 40 belum ada */
+    null
+  ].filter(function (x) { return !!x; });
 
   /* =====================================================================
    * Jalannya langkah
@@ -785,9 +865,41 @@ var MK = (function () {
   }
   function nextLine(d) { return d.next ? '<p class="muted small" style="margin-top:8px">' + ic('map') + ' ' + d.next + '</p>' : ''; }
 
+  var EPILOG = [
+    { narr: 'Di kapal yang pulang', icon: 'ship', t: '<p>Untuk pertama kalinya, kumis hitam itu tidak disisir. Ia berdiri di buritan, memandangi laut yang tidak lagi bisa ia hitung.</p>' },
+    { narr: 'IKN', icon: 'alert', t: '<p>Jendral Tedsky mengecat satu garis biru tipis di sayap Garuda perunggu, lalu turun dari tangga tanpa menjelaskan apa-apa pada siapa pun.</p>' },
+    { narr: 'Marie Regal', icon: 'crown', t: '<p>Ratu Marlya menulis surat untuk coco epan. Isinya tidak diperlihatkan pada siapa pun, bahkan pada juru tulisnya sendiri.</p>' },
+    { narr: 'TooGood', icon: 'anchor', t: '<p>Hasiolan mengembalikan Black Pearl ke Dok Kering, lengkap dengan goresan biru di lambungnya yang tidak bisa dihapus. zafachmie tidak menanyakannya.</p>' },
+    { narr: 'Paradiso', icon: 'coin', t: '<p>Bang Rimba menutup Pasar Gelap pada malam yang sama. <i>"Pasar gelap hanya perlu ada selama pasar terang dikunci, Kapten."</i></p>' },
+    { narr: 'Zentul', icon: 'wrench', t: '<p>cangcimen berdiri di depan garasi, menunduk. Yaptob melemparkan kunci pas kepadanya: <i>"Lunasnya patah. Kau yang perbaiki."</i></p><p>Lalu ia melepas Mesin Jolt dari kapalmu. <i>"Kalau mau cepat lagi, Kapten, garasiku buka. Warlord, bukan pinjaman."</i></p>' },
+    { narr: 'Lapau Oli', icon: 'trophy', t: '<p>Rayan Bazzy menempel namamu di papan juara. <i>"Selat Lurus terbuka untukmu kapan saja, Juara. Dan untuk siapa pun yang berani menantangmu."</i></p>' }
+  ];
+  function epilog(i, r) {
+    var w = modalWrap('crown', 'Saga Keempat', 'Epilog'); if (!w) { close(); return; }
+    var pilihan = (st() && st().data && st().data.stempel) || 'patahkan';
+    var tutup = { patahkan: '<p>Stempel itu kau patahkan di tiang dermaga. Kuningannya terbelah dua, dan suaranya terdengar sampai ujung pelabuhan.</p>',
+      dewan: '<p>Stempel itu kau serahkan ke Dewan Dua Tangan, untuk disimpan di ruang yang sama dengan rantai-rantai lama.</p>',
+      marlya: '<p>Stempel itu kau kembalikan kepada Ratu Marlya. Ia menyimpannya di samping mahkotanya sendiri: <i>"Supaya aku ingat harganya."</i></p>' };
+    var list = [{ narr: 'Stempel Biru', icon: 'crown', t: tutup[pilihan] || tutup.patahkan }].concat(EPILOG);
+    pages(w, 'rimba', list, btn('credit', null, 'Selesai'), function (w2) {
+      on(w2, '[data-mk=credit]', function () {
+        au('achieve');
+        w.innerHTML = '<div class="cb-narr" style="text-align:center">' +
+          '<p style="font-size:1.08em;line-height:1.7"><i>&ldquo;Aturan dan rantai diciptakan untuk mengikat mereka yang berjalan.<br>' +
+          'Bagi mereka yang berlari menembus angin, rantai hanyalah garis finish.&rdquo;</i></p>' +
+          '<h2 style="letter-spacing:.14em;margin:18px 0 6px">SAGA KEEMPAT &mdash; SELESAI</h2>' +
+          '<p class="muted small">Monopoli &amp; Mahkota</p>' + reward(r) +
+          '<p class="muted small" style="margin-top:10px">' + ic('flag') + ' Trektrek-an kini terbuka kapan saja di Zentul, dan Garasi Warlord tetap buka.</p>' +
+          actions(btn('ok', null, 'Tutup', false)) + '</div>';
+        on(w, '[data-mk=ok]', function () { close(); loadState(); });
+      });
+    });
+  }
+
   function after(i, r) {
     var d = S[i];
-    if (d.win && d.at === 'sirkuit' && (S.indexOf(d) + 1) === 29) { try { metaBump_('mkobor', 1); } catch (e) { } }
+    if (d.epilog) { epilog(i, r); return; }
+    if (d.win && d.title === 'Final Turnamen Obor') { try { metaBump_('mkobor', 1); } catch (e) { } }
     var w = document.getElementById('modalContent') ? insertTop('<div></div>') : modalWrap(d.icon, d.title, '');
     if (!w) return;
     var list = (d.a || [{ narr: d.title, icon: d.icon, t: '<p>Selesai.</p>' }]).slice();
@@ -818,7 +930,7 @@ var MK = (function () {
       }
       on(w2, '[data-mk=go]', function (b) {
         if (d.teka) { teka(i, w2); return; }
-        if (d.at === 'sirkuit' && !d.g) { balap(i, b); return; }
+        if ((d.at === 'sirkuit' || d.heat) && !d.g) { balap(i, b); return; }
         function teruskan(res) {
           if (d.cineAfter) { b.disabled = true; cine(d.cineAfter.kind, d.cineAfter.slides, function () { kirim(i, res, null); }); return; }
           kirim(i, res, b);
@@ -877,16 +989,19 @@ var MK = (function () {
 
   // babak yang wajib dimenangkan: kartu kekalahan + kiat Yaptob setelah tiga kali
   function ulangBabak(i, r) {
-    var d = S[i], w = modalWrap(d.icon, d.title, 'Zentul'); if (!w) return;
+    var d = S[i], w = modalWrap(d.icon, d.title, d.heat ? 'IKN' : 'Zentul'); if (!w) return;
     var n = r.kalah || 0, kiat = (d.kiat && n >= 3) ? d.kiat[(n - 3) % d.kiat.length] : null;
     au('bad');
     var garis = r.target
       ? (d.lambatLine || 'Belum cukup cepat.') + ' <span class="muted small">Waktumu ' + ((r.hasil && r.hasil.me) ? (r.hasil.me / 1000000).toFixed(2).replace('.', ',') : '-') +
         ' detik; targetnya ' + (r.target / 1000000).toFixed(2).replace('.', ',') + ' detik.</span>'
       : (d.kalahLine || 'Lawanmu lebih dulu sampai.');
-    w.innerHTML = narr('Belum lewat', '<p>' + garis + '</p>' +
-      (kiat ? '<p>' + kiat + '</p>' : '') + '<p class="muted small">Boleh diulang sebanyak yang kau mau, Kapten.</p>',
-      actions(btn('ulang', 'flag', 'Turun lagi ke garis start') + btn('tutup', null, 'Nanti dulu', false)), d.icon);
+    var kunci = !!r.kunci;
+    w.innerHTML = narr('Belum lewat', '<p>' + garis + '</p>' + (kiat ? '<p>' + kiat + '</p>' : '') +
+      '<p class="muted small">' + (kunci
+        ? ic('map') + ' Gerbang sudah menutup. Mundur ke laut lepas, lalu berlayar lagi ke IKN untuk mencoba lagi.'
+        : (r.ulangSisa ? 'Kesempatan dari genderang tersisa: <b>' + r.ulangSisa + '</b>. ' : '') + 'Boleh diulang sebanyak yang kau mau, Kapten.') + '</p>',
+      actions((kunci ? '' : btn('ulang', 'flag', 'Turun lagi ke garis start')) + btn('tutup', null, kunci ? 'Tutup' : 'Nanti dulu', false)), d.icon);
     on(w, '[data-mk=ulang]', function (b) { balap(i, b); });
     on(w, '[data-mk=tutup]', close);
   }
@@ -896,7 +1011,7 @@ var MK = (function () {
   function kartu(at) {
     if (!docked()) return;
     var s = st(); if (!s) return;
-    var i = s.step, d = S[i];
+    var i = idx(), d = S[i];
     if (!d) return;
     // langkah Banjir: penunjuk di Set Sail sampai jaringnya tertembus, lalu kartu setoran di pasar kota itu
     if (d.setor) {
@@ -918,17 +1033,17 @@ var MK = (function () {
   /* kartu "tiba" (langkah 10): muncul di panel mana pun saat merapat di Zentul, dan sekali otomatis */
   function tiba(auto) {
     var s = st(); if (!s || !docked()) return false;
-    var d = S[s.step];
-    if (!d || d.at !== 'tiba' || d.c !== cid()) return false;
+    var i = idx(), d = S[i];
+    if (!d || (d.at !== 'tiba' && d.at !== 'heat') || d.c !== cid()) return false;
     if (auto) {
-      if (tibaShown === s.step || gameOpen) return false;
+      if (tibaShown === i || gameOpen) return false;
       if (document.getElementById('modalOverlay') && document.getElementById('modalOverlay').classList.contains('open')) return false;
       if (window.MTGames8 && MTGames8.isOpen && MTGames8.isOpen()) return false;
-      tibaShown = s.step;
-      var w = modalWrap(d.icon, d.title, 'Zentul'); if (w) runStep(w, s.step);
+      tibaShown = i;
+      var w = modalWrap(d.icon, d.title, d.at === 'heat' ? 'IKN' : 'Zentul'); if (w) runStep(w, i);
       return true;
     }
-    var w2 = insertTop('<div></div>'); if (w2) runStep(w2, s.step);
+    var w2 = insertTop('<div></div>'); if (w2) runStep(w2, i);
     return true;
   }
 
@@ -938,6 +1053,7 @@ var MK = (function () {
       try {
         if (tiba(false)) return;
         if (currentPanel === 'tavern' || currentPanel === 'tasks' || currentPanel === 'ship' || currentPanel === 'market' || currentPanel === 'setsail') kartu(currentPanel);
+        else if (currentPanel && tiba(false)) return;
       } catch (e) { console.warn('[MK] panel', e); }
     });
   }
@@ -948,17 +1064,18 @@ var MK = (function () {
     // dipanggil CitiesSaga4 dari bangunan Zentul
     buka: function (at) {
       var s = st(); if (!s) return false;
-      var d = S[s.step];
+      var i = idx(), d = S[i];
       if (!d || d.at !== at || (d.c && d.c !== cid()) || !docked()) return false;
       var w = modalWrap(d.icon, d.title, 'Zentul'); if (!w) return false;
-      runStep(w, s.step); return true;
+      runStep(w, i); return true;
     }
   };
 })();
 if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
   { id: 'mk_duadetik', t: 3, ic: 'flag', n: 'Dua Detik', d: 'Tembus Jaring Rantai Kumis Hitam untuk pertama kalinya.', g: function (m) { return [m.c.mkduadetik || 0, 1]; } },
   { id: 'mk_banjirsutra', t: 3, ic: 'crate', n: 'Banjir Sutra', d: 'Banjiri tiga Zona Cukai bersama Barisan Pacu.', g: function (m) { return [m.c.mkbanjirsutra || 0, 1]; } },
-  { id: 'mk_obor', t: 3, ic: 'trophy', n: 'Juara Turnamen Obor', d: 'Kalahkan cangcimen di final Turnamen Obor, Zentul.', g: function (m) { return [m.c.mkobor || 0, 1]; } }
+  { id: 'mk_obor', t: 3, ic: 'trophy', n: 'Juara Turnamen Obor', d: 'Kalahkan cangcimen di final Turnamen Obor, Zentul.', g: function (m) { return [m.c.mkobor || 0, 1]; } },
+  { id: 'mk_saga4', t: 3, ic: 'crown', n: 'Saga Keempat', d: 'Putuskan Jaring Rantai di gerbang IKN dan tamatkan "Monopoli & Mahkota".', g: function (m) { return [m.c.mksagakeempat || 0, 1]; } }
 );
 /* =====================================================================
  * Garasi Warlord — tahap terakhir kapal (server: 0078-warlord.sql)
@@ -1145,6 +1262,116 @@ window.MTMahkota = {
         glow(ctx, px - m * 0.14, py - m * 0.04, m * 0.09, '255,150,60', 0.85);
       }
       C.vignette && C.vignette(ctx, W, H);
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  });
+})();
+</script>
+
+<script>
+/* ---------- sinematik Saga 4 akhir: benteng Armada Biru & rantai yang putus ---------- */
+(function () {
+  if (!window.MTCine || !MTCine.register) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  function glow(ctx, x, y, r, col, a) {
+    if (a <= 0.004 || r <= 0.5) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function laut(ctx, W, H, t, a, b) {
+    var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, a); g.addColorStop(1, b);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(150,190,240,.14)'; ctx.lineWidth = Math.max(1, H * 0.003);
+    for (var i = 0; i < 8; i++) {
+      var y = H * (0.66 + i * 0.045); ctx.beginPath();
+      for (var x = 0; x <= W; x += 20) ctx.lineTo(x, y + Math.sin((x / W) * 6 + t * (0.7 + i * 0.1) + i) * H * 0.005);
+      ctx.stroke();
+    }
+  }
+  function kapalBiru(ctx, x, y, s) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.fillStyle = '#16294a'; ctx.beginPath(); ctx.moveTo(-54, 0); ctx.quadraticCurveTo(0, 20, 58, 0); ctx.lineTo(44, 13); ctx.quadraticCurveTo(0, 26, -44, 11); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#24477a'; ctx.fillRect(-26, -26, 52, 26);
+    ctx.fillStyle = '#3d67a8'; ctx.fillRect(-3, -52, 6, 28);
+    ctx.fillStyle = '#9fc2ef'; ctx.fillRect(-20, -20, 40, 5);
+    ctx.restore();
+  }
+  // Benteng: kapal-kapal biru merapat jadi dinding, rantai dibentangkan, satu celah menutup tiap dua detik.
+  MTCine.register('mk_benteng', function () {
+    function draw(ctx, W, H, t) {
+      laut(ctx, W, H, t, '#0a1322', '#13263f');
+      var m = Math.min(W, H), y = H * 0.66, rapat = sm(0.6, 3.6, t), gate = W * 0.5;
+      for (var i = 0; i < 9; i++) {
+        var f = i / 8, jauh = (i % 2 ? 1 : -1) * (1 - rapat) * W * 0.5;
+        var x = W * (0.06 + f * 0.88) + jauh;
+        if (Math.abs(W * (0.06 + f * 0.88) - gate) < W * 0.07) continue;
+        kapalBiru(ctx, x, y + (i % 3) * m * 0.012, m * 0.0032);
+      }
+      // rantai antar menara
+      var ch = sm(2.8, 5.0, t);
+      if (ch > 0) {
+        ctx.strokeStyle = 'rgba(140,195,255,' + (0.5 + 0.3 * Math.sin(t * 2)).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(2, m * 0.012);
+        for (var k = 0; k < 2; k++) {
+          var cy = y - m * (0.13 + k * 0.06);
+          ctx.beginPath();
+          for (var x2 = 0; x2 <= W * ch; x2 += 24) ctx.lineTo(x2, cy + Math.sin(x2 * 0.02 + k) * m * 0.006);
+          ctx.stroke();
+        }
+        glow(ctx, W * 0.5, y - m * 0.16, m * 0.5, '110,180,255', 0.14 * ch);
+      }
+      // gerbang yang menutup tiap dua detik
+      if (t > 4) {
+        var fase = ((t - 4) % 2) / 2, buka = fase < 0.25 ? 1 : 0;
+        ctx.fillStyle = buka ? 'rgba(120,200,255,.18)' : 'rgba(40,80,140,.85)';
+        ctx.fillRect(gate - W * 0.055, y - m * 0.22, W * 0.11, m * 0.3);
+        if (buka) glow(ctx, gate, y - m * 0.06, m * 0.22, '140,210,255', 0.5);
+      }
+      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    }
+    return { draw: draw, intro: 2 };
+  });
+  // Rantai putus: YusaintJolt melesat ke rantai utama, rantai dan lunas sama-sama patah.
+  MTCine.register('mk_rantai', function () {
+    function draw(ctx, W, H, t) {
+      laut(ctx, W, H, t, '#140f12', '#2a1a12');
+      var m = Math.min(W, H), y = H * 0.7, cx = W * 0.72, putus = sm(3.3, 3.7, t), after = sm(3.7, 7, t);
+      // rantai utama
+      ctx.strokeStyle = 'rgba(150,200,255,' + (0.85 - 0.5 * putus).toFixed(3) + ')'; ctx.lineWidth = Math.max(3, m * 0.018);
+      ctx.beginPath();
+      if (putus < 1) {
+        for (var yy = 0; yy <= H; yy += 20) ctx.lineTo(cx + Math.sin(yy * 0.02 + t) * m * 0.01, yy);
+      } else {
+        for (var y1 = 0; y1 <= y - m * 0.1; y1 += 20) ctx.lineTo(cx - after * m * 0.18 + Math.sin(y1 * 0.02) * m * 0.01, y1);
+        ctx.moveTo(cx + after * m * 0.2, y + m * 0.04);
+        for (var y2 = y + m * 0.04; y2 <= H; y2 += 20) ctx.lineTo(cx + after * m * 0.22 + Math.sin(y2 * 0.02) * m * 0.01, y2);
+      }
+      ctx.stroke();
+      // YusaintJolt
+      var run = t < 3.7 ? U.lerp(-0.15, 0.72, sm(0.8, 3.7, t)) : 0.72 + after * 0.06;
+      var jx = W * run, miring = t > 3.6 ? Math.min(0.5, (t - 3.6) * 0.5) : 0;
+      ctx.globalCompositeOperation = 'lighter';
+      var g = ctx.createLinearGradient(jx - W * 0.5, 0, jx, 0);
+      g.addColorStop(0, 'rgba(255,140,50,0)'); g.addColorStop(1, 'rgba(255,190,90,.8)');
+      ctx.strokeStyle = g; ctx.lineWidth = Math.max(2, m * 0.018);
+      ctx.beginPath(); ctx.moveTo(jx - W * 0.5, y); ctx.lineTo(jx, y); ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.save(); ctx.translate(jx, y); ctx.rotate(miring);
+      ctx.fillStyle = '#2e1c10'; ctx.beginPath(); ctx.moveTo(-m * 0.2, -m * 0.012); ctx.lineTo(m * 0.06, -m * 0.07); ctx.lineTo(m * 0.03, m * 0.015); ctx.lineTo(-m * 0.2, m * 0.015); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#d3a342'; ctx.fillRect(-m * 0.1, -m * 0.055, m * 0.03, m * 0.04);
+      ctx.restore();
+      glow(ctx, jx - m * 0.17, y - m * 0.05, m * 0.1, '255,150,60', 0.9);
+      if (putus > 0 && after < 1) {
+        glow(ctx, cx, y - m * 0.02, m * 0.34 * putus, '200,230,255', 0.55 * putus * (1 - after));
+        ctx.strokeStyle = 'rgba(220,240,255,' + (0.85 * putus * (1 - after)).toFixed(3) + ')'; ctx.lineWidth = Math.max(1, m * 0.004);
+        for (var k = 0; k < 12; k++) {
+          var ang = (k / 12) * Math.PI * 2;
+          ctx.beginPath(); ctx.moveTo(cx, y - m * 0.02);
+          ctx.lineTo(cx + Math.cos(ang) * m * 0.2 * putus, y - m * 0.02 + Math.sin(ang) * m * 0.2 * putus); ctx.stroke();
+        }
+      }
       if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
     return { draw: draw, intro: 2 };

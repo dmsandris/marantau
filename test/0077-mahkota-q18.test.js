@@ -38,7 +38,7 @@ const { D, human, SKILL } = require('./trek-sim');
 
   // ---- 25: pilihan Marlya ----
   s = await st(a); assert(s.d.n === 25 && JSON.stringify(s.d.pilih) === '["maafkan","kabarkan"]', 'langkah 25');
-  await H.expectError(() => a.call('api_mahkota', ['maju', 24, 'ok']), /tawaran Ratu/);
+  await H.expectError(() => a.call('api_mahkota', ['maju', 24, 'ok']), /Keputusannya ada di tanganmu/);
   await H.expectError(() => a.call('api_mahkota', ['pilih', 24, 'rampas']), /tidak dikenali/);
   let r = await a.call('api_mahkota', ['pilih', 24, 'maafkan']);
   assert(r.maju === true && (await st(a)).data.marlya === 'maafkan', 'pilihan tersimpan');
@@ -141,8 +141,7 @@ const { D, human, SKILL } = require('./trek-sim');
       assert(m.paksa === false && m.aman === false, 'patroli kembali normal setelah Banjir Ketiga');
     }
   }
-  s = await st(a); assert(s.step === 33 && s.d === null, 'langkah 34 belum dikoding');
-  await H.expectError(() => a.call('api_mahkota', ['maju', 33, 'ok']), /Bersambung/);
+  s = await st(a); assert(s.step === 33 && s.d.n === 34, 'lanjut ke langkah 34');
 
   console.log('0077 mahkota q18: semua lulus');
 })().catch((e) => { console.error(e); process.exit(1); });
