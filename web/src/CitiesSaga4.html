@@ -1,0 +1,168 @@
+<script>
+/* =====================================================================
+ * Kota Saga 4 "Monopoli & Mahkota": ZENTUL — atol yang dibangun dari lambung perahu rongsok.
+ * Obor dan pelita siang-malam, cerobong bengkel berasap, derek kayu, umbul-umbul Sirkuit Selat Lurus.
+ * Sesekali satu perahu pacu melesat lurus di kejauhan dan meninggalkan garis api di air.
+ * Didaftarkan ke MTCities.register; memakai helper MTCities.H. Prosedural, hormat pada inst.reduced.
+ * Bangunan: Lapau Oli (tavern) · Pasar Rongsok (market) · Gudang Lambung (cargo) · Sirkuit Selat Lurus (sirkuit)
+ *           · Garasi Yaptob (garasi). Tidak ada bank.
+ * ===================================================================== */
+(function () {
+  if (!window.MTCities || !MTCities.register || !MTCities.H || !window.MTUtil) return;
+  var H = MTCities.H;
+  function glowAt(ctx, x, y, r, col, a) {
+    if (a <= 0.004 || r <= 0.5) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(' + col + ',' + Math.min(1, a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // lambung perahu terbalik (rongsok)
+  function hull(ctx, x, base, w, h, col, rib) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, base); ctx.quadraticCurveTo(x + w * 0.5, base - h * 2, x + w, base); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rib; ctx.lineWidth = 1;
+    for (var k = 1; k < 5; k++) { var f = k / 5, xx = x + w * f, yy = base - h * 4 * f * (1 - f); ctx.beginPath(); ctx.moveTo(xx, base); ctx.lineTo(xx, yy); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(x + w * 0.04, base - 1); ctx.quadraticCurveTo(x + w * 0.5, base - h * 1.1, x + w * 0.96, base - 1); ctx.stroke();
+  }
+  function crane(ctx, x, base, h, u, dir) {
+    ctx.strokeStyle = '#4a3320'; ctx.lineWidth = Math.max(1.5, u * 0.16);
+    ctx.beginPath(); ctx.moveTo(x, base); ctx.lineTo(x, base - h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - dir * u * 0.5, base - h * 0.82); ctx.lineTo(x + dir * u * 2.6, base - h * 1.12); ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = '#2a1c12';
+    ctx.beginPath(); ctx.moveTo(x, base - h); ctx.lineTo(x + dir * u * 2.6, base - h * 1.12); ctx.lineTo(x + dir * u * 2.6, base - h * 0.55); ctx.stroke();
+    ctx.fillStyle = '#6b4629'; ctx.fillRect(x + dir * u * 2.6 - u * 0.3, base - h * 0.55, u * 0.6, u * 0.45);
+  }
+  function chimney(B, x, base, h, u) {
+    var ctx = B.ctx;
+    ctx.fillStyle = '#7a4a2a'; ctx.fillRect(x, base - h, u * 0.42, h);
+    ctx.fillStyle = '#c9a04a'; ctx.fillRect(x - u * 0.05, base - h, u * 0.52, u * 0.14); ctx.fillRect(x - u * 0.03, base - h * 0.55, u * 0.48, u * 0.08);
+    B.smokes.push({ x: x + u * 0.2, y: base - h - u * 0.1, rate: 0.09 });
+  }
+
+  function drawZentul(inst, ctx, p, t, dt, d) {
+    var u = d.u, i;
+    // bara bengkel di balik jendela garasi & pelita di tumpukan rongsok
+    for (i = 0; i < d.embers.length; i++) {
+      var e = d.embers[i], f = inst.reduced ? 0.8 : 0.65 + 0.35 * Math.sin(t * (3 + i * 0.7) + i * 2.1);
+      glowAt(ctx, e.x, e.y, u * e.r * (1 + p.lights * 0.8), e.col, (0.22 + p.lights * 0.5) * f);
+    }
+    // umbul-umbul Sirkuit berkibar
+    for (i = 0; i < d.pennants.length; i++) {
+      var pn = d.pennants[i], w = inst.reduced ? 0 : Math.sin(t * 2.4 + i * 1.3) * u * 0.12;
+      ctx.fillStyle = pn.col; ctx.beginPath(); ctx.moveTo(pn.x, pn.y); ctx.quadraticCurveTo(pn.x + u * 0.5, pn.y + u * 0.12 + w, pn.x + u * 0.95, pn.y + u * 0.3 + w * 1.6); ctx.lineTo(pn.x, pn.y + u * 0.42); ctx.closePath(); ctx.fill();
+    }
+    // perahu pacu melesat di kejauhan: garis api lurus di air, tiap ±16 detik
+    if (!inst.reduced) {
+      var cyc = (t % 16) / 16, run = cyc < 0.11 ? cyc / 0.11 : -1, fade = cyc >= 0.11 && cyc < 0.3 ? 1 - (cyc - 0.11) / 0.19 : (run >= 0 ? 1 : 0);
+      if (fade > 0) {
+        var y = d.seaY, x0 = inst.W * 0.34, x1 = inst.W * 1.02, hx = run >= 0 ? x0 + (x1 - x0) * run : x1;
+        ctx.globalCompositeOperation = 'lighter';
+        var g = ctx.createLinearGradient(x0, 0, hx, 0);
+        g.addColorStop(0, 'rgba(255,150,60,0)'); g.addColorStop(1, 'rgba(255,170,70,' + (0.55 * fade).toFixed(3) + ')');
+        ctx.strokeStyle = g; ctx.lineWidth = Math.max(1.5, u * 0.09); ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(hx, y); ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+        if (run >= 0) {
+          ctx.fillStyle = '#2e1c10'; ctx.beginPath(); ctx.moveTo(hx - u * 0.9, y - u * 0.05); ctx.lineTo(hx + u * 0.25, y - u * 0.3); ctx.lineTo(hx + u * 0.1, y + u * 0.06); ctx.lineTo(hx - u * 0.9, y + u * 0.06); ctx.closePath(); ctx.fill();
+          glowAt(ctx, hx - u * 0.8, y - u * 0.25, u * 0.6, '255,150,60', 0.8);
+        }
+      }
+    }
+  }
+
+  function zentul(B) {
+    var u = B.u, q = B.qTop, ctx = B.ctx, r = B.r, embers = [], pennants = [];
+    // gundukan rongsok: bukit rendah berwarna karat, tanpa pepohonan lebat
+    H.hills(B, { c: ['#6a4a34', '#3a2a20'], h: 0.2, peak: 0.42, trees: 5, kind: 'palm', jag: 0.05,
+      village: { walls: ['#8a6a48', '#7a5a3c', '#9a7a54'], roofs: ['#4a2e1e', '#5a3a26', '#3a2418'], types: ['stilt', 'gable', 'flat'], prob: 0.45 } });
+    var hy = B.hillY;
+    // tumpukan lambung terbalik di lereng
+    [[2.2, 3.4, 1.0], [5.6, 2.6, 0.8], [12.8, 4.2, 1.2], [17.2, 3.0, 0.9], [22.4, 3.8, 1.1], [26.6, 2.8, 0.8]].forEach(function (m, i) {
+      var X = u * m[0], base = Math.min(q - u * 2.6, hy(X + u * m[1] / 2) + u * 1.2);
+      hull(ctx, X, base, u * m[1], u * m[2], i % 2 ? '#5a3a26' : '#4a3020', 'rgba(20,12,8,.55)');
+      if (i % 2 === 0) embers.push({ x: X + u * m[1] * 0.5, y: base - u * 0.3, r: 0.7, col: '255,170,80' });
+    });
+    crane(ctx, u * 9.6, Math.min(q - u * 2.4, hy(u * 9.6) + u * 1.4), u * 3.6, u, 1);
+    crane(ctx, u * 20.4, Math.min(q - u * 2.4, hy(u * 20.4) + u * 1.4), u * 3.0, u, -1);
+    H.woodQuay(B, 0, u * 29.6);
+
+    function house(x, w, h, wall, roof, id, title, icon, label, sg) {
+      H.bld(B, { x: x, w: w, base: q, h: h, roof: 'gable', rh: u * 0.7, wall: wall, roofCol: roof });
+      if (label) H.sign(ctx, x + w * 0.08, q - h * 0.98, w * 0.84, u * 0.42, [label], 'board', sg || { bg: '#2a1a10', fg: '#f0cf78', frame: '#8f6522' });
+      H.hot(B, id, title, icon, x, q - h - u * 1.0, w, h + u * 1.0);
+    }
+    house(u * 0.6, u * 2.8, u * 2.0, '#7a5a3c', '#3a2418', 'cargo', 'Gudang Lambung', 'warehouse', 'GUDANG');
+    house(u * 3.8, u * 3.0, u * 2.2, '#9a7a54', '#4a2e1e', 'market', 'Pasar Rongsok', 'scales', 'PASAR RONGSOK');
+    house(u * 7.4, u * 2.8, u * 2.1, '#8a6a48', '#5a3a26', 'tavern', 'Lapau Oli', 'cup', 'LAPAU OLI');
+    embers.push({ x: u * 8.8, y: q - u * 0.9, r: 0.9, col: '255,190,110' });
+
+    // Sirkuit Selat Lurus: gapura kayu berjanur + tiga obor start
+    var sx = u * 11.2, sw = u * 5.2, sh = u * 3.0;
+    ctx.fillStyle = '#5a2418'; ctx.fillRect(sx, q - sh, u * 0.55, sh); ctx.fillRect(sx + sw - u * 0.55, q - sh, u * 0.55, sh);
+    ctx.fillStyle = '#d3a342'; ctx.fillRect(sx, q - sh, u * 0.55, u * 0.1); ctx.fillRect(sx + sw - u * 0.55, q - sh, u * 0.55, u * 0.1);
+    ctx.fillRect(sx, q - sh * 0.55, u * 0.55, u * 0.08); ctx.fillRect(sx + sw - u * 0.55, q - sh * 0.55, u * 0.55, u * 0.08);
+    ctx.fillStyle = '#e0b13c'; ctx.fillRect(sx + u * 0.3, q - sh * 0.92, sw - u * 0.6, u * 0.6);
+    H.sign(ctx, sx + u * 0.5, q - sh * 0.92, sw - u * 1.0, u * 0.6, ['SIRKUIT'], 'board', { bg: '#e0b13c', fg: '#4a320c', frame: '#8f6522' });
+    for (var k = 0; k < 3; k++) {
+      var tx = sx + u * (1.5 + k * 1.1);
+      ctx.fillStyle = '#4f331e'; ctx.fillRect(tx - u * 0.05, q - u * 1.3, u * 0.1, u * 1.3);
+      ctx.fillStyle = '#8f6522'; ctx.fillRect(tx - u * 0.14, q - u * 1.38, u * 0.28, u * 0.1);
+      B.torches.push({ x: tx, y: q - u * 1.45 });
+    }
+    pennants.push({ x: sx + u * 0.27, y: q - sh - u * 0.55, col: '#b8322a' }, { x: sx + sw - u * 0.28, y: q - sh - u * 0.55, col: '#24477a' });
+    ctx.strokeStyle = '#2e1c10'; ctx.lineWidth = Math.max(1, u * 0.07);
+    ctx.beginPath(); ctx.moveTo(sx + u * 0.27, q - sh); ctx.lineTo(sx + u * 0.27, q - sh - u * 0.6); ctx.moveTo(sx + sw - u * 0.28, q - sh); ctx.lineTo(sx + sw - u * 0.28, q - sh - u * 0.6); ctx.stroke();
+    H.hot(B, 'sirkuit', 'Sirkuit Selat Lurus', 'flag', sx, q - sh - u * 0.8, sw, sh + u * 0.8);
+
+    // Garasi Yaptob: bengkel besar bercerobong, pintu terbuka dengan bara tungku
+    var gx = u * 17.4, gw = u * 4.4, gh = u * 2.6;
+    chimney(B, gx + gw * 0.72, q - gh * 0.9, u * 2.2, u);
+    chimney(B, gx + gw * 0.2, q - gh * 0.9, u * 1.5, u);
+    H.bld(B, { x: gx, w: gw, base: q, h: gh, roof: 'gable', rh: u * 0.9, wall: '#6b4629', roofCol: '#3a2418' });
+    ctx.fillStyle = '#1a0f0a'; ctx.fillRect(gx + gw * 0.3, q - gh * 0.62, gw * 0.4, gh * 0.62);
+    H.sign(ctx, gx + gw * 0.1, q - gh * 0.98, gw * 0.8, u * 0.44, ['GARASI YAPTOB'], 'board', { bg: '#2a1a10', fg: '#f0cf78', frame: '#8f6522' });
+    embers.push({ x: gx + gw * 0.5, y: q - gh * 0.25, r: 1.3, col: '255,130,50' });
+    H.hot(B, 'garasi', 'Garasi Yaptob', 'wrench', gx, q - gh - u * 1.4, gw, gh + u * 1.4);
+
+    H.hot(B, 'ship', 'Dok Rongsok', 'anchor', u * 23.4, q - u * 2.0, u * 4.6, u * 2.0);
+    crane(ctx, u * 25.2, q, u * 2.6, u, 1);
+    hull(ctx, u * 23.6, q, u * 3.2, u * 0.7, '#6b4629', 'rgba(20,12,8,.5)');
+    [u * 2.0, u * 6.9, u * 10.6, u * 16.9, u * 22.6, u * 28.2].forEach(function (x) {
+      ctx.fillStyle = '#3b2616'; ctx.fillRect(x - u * 0.04, q - u * 1.1, u * 0.08, u * 1.1); B.torches.push({ x: x, y: q - u * 1.2 });
+    });
+
+    B.dyn.push({ type: 'fn', fn: drawZentul, embers: embers, pennants: pennants, u: u, q: q, seaY: B.shoreY + (B.H - B.shoreY) * 0.16 });
+    B.flags.push({ x: gx + gw * 0.5, y: q - gh - u * 1.3, h: u * 0.8, col: '#b8322a' });
+    B.moored.push({ type: 'jukung', x: B.W * 0.18, y: B.H * 0.86, s: B.H * 0.0026, dir: 1, sail: '#b8322a' }, { type: 'rowboat', x: B.W * 0.5, y: B.H * 0.9, s: B.H * 0.0024, dir: -1 });
+    B.noPosters = true;
+    B.walk = { style: 'villagers', n: 9, x0: u * 1, x1: u * 23 };
+  }
+  MTCities.register('zentul', zentul, 'overcast');
+
+  /* ---------- kait kecil ke inti: label tipe kota, penjaga Lapau Oli, pintu Sirkuit & Garasi ---------- */
+  try { if (typeof TYPE_META !== 'undefined') TYPE_META.Zentul = { icon: 'wrench', label: 'Atol Rongsok' }; } catch (e) { }
+  function cid() { try { return state && state.city ? state.city.CityId : ''; } catch (e) { return ''; } }
+  window.MTZentul = { here: function () { return cid() === 'zentul'; } };
+
+  var origNpc = window.npc_;
+  if (typeof origNpc === 'function') {
+    window.npc_ = function (role) {
+      var n = origNpc.apply(this, arguments);
+      try { if (role === 'lapau' && cid() === 'zentul' && n) n = Object.assign({}, n, { name: 'Rayan Bazzy' }); } catch (e) { }
+      return n;
+    };
+  }
+  var origOpen = window.openPanel;
+  if (typeof origOpen === 'function') {
+    window.openPanel = function (panel) {
+      if (cid() === 'zentul') {
+        if (panel === 'sirkuit') { if (window.MTTrek) MTTrek.open(function () { showToast('Rayan Bazzy: "Selat sedang sepi, Kapten. Garis start belum dipasang."', 'info'); }); return; }
+        if (panel === 'garasi') {
+          if (window.MTMahkota && MTMahkota.garasi && MTMahkota.garasi()) return;
+          showToast('Yaptob tak menoleh dari bawah lambung: "Kalau cuma mau tambal, dok di sebelah."', 'info'); return;
+        }
+        if (panel === 'bank') { showToast('Zentul tidak punya bank, Kapten. Orang sini menyimpan emasnya di bawah mesin.', 'info'); return; }
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+})();
+</script>

@@ -5,7 +5,7 @@
  *   Server: api_trek('status' | 'mulai', rival | 'selesai', run, log). Menang/kalah dihitung server dari log ketukan;
  *   hasil di layar tampil langsung dari hitungan lokal (rumus sama), lalu ditandai "dicatat" setelah server menjawab.
  *   Gerbang: TrekOpen / FiturPenguji (server). Selama gerbang tertutup, modul ini tidak menampilkan apa pun.
- *   Pintu masuk penguji (sampai Zentul dibangun di batch berikutnya): tambahkan #trek di alamat, atau MTTrek.open() di konsol.
+ *   Pintu masuk: bangunan Sirkuit Selat Lurus di Zentul (CitiesSaga4.html). Penguji, selama TrekOpen = 0: alamat berakhiran #trek.
  * ===================================================================== */
 var MTTrek = (function () {
   var S = window.MTTrekSim, G = null, st = null, sel = null, busy = false;
@@ -143,24 +143,25 @@ var MTTrek = (function () {
   }
 
   // ---------------------------------------------------------------- pintu masuk
-  function open() {
+  // tutup = dipanggil bila Sirkuit belum terbuka untuk kapten ini (server menjawab "Aksi tidak dikenal")
+  function open(tutup) {
     if (busy || (window.MTGames8 && MTGames8.isOpen())) return;
     if (!S || !window.MTGames8) return;
     busy = true;
     api(['status'], function (r) {
       busy = false;
-      if (!r.trek) return;
+      if (!r.trek) { if (typeof tutup === 'function') tutup(); return; }
       st = r.trek;
       G = MTGames8.open({ onClose: function () { G = null; } });
       menu();
-    }, function () { busy = false; });
+    }, function () { busy = false; if (typeof tutup === 'function') tutup(); });
   }
   // penguji: alamat berakhiran #trek membuka Sirkuit begitu game siap
   function viaHash() {
     if (!/^#trek$/i.test(location.hash || '')) return;
     var n = 0, iv = setInterval(function () {
       var siap = false; try { var ts = document.getElementById('titleScreen'); siap = typeof state !== 'undefined' && state && state.player && (!ts || ts.classList.contains('hidden')) && !document.querySelector('.mtg.on, .tsg.on, .qt-cine'); } catch (e) { }
-      if (siap) { clearInterval(iv); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { } open(); }
+      if (siap) { clearInterval(iv); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { } open(null); }
       else if (++n > 240) clearInterval(iv);
     }, 500);
   }
