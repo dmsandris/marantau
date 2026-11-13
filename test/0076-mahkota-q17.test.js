@@ -131,8 +131,7 @@ const { D, human, SKILL } = require('./trek-sim');
   const g0 = Number((await one('select gold from game.players where player_id = $1', [a.id])).gold);
   r = await a.call('api_mahkota', ['maju', 22, 'ok']);
   assert(r.gold === 100000 && r.tanda === 'duadetik' && Number((await one('select gold from game.players where player_id = $1', [a.id])).gold) === g0 + 100000, 'hadiah Q17 + tanda jasa');
-  s = await st(a); assert(s.step === 23 && s.d === null, 'langkah 24 belum dikoding');
-  await H.expectError(() => a.call('api_mahkota', ['maju', 23, 'ok']), /Bersambung/);
+  s = await st(a); assert(s.step === 23 && s.d.n === 24, 'lanjut ke langkah 24');
 
   console.log('0076 mahkota q17: semua lulus');
 })().catch((e) => { console.error(e); process.exit(1); });
