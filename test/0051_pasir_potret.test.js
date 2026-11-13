@@ -87,7 +87,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   // Serbuan Bersama & Pacu Dagang tertutup
   ok(/Tak ada yang mengenal benderamu/.test((await one('select game.dt_join_block($1) b', [pid])).b), 'Serbuan Bersama tertutup');
   await cfg('PacuOpen', '1');
-  const fnSrc = (await one(`select prosrc from pg_proc where proname = 'hr_hook'`)).prosrc;
+  const fnSrc = (await one(`select string_agg(prosrc, ' ') prosrc from pg_proc where proname in ('hr_hook', 'hr_hook_mh')`)).prosrc;
   ok(/pasir_era\(p_pid\) = 'kini'/.test(fnSrc), 'hr_hook menahan skor Pacu selama era bukan kini');
 
   // --- Selama Pasir: dapat harta baru ---

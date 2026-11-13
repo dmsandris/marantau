@@ -55,7 +55,10 @@ create or replace function game.trek_rivals() returns jsonb language sql immutab
   "kapalmber":       {"name": "KapalMber",  "ship": "jolt",    "react": 260, "rsd": 50, "aim": -22, "sd": 22, "boost": 1},
   "cangcimen_final": {"name": "cangcimen",  "ship": "warlord", "react": 250, "rsd": 55, "aim": -21, "sd": 21, "boost": 1},
   "cangcimen":       {"name": "cangcimen",  "ship": "warlord", "react": 240, "rsd": 50, "aim": -18, "sd": 18, "boost": 1},
-  "yaptob":          {"name": "Yaptob",     "ship": "yusaint", "react": 250, "rsd": 40, "aim": -30, "sd": 16, "boost": 1}
+  "yaptob":          {"name": "Yaptob",     "ship": "yusaint", "react": 250, "rsd": 40, "aim": -30, "sd": 16, "boost": 1},
+  "patroli_lemah":   {"name": "Patroli Jaring", "ship": "jolt", "react": 340, "rsd": 90, "aim": -34, "sd": 48, "boost": 0},
+  "patroli":         {"name": "Patroli Jaring", "ship": "jolt", "react": 290, "rsd": 70, "aim": -28, "sd": 40, "boost": 1},
+  "patroli_kuat":    {"name": "Patroli Jaring", "ship": "penuh", "react": 290, "rsd": 70, "aim": -28, "sd": 40, "boost": 1}
 }'::jsonb $$;
 
 create or replace function game.trek_green_ms(p_seed bigint) returns int language sql immutable as $$
@@ -218,71 +221,84 @@ end $$;
 --   ['mulai', rival]            -> {run, seed, rival, ship}
 --   ['selesai', run, log]       -> {hasil: {...}, trek: state}
 -- ---------------------------------------------------------------------
+-- Mesin bersama (Sirkuit, Tembus Jaring, turnamen, heat quest): mulai & catat satu balapan.
+create or replace function game.trek_mulai(p_pid uuid, p_kind text, p_rival text, p_ship text) returns jsonb
+language plpgsql as $$
+declare v_seed bigint; v_id uuid;
+begin
+  if game.trek_rivals() -> p_rival is null or game.trek_ships() -> p_ship is null then raise exception 'Lawan itu belum turun ke selat.'; end if;
+  delete from game.trek_runs where player_id = p_pid and (not done or created_at < now() - interval '14 days');
+  v_seed := floor(random() * 2000000000)::bigint + 1;
+  insert into game.trek_runs(player_id, kind, rival, ship, seed, expires_at)
+    values (p_pid, p_kind, p_rival, p_ship, v_seed, now() + interval '10 minutes') returning run_id into v_id;
+  return jsonb_build_object('run', v_id, 'seed', v_seed, 'rival', p_rival, 'ship', p_ship, 'kind', p_kind);
+end $$;
+
+-- Mengembalikan {win, me, op, shifts, reaction, jump, boost, best, rec, rival, kind}. Salah jenis / basi / curang = exception.
+create or replace function game.trek_selesai(p_pid uuid, p_id uuid, p_log jsonb, p_kind text) returns jsonb
+language plpgsql as $$
+declare v_run game.trek_runs; me jsonb; op jsonb; i int; v_prev bigint; v_t bigint; v_el numeric; v_fin bigint; v_win boolean;
+  v_best bigint; v_rec boolean := false;
+begin
+  select * into v_run from game.trek_runs where run_id = p_id and player_id = p_pid for update;
+  if v_run.run_id is null or v_run.kind is distinct from p_kind then raise exception 'Balapan tidak ditemukan.'; end if;
+  if v_run.done then raise exception 'Balapan ini sudah dicatat.'; end if;
+  if v_run.expires_at < now() then
+    delete from game.trek_runs where run_id = p_id;
+    raise exception 'Obor garis start sudah padam. Mulai lagi, Kapten.';
+  end if;
+  if p_log is null or jsonb_typeof(p_log) <> 'array' or jsonb_array_length(p_log) > 240 then raise exception 'Catatan balapan tidak terbaca.'; end if;
+  v_prev := -100000;
+  for i in 0..jsonb_array_length(p_log) - 1 loop
+    if jsonb_typeof(p_log -> i) <> 'array' or jsonb_typeof(p_log -> i -> 0) <> 'number' or (p_log -> i ->> 1) not in ('0', '1')
+       or (p_log -> i ->> 0) !~ '^-?[0-9]{1,6}$' then raise exception 'Catatan balapan tidak terbaca.'; end if;
+    v_t := (p_log -> i ->> 0)::bigint;
+    if v_t < v_prev or v_t < -20000 or v_t > 40000 then raise exception 'Catatan balapan tidak terbaca.'; end if;
+    v_prev := v_t;
+  end loop;
+
+  me := game.trek_run(game.trek_ships() -> v_run.ship, p_log, null, v_run.seed);
+  op := game.trek_run(game.trek_ships() -> (game.trek_rivals() -> v_run.rival ->> 'ship'), null, game.trek_rivals() -> v_run.rival, v_run.seed);
+  v_fin := (me ->> 'fin')::bigint;
+  -- jam dinding: balapan tidak mungkin selesai lebih cepat dari lampu + waktu tempuhnya sendiri
+  v_el := extract(epoch from (now() - v_run.created_at)) * 1000;
+  if v_fin is not null and v_el < game.trek_green_ms(v_run.seed) + v_fin / 1000 - 1500 then raise exception 'Catatan balapan tidak wajar.'; end if;
+  v_win := v_fin is not null and v_fin < (op ->> 'fin')::bigint;
+
+  update game.trek_runs set done = true, me_us = v_fin, op_us = (op ->> 'fin')::bigint, win = v_win, log = p_log where run_id = p_id;
+  if v_fin is not null then
+    select best_us into v_best from game.trek_best where player_id = p_pid and ship = v_run.ship;
+    if v_best is null or v_fin < v_best then
+      v_rec := v_best is not null;
+      insert into game.trek_best(player_id, ship, best_us, log) values (p_pid, v_run.ship, v_fin, p_log)
+        on conflict (player_id, ship) do update set best_us = excluded.best_us, log = excluded.log, at = now();
+      v_best := v_fin;
+    end if;
+  end if;
+  return jsonb_build_object('win', v_win, 'me', v_fin, 'op', (op ->> 'fin')::bigint, 'shifts', me -> 'shifts',
+    'reaction', me -> 'reaction', 'jump', me -> 'jump', 'boost', me -> 'boost', 'best', v_best, 'rec', v_rec,
+    'rival', v_run.rival, 'kind', v_run.kind);
+end $$;
+
 create or replace function public.api_trek(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
 declare
   v_me game.players := game.me(); v_pid uuid := v_me.player_id;
-  v_act text := coalesce(game.arg(a, 0), 'status');
-  v_rival text; v_ship text; v_seed bigint; v_run game.trek_runs; v_id uuid;
-  v_log jsonb; me jsonb; op jsonb; i int; v_prev bigint; v_t bigint; v_el numeric; v_fin bigint; v_win boolean;
-  v_best bigint; v_rec boolean := false;
+  v_act text := coalesce(game.arg(a, 0), 'status'); v_rival text; v_id uuid; v_h jsonb;
 begin
   if v_pid is null or not game.trek_boleh(v_pid) then raise exception 'Aksi tidak dikenal.'; end if;
   if v_act = 'status' then return jsonb_build_object('trek', game.trek_state(v_pid)); end if;
 
   if v_act = 'mulai' then
     v_rival := lower(coalesce(game.arg(a, 1), ''));
-    if not (v_rival = any (game.trek_lawan(v_pid))) or game.trek_rivals() -> v_rival is null then raise exception 'Lawan itu belum turun ke selat.'; end if;
-    v_ship := game.trek_kapal(v_pid);
-    delete from game.trek_runs where player_id = v_pid and (not done or created_at < now() - interval '14 days');
-    v_seed := floor(random() * 2000000000)::bigint + 1;
-    insert into game.trek_runs(player_id, rival, ship, seed, expires_at)
-      values (v_pid, v_rival, v_ship, v_seed, now() + interval '10 minutes') returning run_id into v_id;
-    return jsonb_build_object('run', v_id, 'seed', v_seed, 'rival', v_rival, 'ship', v_ship);
+    if not (v_rival = any (game.trek_lawan(v_pid))) then raise exception 'Lawan itu belum turun ke selat.'; end if;
+    return game.trek_mulai(v_pid, 'sirkuit', v_rival, game.trek_kapal(v_pid));
   end if;
 
   if v_act = 'selesai' then
     begin v_id := game.arg(a, 1)::uuid; exception when others then raise exception 'Balapan tidak ditemukan.'; end;
-    select * into v_run from game.trek_runs where run_id = v_id and player_id = v_pid for update;
-    if v_run.run_id is null then raise exception 'Balapan tidak ditemukan.'; end if;
-    if v_run.done then raise exception 'Balapan ini sudah dicatat.'; end if;
-    if v_run.expires_at < now() then
-      delete from game.trek_runs where run_id = v_id;
-      raise exception 'Obor garis start sudah padam. Mulai lagi, Kapten.';
-    end if;
-    v_log := case when jsonb_typeof(a) = 'array' then a -> 2 end;
-    if v_log is null or jsonb_typeof(v_log) <> 'array' or jsonb_array_length(v_log) > 240 then raise exception 'Catatan balapan tidak terbaca.'; end if;
-    v_prev := -100000;
-    for i in 0..jsonb_array_length(v_log) - 1 loop
-      if jsonb_typeof(v_log -> i) <> 'array' or jsonb_typeof(v_log -> i -> 0) <> 'number' or (v_log -> i ->> 1) not in ('0', '1')
-         or (v_log -> i ->> 0) !~ '^-?[0-9]{1,6}$' then raise exception 'Catatan balapan tidak terbaca.'; end if;
-      v_t := (v_log -> i ->> 0)::bigint;
-      if v_t < v_prev or v_t < -20000 or v_t > 40000 then raise exception 'Catatan balapan tidak terbaca.'; end if;
-      v_prev := v_t;
-    end loop;
-
-    me := game.trek_run(game.trek_ships() -> v_run.ship, v_log, null, v_run.seed);
-    op := game.trek_run(game.trek_ships() -> (game.trek_rivals() -> v_run.rival ->> 'ship'), null, game.trek_rivals() -> v_run.rival, v_run.seed);
-    v_fin := (me ->> 'fin')::bigint;
-    -- jam dinding: balapan tidak mungkin selesai lebih cepat dari lampu + waktu tempuhnya sendiri
-    v_el := extract(epoch from (now() - v_run.created_at)) * 1000;
-    if v_fin is not null and v_el < game.trek_green_ms(v_run.seed) + v_fin / 1000 - 1500 then raise exception 'Catatan balapan tidak wajar.'; end if;
-    v_win := v_fin is not null and v_fin < (op ->> 'fin')::bigint;
-
-    update game.trek_runs set done = true, me_us = v_fin, op_us = (op ->> 'fin')::bigint, win = v_win, log = v_log where run_id = v_id;
-    if v_fin is not null then
-      select best_us into v_best from game.trek_best where player_id = v_pid and ship = v_run.ship;
-      if v_best is null or v_fin < v_best then
-        v_rec := v_best is not null;
-        insert into game.trek_best(player_id, ship, best_us, log) values (v_pid, v_run.ship, v_fin, v_log)
-          on conflict (player_id, ship) do update set best_us = excluded.best_us, log = excluded.log, at = now();
-        v_best := v_fin;
-      end if;
-    end if;
-    return jsonb_build_object(
-      'hasil', jsonb_build_object('win', v_win, 'me', v_fin, 'op', (op ->> 'fin')::bigint, 'shifts', me -> 'shifts',
-        'reaction', me -> 'reaction', 'jump', me -> 'jump', 'boost', me -> 'boost', 'best', v_best, 'rec', v_rec, 'rival', v_run.rival),
-      'trek', game.trek_state(v_pid));
+    v_h := game.trek_selesai(v_pid, v_id, case when jsonb_typeof(a) = 'array' then a -> 2 end, 'sirkuit');
+    return jsonb_build_object('hasil', v_h, 'trek', game.trek_state(v_pid));
   end if;
 
   raise exception 'Aksi tidak dikenal.';
