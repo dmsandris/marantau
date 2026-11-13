@@ -43,8 +43,10 @@ var MTTrek = (function () {
     var lawan = st.lawan || [];
     if (!sel || lawan.indexOf(sel) < 0) sel = ls('rival', lawan[0]); if (lawan.indexOf(sel) < 0) sel = lawan[0];
     var chips = lawan.map(function (k) {
-      var r = S.RIVALS[k], n = (st.menang && st.menang[k]) || 0;
-      return '<button type="button" class="trk-chip' + (k === sel ? ' on' : '') + '" data-r="' + k + '"><b>' + esc(r.name) + '</b><i>' + esc(TAG[k] || '') + '</i><small>' + esc(S.SHIPS[r.ship].name) + (n ? ' · kau menang ' + n + '×' : '') + '</small></button>';
+      var r = S.RIVALS[k], n = (st.menang && st.menang[k]) || 0, hd = (st.harian && st.harian[k]) || null;
+      var hadiah = hd ? (hd.sudah ? '<em class="trk-hd done">hadiah hari ini sudah diambil</em>'
+        : '<em class="trk-hd">hadiah hari ini: ' + hd.oli + ' Oli Hitam + ' + (typeof formatGold === 'function' ? formatGold(hd.gold) : hd.gold) + ' gold</em>') : '';
+      return '<button type="button" class="trk-chip' + (k === sel ? ' on' : '') + '" data-r="' + k + '"><b>' + esc(r.name) + '</b><i>' + esc(TAG[k] || '') + '</i><small>' + esc(S.SHIPS[r.ship].name) + (n ? ' · kau menang ' + n + '×' : '') + '</small>' + hadiah + '</button>';
     }).join('');
     var papan = (st.papan || []).map(function (p, i) {
       return '<li class="' + (p.aku ? 'aku' : '') + '"><span>' + (i + 1) + '</span><span>' + esc(p.nama) + ' <small>· ' + esc(p.kapal) + '</small></span><b>' + dtk(p.us) + '</b></li>';
@@ -129,6 +131,13 @@ var MTTrek = (function () {
       if (!srv.isConnected) return;
       if (h.me !== res.me.fin || h.op !== res.op.fin) { srv.className = 'trk-srv bad'; srv.textContent = 'Catatan juru tulis berbeda: ' + dtk(h.me) + ' vs ' + dtk(h.op) + ' dtk. Yang dipakai catatan juru tulis.'; }
       else srv.innerHTML = '✓ dicatat juru tulis sirkuit' + (h.rec ? ' · <em class="trk-new">REKOR BARU</em>' : '');
+      if (h.harian) {
+        srv.insertAdjacentHTML('afterend', '<p class="trk-hadiah">' + ic('coin') + ' Hadiah harian: <b>' + h.harian.oli + ' Oli Hitam</b>' +
+          (h.harian.gold ? ' + <b>' + (typeof formatGold === 'function' ? formatGold(h.harian.gold) : h.harian.gold) + ' gold</b>' : '') + '</p>');
+        try { if (typeof loadState === 'function') loadState(); } catch (e) { }
+      }
+      if (h.yaptob) srv.insertAdjacentHTML('afterend', '<p class="trk-hadiah yaptob">' + ic('flag') +
+        ' Yaptob melempar kain berminyak ke geladakmu: rupa <b>Garis Api Jolt</b> kini ada di Kedai Rantau.</p>');
       var bb = c.querySelector('.trk-best'); if (bb && h.best) bb.textContent = dtk(h.best);
       // run berikutnya disiapkan diam-diam supaya ULANGI langsung jalan
       mulai(run.rival, function (n) { next = n; siapLagi(); }, function (m) { nextErr = m; lagi.disabled = false; });
