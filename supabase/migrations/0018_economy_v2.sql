@@ -184,16 +184,18 @@ begin
   if p_stock is null then return eq; end if;
   -- barang premium di kota non-produsen: tidak tumbuh lagi, hanya dikonsumsi pelan
   dt := greatest(0, extract(epoch from (now() - p_at)) / 60.0);
+  -- Tide v57: pangkat dibatasi 60. exp() Postgres melempar "underflow" bila pangkatnya < ~-708
+  -- (baris pasar tak tersentuh ±13 hari). e^-60 sudah ±1e-26, jadi hasil setelah dibulatkan tetap sama.
   tau := greatest(1, game.cfg_num('MarketTauMinutes', 26));
   if p_tier = 'premium' and p_role = 'produce' then
     cap := eq;
     batch := ceil(p_ref * game.cfg_num('PremiumBatchFrac', 0.4));
     s := p_stock;
-    if s > cap then s := cap + (s - cap) * exp(-dt / tau)::numeric; end if;   -- kelebihan diserap pelan
+    if s > cap then s := cap + (s - cap) * exp(-least(dt / tau, 60))::numeric; end if;   -- kelebihan diserap pelan
     if p_cyc is not null and p_cyc_now > p_cyc then s := least(greatest(s, 0) + batch * (p_cyc_now - p_cyc), greatest(s, cap)); end if;
     return round(greatest(0, s), 3);
   end if;
-  return round(greatest(0, eq + (p_stock - eq) * exp(-dt / tau)::numeric), 3);
+  return round(greatest(0, eq + (p_stock - eq) * exp(-least(dt / tau, 60))::numeric), 3);
 end $$;
 
 -- Harga tengah satu unit pada tingkat stok s
