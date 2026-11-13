@@ -390,6 +390,10 @@ language sql stable as $$ select null::jsonb $$;
 -- Saga 4 (0075): state quest Mahkota
 create or replace function game.mk_state(p_pid uuid) returns jsonb
 language sql stable as $$ select null::jsonb $$;
+
+-- Saga 4 (0078): state Garasi Warlord
+create or replace function game.wl_state(p_pid uuid) returns jsonb
+language sql stable as $$ select null::jsonb $$;
 -- [Tide v47 · Perburuan Tony / 0063] larangan berlayar selama lobi/serbuan Perburuan; status untuk getGameState
 create or replace function game.th_sail_guard(p_pid uuid) returns void
 language plpgsql as $$ begin null; end $$;

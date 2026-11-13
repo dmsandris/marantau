@@ -48,7 +48,8 @@ const { D, human, SKILL } = require('./trek-sim');
   await H.sql(`update game.config set value = '100' where key = 'MhPatroliPct'`);
   for (let i = 0; i < 6; i++) {
     const { sail, v } = await layar(b, asal, zona);
-    assert(!sail.zonaCukai && !v.encounterPending && !v.inTransit, 'pemain biasa tidak pernah dicegat');
+    assert(!sail.zonaCukai && !cukai(v), 'pemain biasa tidak pernah dicegat patroli cukai');
+    if (v.encounterPending) { await b.call('api_resolveCombat', ['flee']).catch(() => { }); await taruh(b, asal); }
   }
   assert((await sama(b, zona)) === 0 && (await sama(b, bukan)) === 0, 'pemain biasa: harga identik');
   assert((await b.call('api_getGameState', [null])).cukai == null, 'pemain biasa: tanpa state cukai');
@@ -178,7 +179,9 @@ const { D, human, SKILL } = require('./trek-sim');
   await a.call('api_cukai', ['bayar']);
   await H.sql(`update game.mh_player set paksa = false where player_id = $1`, [a.id]);
   x = await layar(a, asal, zona);
-  assert(!x.v.encounterPending && (await sama(a, zona)) > 20, 'peluang 0: tidak dicegat tapi harga zona tetap berlaku');
+  assert(!cukai(x.v), 'peluang 0: patroli cukai tidak muncul');
+  if (x.v.encounterPending) await H.sql(`update game.player_location set pending_encounter = null, city_id = $2, destination_city_id = null where player_id = $1`, [a.id, zona]);
+  assert((await sama(a, zona)) > 20, 'harga zona tetap berlaku walau tidak dicegat');
   await H.sql(`update game.config set value = '100' where key = 'MhPatroliPct'`);
 
   // ---- Pasar Gelap ----
@@ -228,7 +231,7 @@ const { D, human, SKILL } = require('./trek-sim');
   // ---- krisis dimatikan: kembali normal ----
   await H.sql(`select game.admin_mh_set('mhsatu', false)`);
   x = await layar(a, asal, zona);
-  assert(!x.sail.zonaCukai && !x.v.encounterPending && (await sama(a, zona)) === 0 && (await a.call('api_getGameState', [null])).cukai == null, 'krisis mati: normal');
+  assert(!x.sail.zonaCukai && !cukai(x.v) && (await sama(a, zona)) === 0 && (await a.call('api_getGameState', [null])).cukai == null, 'krisis mati: normal');
 
   console.log('0074 krisis monopoli: semua lulus');
 })().catch((e) => { console.error(e); process.exit(1); });

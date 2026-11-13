@@ -960,8 +960,64 @@ if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
   { id: 'mk_banjirsutra', t: 3, ic: 'crate', n: 'Banjir Sutra', d: 'Banjiri tiga Zona Cukai bersama Barisan Pacu.', g: function (m) { return [m.c.mkbanjirsutra || 0, 1]; } },
   { id: 'mk_obor', t: 3, ic: 'trophy', n: 'Juara Turnamen Obor', d: 'Kalahkan cangcimen di final Turnamen Obor, Zentul.', g: function (m) { return [m.c.mkobor || 0, 1]; } }
 );
+/* =====================================================================
+ * Garasi Warlord — tahap terakhir kapal (server: 0078-warlord.sql)
+ * ===================================================================== */
+var MKW = (function () {
+  if (typeof panelHeader_ !== 'function') return {};
+  function st() { return (state && state.warlord) || null; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function gold() { try { return Number(state.player.gold) || 0; } catch (e) { return 0; } }
+  function show() {
+    var w = st(); if (!w || !w.buka) return false;
+    currentPanel = null;
+    setModal_(panelHeader_('wrench', 'Garasi Warlord', 'Zentul &middot; Yaptob'));
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    render();
+    return true;
+  }
+  function render() {
+    var w = st(), c = document.getElementById('modalContent'); if (!w || !c) return;
+    var old = c.querySelector('.mk-wrap'); if (old) old.remove();
+    var html = '<div class="cb-narr"><div class="cn-k">' + ic('wrench') + 'Cetak Biru Warlord</div>' +
+      '<p>' + (w.penuh
+        ? 'Keempat komponen terpasang. Yaptob menepuk lambungmu sekali: <i>"Sudah. Sekarang kapalmu bukan kapal dagang yang cepat &mdash; ini kapal panglima laut."</i>'
+        : 'Yaptob hanya mau memasang di atas yang sudah terbaik. Tiap komponen butuh <b>' + fmt(w.komponen[0].gold) + ' gold</b>, <b>' +
+          w.komponen[0].oli + ' Oli Hitam</b>, dan bahannya sendiri.') + '</p></div>';
+    html += '<div class="mk-opts">' + w.komponen.map(function (k) {
+      var bisa = !k.punya && k.siap && gold() >= k.gold && k.punyaOli >= k.oli && k.punyaBahan >= k.bahanN;
+      var syarat = k.punya ? 'Terpasang.' : !k.siap ? 'Grup ini belum Level V Tier IV.'
+        : (gold() < k.gold ? 'Gold kurang. ' : '') + (k.punyaOli < k.oli ? 'Oli Hitam ' + k.punyaOli + '/' + k.oli + '. ' : '') +
+          (k.punyaBahan < k.bahanN ? k.bahanNama + ' ' + k.punyaBahan + '/' + k.bahanN + '.' : '');
+      return '<button data-w="' + k.grup + '"' + (bisa ? '' : ' disabled') + '>' +
+        (k.punya ? ic('check') + ' ' : '') + '<b>' + esc_(k.nama) + '</b>' +
+        '<div class="muted small" style="margin-top:3px">' + fmt(k.gold) + ' gold &middot; ' + k.oli + ' Oli Hitam &middot; ' + k.bahanN + ' ' + esc_(k.bahanNama || '') + '</div>' +
+        (syarat ? '<div class="muted small">' + esc_(syarat) + '</div>' : '<div class="small" style="color:#6a8a3a">Siap dipasang.</div>') + '</button>';
+    }).join('') + '</div>';
+    var wrap = document.createElement('div'); wrap.className = 'mk-wrap'; wrap.innerHTML = html;
+    var anchor = c.querySelector('.ph');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling); else c.insertBefore(wrap, c.firstChild);
+    wrap.querySelectorAll('[data-w]').forEach(function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        google.script.run.withSuccessHandler(function (r) {
+          if (r && r.warlord !== undefined && state) state.warlord = r.warlord;
+          if (r && r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
+          try { au_('achieve'); } catch (e) { }
+          showToast((r && r.nama ? r.nama : 'Komponen') + ' terpasang.', 'success');
+          render(); loadState();
+        }).withFailureHandler(function (e) {
+          b.disabled = false; showToast((e && e.message) || String(e), 'error');
+        }).api_warlord('bangun', b.getAttribute('data-w'));
+      };
+    });
+  }
+  return { show: show, ada: function () { var w = st(); return !!(w && w.buka); } };
+})();
+
 window.MTMahkota = {
-  garasi: function () { return !!(MK && MK.buka && MK.buka('garasi')); },
+  garasi: function () { return !!(MK && MK.buka && MK.buka('garasi')) || !!(MKW && MKW.show && MKW.show()); },
   sirkuit: function () { return !!(MK && MK.buka && MK.buka('sirkuit')); }
 };
 </script>
