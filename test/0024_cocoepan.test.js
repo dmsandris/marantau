@@ -49,7 +49,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const R = Object.fromEntries(roles.map(r => [r.city_id, r.role]));
   assert(R.gading_island === 'produce' && R.sunda_empire === 'consume' && R.skitraw === 'consume' && R.joungjava === 'neutral', 'peran kopi ' + JSON.stringify(R));
   const gm = await H.sql(`select count(*)::int n from game.market where city_id = 'gading_island'`);
-  assert(gm[0].n === 31, 'pasar Gading lengkap 31 barang: ' + gm[0].n);
+  assert(gm[0].n === 32, 'pasar Gading lengkap 32 barang: ' + gm[0].n);
   await go('sunda_empire');
   await H.expectError(() => u.call('api_buy', ['sunda_empire', 'kopi_sumatera_gayo', 1]), /Stok|tidak tersedia/);
   const mk = await u.call('api_getMarket', ['sunda_empire']);

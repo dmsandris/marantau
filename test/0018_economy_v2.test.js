@@ -11,11 +11,11 @@ const fs = require('fs'), path = require('path');
 
   // katalog
   const cat = await H.sql(`select id, tier, grp from game.commodities where active order by sort`);
-  assert(cat.length === 31, 'jumlah barang ' + cat.length); // 28 + 3 kopi Gading Island (0024)
+  assert(cat.length === 32, 'jumlah barang ' + cat.length); // 28 + 3 kopi Gading Island (0024) + Oli Hitam Zentul (0073)
   for (const g of ['pangan', 'minuman', 'rempah', 'bahan', 'kerajinan', 'mewah'])
     assert(cat.some(c => c.grp === g && c.tier === 'premium'), 'kelompok ' + g + ' punya premium');
   const m0 = await u.call('api_getMarket', ['bjorneo']);
-  assert(m0.items.length === 31 && m0.cycle && m0.cycle.wanted.length === 2 && m0.cycle.surplus.length === 1, 'pasar 31 barang (28 + 3 kopi Gading) + kabar pasar');
+  assert(m0.items.length === 32 && m0.cycle && m0.cycle.wanted.length === 2 && m0.cycle.surplus.length === 1, 'pasar 32 barang (28 + 3 kopi Gading + Oli Hitam) + kabar pasar');
   assert(m0.cargoCapacity === 30 && m0.cargoUsed === 0, 'kapasitas palka');
 
   // produsen murah, konsumen mahal
