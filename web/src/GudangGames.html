@@ -44,7 +44,7 @@
  *   opts: level (dari api_duneks 'level'), npc {name,title,ap}, kicker, title, intro, theme,
  *         newRules [aturan yang baru diperkenalkan], finale (manifest: dinding turus), __autoplay (uji browser)
  *         manifest Tide v51 (Buku Besar): numerals (angka, bukan turus), cols {label,qty,cap,berat}, qtyWord,
- *           foundNote, okLine, cardKicker, crateWord; slip boleh membawa c.note (catatan kecil saat ditemukan)
+ *           foundNote, okLine, cardKicker, crateWord; slip boleh membawa c.note (catatan kecil saat ditemukan) · foundSeal: cap di peti yang ditemukan (bawaan 'jt', '' = tanpa segel)
  * Aturan susun SAMA dengan game.dn_check_susun (0065) & test/duneks-solver.js:
  *   y = 0 baris bawah, x = w-1 kolom dekat pintu, putaran (x,y) -> (y,-x).
  *   berat: hanya baris bawah · tidak melayang · basah tidak tepat di atas kain · rapuh tidak ditindih · besok di kolom pintu.
@@ -829,7 +829,8 @@ var MTGames5 = (function () {
   /* =========================== MODE B — COCOKKAN MANIFEST =========================== */
   var CAP = {
     syahbandar: { n: 'cap Syahbandar' }, balai: { n: 'cap Balai Kota' }, residen: { n: 'cap Residen' },
-    restorasi: { n: 'cap Restorasi (Garuda)' }, jt: { n: 'segel lilin J.T.' }
+    restorasi: { n: 'cap Restorasi (Garuda)' }, jt: { n: 'segel lilin J.T.' },
+    benteng: { n: 'cap Benteng (sensor)' }, pustaka: { n: 'cap Pustaka' }
   };
   function drawCap(ctx, cap, x, y, r) {
     ctx.save(); ctx.translate(x, y); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -849,6 +850,16 @@ var MTGames5 = (function () {
       ctx.beginPath(); ctx.moveTo(0, -r * 0.1); ctx.quadraticCurveTo(-r * 0.45, -r * 0.55, -r * 0.75, -r * 0.2); ctx.quadraticCurveTo(-r * 0.4, -r * 0.1, -r * 0.12, r * 0.25); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.moveTo(0, -r * 0.1); ctx.quadraticCurveTo(r * 0.45, -r * 0.55, r * 0.75, -r * 0.2); ctx.quadraticCurveTo(r * 0.4, -r * 0.1, r * 0.12, r * 0.25); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.arc(0, -r * 0.3, r * 0.14, 0, 6.3); ctx.fill(); ctx.fillRect(-r * 0.1, -r * 0.15, r * 0.2, r * 0.55);
+    } else if (cap === 'benteng') {
+      ctx.strokeStyle = '#1e1e24'; ctx.fillStyle = '#1e1e24'; ctx.lineWidth = r * 0.14; ctx.strokeRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7);
+      ctx.fillRect(-r * 0.5, -r * 0.1, r, r * 0.55);
+      for (var t = 0; t < 3; t++) ctx.fillRect(-r * 0.5 + t * r * 0.38, -r * 0.4, r * 0.24, r * 0.32);
+    } else if (cap === 'pustaka') {
+      ctx.strokeStyle = '#4a3a6a'; ctx.lineWidth = r * 0.14; ctx.beginPath();
+      for (var o = 0; o < 8; o++) { var a8 = Math.PI / 8 + o * Math.PI / 4; ctx.lineTo(Math.cos(a8) * r, Math.sin(a8) * r); } ctx.closePath(); ctx.stroke();
+      ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.moveTo(0, -r * 0.35); ctx.lineTo(0, r * 0.45);
+      ctx.moveTo(0, -r * 0.35); ctx.quadraticCurveTo(-r * 0.3, -r * 0.45, -r * 0.55, -r * 0.3); ctx.lineTo(-r * 0.55, r * 0.35); ctx.quadraticCurveTo(-r * 0.3, r * 0.25, 0, r * 0.45);
+      ctx.moveTo(0, -r * 0.35); ctx.quadraticCurveTo(r * 0.3, -r * 0.45, r * 0.55, -r * 0.3); ctx.lineTo(r * 0.55, r * 0.35); ctx.quadraticCurveTo(r * 0.3, r * 0.25, 0, r * 0.45); ctx.stroke();
     } else if (cap === 'jt') {
       ctx.fillStyle = '#8e1c16'; ctx.beginPath(); for (var k = 0; k < 14; k++) { var b = k / 14 * 6.283, q2 = r * (0.95 + (k % 2) * 0.12); ctx.lineTo(Math.cos(b) * q2, Math.sin(b) * q2); } ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#b8302a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.7, 0, 6.3); ctx.fill();
@@ -867,10 +878,11 @@ var MTGames5 = (function () {
     ctx.restore();
     return Math.ceil(n / 5) * (gw + h * 0.45);
   }
-  function sealSvg() {
+  function sealSvg(cap) {
+    if (cap === '') return '';
     var c = document.createElement('canvas'), d = 2; c.width = 96 * d; c.height = 96 * d;
-    var x = c.getContext('2d'); x.scale(d, d); glow(x, 48, 48, 46, '200,40,30', 0.35); drawCap(x, 'jt', 48, 48, 30);
-    x.strokeStyle = '#2a0402'; x.lineWidth = 2; x.beginPath(); x.moveTo(36, 22); x.lineTo(50, 46); x.lineTo(44, 58); x.lineTo(58, 76); x.stroke();
+    var x = c.getContext('2d'); x.scale(d, d); glow(x, 48, 48, 46, '200,40,30', 0.35); drawCap(x, cap || 'jt', 48, 48, 30);
+    if (!cap || cap === 'jt') { x.strokeStyle = '#2a0402'; x.lineWidth = 2; x.beginPath(); x.moveTo(36, 22); x.lineTo(50, 46); x.lineTo(44, 58); x.lineTo(58, 76); x.stroke(); }
     return '<img alt="" src="' + c.toDataURL() + '" style="width:96px;height:96px;display:block;margin:0 auto 4px">';
   }
 
@@ -970,7 +982,7 @@ var MTGames5 = (function () {
       if (st.found) {
         ctx2.strokeStyle = '#ff6a52'; ctx2.lineWidth = 4; ctx2.lineCap = 'round';
         ctx2.beginPath(); ctx2.moveTo(x + w * 0.15, y + h * 0.15); ctx2.lineTo(x + w * 0.85, y + h * 0.85); ctx2.moveTo(x + w * 0.85, y + h * 0.15); ctx2.lineTo(x + w * 0.15, y + h * 0.85); ctx2.stroke();
-        drawCap(ctx2, 'jt', x + w * 0.5, y + h * 0.86, h * 0.13);
+        if (opts.foundSeal !== '') drawCap(ctx2, opts.foundSeal || 'jt', x + w * 0.5, y + h * 0.86, h * 0.13);
       }
       if (st.flash) { ctx2.strokeStyle = 'rgba(150,240,170,' + st.flash.toFixed(3) + ')'; ctx2.lineWidth = 3; ctx2.beginPath(); ctx2.arc(x + w / 2, y + h / 2, Math.min(w, h) * 0.45, 0, 6.3); ctx2.stroke(); }
     }
@@ -1019,7 +1031,7 @@ var MTGames5 = (function () {
       if (bad[c.id]) {
         found[c.id] = 1; au('coin');
         var r = rows[c.row], why = bad[c.id] === 'qty' ? 'Buku mencatat <b>' + r.qty + '</b>, peti berisi <b>' + c.qty + '</b>.' : bad[c.id] === 'cap' ? 'Buku: <b>' + CAP[r.cap].n + '</b>. Peti: <b>' + CAP[c.cap].n + '</b>.' : 'Buku: <b>' + esc(r.berat) + '</b>. Angka di peti dikerok: <b>' + esc(c.berat) + '</b>.';
-        showPop(sealSvg() + '<b>' + esc(c.label) + '</b><br>' + why + '<br><i>' + (c.note ? 'Catatan kecil di pojok: &ldquo;' + esc(c.note) + '&rdquo;' : (opts.foundNote || 'Di balik peti: segel lilin J.T.')) + '</i>', 2600);
+        showPop(sealSvg(opts.foundSeal) + '<b>' + esc(c.label) + '</b><br>' + why + '<br><i>' + (c.note ? 'Catatan kecil di pojok: &ldquo;' + esc(c.note) + '&rdquo;' : (opts.foundNote || 'Di balik peti: segel lilin J.T.')) + '</i>', 2600);
         var n = Object.keys(found).length;
         hud.querySelector('.gd-f').textContent = n;
         box.say((opts.foundLines || ['Itu dia. Cap lilin merah itu lagi.', 'Satu lagi&hellip; Bibi sudah curiga dari dulu.', 'Semua dari Jendral itu.'])[Math.min(n - 1, 2)], 'good');
