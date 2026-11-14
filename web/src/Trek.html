@@ -61,12 +61,14 @@ var MTTrek = (function () {
       '<label><input type="checkbox" data-t="ghost"' + (ls('ghost', true) ? ' checked' : '') + '> Bayangan rekorku</label>' +
       '<label><input type="checkbox" data-t="haptic"' + (G.haptic() ? ' checked' : '') + '> Getar</label></div>' +
       '<button type="button" class="trk-btn" data-utama data-a="start">KE GARIS START</button>' +
+      (st.adu ? '<button type="button" class="trk-btn ghost" data-a="adu">Adu Kapten</button>' : '') +
       '<button type="button" class="trk-btn ghost" data-a="tutup">Kembali ke pelabuhan</button>');
     G.idle(st.ship);
     c.onclick = function (e) {
       var t = e.target.closest ? e.target.closest('[data-r],[data-a]') : null; if (!t) return;
       if (t.dataset.r) { sel = t.dataset.r; lsSet('rival', sel); menu(); }
       else if (t.dataset.a === 'start') pre();
+      else if (t.dataset.a === 'adu') aduSegar();
       else if (t.dataset.a === 'tutup') G.close();
     };
     c.onchange = function (e) {
@@ -127,6 +129,7 @@ var MTTrek = (function () {
     function siapLagi() { lagi.disabled = false; if (wantLagi && next) go(next); }
     api(['selesai', run.run, res.log], function (r) {
       if (r.trek) st = r.trek;
+      try { if (typeof metaMax_ === 'function' && st && st.total) metaMax_('trekmenang', st.total); } catch (e) { }
       var h = r.hasil || {};
       if (!srv.isConnected) return;
       if (h.me !== res.me.fin || h.op !== res.op.fin) { srv.className = 'trk-srv bad'; srv.textContent = 'Catatan juru tulis berbeda: ' + dtk(h.me) + ' vs ' + dtk(h.op) + ' dtk. Yang dipakai catatan juru tulis.'; }
@@ -153,7 +156,7 @@ var MTTrek = (function () {
 
   // ---------------------------------------------------------------- pintu masuk
   // tutup = dipanggil bila Sirkuit belum terbuka untuk kapten ini (server menjawab "Aksi tidak dikenal")
-  function open(tutup) {
+  function open(tutup, lanjut) {
     if (busy || (window.MTGames8 && MTGames8.isOpen())) return;
     if (!S || !window.MTGames8) return;
     busy = true;
@@ -161,8 +164,8 @@ var MTTrek = (function () {
       busy = false;
       if (!r.trek) { if (typeof tutup === 'function') tutup(); return; }
       st = r.trek;
-      G = MTGames8.open({ onClose: function () { G = null; } });
-      menu();
+      G = MTGames8.open({ onClose: function () { G = null; aduStop(); aduTutupUndangan(); } });
+      if (typeof lanjut === 'function') lanjut(); else menu();
     }, function () { busy = false; if (typeof tutup === 'function') tutup(); });
   }
   // penguji: alamat berakhiran #trek membuka Sirkuit begitu game siap
@@ -176,6 +179,186 @@ var MTTrek = (function () {
   }
   try { viaHash(); window.addEventListener('hashchange', viaHash); } catch (e) { }
 
-  return { open: open, isOpen: function () { return !!G; } };
+
+  // ================================================================ ADU KAPTEN (batch 6b)
+  //   Dua kapten yang sudah tamat Mahkota & sama-sama merapat di Zentul saling menantang.
+  //   Kapal di sebelah hanyalah laju rekor lawan; hasil sebenarnya dihitung juru tulis
+  //   setelah kedua catatan ketukan disetor (benih sama, simulasi sama).
+  var ADU = { duel: null, poll: null, undangan: null };
+  function aduApi(args, ok, fail) {
+    try {
+      var r = google.script.run.withSuccessHandler(function (res) { ok(res || {}); })
+        .withFailureHandler(function (e) { (fail || function (m) { toast(m, 'error'); })((e && e.message) || String(e || 'Gagal.')); });
+      r.api_trekDuel.apply(r, args);
+    } catch (e) { (fail || function (m) { toast(m, 'error'); })(e.message || 'Gagal.'); }
+  }
+  function aduStop() { if (ADU.poll) { clearInterval(ADU.poll); ADU.poll = null; } }
+  function aduLawanProfil(d) {
+    return { name: d.lawan || 'Kapten', ship: d.kapalLawan || d.kapalku, react: 300, rsd: 60, aim: -20, sd: 45, boost: 1 };
+  }
+  function aduLobi(data) {
+    if (!G) return;
+    aduStop();
+    var a = data || (st && st.adu) || null;
+    if (!a) { menu(); return; }
+    if (a.duel && (a.duel.status === 'invited' || a.duel.status === 'active')) { aduTunggu(a.duel); return; }
+    var rows = (a.kapten || []).map(function (k) {
+      return '<li><span>' + esc(k.nama) + '<small>' + (k.sisa > 0 ? 'sisa ' + k.sisa + ' adu hari ini' : 'jatah hari ini habis') + '</small></span>' +
+        '<button type="button" class="trk-btn mini" data-tantang="' + esc(k.id) + '"' + (k.sisa > 0 ? '' : ' disabled') + '>Tantang</button></li>';
+    }).join('');
+    var papan = (a.papan || []).map(function (p, i) {
+      return '<li><span>' + (i + 1) + '</span><span>' + esc(p.nama) + '</span><b>' + p.menang + '×</b></li>';
+    }).join('');
+    var c = G.card(
+      '<div class="trk-k">Zentul · Adu Kapten</div><h1>Adu Kapten</h1><div class="trk-orn"></div>' +
+      '<p class="trk-sub">Lintasan yang sama, benih yang sama, tanpa taruhan. Kalian berdua berangkat dari obor yang sama; juru tulis menghitung setelah dua catatan masuk. Maksimal ' + (a.maks || 3) + '× sehari dengan kapten yang sama.</p>' +
+      (a.siap ? '' : '<p class="trk-sub warn">Kapalmu harus merapat di Zentul untuk beradu.</p>') +
+      '<div class="trk-lbl">Kapten di dermaga Zentul</div>' +
+      (rows ? '<ul class="trk-adu">' + rows + '</ul>' : '<p class="trk-kosong">Belum ada kapten lain di dermaga. Rayan Bazzy menyeka tangannya: "Sabar. Selat ini tak pernah sepi lama."</p>') +
+      (papan ? '<div class="trk-lbl">Papan Adu · tujuh hari terakhir</div><ol class="trk-papan">' + papan + '</ol>' : '') +
+      '<button type="button" class="trk-btn ghost" data-a="segar">Lihat lagi dermaga</button>' +
+      '<button type="button" class="trk-btn ghost" data-a="menu">Kembali ke Sirkuit</button>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-tantang],[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.tantang) {
+        t.disabled = true; t.textContent = '…';
+        aduApi(['tantang', t.dataset.tantang], function (r) { if (r.duel) aduTunggu(r.duel); else aduSegar(); },
+          function (m) { toast(m, 'error'); aduSegar(); });
+      } else if (t.dataset.a === 'segar') aduSegar();
+      else if (t.dataset.a === 'menu') menu();
+    };
+  }
+  function aduSegar() { aduApi(['lobi'], function (r) { aduLobi(r.adu); }, function (m) { toast(m, 'error'); menu(); }); }
+  function aduTunggu(d) {
+    if (!G) return;
+    aduStop(); ADU.duel = d;
+    if (d.status === 'active') { aduBalap(d); return; }
+    if (d.status !== 'invited') { aduSegar(); return; }
+    var sisa = Math.max(0, 60 - Math.round((Date.now() - d.dibuat) / 1000));
+    var c = G.card(
+      '<div class="trk-k">Tantangan terkirim</div><h2 class="trk-tunggu">' + esc(d.lawan) + '</h2>' +
+      '<p class="trk-sub">Obor sudah disiapkan. Menunggu jawaban… <b class="trk-cd">' + sisa + '</b> dtk</p>' +
+      '<button type="button" class="trk-btn ghost" data-a="batal">Tarik tantangan</button>');
+    var cd = c.querySelector('.trk-cd');
+    ADU.poll = setInterval(function () {
+      if (!c.isConnected) { aduStop(); return; }
+      sisa = Math.max(0, sisa - 1); if (cd) cd.textContent = sisa;
+      if (sisa % 2) return;
+      aduApi(['lihat', d.id], function (r) {
+        var n = r.duel; if (!n || !c.isConnected) return;
+        if (n.status === 'active') { aduStop(); aduBalap(n); }
+        else if (n.status !== 'invited') { aduStop(); toast(n.status === 'declined' ? esc(d.lawan) + ' menolak tantanganmu.' : 'Tantangan berakhir.', 'info'); aduSegar(); }
+      }, function () { });
+    }, 1000);
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t) return;
+      aduStop(); aduApi(['batal', d.id], function () { aduSegar(); }, function () { aduSegar(); });
+    };
+  }
+  function aduBalap(d) {
+    if (!G) return;
+    aduStop(); ADU.duel = d;
+    var me = S.SHIPS[d.kapalku], op = S.SHIPS[d.kapalLawan || d.kapalku];
+    var c = G.card(
+      '<div class="trk-k">Adu Kapten · Selat Lurus</div>' +
+      '<div class="trk-vs"><div class="trk-side me"><small>KAMU</small><b>' + esc(me.name) + '</b>' + stats(me) + '</div><div class="trk-mid">VS</div>' +
+      '<div class="trk-side op"><small>' + esc(d.lawan).toUpperCase() + '</small><b>' + esc(op.name) + '</b>' + stats(op) + '</div></div>' +
+      '<p class="trk-sub" style="margin-top:10px">Kapal di sebelahmu hanyalah <b>laju rekor ' + esc(d.lawan) + '</b>. Hasil sebenarnya dihitung juru tulis setelah kalian berdua menyetor catatan.</p>' +
+      '<p class="trk-sub warn">Setor dalam 90 detik sejak obor menyala. Yang diam dianggap kalah.</p>' +
+      '<button type="button" class="trk-btn" data-utama data-a="siap">SIAP</button>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
+      var ghost = ls('ghost', true) && st.best && st.best.log && d.kapalku === st.ship ? st.best.log : null;
+      G.race({ ship: d.kapalku, rival: aduLawanProfil(d), seed: d.seed, hint: hint(), ghostLog: ghost }, function (res) {
+        if (!res || res.cancelled) { aduKirim(d, []); return; }
+        lsSet('races', races() + 1);
+        aduKirim(d, res.log || [], res);
+      });
+    };
+  }
+  function aduKirim(d, log, res) {
+    if (!G) return;
+    var c = G.card(
+      '<div class="trk-k" style="text-align:center">Adu Kapten</div><h2>Catatan disetor</h2>' +
+      '<p class="trk-sub">' + (res && res.me && res.me.fin ? 'Waktumu <b>' + dtk(res.me.fin) + ' dtk</b>. ' : '') + 'Menunggu catatan ' + esc(d.lawan) + '…</p>' +
+      '<p class="trk-srv">juru tulis sirkuit sedang menghitung…</p>' +
+      '<button type="button" class="trk-btn ghost" data-a="menu">Tinggalkan dulu</button>');
+    c.onclick = function () { aduStop(); menu(); };
+    var n = 0;
+    function cek(r) {
+      var x = r && r.duel; if (!x || !c.isConnected) return;
+      if (x.status === 'done' || x.status === 'cancelled') { aduStop(); aduHasil(x); }
+    }
+    aduApi(['log', d.id, log], cek, function (m) { toast(m, 'error'); });
+    ADU.poll = setInterval(function () {
+      if (!c.isConnected || ++n > 50) { aduStop(); return; }
+      aduApi(['lihat', d.id], cek, function () { });
+    }, 2500);
+  }
+  function aduHasil(d) {
+    if (!G) return;
+    aduStop(); ADU.duel = null;
+    var menang = d.menang === 'aku', seri = d.menang === 'seri';
+    var batal = d.status === 'cancelled';
+    var diff = (d.usKu != null && d.usLawan != null) ? d.usKu - d.usLawan : null;
+    var kata = batal ? 'Tak seorang pun menyetor catatan. Adu dibatalkan.'
+      : menang ? '"Catatanmu lebih bersih. Kuikat namamu di tiang," kata Rayan Bazzy.'
+        : seri ? '"Sama persis. Selat ini jarang sekali begitu," kata Rayan Bazzy.'
+          : '"Dia lebih sabar di gigi empat. Perhatikan itu," kata Rayan Bazzy.';
+    var c = G.card('<div class="trk-res">' +
+      '<div class="trk-k" style="text-align:center">Adu Kapten · ' + esc(d.lawan) + '</div>' +
+      '<h2 class="' + (batal || seri ? '' : (menang ? 'win' : 'lose')) + '">' + (batal ? 'Batal' : seri ? 'Seri' : menang ? 'Menang!' : 'Kalah') + '</h2>' +
+      (batal ? '' : '<div class="trk-times"><div><small>KAMU</small><b>' + dtk(d.usKu) + ' dtk</b></div><div><small>' + esc(d.lawan).toUpperCase() + '</small><b>' + dtk(d.usLawan) + ' dtk</b></div></div>' +
+        (diff == null ? '<p class="trk-diff">' + (d.usKu == null ? 'kau tidak menyelesaikan lintasan' : esc(d.lawan) + ' tidak menyelesaikan lintasan') + '</p>'
+          : '<p class="trk-diff">' + (diff < 0 ? 'unggul ' : diff > 0 ? 'tertinggal ' : 'selisih ') + dtk(Math.abs(diff)) + ' dtk</p>')) +
+      '<p class="trk-q">' + esc(kata) + '<small>— Lapau Oli</small></p>' +
+      '<div class="trk-row"><button type="button" class="trk-btn ghost" data-a="lobi">Dermaga</button><button type="button" class="trk-btn" data-utama data-a="balik">TANTANG BALIK</button></div></div>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t) return;
+      if (t.dataset.a === 'balik' && d.lawanId) {
+        t.disabled = true;
+        aduApi(['tantang', d.lawanId], function (r) { if (r.duel) aduTunggu(r.duel); else aduSegar(); }, function (m) { toast(m, 'error'); aduSegar(); });
+      } else aduSegar();
+    };
+  }
+  // undangan masuk (dipanggil dari penampung inbox multiplayer)
+  function aduInbox(it) {
+    if (!it || String(it.type || '').indexOf('trek_adu_') !== 0) return false;
+    if (it.type === 'trek_adu_invite') { aduUndangan(it); return true; }
+    if (it.type === 'trek_adu_tolak') { toast((it.from || 'Kapten itu') + ' menolak tantangan adumu.', 'info'); return true; }
+    if (it.type === 'trek_adu_hasil') {
+      if (G) aduApi(['lihat', it.duelId], function (r) { if (r.duel && r.duel.status === 'done') aduHasil(r.duel); }, function () { });
+      return true;
+    }
+    return true;
+  }
+  function aduUndangan(it) {
+    if (ADU.undangan) return;
+    ADU.undangan = it;
+    var host = document.getElementById('trkInv');
+    if (!host) { document.body.insertAdjacentHTML('beforeend', '<div id="trkInv"></div>'); host = document.getElementById('trkInv'); }
+    host.innerHTML = '<div class="trk-inv-box"><div class="trk-k">Adu Kapten · Sirkuit Zentul</div>' +
+      '<div class="trk-inv-n">' + esc(it.from || 'Kapten') + '</div>' +
+      '<p class="trk-inv-s">menantangmu balapan di Selat Lurus. Tanpa taruhan &middot; <b class="trk-inv-cd">60</b> dtk</p>' +
+      '<div class="trk-inv-a"><button type="button" class="trk-btn" data-utama data-i="ya">TERIMA</button><button type="button" class="trk-btn ghost" data-i="tidak">Tolak</button></div></div>';
+    host.classList.add('show');
+    try { if (typeof au_ === 'function') au_('bell'); } catch (e) { }
+    var sisa = 58, cd = host.querySelector('.trk-inv-cd');
+    clearInterval(host._t);
+    host._t = setInterval(function () { sisa--; if (cd) cd.textContent = Math.max(0, sisa); if (sisa <= 0) aduTutupUndangan(); }, 1000);
+    host.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-i]') : null; if (!t) return;
+      var ya = t.dataset.i === 'ya', id = it.duelId;
+      aduTutupUndangan();
+      aduApi(['jawab', id, ya], function (r) {
+        if (!ya || !r.duel) return;
+        if (G) aduTunggu(r.duel);
+        else open(null, function () { aduTunggu(r.duel); });
+      }, function (m) { toast(m, 'error'); });
+    };
+  }
+  function aduTutupUndangan() { var h = document.getElementById('trkInv'); if (h) { h.classList.remove('show'); clearInterval(h._t); h.innerHTML = ''; } ADU.undangan = null; }
+
+  return { open: open, isOpen: function () { return !!G; }, adu: function () { aduSegar(); }, inbox: aduInbox };
 })();
 </script>
