@@ -278,10 +278,10 @@ const assert = require('assert');
   assert.strictEqual(res1.pendingCombat, true); assert.strictEqual(res1.cityId, null); assert.strictEqual(res1.event, null);
   const enc = res1.encounter;
   assert(enc.enemyLevel >= 2 && enc.enemyLevel <= 5);
-  assert(enc.enemyName.startsWith("TooGood's own "));
+  assert(enc.enemyName.startsWith("milik TooGood: "));
   assert.strictEqual(enc.enemyMaxHp, 40 + enc.enemyLevel * 25); assert.strictEqual(enc.enemyHp, enc.enemyMaxHp);
   assert.strictEqual(enc.maxAmmo, 4); assert.strictEqual(enc.ammoRemaining, 4); assert.strictEqual(enc.round, 1);
-  assert.strictEqual(await lastLog(), 'Sails spotted on the horizon - a pirate vessel closes in!');
+  assert.strictEqual(await lastLog(), 'Layar terlihat di cakrawala - kapal bajak laut mendekat!');
   const res2 = await resolve(); // tidak roll ulang
   assert.deepStrictEqual(res2.encounter, enc);
   v = await voyage(); assert.strictEqual(v.encounterPending, true); assert.deepStrictEqual(v.encounter, enc);
@@ -371,8 +371,8 @@ const assert = require('assert');
     if (!r.ongoing) won = r;
   }
   assert.deepStrictEqual(won.lootItem, { itemId: 'map_test', name: 'Peta Tes Lv2' });
-  assert(won.message.endsWith(' Among the wreckage, the crew salvages Peta Tes Lv2!'));
-  assert(/Among the wreckage/.test((await H.sql('select loot from game.combat_log where player_id = $1 order by id desc limit 1', [pid]))[0].loot));
+  assert(won.message.endsWith(' Di antara puing, kru menyelamatkan Peta Tes Lv2!'));
+  assert(/Di antara puing/.test((await H.sql('select loot from game.combat_log where player_id = $1 order by id desc limit 1', [pid]))[0].loot));
   await H.sql(`create or replace function game.treasure_drop(p_pid uuid, p_enemy_level int) returns jsonb language plpgsql as $$ begin return null; end $$`);
 
   // --- Ram menang (armor tinggi -> 90%)
@@ -414,7 +414,7 @@ const assert = require('assert');
     else await H.sql(`update game.inventory set qty = case item_id when 'sugar' then 9 when 'rum' then 1 else 3 end where player_id = $1`, [pid]);
   }
   assert(sunk); assert.strictEqual(sunk.cityId, 'sunda_empire'); assert.strictEqual(sunk.success, false);
-  assert(sunk.message.includes('150 gold were lost to the sea'));
+  assert(sunk.message.includes('150 gold hilang ke laut'));
   assert.strictEqual(sunk.newGold, 850);
   // 0 + 130*0.25 = 32.5 -> 33 ; decay 2.85 -> 30.15 -> 30
   assert.strictEqual(await cond(), 30);
