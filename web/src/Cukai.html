@@ -1,0 +1,306 @@
+<!--
+  Saga 4 · Krisis Monopoli (klien). Server: supabase/migrations/0074-krisis-monopoli.sql
+  - state.cukai  : { zona:[kota], kena:kota|null, tembus, gelapBuka, gelap:{city,sisa,kuota,barang,bonus}, beli, jual, pct }
+                   (null untuk pemain yang tidak menjalani Saga 4: modul ini lalu diam total)
+  - Kartu cegat  : Patroli Jaring Biru. Bayar Cukai · Runding · Tembus Jaring (Trektrek-an). Tidak pernah membuka layar tempur.
+  - Peta         : cincin rantai biru + label CUKAI di pulau zona hari ini.
+  - Pasar        : pita Zona Cukai / Pasar Gelap + tanda "harga gelap" di barang yang berhak.
+-->
+<style>
+  #ckCard { position: fixed; inset: 0; z-index: 8900; opacity: 0; transition: opacity .6s; overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(40,74,128,.55), rgba(8,14,28,.92) 62%), #070b16; }
+  #ckCard.show { opacity: 1; } #ckCard.out { opacity: 0; transition: opacity .35s; }
+  #ckCard .ck-top { position: absolute; left: 0; right: 0; top: 6%; display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none; }
+  #ckCard .ck-chain { width: 100%; height: 30px; opacity: .9; transform: translateX(-104%); transition: transform 1.1s cubic-bezier(.2,.8,.2,1); }
+  #ckCard .ck-chain.b { transform: translateX(104%); transition-delay: .15s; opacity: .55; }
+  #ckCard.show .ck-chain { transform: none; }
+  #ckCard .ck-ship { width: min(380px, 70vw); transform: translateY(-12px); opacity: 0; transition: opacity .9s .3s, transform .9s .3s; }
+  #ckCard.show .ck-ship { opacity: 1; transform: none; }
+  .ck-dlg { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translate(-50%, 16px); width: min(720px, calc(100% - 28px));
+    max-height: calc(100% - 36px); overflow: auto; -webkit-overflow-scrolling: touch;
+    display: grid; grid-template-columns: 92px 1fr; gap: 14px; padding: 16px 18px; border-radius: 16px; background: rgba(10,16,30,.9);
+    border: 1px solid rgba(120,160,220,.42); box-shadow: 0 18px 50px rgba(0,0,0,.55); backdrop-filter: blur(5px); color: #e6ecf6; font-family: Georgia, serif;
+    opacity: 0; transition: opacity .5s, transform .5s; }
+  .ck-dlg.in { opacity: 1; transform: translate(-50%, 0); }
+  .ck-face { width: 92px; height: 92px; border-radius: 14px; overflow: hidden; border: 2px solid #5f86c4; background: #12203a; }
+  .ck-face svg { width: 100%; height: 100%; display: block; }
+  .ck-who { font: 700 13px Georgia, serif; letter-spacing: .08em; text-transform: uppercase; color: #9db4d8; margin-bottom: 4px; }
+  .ck-who b { color: #f0d58a; }
+  .ck-line { font-size: 1.04em; line-height: 1.55; min-height: 3.1em; }
+  .ck-line i { color: #a9b9d4; }
+  .ck-acts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 4px; }
+  .ck-acts button { min-height: 58px; border-radius: 12px; padding: 9px 12px; font: 700 15px Georgia, serif; cursor: pointer; text-align: left; line-height: 1.25;
+    background: rgba(255,255,255,.06); color: #eef3fb; border: 1px solid rgba(140,170,220,.4); transition: transform .12s, background .2s; }
+  .ck-acts button:hover { background: rgba(255,255,255,.11); } .ck-acts button:active { transform: scale(.985); }
+  .ck-acts button[disabled] { opacity: .5; cursor: default; }
+  .ck-acts button small { display: block; font: 400 12px Georgia, serif; color: #b6c4dc; margin-top: 2px; }
+  .ck-acts button.go { background: linear-gradient(180deg, #f6dc92, #c9962f); color: #2a1a06; border-color: #fbeabb; }
+  .ck-acts button.go small { color: #4a3410; }
+  .ck-acts .ck-note { grid-column: 1 / -1; color: #93a3bf; font-size: 12px; }
+  @media (max-width: 560px) { .ck-dlg { grid-template-columns: 60px 1fr; gap: 10px; padding: 12px; } .ck-face { width: 60px; height: 60px; } .ck-line { font-size: .96em; }  #ckCard .ck-top { top: 3%; } }
+  @media (prefers-reduced-motion: reduce) { #ckCard .ck-chain, #ckCard .ck-ship, .ck-dlg { transition: opacity .3s; transform: none; } .ck-dlg { transform: translate(-50%, 0); } }
+
+  .ck-sita { text-align: left; margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(36,71,122,.08); border: 1px dashed rgba(36,71,122,.5); }
+  .ck-sita h4 { margin: 0 0 6px; font-size: 1em; } .ck-sita ul { margin: 0; padding-left: 18px; } .ck-sita li.p { font-weight: 700; }
+  .ck-sita.win { background: rgba(60,110,50,.08); border-color: rgba(60,110,50,.5); }
+
+  .ck-band { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; margin: 0 0 10px; font-size: .93em; line-height: 1.4; }
+  .ck-band b { letter-spacing: .06em; } .ck-band .icon { flex: none; }
+  .ck-band.zona { background: linear-gradient(90deg, rgba(36,71,122,.18), rgba(36,71,122,.06)); border: 1px solid rgba(36,71,122,.55); color: #17335e; }
+  .ck-band.gelap { background: linear-gradient(90deg, rgba(30,22,12,.9), rgba(60,42,18,.86)); border: 1px solid #b98a2e; color: #f3e2b6; }
+  .ck-band.gelap em { color: #f6dc92; font-style: normal; font-weight: 700; }
+  .price-badge.ck-gelap { background: #2a1d0c; color: #f6dc92; border: 1px solid #b98a2e; }
+  .price-badge.ck-stempel { background: rgba(36,71,122,.14); color: #17335e; border: 1px solid rgba(36,71,122,.5); }
+  .ck-sail { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border-radius: 10px; margin: 8px 0; font-size: .9em;
+    background: rgba(36,71,122,.1); border: 1px solid rgba(36,71,122,.45); color: #17335e; }
+  .ck-mapz circle { fill: none; stroke: #24477a; stroke-width: 2.2; stroke-dasharray: 5 3.2; }
+  .ck-mapz text { font: 700 8.5px Georgia, serif; letter-spacing: .12em; fill: #17335e; paint-order: stroke; stroke: #f1e3c0; stroke-width: 2.6px; }
+  @media (prefers-reduced-motion: no-preference) { .ck-mapz circle { animation: ckSpin 14s linear infinite; transform-box: fill-box; transform-origin: center; } }
+  @keyframes ckSpin { to { transform: rotate(360deg); } }
+</style>
+<script>
+var MTCukai = (function () {
+  'use strict';
+  if (typeof window.openCombatScene_ !== 'function') return {};
+  var busy = false, lastSig = '', refreshing = false;
+
+  function C() { return (window.state && state.cukai) || null; }
+  function enc() { var e = window.state && state.voyage && state.voyage.encounter; return e && e.kind === 'cukai' ? e : null; }
+  function rpc(args) { return new Promise(function (ok, fail) { google.script.run.withSuccessHandler(function (r) { try { if (r && r.mahkota !== undefined && window.state) state.mahkota = r.mahkota; } catch (e) { } ok(r); }).withFailureHandler(fail).api_cukai.apply(null, args); }); }
+  function E(s) { return typeof esc_ === 'function' ? esc_(s) : String(s == null ? '' : s); }
+  function sfx(n) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n); } catch (e) { } }
+  function cityName(id) { var c = (typeof cityById_ === 'function' && cityById_(id)) || null; return c ? c.Name : id; }
+  function lot(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
+  function setC(c) { if (window.state && c !== undefined) state.cukai = c; }
+
+  function face() {
+    return '<svg viewBox="0 0 92 92"><rect width="92" height="92" fill="#16294a"/><path d="M14 92c2-20 14-28 32-28s30 8 32 28z" fill="#24477a"/>' +
+      '<path d="M40 62h12l-2 12h-8z" fill="#e9edf5"/><circle cx="46" cy="42" r="17" fill="#d9a87c"/>' +
+      '<path d="M27 36c1-14 9-20 19-20s18 6 19 20c-6-4-12-6-19-6s-13 2-19 6z" fill="#1b345c"/><rect x="26" y="33" width="40" height="5" rx="2" fill="#0f2140"/>' +
+      '<circle cx="46" cy="25" r="3.2" fill="#d3a342"/><circle cx="39.5" cy="43" r="1.7" fill="#2a1c12"/><circle cx="52.5" cy="43" r="1.7" fill="#2a1c12"/>' +
+      '<path d="M40 52q6 3 12 0" stroke="#7a4a2a" stroke-width="1.6" fill="none"/><rect x="58" y="66" width="20" height="14" rx="2" fill="#e9dfc4"/>' +
+      '<circle cx="68" cy="73" r="4.2" fill="none" stroke="#24477a" stroke-width="1.8"/></svg>';
+  }
+  function chain(cls) {
+    var s = '<svg class="ck-chain ' + cls + '" viewBox="0 0 2160 34" preserveAspectRatio="xMidYMid slice">';
+    for (var i = 0; i < 60; i++) s += '<ellipse cx="' + (18 + i * 36) + '" cy="17" rx="' + (i % 2 ? 13 : 19) + '" ry="' + (i % 2 ? 5 : 9) + '" fill="none" stroke="' + (i % 2 ? '#3d67a8' : '#5f86c4') + '" stroke-width="4.5"/>';
+    return s + '</svg>';
+  }
+  function ship() {
+    return '<svg class="ck-ship" viewBox="0 0 420 150"><path d="M40 108h340l-26 30H70z" fill="#1b345c"/><path d="M40 108h340l-6 8H46z" fill="#3d67a8"/>' +
+      '<rect x="204" y="18" width="5" height="92" fill="#2a1c12"/><path d="M212 24l96 74h-96z" fill="#dfe7f3"/><path d="M200 30l-78 68h78z" fill="#c9d5e8"/>' +
+      '<path d="M209 18l34 9-34 9z" fill="#24477a"/><circle cx="262" cy="80" r="13" fill="none" stroke="#24477a" stroke-width="4"/><path d="M254 80h16M262 72v16" stroke="#24477a" stroke-width="3"/>' +
+      '<g fill="#f0d58a"><circle cx="96" cy="120" r="3"/><circle cx="150" cy="120" r="3"/><circle cx="270" cy="120" r="3"/><circle cx="324" cy="120" r="3"/></g></svg>';
+  }
+
+  /* ================= KARTU CEGAT ================= */
+  function showCard(e) {
+    if (document.getElementById('ckCard')) return;
+    if (typeof currentPanel !== 'undefined' && currentPanel) closeModal();
+    var dest = cityName(state.voyage.destinationCityId), pct = e.pct || 25, putus = !!e.trekRun;
+    var LINES = putus
+      ? ['<i>Rantai sudah menutup. Kemudimu terlepas di tengah selat, dan lambung biru itu merapat ke sisimu.</i>']
+      : ['<i>Lambung biru memotong haluanmu. Di antara dua pelampung, rantai terbentang rendah di atas air.</i>',
+         '"Perairan <b>' + E(dest) + '</b> hari ini Zona Cukai, Kapten. ' + (e.muatan > 0 ? 'Seperempat muatan untuk kas Audit Biru. Buka palkamu.' : 'Buka palkamu.') + '"'];
+    var ov = document.createElement('div'); ov.id = 'ckCard';
+    ov.innerHTML = '<div class="ck-top">' + ship() + chain('a') + chain('b') + '</div>' +
+      '<div class="ck-dlg" role="dialog" aria-label="Dicegat Patroli Jaring Biru"><div class="ck-face">' + face() + '</div><div>' +
+      '<div class="ck-who"><b>Juru Sita</b> &middot; Patroli Jaring Biru</div><div class="ck-line"></div></div><div class="ck-acts"></div></div>';
+    document.body.appendChild(ov);
+    sfx('horn');
+    var dlg = ov.querySelector('.ck-dlg'), line = ov.querySelector('.ck-line'), acts = ov.querySelector('.ck-acts'), i = 0, done = false;
+    function close(cb) {
+      if (done) return; done = true;
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 380);
+      if (cb) setTimeout(cb, 80);
+    }
+    function fail(err) { busy = false; showToast((err && err.message) || String(err), 'error'); close(function () { loadState(); }); }
+    function act(name, btn) {
+      if (busy) return; busy = true; acts.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      rpc([name]).then(function (r) {
+        busy = false;
+        if (r && r.ongoing && r.trek) { close(function () { balap(r.trek); }); return; }
+        close(function () { hasil(r); });
+      }, fail);
+    }
+    function step() {
+      line.innerHTML = LINES[i];
+      if (i < LINES.length - 1) { acts.innerHTML = '<button type="button" class="go" style="text-align:center">Lanjut &nbsp;&#8250;</button>'; acts.firstChild.onclick = function () { sfx('page'); i++; step(); }; return; }
+      if (putus) {
+        acts.innerHTML = '<button type="button" data-t="bayar" style="text-align:center">Turunkan layar</button>';
+      } else {
+        acts.innerHTML =
+          (e.tembus ? '<button type="button" class="go" data-t="tembus">' + ic('flag') + ' Tembus Jaring<small>Trektrek-an melawan kapal patroli. Kalah: ' + (e.aman ? 'kau dilepas tanpa sita.' : 'barang premium disita.') + '</small></button>' : '') +
+          '<button type="button" data-t="bayar">' + ic('crate') + ' Bayar Cukai<small>' + (e.muatan > 0 ? pct + '% muatan diambil sebagai barang. Gold aman.' : 'Palkamu kosong.') + '</small></button>' +
+          '<button type="button" data-t="runding">' + ic('scroll') + ' Runding<small>Bila gagal, cukai tetap ditarik.</small></button>' +
+          '<div class="ck-note">Tembak, tabrak, kabur, dan suap tidak berlaku di depan Jaring Biru.</div>';
+      }
+      acts.querySelectorAll('button[data-t]').forEach(function (b) { b.onclick = function () { act(b.getAttribute('data-t'), b); }; });
+    }
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    setTimeout(function () { dlg.classList.add('in'); step(); }, putus ? 300 : 900);
+  }
+
+  /* ================= TEMBUS JARING ================= */
+  function balap(t) {
+    if (!window.MTGames8 || !window.MTTrekSim) { showToast('Garis start belum siap.', 'error'); loadState(); return; }
+    var G = null, selesai = false, n = 0;
+    try { n = Number(localStorage.getItem('mt_trek_races') || 0) || 0; } catch (x) { }
+    G = MTGames8.open({ onClose: function () { G = null; if (!selesai) loadState(); } });
+    G.race({ ship: t.ship, rival: t.rival, seed: t.seed, hint: n < 3 }, function (res) {
+      if (!res || res.cancelled || !G) return;
+      selesai = true;
+      var c = G.card('<div class="trk-res"><div class="trk-k" style="text-align:center">Tembus Jaring</div>' +
+        '<h2 class="' + (res.win ? 'win' : 'lose') + '">' + (res.win ? 'Lolos!' : 'Terjaring') + '</h2>' +
+        '<p class="trk-srv">menunggu catatan menara rantai…</p></div>' +
+        '<button type="button" class="trk-btn" data-utama disabled>LANJUT</button>', true);
+      var srv = c.querySelector('.trk-srv'), btn = c.querySelector('.trk-btn'), out = null;
+      btn.onclick = function () { if (!out) return; var g = G; G = null; if (g) g.close(); hasil(out); };
+      rpc(['selesai', t.run, res.log]).then(function (r) {
+        out = r; var w = !!(r.hasil && r.hasil.win);
+        try { if (w && typeof metaBump_ === 'function') metaBump_('mhtembus'); } catch (e) { }
+        if (c.isConnected) {
+          var h = c.querySelector('h2'); h.className = w ? 'win' : 'lose'; h.textContent = w ? 'Lolos!' : 'Terjaring';
+          srv.textContent = w ? 'Rantai menutup di belakang buritanmu.' : 'Rantai menutup di depan haluanmu.'; btn.disabled = false;
+        } else hasil(r);
+      }, function (err) {
+        showToast((err && err.message) || String(err), 'error'); var g = G; G = null; if (g) g.close(); loadState();
+      });
+    });
+  }
+
+  /* ================= HASIL ================= */
+  function hasil(r) {
+    if (!r) { loadState(); return; }
+    if (r.state !== undefined) setC(r.state);
+    var sita = r.sita || [], menang = r.result === 'tembus', lolos = r.result === 'lolos';
+    var judul = menang ? 'Jaring Tertembus' : lolos ? 'Dilepas Patroli' : 'Cukai Jaring Biru';
+    var box = '';
+    if (menang) {
+      var g = r.state && r.state.gelap;
+      box = '<div class="ck-sita win"><h4>' + ic('trophy') + ' Muatan utuh, tanpa stempel</h4><p class="small" style="margin:0">' +
+        (g && g.buka ? 'Pintu belakang pasar terbuka sampai kau berlayar lagi: harga gelap untuk muatan yang kau bawa, kuota <b>' + lot(g.sisa) + ' lot</b> hari ini.' : 'Harga pasar di sini berlaku biasa sampai kau berlayar lagi.') + '</p></div>';
+    } else if (lolos) {
+      box = '<div class="ck-sita win"><h4>' + ic('scroll') + ' Muatan utuh</h4><p class="small" style="margin:0">Tapi stempel biru tetap berlaku di pasar pulau ini.</p></div>';
+    } else {
+      box = '<div class="ck-sita"><h4>' + ic('anchor') + ' ' + (sita.length ? 'Dipindahkan ke lambung biru' : (r.aman ? 'Dilepas tanpa sita' : 'Tidak ada yang bisa diambil')) + '</h4>' +
+        (sita.length ? '<ul>' + sita.map(function (x) { return '<li class="' + (x.premium ? 'p' : '') + '">' + E(x.qty) + ' &times; ' + E(x.name) + '</li>'; }).join('') + '</ul>' : '') +
+        '<p class="muted small" style="margin:8px 0 0">Gold, barang quest, muatan misi, dan isi gudang tidak disentuh. Di pasar pulau ini berlaku harga cukai sampai kau berlayar lagi.</p></div>';
+    }
+    var html = (typeof panelHeader_ === 'function' ? panelHeader_(menang ? 'flag' : 'scales', judul, 'Kapal merapat di ' + E(cityName(r.cityId))) : '<h2>' + judul + '</h2>') +
+      '<div style="padding:4px 2px"><p>' + E(r.message) + '</p>' + box +
+      '<button class="btn btn-gold btn-lg" style="width:100%;margin-top:12px" type="button" id="ckOk">Lanjutkan</button></div>';
+    currentPanel = null; setModal_(html);
+    var mb = document.getElementById('modalBox'); if (mb) { mb.classList.remove('size-wide'); mb.classList.add('size-mid'); mb.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    var b = document.getElementById('ckOk'); if (b) b.onclick = function () { closeModal(); loadState(); };
+    sfx(menang || lolos ? 'achieve' : 'coin');
+    loadState();
+  }
+
+  var origOpen = window.openCombatScene_;
+  window.openCombatScene_ = function () {
+    var e = enc();
+    if (e) { if (!(window.MTGames8 && MTGames8.isOpen())) showCard(e); return; }
+    return origOpen.apply(this, arguments);
+  };
+
+  /* ================= PETA ================= */
+  if (window.MTChart && typeof MTChart.build === 'function') {
+    var origBuild = MTChart.build;
+    MTChart.build = function (o) {
+      var s = origBuild.apply(this, arguments);
+      try {
+        var c = C(), zona = (c && c.zona) || [];
+        if (!zona.length || typeof s !== 'string') return s;
+        var W = 720, H = 440, M = 36, cities = (o && o.cities) || [], extX = 100, extY = 100, maxX = 0, maxY = 0, g = '<g class="ck-mapz">';
+        cities.forEach(function (x) { maxX = Math.max(maxX, Number(x.MapX) || 0); maxY = Math.max(maxY, Number(x.MapY) || 0); });
+        if (maxX > 100) extX = Math.max(170, maxX + 26);
+        if (maxY > 84) extY = maxY + 12;
+        zona.forEach(function (id) {
+          var k = cities.filter(function (x) { return x.CityId === id; })[0]; if (!k) return;
+          var px = M + (Number(k.MapX) || 50) / extX * (W - M * 2), py = M + (Number(k.MapY) || 50) / extY * (H - M * 2);
+          g += '<g><title>Zona Cukai hari ini: beli lebih mahal, jual lebih murah, patroli berjaga</title><circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="15"/>' +
+            '<text x="' + px.toFixed(1) + '" y="' + (py - 19).toFixed(1) + '" text-anchor="middle">CUKAI</text></g>';
+        });
+        g += '</g>';
+        var at = s.indexOf('<g class="city-pin');
+        return at > 0 ? s.slice(0, at) + g + s.slice(at) : s.replace(/<\/svg>\s*$/, g + '</svg>');
+      } catch (x) { return s; }
+    };
+  }
+  function decorSail() {
+    var c = C(); if (!c || !(c.zona || []).length) return;
+    var m = document.getElementById('modalContent'); if (!m || m.querySelector('.ck-sail')) return;
+    var anchor = m.querySelector('#sailConfirm'); if (!anchor) return;
+    var known = c.zona.filter(function (id) { return typeof cityById_ === 'function' && cityById_(id); }).map(cityName);
+    if (!known.length) return;
+    var d = document.createElement('div'); d.className = 'ck-sail';
+    d.innerHTML = ic('alert') + '<span><b>Zona Cukai hari ini:</b> ' + known.map(E).join(', ') + '. Di sana beli &times;' + String(c.beli).replace('.', ',') + ', jual &times;' + String(c.jual).replace('.', ',') +
+      ', dan Patroli Jaring Biru berjaga di jalurnya. Zona dikunci saat kau angkat sauh.</span>';
+    anchor.parentNode.insertBefore(d, anchor);
+  }
+
+  /* ================= PASAR ================= */
+  function decorMarket() {
+    var c = C(); if (!c || !state.city) return;
+    var m = document.getElementById('modalContent'); if (!m) return;
+    var head = m.querySelector('.mkt-head'); if (!head || m.querySelector('.ck-band')) return;
+    var here = state.city.CityId, g = c.gelap && c.gelap.city === here ? c.gelap : null, d;
+    if (g) {
+      d = document.createElement('div'); d.className = 'ck-band gelap';
+      d.innerHTML = ic('coin') + '<span><b>PASAR GELAP</b> &middot; tanpa cukai sampai kau berlayar lagi.' +
+        (g.buka ? ' Harga gelap untuk muatan yang kau bawa masuk. Kuota hari ini: <em>' + lot(g.sisa) + ' dari ' + lot(g.kuota) + ' lot</em>.' : '') + '</span>';
+      head.parentNode.insertBefore(d, head.nextSibling);
+      Object.keys(g.barang || {}).forEach(function (id) {
+        var tags = m.querySelector('.mkt-row[data-good="' + id + '"] .mkt-tags'); if (!tags) return;
+        tags.insertAdjacentHTML('beforeend', '<span class="price-badge ck-gelap" title="Harga jual gelap hanya untuk unit yang kau bawa masuk">Harga gelap &times;' + g.barang[id] + '</span>');
+      });
+    } else if (c.kena === here) {
+      d = document.createElement('div'); d.className = 'ck-band zona';
+      d.innerHTML = ic('alert') + '<span><b>ZONA CUKAI</b> &middot; stempel biru di tiap peti: beli &times;' + String(c.beli).replace('.', ',') + ', jual &times;' + String(c.jual).replace('.', ',') +
+        '. Berlaku sampai kau berlayar lagi. Pesanan gubernur bebas cukai.</span>';
+      head.parentNode.insertBefore(d, head.nextSibling);
+    }
+    // setelah jual-beli di Pasar Gelap, kuota & harga berubah: segarkan diam-diam
+    if (g && g.buka && typeof lastTrade !== 'undefined' && lastTrade) {
+      var sig = lastTrade.id + ':' + lastTrade.dir + ':' + lastTrade.qty + ':' + (lastTrade.at || '');
+      if (sig !== lastSig && !refreshing) {
+        lastSig = sig; refreshing = true;
+        setTimeout(function () {
+          rpc(['status']).then(function (r) {
+            refreshing = false; var was = JSON.stringify(C());
+            setC(r.cukai);
+            if (JSON.stringify(r.cukai) !== was && currentPanel === 'market' && typeof txIdle_ === 'function' && txIdle_()) { try { marketCache = null; renderMarket(); } catch (x) { } }
+          }, function () { refreshing = false; });
+        }, 900);
+      }
+    }
+  }
+
+  if (typeof wrap_ === 'function') {
+    wrap_('renderMarketGrid_', function () { try { decorMarket(); } catch (e) { console.warn('[CK] pasar', e); } });
+    wrap_('renderSetSailWith_', function () { try { decorSail(); } catch (e) { console.warn('[CK] layar', e); } });
+  }
+
+  /* ================= DENYUT ================= */
+  function hookPulse() {
+    if (!window.MTGM || !MTGM.onPulse || MTGM._cukai) return;
+    var o = MTGM.onPulse; MTGM._cukai = true;
+    MTGM.onPulse = function (g) {
+      try {
+        if (window.state && g && 'cukai' in g) {
+          var was = JSON.stringify((state.cukai && state.cukai.zona) || null);
+          state.cukai = g.cukai;
+          if (JSON.stringify((g.cukai && g.cukai.zona) || null) !== was && typeof refreshSailChart_ === 'function') refreshSailChart_();
+        }
+      } catch (e) { }
+      return o.apply(this, arguments);
+    };
+  }
+  hookPulse();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hookPulse);
+
+  return { _show: showCard, _hasil: hasil };
+})();
+</script>

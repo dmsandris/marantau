@@ -1,0 +1,151 @@
+<script>
+/* =====================================================================
+ * MTTrekSim — simulasi Trektrek-an (Saga 4). SELURUHNYA BILANGAN BULAT.
+ *   Kembaran persisnya ada di server: game.trek_run() (0072-trektrek-an.sql).
+ *   Setiap perubahan di sini WAJIB diikuti perubahan di SQL; tes 0072 membandingkan keduanya.
+ *   Satuan: waktu = tick 120 Hz (k) dan milidetik relatif dentum meriam (tms);
+ *           v = mm/detik; x = mm*120 (x += v tiap tick); rpm & pengali = permil; panas 1.000.000 = batuk.
+ * ===================================================================== */
+var MTTrekSim = (function () {
+  var HZ = 120, LEN = 402000 * 120;
+  var TOP = [16000, 27000, 38000, 49000, 61000];
+  var ACC = [15500, 11000, 8200, 6400, 5000];
+  var TQ = [520, 544, 584, 634, 690, 752, 820, 892, 968, 992, 944];
+  var ZHI = 930, BAND = 28, ZMUL = [160, 115, 85, 70];
+  var SH = { sempurna: 5, tepat: 8, awal: 22, telat: 19 };
+  // kapal: zone/top/acc/heat dalam permil
+  var SHIPS = {
+    tanpa:   { name: 'Kapal Sendiri', zone: 55,  top: 900,  acc: 900,  heat: 750 },
+    jolt:    { name: 'Mesin Jolt',    zone: 95,  top: 1000, acc: 1000, heat: 1000 },
+    penuh:   { name: 'Jolt Penuh',    zone: 125, top: 1060, acc: 1050, heat: 1300 },
+    warlord: { name: 'Warlord',       zone: 125, top: 1060, acc: 1050, heat: 1300 },
+    yusaint: { name: 'YusaintJolt',   zone: 150, top: 1130, acc: 1100, heat: 1600 }
+  };
+  // lawan: react/rsd dalam ms; aim/sd dalam permil rpm
+  var RIVALS = {
+    pariopelan:      { name: 'Pariopelan', ship: 'jolt',    react: 280, rsd: 90, aim: -20, sd: 34, boost: 0 },
+    kapalmber:       { name: 'KapalMber',  ship: 'jolt',    react: 260, rsd: 50, aim: -22, sd: 22, boost: 1 },
+    cangcimen_final: { name: 'cangcimen',  ship: 'warlord', react: 250, rsd: 55, aim: -21, sd: 21, boost: 1 },
+    cangcimen:       { name: 'cangcimen',  ship: 'warlord', react: 240, rsd: 50, aim: -18, sd: 18, boost: 1 },
+    yaptob:          { name: 'Yaptob',     ship: 'yusaint', react: 250, rsd: 40, aim: -30, sd: 16, boost: 1 },
+    patroli_lemah:   { name: 'Patroli Jaring', ship: 'jolt', react: 340, rsd: 90, aim: -34, sd: 48, boost: 0 },
+    patroli:         { name: 'Patroli Jaring', ship: 'jolt', react: 290, rsd: 70, aim: -28, sd: 40, boost: 1 },
+    patroli_kuat:    { name: 'Patroli Jaring', ship: 'penuh', react: 290, rsd: 70, aim: -28, sd: 40, boost: 1 }
+  };
+
+  function q(a, b) { return Math.trunc(a / b); }
+  function rngInit(seed) { return (Math.abs(seed | 0) % 2147483646) + 1; }
+  function rngNext(s) { return (s * 48271) % 2147483647; }
+  function greenMs(seed) { return 2400 + rngNext(rngInit(seed + 101)) % 900; }
+  function tq(r) { if (r <= 0) return TQ[0]; if (r >= 1000) return TQ[10]; var i = q(r, 100); return TQ[i] + q((TQ[i + 1] - TQ[i]) * (r - i * 100), 100); }
+
+  function create(ship) {
+    var sh = typeof ship === 'string' ? SHIPS[ship] : ship;
+    var tops = [], accs = [];
+    for (var g = 0; g < 5; g++) { tops.push(q(TOP[g] * sh.top, 1000)); accs.push(q(ACC[g] * sh.acc, 1000)); }
+    return {
+      ship: sh, tops: tops, accs: accs,
+      heatHi: q(1250000000, 120 * sh.heat), heatLo: q(550000000, 120 * sh.heat), heatBoost: q(380000000, sh.heat),
+      x: 0, v: 0, gear: 1, rpm: 0, heat: 0, launched: false, launchAt: 0, reaction: null, jump: false,
+      lastDown: null, holdFrom: null, boostLeft: 0, boostUsed: false, shiftLeft: 0, coughLeft: 0,
+      fin: null, shifts: [], events: []
+    };
+  }
+  function zone(s) { var g = s.gear < 5 ? s.gear : 4; return [ZHI - q(s.ship.zone * ZMUL[g - 1], 100), ZHI]; }
+
+  function input(s, kind, tms) {
+    if (s.fin != null) return;
+    if (kind !== 'd') { s.holdFrom = null; return; }
+    if (s.lastDown != null && tms - s.lastDown < 80) return;
+    s.lastDown = tms;
+    if (!s.launched) {
+      if (tms < 0) { if (!s.jump) { s.jump = true; s.events.push({ k: 'jump', t: tms }); } return; }
+      if (tms < 80 && !s.jump) { s.jump = true; s.events.push({ k: 'jump', t: tms }); }   // lebih cepat dari refleks manusia
+      s.launched = true; s.launchAt = s.jump ? Math.max(tms, 500) : tms; s.reaction = tms;
+      s.events.push({ k: 'launch', t: tms });
+      return;
+    }
+    if (tms - s.launchAt < 250) return;
+    if (s.gear < 5) {
+      if (s.shiftLeft > 0) return;
+      var z = zone(s), ql;
+      if (s.rpm < z[0]) ql = 'awal'; else if (s.rpm < z[1] - BAND) ql = 'tepat'; else if (s.rpm <= z[1] + 12) ql = 'sempurna'; else ql = 'telat';
+      s.shifts.push({ gear: s.gear, rpm: s.rpm, q: ql, t: tms });
+      s.gear += 1; s.shiftLeft = SH[ql];
+      if (ql === 'sempurna') s.v += 900; else if (ql === 'tepat') s.v += 400;
+      if (s.gear === 5 && !s.boostUsed) s.holdFrom = tms;
+      s.events.push({ k: 'shift', q: ql, t: tms, gear: s.gear });
+    } else if (!s.boostUsed) s.holdFrom = tms;
+  }
+
+  function step(s, k) {
+    if (s.fin != null) return;
+    var tms = q(k * 25, 3);
+    if (!s.launched) { if (k * 25 >= 4800) { input(s, 'd', 1600); input(s, 'u', 1600); } if (!s.launched) return; }
+    if (k * 25 < s.launchAt * 3) return;
+    var g = s.gear - 1, top = s.tops[g];
+    if (s.boostLeft > 0) top = q(top * 109, 100);
+    if (s.holdFrom != null && !s.boostUsed && k * 25 - s.holdFrom * 3 >= 1350) {
+      s.boostUsed = true; s.boostLeft = 204; s.heat += s.heatBoost; s.holdFrom = null; s.events.push({ k: 'boost', t: tms });
+    }
+    var thr = 1000;
+    if (s.shiftLeft > 0) { thr = 0; s.shiftLeft -= 1; }
+    if (s.coughLeft > 0) { if (thr > 300) thr = 300; s.coughLeft -= 1; }
+    var r = q(s.v * 1000, top);
+    if (g === 0) { var fl = 320 + q(Math.min(1000, tms * 2), 10); if (r < fl) r = fl; }
+    var a = 0;
+    if (r < 1000) a = q(q(s.accs[g] * tq(r), 1000) * thr, 1000);
+    if (s.boostLeft > 0) { a = q(a * 155, 100); s.boostLeft -= 1; }
+    var net = a - q(s.v * s.v * 6, 10000000);
+    var v = s.v + (net >= 0 ? q(net, 120) : -q(-net, 120));
+    if (v < 0) v = 0;
+    if (v > top) v = top - (r >= 1000 ? q(top * 40, 1000) : 0);
+    s.v = v;
+    var r2 = q(v * 1000, top); if (r2 < r) r2 = r; if (r2 > 1000) r2 = 1000;
+    s.rpm = r2;
+    if (r2 > 960) s.heat += (r2 >= 999 ? s.heatHi : s.heatLo); else { s.heat -= 1833; if (s.heat < 0) s.heat = 0; }
+    if (s.heat >= 1000000) { s.heat = 550000; s.coughLeft = 90; s.events.push({ k: 'cough', t: tms }); }
+    var nx = s.x + v;
+    if (nx >= LEN && s.x < LEN) { s.fin = q((k - 1) * 1000000 + q((LEN - s.x) * 1000000, v), 120); s.events.push({ k: 'finish', t: q(s.fin, 1000) }); }
+    s.x = nx;
+  }
+
+  // Lawan (deterministik dari seed)
+  function aiCreate(p, seed) {
+    var st = rngNext(rngInit(seed));
+    return { p: p, s: st, react: Math.max(120, p.react + st % (2 * p.rsd + 1) - p.rsd), target: null };
+  }
+  function aiTick(ai, b, k) {
+    if (b.fin != null) return;
+    var tms = q(k * 25, 3);
+    if (!b.launched) { if (tms >= ai.react) { input(b, 'd', tms); input(b, 'u', tms); } return; }
+    if (b.gear < 5) {
+      if (ai.target == null) { ai.s = rngNext(ai.s); ai.target = ZHI + ai.p.aim + ai.s % (2 * ai.p.sd + 1) - ai.p.sd; }
+      if (b.shiftLeft <= 0 && tms - b.launchAt >= 250 && b.rpm >= ai.target) {
+        input(b, 'd', tms); ai.target = null;
+        if (!(ai.p.boost && b.gear === 5)) input(b, 'u', tms);
+      }
+    }
+  }
+  function runAi(rival, seed) {
+    var p = typeof rival === 'string' ? RIVALS[rival] : rival, b = create(p.ship), ai = aiCreate(p, seed);
+    for (var k = 1; k <= 3600 && b.fin == null; k++) { aiTick(ai, b, k); step(b, k); }
+    return b;
+  }
+  // Jalankan ulang dari log ketukan [[tms, 1|0], ...] (1 = tekan, 0 = lepas) — yang dilakukan server
+  function replay(ship, log) {
+    var s = create(ship), i = 0;
+    log = (log || []).slice().sort(function (a, b) { return a[0] - b[0]; });
+    while (i < log.length && log[i][0] < 0) { input(s, log[i][1] ? 'd' : 'u', log[i][0]); i++; }
+    for (var k = 1; k <= 3600 && s.fin == null; k++) {
+      while (i < log.length && log[i][0] * 3 <= k * 25) { input(s, log[i][1] ? 'd' : 'u', log[i][0]); i++; }
+      step(s, k);
+    }
+    return s;
+  }
+
+  return { HZ: HZ, LEN: LEN, ZHI: ZHI, BAND: BAND, SHIPS: SHIPS, RIVALS: RIVALS, greenMs: greenMs,
+    create: create, zone: zone, input: input, step: step, aiCreate: aiCreate, aiTick: aiTick, runAi: runAi, replay: replay, q: q };
+})();
+if (typeof module !== 'undefined') module.exports = MTTrekSim;
+</script>
