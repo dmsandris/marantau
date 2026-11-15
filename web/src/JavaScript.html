@@ -2609,7 +2609,7 @@
   var cvPlayerShip = { x: 0, y: 0, s: 1, bob: 0, dx: 0 };
   var cvEnemyShip = { x: 0, y: 0, s: 1, bob: 0, dx: 0 };
   var cvHpPct = { player: 100, enemy: 100 };
-  var cvHorizonY = 0;
+  var cvHorizonY = 0, cvHudBottom = 0;
   var cvClouds = [], cvGlitter = [], cvStars = [];
   var cvPal = null, cvPalAt = 0;
   var cvLightningTimer = 4, cvLightningFlash = 0, cvBolt = null;
@@ -2634,8 +2634,22 @@
     cvHorizonY = cvH * 0.42;
     var narrow = cvW < 700;
     var s = Math.min(cvW * (narrow ? 0.0034 : 0.0024), cvH * 0.0034);
-    cvPlayerShip.x = cvW * (narrow ? 0.3 : 0.29); cvPlayerShip.y = cvH * 0.8; cvPlayerShip.s = s;
-    cvEnemyShip.x = cvW * (narrow ? 0.72 : 0.71); cvEnemyShip.y = cvH * 0.6; cvEnemyShip.s = s * 0.68;
+    var px = cvW * (narrow ? 0.3 : 0.29), py = cvH * 0.8;
+    // Tide v65: kapal harus muat. Ukur kartu HUD (atas) dan kotak log + tombol taktik (bawah), lalu sesuaikan letak & skala dengan ukuran kapal sebenarnya (sizeK).
+    var kP = 1; try { kP = (state && state.shipVisual && myShipOpts_().sizeK) || 1; } catch (e) { kP = 1; }
+    var hudB = 0, uiT = cvH, ob = wrap.getBoundingClientRect();
+    try {
+      [].forEach.call(wrap.querySelectorAll('.combat-hud'), function (el) { var r = el.getBoundingClientRect(); if (r.height) hudB = Math.max(hudB, r.bottom - ob.top); });
+      ['combatLogBox', 'combatActionBar'].forEach(function (id) { var el = document.getElementById(id), r = el && el.getBoundingClientRect(); if (r && r.height) uiT = Math.min(uiT, r.top - ob.top); });
+    } catch (e) { hudB = 0; uiT = cvH; }
+    if (hudB > cvH * 0.5) hudB = 0;
+    cvHudBottom = hudB;
+    if (uiT < cvH && uiT > cvH * 0.5) py = Math.min(py, uiT - 15 * s * kP);
+    var sFit = Math.min((px - 6) / (72 * kP), (py - hudB + (narrow ? 18 : 64)) / (136 * kP));
+    if (sFit > 0) s = Math.max(s * 0.6, Math.min(s, sFit));
+    if (uiT < cvH && uiT > cvH * 0.5) py = Math.min(cvH * 0.8, uiT - 15 * s * kP);
+    cvPlayerShip.x = px; cvPlayerShip.y = py; cvPlayerShip.s = s;
+    cvEnemyShip.x = cvW * (narrow ? 0.72 : 0.71); cvEnemyShip.y = cvHorizonY + (py - cvHorizonY) * 0.474; cvEnemyShip.s = s * 0.68;
     if (!cvClouds.length) cvInitClouds_();
   }
 
@@ -2682,16 +2696,46 @@
   /** Proyektil parabola; onImpact dipanggil sekali saat mendarat. */
   function cvLaunchProjectile_(sx, sy, tx, ty, onImpact, delay, lava) {
     var dist = Math.hypot(tx - sx, ty - sy);
-    cvProjectiles.push({ sx: sx, sy: sy, tx: tx, ty: ty, progress: -(delay || 0), speed: (lava === 'petir' ? 2.3 : 1.6) / Math.max(0.5, dist / 500), apex: lava === 'petir' ? 0 : Math.min(160, dist * 0.22), onImpact: onImpact, impacted: false, trail: 0, lava: lava || null });
+    var apex = lava === 'petir' ? 0 : Math.max(6, Math.min(160, dist * 0.22, (sy + ty) / 2 - cvHudBottom - 14));   // Tide v65: tidak melintas di balik kartu HUD
+    cvProjectiles.push({ sx: sx, sy: sy, tx: tx, ty: ty, progress: -(delay || 0), speed: (lava === 'petir' ? 2.3 : 1.6) / Math.max(0.5, dist / 500), apex: apex, onImpact: onImpact, impacted: false, trail: 0, lava: lava || null });
   }
 
   /** Posisi lubang meriam ke-k di layar untuk kapal (sisi yang menghadap musuh). */
   function cvGunPort_(sh, dir, k) {
-    var lx = -30 + k * 13, ly = -9;
-    return { x: sh.x + sh.dx + lx * sh.s * dir, y: sh.y + sh.bob + ly * sh.s };
+    var g = cvGuns_(sh, dir), ports = g.filter(function (p) { return p.kind === 'port'; });
+    if (!ports.length) ports = g;
+    return ports[Math.max(0, Math.min(ports.length - 1, Math.round((k / 6) * (ports.length - 1))))];
+  }
+  /** Tide v65: semua moncong meriam kapal di layar, dihitung dari gambar kapal yang sebenarnya (MTShip.gunPoints). */
+  function cvGuns_(sh, dir) {
+    var o = sh.opts || { dir: dir }, x = sh.px != null ? sh.px : sh.x + sh.dx, y = sh.py != null ? sh.py : sh.y + sh.bob;
+    return MTShip.gunPoints(o).map(function (p) { var q = MTShip.toScreen(x, y, sh.s, o, p.x, p.y); q.kind = p.kind; return q; });
+  }
+  /** Pilih n moncong untuk satu salvo: merata sepanjang lambung, lalu meriam dek & meriam haluan bila ada. */
+  function cvPickGuns_(sh, dir, n) {
+    var g = cvGuns_(sh, dir), ports = [], rail = [], chaser = null, out = [], i;
+    g.forEach(function (p) { if (p.kind === 'port') ports.push(p); else if (p.kind === 'rail') rail.push(p); else chaser = p; });
+    if (!ports.length) return g.slice(0, n);
+    var nExtra = (n >= 5 && chaser ? 1 : 0) + (n >= 4 && rail.length ? 1 : 0), nPort = Math.max(1, Math.min(ports.length, n - nExtra));
+    for (i = 0; i < nPort; i++) out.push(ports[Math.min(ports.length - 1, Math.floor((i + 0.5) * ports.length / nPort))]);
+    if (n >= 4 && rail.length) out.push(rail[rail.length >> 1]);
+    if (n >= 5 && chaser) out.push(chaser);
+    return out;
+  }
+  /** Jumlah peluru per salvo (rupa saja; damage tetap dari server). Pemain: ikut upgrade Cannons. Musuh: ikut jumlah lubang meriamnya. */
+  function cvSalvoCount_(sh) {
+    if (sh === cvPlayerShip) {
+      var v = (state && state.shipVisual) || {}, st = +((v.up || {}).cannons) || 0, wl = state && state.warlord && state.warlord.set;
+      if (wl && wl.indexOf && wl.indexOf('cannons') >= 0) return 8;
+      if (v.legend === 'pearl') return 5;
+      return st <= 2 ? 2 : st <= 8 ? 3 : st <= 16 ? 4 : 5;
+    }
+    var o = sh.opts || {}, pn = o.ports || 7;
+    return o.railGuns ? 4 : pn <= 3 ? 2 : 3;
   }
   function cvHullPoint_(sh, dir) {
-    return { x: sh.x + sh.dx + (Math.random() * 70 - 35) * sh.s * dir, y: sh.y + sh.bob + (-6 - Math.random() * 14) * sh.s };
+    var o = sh.opts || { dir: dir }, x = sh.px != null ? sh.px : sh.x + sh.dx, y = sh.py != null ? sh.py : sh.y + sh.bob;
+    return MTShip.toScreen(x, y, sh.s, o, Math.random() * 70 - 35, -6 - Math.random() * 14);
   }
   function shadeColor_(hex, amt) { return MTUtil.shade(hex, amt); }
 
@@ -2700,7 +2744,7 @@
     var hp = isEnemy ? cvHpPct.enemy : cvHpPct.player;
     var sinkT = cvOutcome && ((cvOutcome.kind === 'won' && isEnemy) || (cvOutcome.kind === 'sunk' && !isEnemy)) ? cvOutcome.t : 0;
     var leaveT = cvOutcome && (((cvOutcome.kind === 'bribed' || cvOutcome.kind === 'negotiated') && isEnemy) || (cvOutcome.kind === 'fled' && !isEnemy)) ? cvOutcome.t : 0;
-    var x = sh.x + sh.dx + (leaveT ? (isEnemy ? 1 : -1) * leaveT * leaveT * cvW * 0.12 : 0);
+    var x = sh.x + sh.dx + (leaveT ? (isEnemy ? 1 : -1) * leaveT * leaveT * cvW * 0.12 : 0) - dir * (sh.kick || 0) * 3.2 * sh.s;
     var y = sh.y + sh.bob;
     var roll = Math.sin(t * (isEnemy ? 0.9 : 1.1) + (isEnemy ? 1 : 0)) * 0.04 + (hp < 25 ? dir * 0.05 : 0);
     var sink = 0;
@@ -2715,6 +2759,7 @@
       ? { dir: dir, t: t, masts: 3, hull: '#2b1d16', trim: '#7a6440', sail: '#4d4843', flag: '#111111', flagType: 'skull', pennant: '#6e1d14', lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll }
       : Object.assign(myShipOpts_(), { dir: dir, t: t, lit: pal.lit, lanterns: Math.max(0.35, pal.lights), damage: Math.max(0, (70 - hp) / 70), roll: roll });
 
+    sh.opts = opts; sh.px = x; sh.py = y;   // Tide v65: dipakai jangkar meriam (cvGuns_)
     var ctx = cvCtx;
     // pantulan
     if (!sinkT) {
@@ -2776,6 +2821,7 @@
     MTScene.ridge(ctx, -W * 0.1, W * 0.3, hy + 1, H * 0.02, 556, MTUtil.css(MTUtil.mix(pal.mountainFar, pal.hor, 0.4)), 1);
     MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: cvGlitter, rough: 1.9, drift: 12 });
 
+    cvPlayerShip.kick = (cvPlayerShip.kick || 0) * Math.exp(-dt / 140); cvEnemyShip.kick = (cvEnemyShip.kick || 0) * Math.exp(-dt / 140);
     cvPlayerShip.bob = Math.sin(t * 1.2) * cvH * 0.004;
     cvEnemyShip.bob = Math.cos(t * 0.95) * cvH * 0.003;
     cvDrawShip_(cvEnemyShip, true, pal, t);
@@ -2891,6 +2937,7 @@
     var ef = document.getElementById('combatEnemyFace'); if (ef) ef.innerHTML = MTFace.svg(MTFace.npc('enemy|' + enemy.enemyName, 'bajak', 0), { bgColors: ['#5a1a14', '#1a0806'] });
     updateCombatHud_(enemy, ship);
     document.getElementById('combatLogBox').innerHTML = buildCombatLogHtml_() || '<p>' + esc_(enemy.enemyName) + ' mendekat. Pilih taktikmu, Kapten!</p>';
+    cvResize_();   // Tide v65: ukur ulang setelah kartu HUD & kotak log terisi
     if (!cvRafId) { cvLast = 0; cvRafId = requestAnimationFrame(cvRenderLoop_); }
   }
 
@@ -2928,14 +2975,18 @@
     document.querySelector('.combat-hud.hud-right').classList.toggle('hud-critical', enemyPct < 25);
 
     var maxAmmo = enemy.maxAmmo || ship.MaxCannonAmmo || 3;
-    document.getElementById('combatAmmoPips').innerHTML = buildAmmoPipsHtml_(maxAmmo, enemy.ammoRemaining);
+    var ammoEl = document.getElementById('combatAmmoPips');
+    ammoEl.innerHTML = buildAmmoPipsHtml_(maxAmmo, enemy.ammoRemaining);
+    if (ammoEl.parentNode) ammoEl.parentNode.classList.toggle('ammo-dense', maxAmmo > 12);
     updateTacticButtonsState_(enemy.ammoRemaining);
   }
 
   function buildAmmoPipsHtml_(maxAmmo, ammoRemaining) {
-    var html = '';
-    for (var i = 0; i < maxAmmo; i++) html += '<span class="ammo-pip' + (i < ammoRemaining ? '' : ' spent') + '"></span>';
-    return html;
+    // Tide v65: strip beruas selebar kartu + angka, supaya berapa pun amunisinya tidak keluar kartu.
+    maxAmmo = Math.max(1, Math.round(+maxAmmo || 0)); ammoRemaining = Math.max(0, Math.min(maxAmmo, Math.round(+ammoRemaining || 0)));
+    var html = '<span class="ammo-strip' + (maxAmmo > 12 ? ' dense' : '') + '">';
+    for (var i = 0; i < maxAmmo; i++) html += '<i class="ammo-pip' + (i < ammoRemaining ? '' : ' spent') + '"></i>';
+    return html + '</span><b class="ammo-num">' + ammoRemaining + '/' + maxAmmo + '</b>';
   }
   function buildCombatLogHtml_() { return combatRoundLog.map(function (m) { return '<p>' + esc_(m) + '</p>'; }).join(''); }
   function updateTacticButtonsState_(ammoRemaining) {
@@ -2966,21 +3017,25 @@
     setTimeout(function () { overlay.classList.remove('shake-screen'); }, 420);
   }
 
-  /** Salvo 3 peluru dari lubang meriam `from` ke lambung `to`. hit=true -> ledakan; false -> percikan air. */
+  /** Salvo dari moncong meriam `from` ke lambung `to` (jumlah peluru: cvSalvoCount_). hit=true -> ledakan; false -> percikan air. */
   function cvVolley_(from, fromDir, to, toDir, hit, onFirstImpact) {
     var first = true, mm = from === cvPlayerShip && window.MTKD_FX ? MTKD_FX.myMeriam() : null, lava = mm === 'meriam_letusan' ? 'lava' : mm === 'meriam_guntur' ? 'petir' : null;
-    for (var k = 0; k < 3; k++) {
-      (function (k) {
-        var gp = cvGunPort_(from, fromDir, 1 + k * 2);
-        setTimeout(function () { cvSpawnMuzzleSmoke_(gp.x, gp.y, fromDir); }, k * 130);
+    var n = cvSalvoCount_(from), gap = n > 5 ? 0.085 : 0.13, picked = cvPickGuns_(from, fromDir, n);
+    picked.forEach(function (unused, k) {
+      setTimeout(function () {
+        if (!combatSceneOpen) return;
+        var gp = cvPickGuns_(from, fromDir, n)[k]; if (!gp) return;   // dihitung ulang: kapal bergoyang selama jeda antar peluru
+        cvSpawnMuzzleSmoke_(gp.x, gp.y, fromDir);
+        cvFlashes.push({ x: gp.x, y: gp.y, life: 0.1, max: 0.1, r: 11 * from.s + 6 });
+        from.kick = Math.min(1.4, (from.kick || 0) + 0.55);
         var tp = cvHullPoint_(to, toDir);
         if (!hit) { tp.x += (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 50) * to.s; tp.y = to.y + to.bob + (8 + Math.random() * 16) * to.s; }
         cvLaunchProjectile_(gp.x, gp.y, tp.x, tp.y, function (tx, ty) {
           if (hit) { cvSpawnImpactBurst_(tx, ty); if (lava) cvSpawnSparkle_(tx, ty, lava === 'petir' ? 'rgba(170,210,255,A)' : 'rgba(255,120,40,A)'); } else { cvSpawnSplash_(tx, ty); }
           if (first) { first = false; if (onFirstImpact) onFirstImpact(tx, ty); }
-        }, k * 0.13, lava);
-      })(k);
-    }
+        }, 0, lava);
+      }, k * gap * 1000);
+    });
   }
 
   function doCombatAction_(tactic) {
