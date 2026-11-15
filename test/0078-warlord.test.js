@@ -63,7 +63,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   s = await ship(a);
   assert(s.TierNum === 6 && s.Tier === 'VI' && (s.Warlord || []).length === 4, 'Tier VI setelah empat komponen');
   assert(Number(s.EffectiveCargo) === Number(mentokShip.EffectiveCargo) + Math.round(Number(s.Cargo) * 0.15), 'palka +15%');
-  assert(Number(s.EffectiveMaxCondition) === Number(mentokShip.EffectiveMaxCondition) + 20, 'kondisi maks +20');
+  assert(Number(s.EffectiveMaxCondition) === Number(mentokShip.EffectiveMaxCondition) + 1104, 'kondisi maks +1.104 (0087: Lambung Warlord)');
   assert(Number(s.DecayReductionPercent) === Math.min(60, Number(mentokShip.DecayReductionPercent) + 10), 'aus -10%');
   assert(Number(s.CannonBonusPercent) === Number(mentokShip.CannonBonusPercent) + 5 && Number(s.MaxCannonAmmo) === Number(mentokShip.MaxCannonAmmo) + 1, 'meriam +5% dan +1 amunisi');
   assert((await one('select game.trek_kapal($1) k', [a.id])).k === 'warlord', 'Trektrek-an memakai lambung Warlord');
