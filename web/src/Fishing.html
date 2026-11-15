@@ -204,7 +204,11 @@ var FG = (function () {
   function vib(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
 
   /* ------------------------- alur permainan ------------------------- */
-  function rod() { var i = S.info; return i && i.rods ? i.rods[i.rod || 0] : { reel: 1, cap: 1, name: 'Joran Bambu' }; }
+  function rod() {
+    var i = S.info, R = i && i.rods ? i.rods[i.rod || 0] : { reel: 1, cap: 1, name: 'Joran Bambu' };
+    // Topi Pantai Miss Nansy (hadiah 20 legenda): tali lebih kuat menahan tarikan
+    return i && i.topiPantai ? { reel: R.reel, cap: R.cap * 1.15, name: R.name, tier: R.tier, cost: R.cost, desc: R.desc } : R;
+  }
   function bait() { var i = S.info; return (i && i.baits || []).filter(function (b) { return b.id === S.bait; })[0] || { id: 'cacing', name: 'Cacing', cost: 0 }; }
 
   function press() {
@@ -303,6 +307,8 @@ var FG = (function () {
           if (S.info) { S.info.legendFound = LQ.count; S.info.legendUnlocked = true; }
           try { metaMax_('legendbook', LQ.count || 0); } catch (e) { }
           setTimeout(function () { showToast('Buku Pancing Legenda #' + LQ.no + ': ' + esc_(LQ.name) + (LQ.release ? ' &middot; dilepas kembali' : '') + ' (' + LQ.count + '/21)', 'success'); }, 1400);
+          if (LQ.rewards) legRewards_(LQ.rewards, 3200);
+          if (LQ.complete) setTimeout(function () { showToast('Buku Pancing Legenda lengkap. Bawa ke Kedai Stumpy di Gading Island.', 'success'); }, 5200);
         }
         if (S.info) S.info.found = r.found;
         au_(r.fish.rarity >= 5 ? 'achieve' : 'coin', { n: 2 });
@@ -328,6 +334,7 @@ var FG = (function () {
     S.st = 'result';
     var el = document.getElementById('fgCard'); if (!el) return;
     var R = RARITY[r.fish.rarity] || RARITY[1], caught = r.caught;
+    if (caught && r.questItem && r.questItem.legend) R = RARITY[7];   // halaman Buku Legenda selalu tampil sebagai Legenda
     var badges = '';
     if (caught && r.firstCatch) badges += '<span class="fg-badge new">Spesies baru!</span>';
     if (caught && r.globalRecord) badges += '<span class="fg-badge gold">Rekor dermaga!</span>';
@@ -342,6 +349,7 @@ var FG = (function () {
       '<div class="fg-name">' + (caught ? esc_(r.fish.name) : 'Itu tadi&hellip; ' + esc_(r.fish.name) + '?') + '</div>' +
       '<div class="fg-kg">' + (r.kg != null ? Number(r.kg).toLocaleString('id-ID') + ' kg' : '') + (caught ? (LQ && LQ.release ? ' &middot; <b>dilepas kembali ke laut</b>' : ' &middot; <b>+' + formatGold(r.gold) + ' gold</b>') : ' &middot; ' + why) + '</div>' +
       (badges ? '<div class="fg-badges">' + badges + '</div>' : '') +
+      (LQ && LQ.message && LEG_MSG[r.fish.id] ? '<div class="muted small" style="max-width:420px;margin:6px auto 10px;font-style:italic">' + esc_(LQ.message) + '</div>' : '') +
       '<button class="btn btn-gold" id="fgAgain">' + ic('fish') + '&nbsp; Lempar lagi <span class="kbd">Spasi</span></button></div>';
     el.hidden = false;
     var cv = document.getElementById('fgCardFish'), cc = cv.getContext('2d'), t0 = performance.now();
@@ -661,38 +669,77 @@ var FG = (function () {
   }
 
   function drawTab() { if (S.tab === 'book') drawBook(); else if (S.tab === 'legend') drawLegend(); else drawLog(); }
-  var REGION = { nusantara: 'Mare Nusantara', baru: 'Pulau & laut baru', moramora: 'Benua Moramora' };
+  var REGION = { nusantara: 'Mare Nusantara', baru: 'Pulau & laut baru', moramora: 'Benua Moramora', lampau: 'Benua Sudyrman · 40 Tahun Lalu' };
+  // pesan tangkapan halaman-halaman terakhir (0083) tampil di kartu hasil
+  var LEG_MSG = { ikan_kabut: 1, ikan_rantai: 1, lumba_gema: 1, gurita_arsip: 1, kakap_dua_tangan: 1, hiu_kumis_hitam: 1, ikan_terakhir: 1 };
+  var LEG_EVENT = { festival: 'Saat festival', storm_surge: 'Saat Gelombang Badai' };
+  function legRewards_(list, delay) {
+    (list || []).forEach(function (x, i) {
+      setTimeout(function () {
+        showToast((x.kind === 'book' ? 'Buku baru: ' : 'Artefak: ') + '<b>' + esc_(x.name) + '</b> &middot; ' + esc_(x.effect) +
+          (x.kind === 'artifact' && !x.equipped ? ' (ada di palka, pasang di slot artefak)' : ''), 'success');
+      }, (delay || 0) + i * 1800);
+    });
+  }
+  function legStumpy_(btn) {
+    if (btn) btn.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      patchGold_(r.newGold);
+      try { metaMax_('legendtutup', 1); } catch (e) { }
+      if (S.legend) S.legend.closed = true;
+      var lines = [
+        '<i>Kedai Stumpy sepi. felyx menyeduh empat cangkir, padahal kalian hanya bertiga.</i>',
+        '<b>felyx:</b> "Satu untuknya. Kebiasaan lama."',
+        '<i>coco epan membalik halaman demi halaman tanpa bicara. Di halaman terakhir, di bawah gambar perempuan bertopi pantai, ia melepas monokelnya dan menulis pelan:</i>',
+        '<div style="font-family:serif;font-size:1.15em;margin:10px 0">"Selesai. Terima kasih, Kapten. &mdash; E."</div>',
+        '<b>coco epan:</b> "Ia selalu bilang yang besar itu ceritanya. Ternyata ceritanya butuh dua puluh satu ikan dan satu kapten yang keras kepala."',
+        '<div class="muted small" style="margin-top:10px">+' + formatGold(r.gold) + ' gold &middot; Tanda Jasa <b>Penyelesai Buku Miss Nansy</b></div>'
+      ];
+      if (typeof setModal_ === 'function') {
+        setModal_('<div style="padding:18px;max-width:560px;line-height:1.6">' + '<h3 style="margin-top:0">' + ic('star') + ' Halaman Terakhir</h3>' + lines.join('<p></p>') +
+          '<div style="text-align:right;margin-top:12px"><button class="btn btn-gold" onclick="closeModal()">Tutup buku</button></div></div>');
+      } else showToast('Buku Pancing Legenda selesai. +' + formatGold(r.gold) + ' gold', 'success');
+      try { au_('achieve', { n: 3 }); } catch (e) { }
+    }).withFailureHandler(function (e) { if (btn) btn.disabled = false; showToast(esc_(String(e.message || e)), 'error'); }).api_legendBook('stumpy');
+  }
   function drawLegend() {
     var el = document.getElementById('fgTab'); if (!el) return;
     if (!S.legend) {
       el.innerHTML = '<div class="skeleton-block" style="height:120px;"></div>';
-      google.script.run.withSuccessHandler(function (b) { S.legend = b; if (S.tab === 'legend') drawLegend(); })
+      google.script.run.withSuccessHandler(function (b) { S.legend = b; if (b.rewards && b.rewards.length) legRewards_(b.rewards, 300); if (S.tab === 'legend') drawLegend(); })
         .withFailureHandler(function (e) { el.textContent = e.message; }).api_legendBook();
       return;
     }
     var L = S.legend, html = '<div class="fg-book-head fg-leg-head"><b>' + L.found + '</b> dari ' + L.total + ' legenda tercatat &middot; <i>catatan tangan Miss Nansy</i>' +
       '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round(L.found / L.total * 100) + '%;background:linear-gradient(90deg,#b56df0,#e0ae2a)"></div></div>' +
-      '<div class="muted small" style="margin-top:6px">Legenda hanya naik di tempat, waktu, dan dengan umpan dagang (di palka) yang tertulis. Umpan dermaga berkilau dan lemparan jauh paling ampuh.</div></div>';
-    ['nusantara', 'baru', 'moramora'].forEach(function (rg) {
+      '<div class="muted small" style="margin-top:6px">Legenda hanya naik di tempat, waktu, dan dengan umpan dagang (di palka) yang tertulis. Umpan dermaga berkilau dan lemparan jauh paling ampuh.</div>' +
+      (L.complete && !L.closed ? '<div style="margin-top:8px">' + (L.atStumpy ? '<button class="btn btn-gold btn-sm" id="fgStumpy">' + ic('star') + ' Bawa buku ke Kedai Stumpy</button>' : '<span class="fg-leg-tag go">' + ic('star') + ' 21 halaman. Bawa buku ini ke Kedai Stumpy di Gading Island.</span>') + '</div>' : '') +
+      (L.closed ? '<div class="muted small" style="margin-top:6px"><i>"Selesai. Terima kasih, Kapten. &mdash; E."</i></div>' : '') + '</div>';
+    ['nusantara', 'baru', 'moramora', 'lampau'].forEach(function (rg) {
       var list = L.entries.filter(function (e) { return e.region === rg; }); if (!list.length) return;
       var got = list.filter(function (e) { return e.found; }).length;
       html += '<div class="fg-leg-rg">' + esc_(REGION[rg]) + ' <span>' + got + '/' + list.length + '</span></div><div class="fg-book">' + list.map(function (e) {
-        var cond = [esc_(e.place), esc_(e.time)];
-        if (e.event) cond.push(e.event === 'festival' ? 'Saat festival' : esc_(e.event));
-        if (e.bait) cond.push('Umpan ' + esc_(e.bait)); else if (e.available) cond.push('Tanpa umpan');
-        if (e.release) cond.push('Dilepas');
-        var tag = !e.available ? '<div class="fg-leg-tag lock">' + ic('lock') + ' Laut belum dipetakan</div>'
+        var cond = e.secret && !e.found ? ['???'] : [esc_(e.place), esc_(e.time)];
+        if (!(e.secret && !e.found)) {
+          if (e.event) cond.push(LEG_EVENT[e.event] || esc_(e.event));
+          if (e.bait) cond.push('Umpan ' + esc_(e.bait)); else if (e.available) cond.push('Tanpa umpan');
+          if (e.req) cond.push(esc_(e.req));
+          if (e.release) cond.push('Dilepas');
+        }
+        var tag = e.lockLabel && !e.found ? '<div class="fg-leg-tag lock">' + ic('lock') + ' ' + esc_(e.lockLabel) + '</div>'
+          : !e.available ? '<div class="fg-leg-tag lock">' + ic('lock') + ' Laut belum dipetakan</div>'
           : e.ready ? '<div class="fg-leg-tag go">' + ic('star') + ' Bisa naik sekarang</div>'
           : e.here ? '<div class="fg-leg-tag">' + ic('hourglass') + ' Di sini &middot; syarat belum lengkap</div>' : '';
         return '<div class="fg-bk fg-leg' + (e.found ? '' : ' unk') + (e.available ? '' : ' locked') + '" style="--rc:' + (e.found ? '#b56df0' : '#8a7a5a') + '">' +
           '<canvas width="160" height="80" data-fish="' + e.id + '" data-sh="' + (e.found ? 0 : 1) + '"></canvas>' +
           '<div class="fg-bk-n"><span class="fg-leg-no">#' + e.no + '</span> ' + (e.found ? esc_(e.name) : '???') + (e.no === 9 ? ' ' + ic('star') : '') + '</div>' +
           '<div class="fg-bk-r">' + cond.join(' &middot; ') + '</div>' +
-          (e.found ? '<div class="fg-bk-s">' + (e.bestKg ? 'Terbesar <b>' + Number(e.bestKg).toLocaleString('id-ID') + ' kg</b> &middot; ' : '') + e.n + '&times;</div>' : '') +
+          (e.found ? '<div class="fg-bk-s">' + (e.secret ? '<i>tercatat, tidak dibicarakan</i>' : (e.bestKg ? 'Terbesar <b>' + Number(e.bestKg).toLocaleString('id-ID') + ' kg</b> &middot; ' : '') + e.n + '&times;') + '</div>' : '') +
           '<div class="fg-bk-h fg-leg-note">"' + esc_(e.hint) + '"</div>' + tag + '</div>';
       }).join('') + '</div>';
     });
     el.innerHTML = html;
+    var sb = document.getElementById('fgStumpy'); if (sb) sb.onclick = function () { legStumpy_(sb); };
     paintThumbs(el);
   }
   function drawLog() {
