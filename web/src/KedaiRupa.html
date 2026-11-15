@@ -1578,7 +1578,10 @@
     var kd = o.kd || {};
     if (kd.aura && AURA[kd.aura]) AURA[kd.aura](ctx, o, g);
     if (o.reflect) return;
-    if (kd.jejak && JEJAK[kd.jejak]) JEJAK[kd.jejak](ctx, o, g);
+    // Tide v66: siluet per Tier. g.hal / g.dek / g.bur = geseran jangkar haluan / dek / buritan terhadap siluet klasik
+    // (kait di bawah menggambar di koordinat klasik; tanpa geseran = perilaku lama).
+    function geser(d, f) { if (!d || (!d[0] && !d[1])) { f(); return; } ctx.save(); ctx.translate(d[0], d[1]); try { f(); } finally { ctx.restore(); } }
+    if (kd.jejak && JEJAK[kd.jejak]) geser(g.bur, function () { JEJAK[kd.jejak](ctx, o, g); });
     if (kd.meriam && MERIAM[kd.meriam]) MERIAM[kd.meriam](ctx, o, g);
     (kd.sakti || []).forEach(function (sid) { if (SAKTI[sid]) SAKTI[sid](ctx, o, g); });
     if (kd.kedatangan && DATANG[kd.kedatangan]) DATANG[kd.kedatangan](ctx, o, g);
@@ -1588,8 +1591,14 @@
     // presence yang basi (mp_presence.s hanya ditulis ulang oleh mp_touch) tidak
     // pernah menampilkan panji yang sudah habis masanya.
     if (kd.kelinci && +kd.kelinci > Date.now() && PANJI.panji_kelinci) PANJI.panji_kelinci(ctx, o, g);
-    if (kd.haluan && HALUAN[kd.haluan]) HALUAN[kd.haluan](ctx, o, g);
-    if (kd.penghuni && PENGHUNI[kd.penghuni]) PENGHUNI[kd.penghuni](ctx, o, g);
+    if (kd.haluan && HALUAN[kd.haluan]) geser(g.hal, function () { HALUAN[kd.haluan](ctx, o, g); });
+    if (kd.penghuni && PENGHUNI[kd.penghuni]) {
+      // penghuni yang memakai g.deckY sudah ikut dek siluet; yang berkoordinat tetap (kucing, anjing) digeser ke depan kastil
+      var tetap = kd.penghuni === 'penghuni_kucing' || kd.penghuni === 'penghuni_anjing';
+      var op = o;
+      if (tetap && g.dek && o.dockPt) { op = {}; for (var kk in o) op[kk] = o[kk]; op.dockPt = [o.dockPt[0] - g.dek[0] * (o.sizeK || 1), o.dockPt[1] - g.dek[1] * (o.sizeK || 1)]; }   // titik dermaga tetap di tempatnya
+      geser(tetap ? g.dek : null, function () { PENGHUNI[kd.penghuni](ctx, op, g); });
+    }
   };
   // daftar rupa yang sudah punya gambar (Kedai menandai rupa lain "segera hadir")
   window.MTKD_RUPA = { bentuk: Object.keys(BENTUK), lambung: Object.keys(HULL), jejak: Object.keys(JEJAK), meriam: Object.keys(MERIAM), kedatangan: Object.keys(DATANG), sakti: Object.keys(SAKTI), layar: Object.keys(SAIL), panji: Object.keys(PANJI), haluan: Object.keys(HALUAN), penghuni: Object.keys(PENGHUNI), aura: Object.keys(AURA), lambang: Object.keys(LAMBANG) };
