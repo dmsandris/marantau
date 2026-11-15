@@ -125,8 +125,11 @@ const { D, human, SKILL } = require('./trek-sim');
   assert(Math.abs(Number((await one('select game.ship_json($1) j', [a.id])).j.TravelMul) - 1) < 1e-9, 'waktu tempuh kembali normal');
   assert((await one('select game.trek_kapal($1) k', [a.id])).k === 'jolt', 'kapal Trektrek-an kembali ke profil dasar');
   await taruh(a, 'zentul');
-  const trek = (await a.call('api_trek', ['status'])).trek;
-  assert(JSON.stringify(trek.lawan) === '["pariopelan","kapalmber","cangcimen","yaptob"]', 'Sirkuit terbuka penuh: ' + JSON.stringify(trek.lawan));
+  // 0085: Sirkuit solo lawan AI ditutup; yang terbuka adalah Pacu Gugur mingguan + Adu Kapten
+  assert(await H.expectError(() => a.call('api_trek', ['status'])), 'Sirkuit solo lawan AI ditutup');
+  const gg = (await a.call('api_gugur', ['status'])).gugur;
+  assert(gg && gg.siap === true && gg.lawan === 'pariopelan' && gg.akhir === 4, 'Pacu Gugur terbuka: ' + JSON.stringify(gg && gg.lawan));
+  assert(((await a.call('api_trekDuel', ['lobi'])).adu).maks === 3, 'Adu Kapten terbuka');
   assert((await one(`select game.zentul_open($1) z`, [a.id])).z === true, 'Zentul tetap terbuka');
 
   // Set Kedai "Jaring Putus"
