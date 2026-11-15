@@ -681,15 +681,15 @@ begin
   lvl_max := game.cfg_num('PirateEncounterLevelMax', 5)::int;
   lvl_min := case when outlaw then 2 else 1 end;
   lvl := lvl_min + floor(random() * (lvl_max - lvl_min + 1))::int;
-  names := array['a lone raider sloop', 'a Bjorneo corsair brig', 'a black-sailed marauder',
-    'a notorious pirate frigate', 'a feared warlord''s flagship'];
+  names := array['sekunar perompak tunggal', 'brig korsar Bjorneo', 'perompak berlayar hitam',
+    'frigat bajak laut yang ditakuti', 'kapal induk panglima perang'];
   max_hp := game.cfg_num('CombatEnemyBaseHp', 40) + lvl * game.cfg_num('CombatEnemyHpPerLevel', 25);
   max_ammo := game.voy_num(ship -> 'MaxCannonAmmo');
   if max_ammo = 0 then max_ammo := game.cfg_num('CombatBaseAmmo', 3); end if;
 
   return jsonb_build_object(
     'enemyLevel', lvl,
-    'enemyName', case when outlaw then 'TooGood''s own ' else '' end || coalesce(names[least(lvl, 5)], names[1]),
+    'enemyName', case when outlaw then 'milik TooGood: ' else '' end || coalesce(names[least(lvl, 5)], names[1]),
     'rolledAt', game.iso(now()),
     'enemyMaxHp', max_hp,
     'enemyHp', max_hp,
@@ -748,7 +748,7 @@ begin
   enc := game.kd_enc(p_pid, game.voy_enc_book(p_pid, game.voy_roll_encounter(p_pid, l.destination_city_id)));   -- v37: jasa Pengawal
   if enc is not null then
     update game.player_location set pending_encounter = enc where player_id = p_pid;
-    perform game.log(p_pid, 'Sails spotted on the horizon - a pirate vessel closes in!');
+    perform game.log(p_pid, 'Layar terlihat di cakrawala - kapal bajak laut mendekat!');
     return jsonb_build_object('cityId', null, 'event', null, 'pendingCombat', true, 'encounter', enc)
       || case when rd is not null then jsonb_build_object('questRedirect', rd) else '{}'::jsonb end;
   end if;
@@ -1131,9 +1131,13 @@ begin
     ship := ship || jsonb_build_object('CannonBonusPercent', game.voy_num(ship -> 'CannonBonusPercent') + 8);
   end if;
   enc := game.voy_enc_book(pid, enc);
-  if is_boss and v_tactic in ('bribe', 'negotiate') then
+  -- Tide v60: noTalk = tolak Suap/Runding tanpa memakai flag boss (yang memicu jalur hadiah quest)
+  if (is_boss or coalesce((enc ->> 'noTalk')::boolean, false)) and v_tactic in ('bribe', 'negotiate') then
     if enc ? 'noTalkMsg' then raise exception '%', enc ->> 'noTalkMsg'; end if;
-    raise exception '% tertawa: "Suap? Runding? Aku tak butuh gold-mu!" - bos ini tidak bisa disuap atau diajak berunding.', enc ->> 'enemyName';
+    if is_boss then
+      raise exception '% tertawa: "Suap? Runding? Aku tak butuh gold-mu!" - bos ini tidak bisa disuap atau diajak berunding.', enc ->> 'enemyName';
+    end if;
+    raise exception '% tidak menjawab tawaranmu - ia tidak bisa disuap atau diajak berunding.', enc ->> 'enemyName';
   end if;
   if v_tactic = 'ram' and coalesce((enc ->> 'noRam')::boolean, false) then
     raise exception '%', coalesce(enc ->> 'noRamMsg', 'Kapal sebesar itu tak mungkin ditabrak - lambungmu yang akan hancur duluan.');
@@ -1206,14 +1210,21 @@ begin
   target := voyage ->> 'destinationCityId';
 
   if defeated then
-    loot := case when is_boss then 0 else game.voy_round(game.cfg_num('CombatLootGoldPerLevel', 200) * lvl * (0.9 + random() * 0.3)) end;
+    -- Tide v60: noLoot = musuh yang mundur (hpFloor) tidak meninggalkan jarahan gold
+    loot := case when is_boss or coalesce((enc ->> 'noLoot')::boolean, false) then 0
+                 else game.voy_round(game.cfg_num('CombatLootGoldPerLevel', 200) * lvl * (0.9 + random() * 0.3)) end;
     -- Tide v33: Lampion yang Tak Dibuang - jarahan bajak laut acak +30%
     if coalesce((enc ->> 'randomPirate')::boolean, false) and coalesce(game.has_effect(pid, 'gd_lampion'), false) then
       loot := game.voy_round(loot * 1.3);
     end if;
     update game.players set gold = gold + loot::bigint where player_id = pid;
-    final_msg := (r ->> 'message') || ' Tembakan itu ternyata mematikan - ' || (enc ->> 'enemyName') ||
-      ' tenggelam dan kru menjarah ' || loot || ' gold dari puing kapal sebelum berlayar lagi.';
+    -- Tide v60: wonMsg = teks kemenangan sendiri (musuh yang mundur tidak tenggelam & tidak menjarah)
+    if enc ? 'wonMsg' then
+      final_msg := (r ->> 'message') || ' ' || (enc ->> 'wonMsg');
+    else
+      final_msg := (r ->> 'message') || ' Tembakan itu ternyata mematikan - ' || (enc ->> 'enemyName') ||
+        ' tenggelam dan kru menjarah ' || loot || ' gold dari puing kapal sebelum berlayar lagi.';
+    end if;
     final_result := 'won';
   end if;
 
@@ -1222,8 +1233,10 @@ begin
     eff_max := game.voy_num(game.ship_json(pid) -> 'EffectiveMaxCondition');
     perform game.apply_condition_delta(pid, eff_max * 0.25);
     target := voyage ->> 'originCityId';
-    final_msg := coalesce(r ->> 'message', '') || ' Lambung kapalmu jebol di bawah gempuran ' || (enc ->> 'enemyName') ||
-      '! Armada sekutu menarikmu keluar dari medan tempur - kapal selamat, tapi harus diperbaiki sebelum kembali bertempur.';
+    -- Tide v60: softSinkMsg = teks kekalahan sendiri (teks bawaan menyebut armada sekutu)
+    final_msg := coalesce(r ->> 'message', '') || ' ' || coalesce(enc ->> 'softSinkMsg',
+      'Lambung kapalmu jebol di bawah gempuran ' || (enc ->> 'enemyName') ||
+      '! Armada sekutu menarikmu keluar dari medan tempur - kapal selamat, tapi harus diperbaiki sebelum kembali bertempur.');
     final_result := 'sunk';
   elsif sinking and coalesce((enc ->> 'randomPirate')::boolean, false) and coalesce(game.has_effect(pid, 'fy_rantai'), false) then
     -- Tide v33: Rantai yang Dilepas - tenggelam melawan bajak laut acak: gold aman, muatan hilang 20%
@@ -1231,8 +1244,8 @@ begin
     perform game.apply_condition_delta(pid, eff_max * 0.25);
     perform game.voy_lose_cargo(pid, 0.2);
     target := voyage ->> 'originCityId';
-    final_msg := 'The ship went down under ' || (enc ->> 'enemyName') || '''s assault after ' || coalesce(enc ->> 'round', '1') ||
-      ' rounds of fighting! Rantai yang Dilepas: kru menyelamatkan peti gold dan sebagian besar muatan - hanya seperlima yang hilang ke laut.';
+    final_msg := 'Kapalmu tenggelam di bawah gempuran ' || (enc ->> 'enemyName') || ' setelah ' || coalesce(enc ->> 'round', '1') ||
+      ' ronde pertempuran! Rantai yang Dilepas: kru menyelamatkan peti gold dan sebagian besar muatan - hanya seperlima yang hilang ke laut.';
     final_result := 'sunk';
   elsif sinking then
     eff_max := game.voy_num(game.ship_json(pid) -> 'EffectiveMaxCondition');
@@ -1242,9 +1255,9 @@ begin
     if penalty > 0 then update game.players set gold = gold_now - penalty where player_id = pid; end if;
     perform game.voy_lose_cargo(pid, 0.5);
     target := voyage ->> 'originCityId';
-    final_msg := 'The ship went down under ' || (enc ->> 'enemyName') || '''s assault after ' || coalesce(enc ->> 'round', '1') ||
-      ' rounds of fighting! A passing fisherman pulled the crew from the wreckage and towed you back, ' ||
-      'but half the cargo and ' || penalty || ' gold were lost to the sea.';
+    final_msg := 'Kapalmu tenggelam di bawah gempuran ' || (enc ->> 'enemyName') || ' setelah ' || coalesce(enc ->> 'round', '1') ||
+      ' ronde pertempuran! Seorang nelayan yang lewat menarik kru dari puing dan menyeretmu pulang, ' ||
+      'tapi separuh muatan dan ' || penalty || ' gold hilang ke laut.';
     final_result := 'sunk';
   end if;
 
@@ -1276,7 +1289,7 @@ begin
     drop_res := game.treasure_drop(pid, lvl);
     if drop_res is not null and jsonb_typeof(drop_res) = 'object' then
       drop_name := coalesce(drop_res ->> 'name', drop_res ->> 'Name');
-      drop_note := ' Among the wreckage, the crew salvages ' || coalesce(drop_name, 'a weathered map') || '!';
+      drop_note := ' Di antara puing, kru menyelamatkan ' || coalesce(drop_name, 'sebuah peta lusuh') || '!';
       final_msg := final_msg || drop_note;
       if drop_name is not null then
         loot_item := jsonb_build_object('itemId', coalesce(drop_res ->> 'itemId', drop_res ->> 'ItemId', drop_res ->> 'item_id', drop_res ->> 'id'),

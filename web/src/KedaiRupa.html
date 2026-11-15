@@ -1467,6 +1467,48 @@
     for (var k = 1; k <= 8; k++) ctx.lineTo(m.x - k * 3.4, ty + Math.sin(g.t * 4 - k * 0.8) * (0.6 + k * 0.4) + k * 0.6);
     ctx.stroke();
   };
+  /* Tide v60 - sepasang panji telinga kelinci.
+     telinga(): satu panji meruncing + garis dalam yang memakai gelombang yang SAMA,
+     jadi garis dalamnya tidak pernah lepas dari panjinya betapa pun kencang anginnya. */
+  var telinga = function (ctx, g, x, y, off, len, luar, dalam, fase) {
+    var segs = 9, wv = function (u) { return Math.sin(g.t * 3.1 - u * 4.6 + fase) * (0.8 + u * 2.4); };
+    var tepiAtas = function (u) { return y + off - 1.7 + wv(u); };
+    var tepiBawah = function (u) { return y + off + 2.5 - u * 2.0 + wv(u); };
+    var i, u;
+    ctx.fillStyle = luar;
+    ctx.beginPath(); ctx.moveTo(x, tepiAtas(0));
+    for (i = 0; i <= segs; i++) { u = i / segs; ctx.lineTo(x - u * len, tepiAtas(u)); }
+    for (i = segs; i >= 0; i--) { u = i / segs; ctx.lineTo(x - u * len, tepiBawah(u)); }
+    ctx.closePath(); ctx.fill();
+    if (!dalam) return;
+    ctx.fillStyle = dalam;
+    ctx.beginPath(); ctx.moveTo(x - len * 0.25, tepiAtas(0.25) + 0.7);
+    for (i = 3; i <= segs; i++) { u = i / segs; ctx.lineTo(x - u * len, tepiAtas(u) + 0.7); }
+    for (i = segs; i >= 3; i--) { u = i / segs; ctx.lineTo(x - u * len, (tepiAtas(u) + tepiBawah(u)) / 2); }
+    ctx.closePath(); ctx.fill();
+  };
+  var tiangPanji = function (ctx, g) {
+    var M = g.M, top = M[0];
+    M.forEach(function (m) { if (m.top < top.top) top = m; });
+    ctx.strokeStyle = g.L('#6a4a2a'); ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(top.x, top.top + 4); ctx.lineTo(top.x, top.top - 8); ctx.stroke();
+    return { x: top.x, y: top.top - 1 };
+  };
+  /* Panji Kelinci: dipinjamkan Fatrabbit saat kapten kalah. Sementara (1 hari game),
+     menumpuk DI ATAS panji yang terpasang - tidak menggantikan rupa milik pemain. */
+  PANJI.panji_kelinci = function (ctx, o, g) {
+    var t = tiangPanji(ctx, g);
+    telinga(ctx, g, t.x, t.y, -7, 21, g.L('#f5f2ec'), g.L('#d98ba0'), 0);
+    telinga(ctx, g, t.x, t.y, -1, 17, g.L('#e6dfd3'), g.L('#c87f93'), 1.1);
+  };
+  /* Panji Telinga Angin: panji Fatrabbit sendiri, hadiah mengalahkannya. Permanen, tidak dijual. */
+  PANJI.panji_telinga_angin = function (ctx, o, g) {
+    var t = tiangPanji(ctx, g);
+    telinga(ctx, g, t.x, t.y, -7, 23, g.L('#fbf8f2'), g.L('#1e2a44'), 0);
+    telinga(ctx, g, t.x, t.y, -1, 18, g.L('#efe9dd'), g.L('#1e2a44'), 1.1);
+    ctx.fillStyle = g.L('#e8c35a');
+    ctx.fillRect(t.x - 1.4, t.y - 8.4, 2.8, 1.4);
+  };
   AURA.aura_simpul = function (ctx, o, g) {
     if (o.reflect) return;
     for (var i = 0; i < 6; i++) {
@@ -1542,6 +1584,10 @@
     if (kd.kedatangan && DATANG[kd.kedatangan]) DATANG[kd.kedatangan](ctx, o, g);
     if (kd.lambang && LAMBANG[kd.lambang]) LAMBANG[kd.lambang](ctx, o, g);
     if (kd.panji && PANJI[kd.panji]) PANJI[kd.panji](ctx, o, g);
+    // Tide v60: Panji Kelinci - cap waktu kedaluwarsa diperiksa di sini, jadi potret
+    // presence yang basi (mp_presence.s hanya ditulis ulang oleh mp_touch) tidak
+    // pernah menampilkan panji yang sudah habis masanya.
+    if (kd.kelinci && +kd.kelinci > Date.now() && PANJI.panji_kelinci) PANJI.panji_kelinci(ctx, o, g);
     if (kd.haluan && HALUAN[kd.haluan]) HALUAN[kd.haluan](ctx, o, g);
     if (kd.penghuni && PENGHUNI[kd.penghuni]) PENGHUNI[kd.penghuni](ctx, o, g);
   };
