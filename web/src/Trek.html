@@ -170,6 +170,141 @@ var MTTrek = (function () {
       if (typeof lanjut === 'function') lanjut(); else menu();
     }, function () { busy = false; if (typeof tutup === 'function') tutup(); });
   }
+  // ---------------------------------------------------------------- GELANGGANG (pintu masuk Sirkuit)
+  //   Trektrek-an adalah arena antar pemain. Lawan AI hanya muncul di Pacu Gugur mingguan.
+  function pacuApi(args, ok, fail) {
+    try {
+      var r = google.script.run.withSuccessHandler(function (res) { ok(res || {}); })
+        .withFailureHandler(function (e) { (fail || function (m) { toast(m, 'error'); })((e && e.message) || String(e || 'Gagal.')); });
+      r.api_gugur.apply(r, args);
+    } catch (e) { (fail || function (m) { toast(m, 'error'); })(e.message || 'Gagal.'); }
+  }
+  function gelanggang(tutup) {
+    if (busy || (window.MTGames8 && MTGames8.isOpen())) return;
+    if (!S || !window.MTGames8) return;
+    busy = true;
+    pacuApi(['status'], function (r) {
+      busy = false;
+      if (!r.gugur) { if (typeof tutup === 'function') tutup(); return; }
+      PACU = r.gugur;
+      G = MTGames8.open({ onClose: function () { G = null; aduStop(); aduTutupUndangan(); } });
+      lobiUtama();
+    }, function (m) { busy = false; if (typeof tutup === 'function') tutup(m); });
+  }
+  function lobiSegar() { pacuApi(['status'], function (r) { if (r.gugur) PACU = r.gugur; lobiUtama(); }, function () { lobiUtama(); }); }
+  function lobiUtama() {
+    if (!G) return;
+    aduStop();
+    var p = PACU || {}, buka = p.buka && p.status === 'jalan', lw = p.lawan ? S.RIVALS[p.lawan] : null;
+    var kabar = !p.buka ? 'Gelanggang tutup. Obor Yaptob sedang dingin.'
+      : p.status === 'juara' ? 'Pekan ini kau sudah menembus Yaptob. Namamu ada di papan.'
+        : p.status === 'gugur' ? 'Kau gugur pekan ini. Obor menyala lagi Senin depan.'
+          : 'Babak ' + p.babak + ' dari ' + p.akhir + ' &middot; lawan <b>' + esc(lw ? lw.name : '-') + '</b>';
+    var c = G.card(
+      '<div class="trk-k">Zentul &middot; Sirkuit Selat Lurus</div><h1>Selat Lurus</h1><div class="trk-orn"></div>' +
+      '<p class="trk-sub">Lintasan ini milik para kapten. Yang mau mengukur diri dengan kapten lain, turun ke Adu Kapten; yang mau melawan nama-nama besar selat, tunggu obor gugur Yaptob tiap pekan.</p>' +
+      '<div class="trk-pilih">' +
+      '<button type="button" class="trk-pick" data-a="adu"><b>Adu Kapten</b><small>balapan lawan pemain lain yang merapat di Zentul &middot; tanpa taruhan</small></button>' +
+      '<button type="button" class="trk-pick' + (buka ? '' : ' mati') + '" data-a="pacu"><b>Pacu Gugur</b><small>' + kabar + '</small></button>' +
+      '</div>' +
+      (p.hadiah ? '<p class="trk-sub">Hadiah juara pekan: <b>' + p.hadiah.oli + ' Oli Hitam + ' + (typeof formatGold === 'function' ? formatGold(p.hadiah.gold) : p.hadiah.gold) + ' gold</b>. Hanya untuk yang menembus Yaptob.</p>' : '') +
+      (p.siap ? '' : '<p class="trk-sub warn">Kapalmu harus merapat di Zentul.</p>') +
+      '<button type="button" class="trk-btn ghost" data-a="tutup">Kembali ke pelabuhan</button>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t) return;
+      if (t.dataset.a === 'adu') aduSegar();
+      else if (t.dataset.a === 'pacu') pacuPapan();
+      else if (t.dataset.a === 'tutup') G.close();
+    };
+  }
+
+  // ---------------------------------------------------------------- PACU GUGUR (event mingguan)
+  var PACU = null;
+  function pacuPapan() {
+    if (!G) return;
+    var p = PACU || {};
+    var babak = [];
+    for (var i = 1; i <= (p.akhir || 4); i++) {
+      var nm = S.RIVALS[['', 'pariopelan', 'kapalmber', 'cangcimen', 'yaptob'][i]];
+      var kelas = p.status === 'juara' || i < p.babak ? 'lolos' : (i === p.babak ? (p.status === 'gugur' ? 'gugur' : 'kini') : '');
+      babak.push('<li class="' + kelas + '"><span>Babak ' + i + '</span><b>' + esc(nm ? nm.name : '-') + '</b><i>' + esc(TAG[['', 'pariopelan', 'kapalmber', 'cangcimen', 'yaptob'][i]] || '') + '</i></li>');
+    }
+    var pp = (p.papan || []).map(function (x, n) { return '<li><span>' + (n + 1) + '</span><span>' + esc(x.nama) + '</span><b>' + dtk(x.us) + ' dtk</b></li>'; }).join('');
+    var jalan = p.buka && p.status === 'jalan' && p.siap;
+    var c = G.card(
+      '<div class="trk-k">Gelanggang Yaptob &middot; pekan ini</div><h1>Pacu Gugur</h1><div class="trk-orn"></div>' +
+      '<p class="trk-sub">Empat babak, sekali jalan. Menang naik, kalah gugur sampai Senin depan. Yaptob memasang <b>' + esc(S.SHIPS[p.kapal || "penuh"] ? S.SHIPS[p.kapal].name : "mesin gelanggang") + '</b> untuk setiap peserta.</p>' +
+      '<ul class="trk-babak">' + babak.join('') + '</ul>' +
+      (p.status === 'juara' ? '<p class="trk-hadiah">' + ic('coin') + ' Juara pekan ini: <b>' + (p.didapat ? p.didapat.oli : 0) + ' Oli Hitam + ' + (typeof formatGold === 'function' ? formatGold(p.didapat ? p.didapat.gold : 0) : (p.didapat ? p.didapat.gold : 0)) + ' gold</b></p>' : '') +
+      (p.status === 'gugur' ? '<p class="trk-sub warn">Obor sudah padam untukmu pekan ini.</p>' : '') +
+      (p.menang ? '<p class="trk-sub">Catatan pekan ini: ' + p.menang + ' babak, total ' + dtk(p.usTotal) + ' dtk.</p>' : '') +
+      (pp ? '<div class="trk-lbl">Papan Juara pekan ini</div><ol class="trk-papan">' + pp + '</ol>' : '') +
+      (jalan ? '<button type="button" class="trk-btn" data-utama data-a="mulai">KE GARIS START</button>' : '') +
+      (p.siap || !p.buka ? '' : '<p class="trk-sub warn">Merapat dulu di Zentul.</p>') +
+      '<button type="button" class="trk-btn ghost" data-a="balik">Kembali</button>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.a === 'mulai') { t.disabled = true; pacuMulai(); } else lobiUtama();
+    };
+  }
+  function pacuMulai() {
+    pacuApi(['mulai'], function (r) {
+      if (r.gugur) PACU = r.gugur;
+      if (!r.run) { toast('Garis start belum siap.', 'error'); pacuPapan(); return; }
+      pacuBalap(r.run);
+    }, function (m) { toast(m, 'error'); lobiSegar(); });
+  }
+  function pacuBalap(run) {
+    if (!G) return;
+    var me = S.SHIPS[run.ship], rp = S.RIVALS[run.rival], p = PACU || {};
+    var c = G.card(
+      '<div class="trk-k">Pacu Gugur &middot; babak ' + (p.babak || 1) + ' dari ' + (p.akhir || 4) + '</div>' +
+      '<div class="trk-vs"><div class="trk-side me"><small>KAMU</small><b>' + esc(me.name) + '</b>' + stats(me) + '</div><div class="trk-mid">VS</div>' +
+      '<div class="trk-side op"><small>' + esc(TAG[run.rival] || '') + '</small><b>' + esc(rp.name) + '</b>' + stats(S.SHIPS[rp.ship]) + '</div></div>' +
+      '<p class="trk-sub warn" style="margin-top:10px">Satu kali kalah, gugur sampai pekan depan.</p>' +
+      '<button type="button" class="trk-btn" data-utama data-a="siap">SIAP</button>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
+      G.race({ ship: run.ship, rival: run.rival, seed: run.seed, hint: hint() }, function (res) {
+        if (!res || res.cancelled) { pacuKirim(run, [], null); return; }
+        lsSet('races', races() + 1);
+        pacuKirim(run, res.log || [], res);
+      });
+    };
+  }
+  function pacuKirim(run, log, res) {
+    pacuApi(['selesai', run.run, log], function (r) {
+      if (r.gugur) PACU = r.gugur;
+      setTimeout(function () { pacuHasil(run, res, r); }, res ? 0 : 420);
+    }, function (m) { toast(m, 'error'); lobiSegar(); });
+  }
+  function pacuHasil(run, res, r) {
+    if (!G) return;
+    var p = PACU || {}, h = r.hasil || {}, win = !!h.win, rp = S.RIVALS[run.rival];
+    var diff = (h.me != null && h.op != null) ? h.me - h.op : null;
+    var kata = win && p.status === 'juara' ? '"Sudah lama tak ada yang menembus aku di gelanggangku sendiri," kata Yaptob, menyodorkan kaleng oli.'
+      : win ? '"Naik satu babak. Jangan kendur," kata Rayan Bazzy.'
+        : '"Pekan depan, Kapten. Obor ini tak ke mana-mana," kata Rayan Bazzy.';
+    var c = G.card('<div class="trk-res">' +
+      '<div class="trk-k" style="text-align:center">Pacu Gugur &middot; ' + esc(rp.name) + '</div>' +
+      '<h2 class="' + (win ? 'win' : 'lose') + '">' + (p.status === 'juara' ? 'JUARA PEKAN!' : win ? 'Lolos' : 'Gugur') + '</h2>' +
+      '<div class="trk-times"><div><small>KAMU</small><b>' + dtk(h.me) + ' dtk</b></div><div><small>' + esc(rp.name).toUpperCase() + '</small><b>' + dtk(h.op) + ' dtk</b></div></div>' +
+      (diff == null ? '' : '<p class="trk-diff">' + (diff < 0 ? 'unggul ' : 'tertinggal ') + dtk(Math.abs(diff)) + ' dtk</p>') +
+      (r.hadiah ? '<p class="trk-hadiah">' + ic('coin') + ' Hadiah juara: <b>' + r.hadiah.oli + ' Oli Hitam + ' + (typeof formatGold === 'function' ? formatGold(r.hadiah.gold) : r.hadiah.gold) + ' gold</b></p>' : '') +
+      (win && p.status === 'jalan' ? '<p class="trk-sub">Babak berikutnya: <b>' + esc((S.RIVALS[p.lawan] || {}).name || '-') + '</b></p>' : '') +
+      '<p class="trk-q">' + esc(kata) + '<small>— Lapau Oli</small></p>' +
+      '<div class="trk-row">' + (win && p.status === 'jalan' && p.siap ? '<button type="button" class="trk-btn" data-utama data-a="lanjut">BABAK BERIKUT</button>' : '') +
+      '<button type="button" class="trk-btn ghost" data-a="papan">Papan gugur</button></div></div>');
+    if (r.hadiah) {
+      try { if (typeof metaBump_ === 'function') metaBump_('pacujuara'); } catch (e) { }
+      try { if (typeof loadState === 'function') loadState(); } catch (e) { }
+    }
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.a === 'lanjut') { t.disabled = true; pacuMulai(); } else pacuPapan();
+    };
+  }
+
   // penguji: alamat berakhiran #trek membuka Sirkuit begitu game siap
   function viaHash() {
     if (!/^#trek$/i.test(location.hash || '')) return;
@@ -201,8 +336,8 @@ var MTTrek = (function () {
   function aduLobi(data) {
     if (!G) return;
     aduStop();
-    var a = data || (st && st.adu) || null;
-    if (!a) { menu(); return; }
+    var a = data || null;
+    if (!a) { lobiUtama(); return; }
     if (a.duel && (a.duel.status === 'invited' || a.duel.status === 'active')) { aduTunggu(a.duel); return; }
     var rows = (a.kapten || []).map(function (k) {
       return '<li><span>' + esc(k.nama) + '<small>' + (k.sisa > 0 ? 'sisa ' + k.sisa + ' adu hari ini' : 'jatah hari ini habis') + '</small></span>' +
@@ -219,7 +354,7 @@ var MTTrek = (function () {
       (rows ? '<ul class="trk-adu">' + rows + '</ul>' : '<p class="trk-kosong">Belum ada kapten lain di dermaga. Rayan Bazzy menyeka tangannya: "Sabar. Selat ini tak pernah sepi lama."</p>') +
       (papan ? '<div class="trk-lbl">Papan Adu · tujuh hari terakhir</div><ol class="trk-papan">' + papan + '</ol>' : '') +
       '<button type="button" class="trk-btn ghost" data-a="segar">Lihat lagi dermaga</button>' +
-      '<button type="button" class="trk-btn ghost" data-a="menu">Kembali ke Sirkuit</button>');
+      '<button type="button" class="trk-btn ghost" data-a="menu">Kembali</button>');
     c.onclick = function (e) {
       var t = e.target.closest ? e.target.closest('[data-tantang],[data-a]') : null; if (!t || t.disabled) return;
       if (t.dataset.tantang) {
@@ -227,10 +362,10 @@ var MTTrek = (function () {
         aduApi(['tantang', t.dataset.tantang], function (r) { if (r.duel) aduTunggu(r.duel); else aduSegar(); },
           function (m) { toast(m, 'error'); aduSegar(); });
       } else if (t.dataset.a === 'segar') aduSegar();
-      else if (t.dataset.a === 'menu') menu();
+      else if (t.dataset.a === 'menu') lobiUtama();
     };
   }
-  function aduSegar() { aduApi(['lobi'], function (r) { aduLobi(r.adu); }, function (m) { toast(m, 'error'); menu(); }); }
+  function aduSegar() { aduApi(['lobi'], function (r) { aduLobi(r.adu); }, function (m) { toast(m, 'error'); lobiUtama(); }); }
   function aduTunggu(d) {
     if (!G) return;
     aduStop(); ADU.duel = d;
@@ -270,7 +405,7 @@ var MTTrek = (function () {
       '<button type="button" class="trk-btn" data-utama data-a="siap">SIAP</button>');
     c.onclick = function (e) {
       var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t || t.disabled) return;
-      var ghost = ls('ghost', true) && st.best && st.best.log && d.kapalku === st.ship ? st.best.log : null;
+      var ghost = null;
       G.race({ ship: d.kapalku, rival: aduLawanProfil(d), seed: d.seed, hint: hint(), ghostLog: ghost }, function (res) {
         if (!res || res.cancelled) { aduKirim(d, []); return; }
         lsSet('races', races() + 1);
@@ -285,7 +420,7 @@ var MTTrek = (function () {
       '<p class="trk-sub">' + (res && res.me && res.me.fin ? 'Waktumu <b>' + dtk(res.me.fin) + ' dtk</b>. ' : '') + 'Menunggu catatan ' + esc(d.lawan) + '…</p>' +
       '<p class="trk-srv">juru tulis sirkuit sedang menghitung…</p>' +
       '<button type="button" class="trk-btn ghost" data-a="menu">Tinggalkan dulu</button>');
-    c.onclick = function () { aduStop(); menu(); };
+    c.onclick = function () { aduStop(); lobiUtama(); };
     var n = 0;
     function cek(r) {
       var x = r && r.duel; if (!x || !c.isConnected) return;
@@ -301,6 +436,7 @@ var MTTrek = (function () {
     if (!G) return;
     aduStop(); ADU.duel = null;
     var menang = d.menang === 'aku', seri = d.menang === 'seri';
+    try { if (menang && typeof metaBump_ === 'function') metaBump_('adumenang'); } catch (e) { }
     var batal = d.status === 'cancelled';
     var diff = (d.usKu != null && d.usLawan != null) ? d.usKu - d.usLawan : null;
     var kata = batal ? 'Tak seorang pun menyetor catatan. Adu dibatalkan.'
@@ -361,6 +497,6 @@ var MTTrek = (function () {
   }
   function aduTutupUndangan() { var h = document.getElementById('trkInv'); if (h) { h.classList.remove('show'); clearInterval(h._t); h.innerHTML = ''; } ADU.undangan = null; }
 
-  return { open: open, isOpen: function () { return !!G; }, adu: function () { aduSegar(); }, inbox: aduInbox };
+  return { open: open, gelanggang: gelanggang, isOpen: function () { return !!G; }, adu: function () { aduSegar(); }, inbox: aduInbox };
 })();
 </script>

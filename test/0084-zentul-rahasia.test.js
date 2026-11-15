@@ -42,27 +42,29 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const st = (await b.call('api_mahkota', ['status'])).mahkota;
   assert(st && st.d, 'quest tetap berjalan: ' + JSON.stringify(st && st.d && st.d.at));
 
-  // tamat: Sirkuit terbuka, tapi hanya saat merapat di Zentul
+  // tamat (0085): Sirkuit solo lawan AI tetap tertutup; yang terbuka Pacu Gugur + Adu Kapten, hanya di Zentul
   await one(`select game.admin_mahkota('zr_saga', 40) s`);
   await kota(b, 'zentul');
-  assert((await trek(b)) === true, 'tamat + di Zentul: Sirkuit terbuka');
-  const t = (await b.call('api_trek', ['status'])).trek;
-  assert(t && t.lawan.length === 4, 'empat lawan tersedia');
+  assert((await trek(b)) === false, 'tamat: Sirkuit solo lawan AI tetap tertutup');
+  const gg = (await b.call('api_gugur', ['status'])).gugur;
+  assert(gg && gg.siap === true && gg.babak === 1, 'Pacu Gugur terbuka di Zentul');
+  assert(((await b.call('api_trekDuel', ['lobi'])).adu).siap === true, 'Adu Kapten terbuka di Zentul');
   await kota(b, 'ikn');
-  assert((await trek(b)) === false, 'di luar Zentul: Sirkuit tertutup');
+  assert(((await b.call('api_gugur', ['status'])).gugur).siap === false, 'di luar Zentul: gelanggang tidak siap');
+  assert(await H.expectError(() => b.call('api_gugur', ['mulai'])), 'di luar Zentul: tidak bisa balapan');
   await H.sql(`update game.player_location set city_id = 'zentul', destination_city_id = 'ikn', depart_at = now(), arrive_at = now() + interval '5 minutes' where player_id = $1`, [b.id]);
-  assert((await trek(b)) === false, 'sedang berlayar: Sirkuit tertutup');
+  assert(((await b.call('api_gugur', ['status'])).gugur).siap === false, 'sedang berlayar: gelanggang tidak siap');
   await kota(b, 'zentul');
 
   // sakelar darurat
-  await H.sql(`update game.config set value = '1' where key = 'TrekTutup'`);
-  assert((await trek(b)) === false, 'TrekTutup menutup Sirkuit');
-  assert((await lihat(b)) === true, 'TrekTutup tidak menyembunyikan Zentul');
-  await H.sql(`update game.config set value = '0' where key = 'TrekTutup'`);
+  await H.sql(`update game.config set value = '1' where key = 'GugurTutup'`);
+  assert(((await b.call('api_gugur', ['status'])).gugur).buka === false, 'GugurTutup menutup gelanggang');
+  assert((await lihat(b)) === true, 'sakelar tidak menyembunyikan Zentul');
+  await H.sql(`update game.config set value = '0' where key = 'GugurTutup'`);
 
   // penguji: nama terdaftar saja
   await H.sql(`update game.config set value = 'zr_biasa' where key = 'FiturPenguji'`);
-  assert((await lihat(a)) === true && (await trek(a)) === true, 'penguji terdaftar boleh');
+  assert((await lihat(a)) === true && (await trek(a)) === true, 'penguji terdaftar boleh (jalur pintas #trek)');
   const c = await H.user('zr_lain'); await c.call('api_createCharacter', ['Kapten Lain', 'merchant']);
   assert((await lihat(c)) === false && (await trek(c)) === false, 'yang tidak terdaftar tetap tertutup');
   await H.sql(`update game.config set value = '' where key = 'FiturPenguji'`);
