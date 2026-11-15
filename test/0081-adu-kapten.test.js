@@ -109,11 +109,9 @@ const { human, SKILL } = require('./trek-sim');
   // gerbang mati
   await H.sql(`update game.config set value = '0' where key = 'TrekAduOpen'`);
   assert(await H.expectError(() => a.call('api_trekDuel', ['lobi'])), 'gerbang TrekAduOpen mati');
-  const st = (await a.call('api_trek', ['status'])).trek;
-  assert(st.adu === null, 'status Sirkuit: adu null saat gerbang mati');
+  assert((await one('select game.trek_adu_lobi($1) l', [a.id])).l === null, 'lobi adu null saat gerbang mati');
   await H.sql(`update game.config set value = '1' where key = 'TrekAduOpen'`);
-  const st2 = (await a.call('api_trek', ['status'])).trek;
-  assert(st2.adu && st2.adu.maks === 3, 'status Sirkuit membawa ringkasan adu');
+  assert(((await a.call('api_trekDuel', ['lobi'])).adu).maks === 3, 'lobi adu kembali jalan');
 
   console.log('0081 adu kapten: semua lulus');
 })().catch((e) => { console.error(e); process.exit(1); });
