@@ -74,6 +74,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   ok(await gold() === g0 - 500 && (await gs()).pasir.barang.includes('kopi_pahit'), 'Kopi Pahit Sudyrman');
   await act('nansy12', 'ok');
   ok((await gs()).pasir.riak.nansy_buku === true, 'riak nansy_buku');
+  ok((await one(`select count(*)::int n from game.legend_catch where player_id = $1 and fish_id = 'matahari_penari'`, [pid])).n === 1, 'Buku Pancing Legenda #20 Matahari Penari tercatat bersama Nansy');
   let f = await sailFight('joungjava');
   ok(f.boss === 'ps_janji', 'pelayaran berikutnya dicegat Janji Putih: ' + JSON.stringify(f).slice(0, 120));
   let guard = 0;
