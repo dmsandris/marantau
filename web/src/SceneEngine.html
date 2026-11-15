@@ -484,6 +484,7 @@ var MTShip = (function () {
    *      furl(0..1), roll, damage(0..1), lanterns(0..1), reflect(bool), lit(fn) }
    */
   var lastK = 1;
+  var BF_CACHE = {};   // Tide v65: garis dek + jumlah lubang meriam tiap Bentuk Kapal Kedai (diisi saat digambar)
   var KDH = {};   // Tide v37: kait gambar rupa Kedai Rantau { sail(ctx,id,g), after(ctx,o,g) } - diisi KedaiRupa.html
   // Titik pada garis lis emas (wale), t 0..1 dari buritan ke haluan
   function waleY(u) { return (1 - u) * (1 - u) * -17 + 2 * (1 - u) * u * -3 + u * u * -12; }
@@ -551,6 +552,7 @@ var MTShip = (function () {
     if (o.kd && o.kd.bentuk && KDH.bentuk) {
       var bf = null; try { bf = KDH.bentuk(ctx, o, { t: t, L: L, s: s, dir: dir, hull: hull, trim: trim, sail: sail, flag: flag }); } catch (e) { bf = null; }
       if (bf) {
+        BF_CACHE[o.kd.bentuk] = { deckPt: bf.deckPt, ports: bf.ports };
         if (KDH.after) { try { KDH.after(ctx, o, { M: bf.M, t: t, L: L, deckY: bf.deckY, trim: trim, sail: sail, flag: flag, hull: hull, s: s, dir: dir, deckPt: bf.deckPt, ports: bf.ports, bentuk: true }); } catch (e) { } }
         ctx.restore();
         return;
@@ -1010,6 +1012,32 @@ var MTShip = (function () {
     ctx.restore();
   }
 
+  /**
+   * Tide v65: jangkar meriam. Posisi tiap moncong meriam dalam unit lokal kapal (sama dengan yang digambar draw()).
+   * Hasil: [{ x, y, kind: 'port' | 'rail' | 'chaser' }], urut dari buritan ke haluan.
+   */
+  function gunPoints(o) {
+    o = o || {};
+    var out = [], i, dp;
+    var bf = o.kd && o.kd.bentuk && KDH.bentuk ? BF_CACHE[o.kd.bentuk] : null;
+    if (bf && bf.deckPt) {
+      var nb = bf.ports || 5;
+      for (i = 0; i < nb; i++) { dp = bf.deckPt(nb > 1 ? 0.14 + i * (0.69 / (nb - 1)) : 0.5); out.push({ x: dp[0] + 0.1, y: dp[1] + 10, kind: 'port' }); }
+      return out;
+    }
+    var n = o.ports || 7;
+    for (i = 0; i < n; i++) { dp = deckPt(n > 1 ? 0.14 + i * (0.69 / (n - 1)) : 0.5); out.push({ x: dp[0] + 0.1, y: dp[1] + 10, kind: 'port' }); }
+    if (o.railGuns) for (i = 0; i < 5; i++) { dp = deckPt(0.24 + i * 0.13); out.push({ x: dp[0], y: dp[1] - 4, kind: 'rail' }); }
+    if (o.chaser) out.push({ x: 62.4, y: -26.4, kind: 'chaser' });
+    return out;
+  }
+  /** Tide v65: titik lokal kapal -> titik layar, dengan transformasi yang sama persis dengan draw() (sizeK, arah, oleng). */
+  function toScreen(x, y, s, o, lx, ly) {
+    o = o || {};
+    var k = s * (o.sizeK || 1), px = lx * k * (o.dir || 1), py = ly * k, r = o.roll || 0, c = Math.cos(r), sn = Math.sin(r);
+    return { x: x + px * c - py * sn, y: y + px * sn + py * c };
+  }
+
   // Bentuk bendera: titik (u sepanjang bendera 0..1, v tinggi 0..1), w/h = skala, c = posisi lambang
   var FLAG_SHAPES = {
     rect: { w: 1, h: 1, c: 0.45, p: [[0, 0], [1, 0], [1, 1], [0, 1]] },
@@ -1108,7 +1136,7 @@ var MTShip = (function () {
     ctx.restore();
   }
 
-  return { draw: draw, foam: foam, jukung: jukung, fromVisual: fromVisual, pearlOpts: pearlOpts, stage: stage, FLAG_SHAPES: FLAG_SHAPES, drawEmblem: drawEmblem, kdHooks: KDH };
+  return { draw: draw, foam: foam, jukung: jukung, fromVisual: fromVisual, pearlOpts: pearlOpts, stage: stage, FLAG_SHAPES: FLAG_SHAPES, drawEmblem: drawEmblem, kdHooks: KDH, gunPoints: gunPoints, toScreen: toScreen };
 })();
 
 /* =============================== MTScene =============================== */
