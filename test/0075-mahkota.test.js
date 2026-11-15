@@ -87,8 +87,9 @@ const { D, human, SKILL } = require('./trek-sim');
     assert(Math.abs(Number(ship.j.TravelMul) - (n >= 15 ? 0.9 : 1)) < 1e-9, 'waktu tempuh -10% setelah Mesin Jolt (n=' + n + ')');
     const lawan = (await one('select game.trek_lawan($1) l', [a.id])).l;
     assert(JSON.stringify(lawan) === JSON.stringify(n >= 15 ? ['pariopelan'] : []), 'lawan Sirkuit (n=' + n + '): ' + JSON.stringify(lawan));
+    // 0084: Sirkuit latihan baru terbuka setelah Saga 4 tamat; langkah cerita pakai api_mahkota
     const boleh = (await one('select game.trek_boleh($1) b', [a.id])).b;
-    assert(boleh === (n >= 15), 'Sirkuit terbuka hanya setelah Mesin Jolt (n=' + n + ')');
+    assert(boleh === false, 'Sirkuit latihan masih tertutup selama saga berjalan (n=' + n + ')');
   }
 
   // ---- setelah langkah 15 ----
@@ -96,11 +97,9 @@ const { D, human, SKILL } = require('./trek-sim');
   assert(s15.step === 15 && s15.d && s15.d.n === 16 && s15.jolt && s15.garasi && s15.zentul, 'langkah 16 aktif: ' + JSON.stringify(s15.d));
   await H.expectError(() => a.call('api_mahkota', ['maju', 15, 'ok']), /garis start/);
   assert((await gold(a)) > 2000000 + 50000 + 75000 - 1, 'hadiah masuk');
-  // Sirkuit kini jalan dari Zentul, dengan Mesin Jolt
-  const sk = await a.call('api_trek', ['status']);
-  assert(sk.trek.ship === 'jolt' && JSON.stringify(sk.trek.lawan) === '["pariopelan"]', 'Sirkuit latihan: ' + JSON.stringify(sk.trek.lawan));
-  await taruh(a, 'ikn');
+  // Sirkuit latihan masih tertutup (baru terbuka setelah saga tamat), tapi kapal quest sudah Mesin Jolt
   await H.expectError(() => a.call('api_trek', ['status']), /Aksi tidak dikenal/);
+  assert((await one('select game.trek_kapal($1) k', [a.id])).k === 'jolt', 'kapal quest: Mesin Jolt');
   await taruh(a, 'zentul');
 
   // ---- pemain lain tidak tersentuh ----
@@ -113,6 +112,7 @@ const { D, human, SKILL } = require('./trek-sim');
   const c = await H.user('mkpenguji'); await c.call('api_createCharacter', ['Penguji', 'merchant']);
   await H.sql(`insert into game.config(key, value) values ('FiturPenguji', 'mkpenguji') on conflict (key) do update set value = 'mkpenguji'`);
   assert((await one('select game.trek_kapal($1) k', [c.id])).k === 'jolt' && (await one('select game.trek_boleh($1) b', [c.id])).b === true, 'penguji Trektrek-an tetap jalan');
+  await H.sql(`update game.config set value = '' where key = 'FiturPenguji'`);
 
   // ---- alat GM ----
   assert((await one(`select game.admin_mahkota('mkbiasa', 12) s`)).s.step === 12, 'admin_mahkota');

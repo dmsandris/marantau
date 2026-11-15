@@ -44,12 +44,16 @@ const H0 = require('./harness');
   await H.sql(`update game.player_location set city_id = 'sunda_empire' where player_id = $1`, [a.id]);
   await a.call('api_bankDeposit', [1000]);
 
-  // Sirkuit: saat TrekOpen = 1 hanya di Zentul
-  assert((await a.call('api_trek', ['status'])).trek, 'penguji: pintas #trek dari mana saja selama TrekOpen = 0');
+  // Sirkuit (0084): penguji dari daftar FiturPenguji boleh dari mana saja; gerbang global tidak membuka
+  assert((await a.call('api_trek', ['status'])).trek, 'penguji terdaftar: pintas #trek dari mana saja');
   await H.sql(`update game.config set value = '1' where key = 'TrekOpen'`);
+  await H.sql(`update game.config set value = '' where key = 'FiturPenguji'`);
   await H.expectError(() => a.call('api_trek', ['status']), /Aksi tidak dikenal/);
   await H.sql(`update game.player_location set city_id = 'zentul' where player_id = $1`, [a.id]);
-  assert((await a.call('api_trek', ['status'])).trek.ship === 'jolt', 'merapat di Zentul: Sirkuit terbuka');
+  await H.expectError(() => a.call('api_trek', ['status']), /Aksi tidak dikenal/);
+  assert((await H.sql(`select game.zentul_open($1) z`, [a.id]))[0].z === false, 'TrekOpen global tidak membuka Zentul');
+  await H.sql(`update game.config set value = 'zenta' where key = 'FiturPenguji'`);
+  assert((await a.call('api_trek', ['status'])).trek.ship === 'jolt', 'penguji terdaftar + merapat di Zentul: Sirkuit terbuka');
 
   console.log('0073 zentul: semua lulus');
 })().catch((e) => { console.error(e); process.exit(1); });
