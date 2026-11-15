@@ -4,9 +4,10 @@
   - Pertempuran memakai layar tempur biasa dalam "mode Tony": hanya Tembak, Isi Meriam, Menyerah;
     armada 4 kapal digambar di kanvas; HUD menunjukkan kapal yang sedang jadi sasaran
   - Ringkasan: daftar rampasan / jarahan gudang mesiu
+  - Tide v67: hasil 'repelled' (HP armada tinggal 10%, Tony kabur): pemain selamat, tanpa rampasan / jarahan
   - Bisikan lapau (state.tony.rumors) + kabut gelap di peta (state.tony.fog)
   - Bagian "Tony & Gank" di Panel GM (api_gmTony)
-  Server: supabase/migrations/0061-tony-gank.sql
+  Server: supabase/migrations/0061-tony-gank.sql, 0087-damage-meriam.sql
 -->
 <style>
   #tnCard { position: fixed; inset: 0; z-index: 8900; background: #05060a; opacity: 0; transition: opacity .7s; }
@@ -163,6 +164,8 @@ var MTTony = (function () {
   function lootHtml(r) {
     if (!r) return '';
     if (r.result === 'won') return '<div class="tn-loot win"><h4>' + ic('trophy') + ' Gudang mesiu Tangan Panjang meledak</h4><p class="small" style="margin:0">Jarahan <b>+' + G(r.gold) + ' gold</b>. Muatanmu utuh. Tony and Gank menghindarimu sampai perairan ini tenang.</p></div>';
+    /* Tide v67: armada tinggal sepersepuluh, Tony kabur. Tidak ada rampasan, tidak ada jarahan. */
+    if (r.result === 'repelled') return '<div class="tn-loot win"><h4>' + ic('wind') + ' Tony and Gank melarikan diri</h4><p class="small" style="margin:0">Empat layar abu-abu hilang ke kabut. <b>Muatan dan gold-mu utuh.</b> Tidak ada jarahan: Tony tidak meninggalkan apa pun.</p></div>';
     var rb = r.rob || {}, items = rb.cargo || [];
     return '<div class="tn-loot"><h4>' + ic('anchor') + ' Dirampas Tony and Gank</h4>' +
       '<p class="small" style="margin:0 0 6px"><b>' + G(rb.gold) + ' gold</b> (' + (rb.pct || 60) + '% gold di tangan) &middot; ' + (items.length ? 'seluruh muatan:' : 'palka memang kosong.') + '</p>' +
@@ -245,9 +248,10 @@ var MTTony = (function () {
 
   /* ringkasan pertempuran */
   if (window.RESULT_META) RESULT_META.robbed = { icon: 'anchor', title: 'Dirampas Tony and Gank', cls: 'lose' };
+  if (window.RESULT_META) RESULT_META.repelled = { icon: 'wind', title: 'Tony and Gank Kabur', cls: 'win' };
   wrap_('renderBattleSummary_', function (args) {
     var r = args[0]; if (!r || !r.tony) return;
-    if (r.result === 'won') sfx('victory');
+    if (r.result === 'won' || r.result === 'repelled') sfx('victory');
     var g = document.querySelector('#combatSummaryContent .summary-stat-grid');
     if (g) g.insertAdjacentHTML('afterend', lootHtml(r) + '<p class="tn-quote">"' + QUOTE + '"</p>');
     if (r.result === 'robbed') { var b = document.querySelector('#combatSummaryContent .btn-gold'); if (b) b.innerHTML = 'Lanjutkan ke Pelabuhan <span class="kbd">Enter</span>'; }
