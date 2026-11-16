@@ -1095,7 +1095,10 @@ var MTShip = (function () {
     if (v.legend === 'pearl') return pearlOpts();
     var L = v.look || {}, u = v.up || {};
     var sp = stage(u.speed), cg = stage(u.cargo), cd = stage(u.condition), cn = stage(u.cannons);
-    var tier = Math.max(1, Math.min(5, (v.tier | 0) || 1));
+    // Tier dari server (0086). Data lama tanpa `tier` (presence yang belum diperbarui): perkirakan dari langkah upgrade (mendekati rumus server).
+    function lvl(n) { n = +n || 0; return n <= 0 ? 0 : Math.min(5, Math.floor((n - 1) / 4) + 1); }
+    var tier = v.tier != null ? (v.tier | 0) : Math.floor((lvl(u.speed) + lvl(u.cargo) + lvl(u.condition) + lvl(u.cannons)) / 4);
+    tier = Math.max(1, Math.min(5, tier || 1));
     var wl = null, ws = v.wl;
     if (ws && ws.length) {
       wl = { speed: ws.indexOf('speed') >= 0, cargo: ws.indexOf('cargo') >= 0, condition: ws.indexOf('condition') >= 0, cannons: ws.indexOf('cannons') >= 0 };
@@ -1213,7 +1216,9 @@ var MTShip = (function () {
       c.quadraticCurveTo(mx - hl + b * 0.5, (yt + ybb) / 2, mx - hl, yt);
       c.fill();
       if (!o.reflect) {
-        c.save(); c.clip();
+        // klip hanya bila ada isi yang bisa keluar dari tepi kain (klip itu mahal)
+        var klip = P.patch || P.stripe || P.emblem || P.torn || (o.kd && (o.kd.layar || o.kd.emas) && KDH.sail && P.kdOk !== false);
+        c.save(); if (klip) c.clip();
         if (P.patch) {
           // Tier I: layar bertambal
           var pw = hl * 0.42, ph = h * 0.3;
@@ -1238,8 +1243,8 @@ var MTShip = (function () {
         // terang di sisi angin + bayangan lipatan (kain menggembung)
         c.strokeStyle = L('#000000', 0.1); c.lineWidth = 0.8;
         c.beginPath();
-        c.moveTo(mx + hr * 0.3, yt + 0.8); c.quadraticCurveTo(mx + hr * 0.3 + b * 0.5, (yt + ybb) / 2, mx + hr * 0.34, ybb + b * 0.2);
-        c.moveTo(mx - hl * 0.36, yt + 0.8); c.quadraticCurveTo(mx - hl * 0.36 + b * 0.35, (yt + ybb) / 2, mx - hl * 0.38, ybb + b * 0.3);
+        c.moveTo(mx + hr * 0.3, yt + 0.8); c.quadraticCurveTo(mx + hr * 0.3 + b * 0.5, (yt + ybb) / 2, mx + hr * 0.34, ybb + b * 0.36);
+        c.moveTo(mx - hl * 0.36, yt + 0.8); c.quadraticCurveTo(mx - hl * 0.36 + b * 0.35, (yt + ybb) / 2, mx - hl * 0.38, ybb + b * 0.42);
         c.stroke();
         if (Q.fine && h > 12) {
           // tali ris (reef points)
@@ -1926,6 +1931,7 @@ var MTShip = (function () {
   }
 
   /* ---------------- lapis hidup: derek, awak, bendera, cahaya, kilau ---------------- */
+  function mixHex(h, c, k) { return '#' + U.mix(U.hex(h), c, k).map(function (v) { v = Math.round(v).toString(16); return v.length < 2 ? '0' + v : v; }).join(''); }
   function colDist(a, b) { var x = U.hex(a), y = U.hex(b); return Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1]) + Math.abs(x[2] - y[2]); }
 
   function paintBooms(c, G, o, L, Q) {
@@ -2106,6 +2112,7 @@ var MTShip = (function () {
     var S = G.S, M = G.M, top = 0, i;
     for (i = 0; i < M.length; i++) top = Math.min(top, M[i].top);
     if (layer === 'A') return [Math.min(S.s[0], G.sternTop[0]) - 6, top - 8, G.bs1[0] + 4, G.deckY + 9];
+    if (layer === 'S') return [Math.min(S.s[0], G.sternTop[0]) - 20, top - 8, G.bs1[0] + 14, S.kd + 4];
     return [Math.min(S.s[0], G.sternTop[0]) - 20, Math.min(G.sternTop[1] - 18, G.deckY - (G.deckY - top) * 0.56), G.bs1[0] + 14, S.kd + 4];
   }
   function baked(layer, key, idKey, q, G, o, L, Q) {
@@ -2114,7 +2121,7 @@ var MTShip = (function () {
     // kapal yang skalanya terus berubah (sinematik mendekat) jangan dipanggang ulang tiap frame
     var th = THRASH[idKey] || (THRASH[idKey] = { n: 0, at: 0, q: 0, off: 0 }), now = nowMs();
     if (th.off > now) return null;
-    if (layer === 'A') {
+    if (layer !== 'A') {
       if (th.q && th.q !== q && now - th.at < 400) { if (++th.n > 3) { th.off = now + 1500; th.n = 0; return null; } } else if (now - th.at >= 400) th.n = 0;
       th.at = now; th.q = q;
     }
@@ -2124,7 +2131,9 @@ var MTShip = (function () {
     var c = cv.getContext('2d');
     c.translate(1, 1); c.scale(q, q); c.translate(-b[0], -b[1]);
     c.lineJoin = 'round';
-    if (layer === 'A') paintA(c, G, o, L, Q); else paintB(c, G, o, L, Q, false);
+    if (layer === 'A') paintA(c, G, o, L, Q);
+    else if (layer === 'S') { paintA(c, G, o, L, Q); paintSails(c, G, o, L, Q); paintB(c, G, o, L, Q, false); }   // layar tergulung = diam: seluruh kapal jadi satu bitmap
+    else paintB(c, G, o, L, Q, false);
     e = { cv: cv, x: b[0] - 1 / q, y: b[1] - 1 / q, w: w / q, h: h / q, px: w * h };
     BAKE.set(k, e); BAKE_PX += e.px; stat.bake++;
     if (BAKE_PX > BAKE_BUDGET) {
@@ -2171,11 +2180,11 @@ var MTShip = (function () {
     var Q = {
       t: t, furl: furl, dmg: dmg, broke: broke, s: s, hair: 0.8 / Math.max(0.05, px), fine: px >= 0.62,
       hull: hull, trim: trim, sail: sail, flag: flag,
-      sailHi: U.shadeHex(sail, 14), sailSh: o.sailShade || U.css(U.mix(U.hex(sail), [70, 56, 44], 0.3)),
+      sailHi: U.shadeHex(sail, 14), sailSh: o.sailShade || mixHex(sail, [70, 56, 44], 0.3),
       mast: o.mast || '#4a2f1a', mastHi: U.shadeHex(o.mast || '#4a2f1a', 36),
       rat: G.tier === 0 || G.tier >= 3, nest: G.tier === 0 || G.tier >= 3, patch: G.tier === 1
     };
-    if (o.sailShade == null) { var sh = U.mix(U.hex(sail), [70, 56, 44], 0.3); Q.sailSh = '#' + sh.map(function (v) { v = Math.round(v).toString(16); return v.length < 2 ? '0' + v : v; }).join(''); }
+
     if (o.wl && o.wl.full) {
       // warna lambang di layar utama: pakai warna bendera; kalau terlalu mirip warna layar, tukar
       var bg = flag, col = o.emblemColor || trim;
@@ -2186,16 +2195,22 @@ var MTShip = (function () {
     lastWake = { x0: G.S.s[0], x1: G.S.tip[0], k0: G.S.k0[0], k1: G.S.k1[0], long: !!o.fullSail, wl: !!(o.wl && o.wl.speed) };
 
     // lapis statis: dipanggang bila bisa (skala wajar, tanpa rupa lambung hidup dari Kedai)
-    var canBake = BAKE && m && !o.noBake && px >= 0.3 && px <= 9 && !(o.kd && o.kd.lambung), eA = null, eB = null;
+    // Diukur: pada skala besar, kapal sederhana (Tier I-II tanpa Warlord) lebih murah digambar langsung daripada menempel bitmap besar.
+    var canBake = BAKE && m && !o.noBake && px >= 0.12 && px <= 9 && !(o.kd && o.kd.lambung) && !(px > 3 && G.tier >= 1 && G.tier <= 2 && !o.wl), eA = null, eB = null, eS = null, bakeA = px <= 2.5;
     if (canBake) {
       var q = Math.round(px * (px < 2 ? 1.5 : px < 4 ? 1.25 : 1) * 100) / 100;
       var lanB = o.lanterns > 0.05 ? Math.round(Math.min(1, o.lanterns) * 8) : 0;
       var idKey = staticKey(o, G, lanB, broke) + '|' + L('#6b4226') + L('#ffffff', 0.5), key = idKey + '|' + q;
-      eA = baked('A', key, idKey, q, G, o, L, Q);
-      if (eA) eB = baked('B', key, idKey, q, G, o, L, Q);
+      // lapis A (tiang + tali) murah digambar langsung; bitmapnya tinggi, jadi hanya dipanggang pada skala kecil
+      if (furl >= 0.95) eS = baked('S', key + (o.sail || '') + (o.sailShade || '') + (o.reflect ? 'r' : ''), idKey, q, G, o, L, Q);
+      if (!eS) {
+        eB = baked('B', key, idKey, q, G, o, L, Q);
+        if (eB && bakeA) { eA = baked('A', key, idKey, q, G, o, L, Q); if (!eA) eB = null; }
+      }
     }
-    if (eA && eB) {
-      ctx.drawImage(eA.cv, eA.x, eA.y, eA.w, eA.h);
+    if (eS) ctx.drawImage(eS.cv, eS.x, eS.y, eS.w, eS.h);
+    else if (eB) {
+      if (eA) ctx.drawImage(eA.cv, eA.x, eA.y, eA.w, eA.h); else paintA(ctx, G, o, L, Q);
       paintSails(ctx, G, o, L, Q);
       ctx.drawImage(eB.cv, eB.x, eB.y, eB.w, eB.h);
     } else {
