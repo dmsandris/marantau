@@ -32,9 +32,15 @@ jobs:
 
       - name: Kirim berkas compose
         run: |
-          rsync -az --delete \
+          # -i: catat berkas yang berubah, supaya layanan yang konfigurasinya berubah ikut dimuat ulang.
+          rsync -azi --delete \
             --exclude '.env' --exclude 'volumes/db/data/' --exclude 'ops/node_modules/' \
-            deploy/selfhost/ vps:/opt/marantau/selfhost/
+            deploy/selfhost/ vps:/opt/marantau/selfhost/ | tee /tmp/rsync.log
+          reload=""
+          grep -q ' Caddyfile$' /tmp/rsync.log && reload="$reload caddy"
+          grep -q ' volumes/api/envoy/' /tmp/rsync.log && reload="$reload api-gw"
+          echo "RELOAD=$reload" >> "$GITHUB_ENV"
+          echo "Layanan yang akan dimuat ulang:${reload:- (tidak ada)}"
           ssh vps 'chmod +x /opt/marantau/selfhost/*.sh; command -v qrencode >/dev/null || sudo apt-get install -y -qq qrencode >/dev/null'
 
       - name: Buat .env (sekali saja) & atur profil HTTPS
@@ -47,6 +53,8 @@ jobs:
       - name: Tarik image & nyalakan layanan
         run: |
           ssh vps 'cd /opt/marantau/selfhost && docker compose pull -q --ignore-buildable && docker compose build -q && docker compose up -d --remove-orphans'
+          # Berkas konfigurasi di-mount sebagai file: tanpa restart, container tetap membaca versi lama.
+          if [ -n "$RELOAD" ]; then ssh vps "cd /opt/marantau/selfhost && docker compose restart $RELOAD"; fi
 
       - name: Tunggu semua sehat
         run: |
@@ -69,7 +77,9 @@ jobs:
             { [ "$code" = 401 ] || [ "$code" = 200 ]; } && break; sleep 5
           done
           echo "https://api.marantau.web.id/auth/v1/health -> $code (401 tanpa apikey = normal)"
-          curl -s -o /dev/null -w 'https://ops.marantau.web.id/healthz -> %{http_code}\n' https://ops.marantau.web.id/healthz || true
+          ops=$(curl -s https://ops.marantau.web.id/healthz || true)
+          echo "https://ops.marantau.web.id/healthz -> $ops"
+          echo "$ops" | grep -q '"ok":true' || { echo "::error::Panel Ops tidak menjawab (Caddy masih konfigurasi lama?)."; exit 1; }
           { [ "$code" = 401 ] || [ "$code" = 200 ]; } || { echo "::error::HTTPS belum jalan. Cek DNS & log caddy."; ssh vps 'cd /opt/marantau/selfhost && docker compose logs --tail 30 caddy'; exit 1; }
 
       - name: Pemakaian RAM
