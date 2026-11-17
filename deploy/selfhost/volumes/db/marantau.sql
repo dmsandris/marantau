@@ -15,11 +15,13 @@ create extension if not exists "uuid-ossp" with schema extensions;
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'mt_ops_ro') then
-    create role mt_ops_ro login nosuperuser nocreatedb nocreaterole noinherit;
+    create role mt_ops_ro login nosuperuser nocreatedb nocreaterole inherit;
   end if;
 end $$;
 -- Sengaja TANPA pg_read_all_data: schema auth (hash sandi, token) tidak boleh terbaca.
-grant pg_read_all_stats to mt_ops_ro;
+alter role mt_ops_ro inherit;
+grant pg_read_all_stats to mt_ops_ro with inherit true;
+grant usage on schema extensions to mt_ops_ro;
 do $$
 begin
   if exists (select 1 from pg_namespace where nspname = 'game') then

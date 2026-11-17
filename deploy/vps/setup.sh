@@ -15,7 +15,7 @@ step "Zona waktu & paket dasar"
 timedatectl set-timezone Asia/Jakarta
 apt-get update -qq
 apt-get install -y -qq ca-certificates curl gnupg ufw fail2ban unattended-upgrades \
-  apt-listchanges age rclone postgresql-client jq htop ncdu >/dev/null
+  apt-listchanges age rclone postgresql-client jq htop ncdu qrencode python3 >/dev/null
 
 step "Patch keamanan otomatis"
 cat >/etc/apt/apt.conf.d/20auto-upgrades <<'EOF'

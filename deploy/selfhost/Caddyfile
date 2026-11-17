@@ -1,6 +1,6 @@
 # HTTPS otomatis (Let's Encrypt) untuk server Marantau.
 # api.<domain> : hanya jalur yang dipakai game (auth, rest, realtime). Selain itu 404.
-# ops.<domain> : Panel Ops (1.5). Sebelum panel jadi, tampil halaman sederhana.
+# ops.<domain> : Panel Ops (1.5), login sandi + 2FA.
 {
 	email {$ACME_EMAIL}
 	servers {
@@ -35,7 +35,9 @@
 
 {$OPS_DOMAIN} {
 	encode zstd gzip
-	# Diganti reverse_proxy ke Panel Ops setelah 1.5 selesai.
-	respond "Marantau Ops - segera" 200
-	header -Server
+	reverse_proxy ops:8080
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
 }
