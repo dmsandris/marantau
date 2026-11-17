@@ -118,5 +118,20 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await H.sql(`update game.config set value = 'abuy' where key = 'GmUsernames'`);
   await H.sql(`update game.config set value = 'off' where key = 'MaintenanceMode'`);
 
+  // --- Fase 3: mode pindah server (config PindahKe) -------------------------------------
+  // Deploy ulang 0036 di atas memasang gerbang versi 0036; versi terakhir ada di 0052.
+  await H.db.exec(fs.readFileSync(path.join(require('./harness').MIG_DIR, '0052_pasir_q10.sql'), 'utf8'));
+  await H.sql(`update game.config set value = 'on' where key = 'MaintenanceMode'`);
+  await H.sql(`insert into game.config (key, value) values ('PindahKe', 'https://api.marantau.web.id') on conflict (key) do update set value = excluded.value`);
+  ok(/MT_MAINT/.test(await gate(P, 'api_getgamestate') || ''), 'pindah: pemain ditolak MT_MAINT');
+  ok(/MT_MAINT/.test(await gate(GM, 'api_getgamestate') || ''), 'pindah: GM juga ditolak (main di server baru)');
+  ok(await gate(P, 'api_gmstatus') === null && await gate(null, 'api_ping') === null, 'pindah: ping & gmStatus tetap lolos');
+  const stP = await P.call('api_gmStatus', []);
+  ok(!stP.m, 'pindah: gmStatus melaporkan buka -> klien di layar maintenis memuat ulang');
+  await H.sql(`delete from game.config where key = 'PindahKe'`);
+  ok(/MT_MAINT/.test(await gate(P, 'api_getgamestate') || ''), 'PindahKe dihapus: kembali ke maintenance biasa');
+  await H.sql(`update game.config set value = 'off' where key = 'MaintenanceMode'`);
+  ok(await gate(P, 'api_getgamestate') === null, 'normal lagi');
+
   console.log('GM & PEMELIHARAAN TESTS PASSED');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -1,7 +1,9 @@
-# Kirim semua migrasi database ke Supabase (+ VM Biznet selama gladi Fase 2, job deploy-vps).
+# Kirim semua migrasi database ke server aktif.
+# Variabel repo DB_TARGET (Settings > Secrets and variables > Actions > Variables):
+#   kosong / 'supabase' -> Supabase cloud (secret SUPABASE_DB_URL)
+#   'vps'               -> VM Biznet (secret VPS_*), lewat tools/vps/migrate-vps.sh
 # Jalan otomatis saat ada perubahan di supabase/migrations (branch main), atau manual dari tab Actions.
 # Butuh secret repo: SUPABASE_DB_URL (Session pooler connection string dari Supabase > Connect).
-# Job deploy-vps: VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS. Gagal di VM TIDAK memblokir Supabase.
 name: Deploy database
 on:
   push:
@@ -20,6 +22,7 @@ jobs:
       - run: npm test
   deploy:
     needs: test
+    if: vars.DB_TARGET != 'vps'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -49,11 +52,10 @@ jobs:
           psql "$DB" -At -c "select 'Endpoint aktif: ' || count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'api_%'"
           psql "$DB" -q -c "notify pgrst, 'reload schema'"
 
-  # Fase 2.2 - deploy ganda: skema VM selalu sama dengan cloud. Berdiri sendiri (tidak menunggu/menggagalkan job deploy).
   deploy-vps:
     needs: test
+    if: vars.DB_TARGET == 'vps'
     runs-on: ubuntu-latest
-    continue-on-error: true
     concurrency: { group: vps, cancel-in-progress: false }
     steps:
       - uses: actions/checkout@v6
@@ -67,8 +69,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           user: ${{ secrets.VPS_USER }}
       - name: Migrasi ke VM Biznet
-        if: steps.ssh.outputs.ok == '1'
         run: |
+          [ "${{ steps.ssh.outputs.ok }}" = 1 ] || { echo "::error::VM tidak bisa dihubungi."; exit 1; }
           head=$(git ls-remote origin refs/heads/main | cut -f1)
           if [ -n "$head" ] && [ "$head" != "$GITHUB_SHA" ]; then echo "::notice::main sudah di ${head:0:7}, lewati."; exit 0; fi
           bash tools/vps/migrate-vps.sh

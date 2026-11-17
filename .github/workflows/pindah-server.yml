@@ -1,0 +1,148 @@
+# Fase 3 - pindah server Supabase cloud -> VM Biznet. MANUAL, per tahap. Runbook: claude/RUNBOOK-Fase3-Pindah-Server.md
+#
+#   salin    : syarat Supabase SUDAH mode pemeliharaan (Panel GM). Tunggu 60 dtk -> dump terakhir -> simpan
+#              terenkripsi di Drive (pindah/) -> timpa VM -> migrasi -> ANALYZE -> sidik data cloud = VM (harus sama persis).
+#              VM ikut mode pemeliharaan (salinan config cloud) -> hanya GM bisa masuk lewat /uji/.
+#   alihkan  : syarat variabel repo DB_TARGET=vps & "Deploy web" sudah menerbitkan config ke VM.
+#              Supabase masuk mode PINDAH (config PindahKe): semua API ditolak, layar maintenis bilang "buka"
+#              -> tab pemain memuat ulang -> build baru -> server Biznet.
+#   batal    : rollback cepat (sebelum ramai main di VM). Hapus PindahKe -> Supabase kembali mode pemeliharaan.
+#              Lalu: DB_TARGET=supabase -> Deploy web -> GM buka pemeliharaan Supabase. Progres di VM sejak alihkan HILANG.
+#
+# Repo PUBLIK: dump hanya lewat SSH & file terenkripsi age. Log hanya berisi angka.
+name: Pindah server
+on:
+  workflow_dispatch:
+    inputs:
+      tahap:
+        description: 'Tahap'
+        type: choice
+        options: [salin, alihkan, batal]
+      konfirmasi:
+        description: 'Ketik PINDAH (salin/alihkan) atau BATAL (batal)'
+        type: string
+        required: true
+permissions: { contents: read }
+concurrency: { group: vps, cancel-in-progress: false }
+jobs:
+  pindah:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TAHAP: ${{ inputs.tahap }}
+      API: https://api.marantau.web.id
+      PAGES: https://dmsandris.github.io/marantau
+    steps:
+      - name: Konfirmasi
+        env: { K: '${{ inputs.konfirmasi }}' }
+        run: |
+          want=PINDAH; [ "$TAHAP" = batal ] && want=BATAL
+          [ "$K" = "$want" ] || { echo "::error::Ketik $want di kolom konfirmasi."; exit 1; }
+          echo "TANGGAL=$(TZ=Asia/Jakarta date +%F)" >> "$GITHUB_ENV"
+          echo "WORK=$RUNNER_TEMP/pindah" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - name: Pasang psql 17, age, rclone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common >/dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 age rclone >/dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - id: ssh
+        uses: ./.github/actions/vps-ssh
+        with:
+          key: ${{ secrets.VPS_SSH_KEY }}
+          known: ${{ secrets.VPS_KNOWN_HOSTS }}
+          host: ${{ secrets.VPS_HOST }}
+          user: ${{ secrets.VPS_USER }}
+      - name: Cek kondisi
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}', TARGET: '${{ vars.DB_TARGET }}' }
+        run: |
+          [ -n "$DB" ] || { echo "::error::Secret SUPABASE_DB_URL kosong."; exit 1; }
+          [ "${{ steps.ssh.outputs.ok }}" = 1 ] || { echo "::error::VM tidak bisa dihubungi."; exit 1; }
+          cloud() { psql "$DB" -X -At -v ON_ERROR_STOP=1 -c "$1"; }
+          maint=$(cloud "select game.maint_active()")
+          pindah=$(cloud "select coalesce(game.cfg('PindahKe'), '')")
+          echo "Supabase: pemeliharaan=$maint, PindahKe='${pindah}'. DB_TARGET='${TARGET}'"
+          case "$TAHAP" in
+            salin)
+              [ -z "$pindah" ] || { echo "::error::Supabase sudah mode PINDAH. Salin ulang hanya setelah tahap batal."; exit 1; }
+              [ "$maint" = t ] || { echo "::error::Nyalakan mode pemeliharaan Supabase dulu (Panel GM -> Pemeliharaan ON)."; exit 1; } ;;
+            alihkan)
+              [ "$TARGET" = vps ] || { echo "::error::Set variabel repo DB_TARGET=vps lalu jalankan Deploy web dulu."; exit 1; }
+              live=$(curl -fsS "$PAGES/config.js?t=$(date +%s)" | grep -o 'supabaseUrl[^,]*' || true)
+              echo "Config live: $live"
+              echo "$live" | grep -q 'api.marantau.web.id' || { echo "::error::$PAGES/config.js belum menunjuk server Biznet. Jalankan Deploy web (DB_TARGET=vps) dulu."; exit 1; } ;;
+            batal)
+              [ -n "$pindah" ] || echo "::notice::Supabase tidak dalam mode PINDAH." ;;
+          esac
+
+      # ---------------- salin ----------------
+      - name: Tunggu transaksi berjalan selesai (60 dtk)
+        if: inputs.tahap == 'salin'
+        run: sleep 60
+      - name: Dump terakhir Supabase
+        if: inputs.tahap == 'salin'
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: bash tools/backup/backup-db.sh
+      - name: Simpan dump terakhir (terenkripsi) di Google Drive
+        if: inputs.tahap == 'salin'
+        env:
+          AGE_R: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          RC: ${{ secrets.RCLONE_CONF }}
+        run: |
+          umask 077
+          printf '%s' "$AGE_R" | grep -oE 'age1[0-9a-z]{58}' | head -1 > "$WORK/penerima.txt"
+          [ -s "$WORK/penerima.txt" ] || { echo "::error::BACKUP_AGE_RECIPIENT tidak valid."; exit 1; }
+          f="$WORK/marantau-db-$TANGGAL.tar"; g="marantau-pindah-$TANGGAL-$(TZ=Asia/Jakarta date +%H%M).tar.age"
+          age -R "$WORK/penerima.txt" -o "$WORK/$g" "$f"
+          printf '%s\n' "$RC" > "$WORK/rclone.conf"
+          rclone --config "$WORK/rclone.conf" copyto "$WORK/$g" "gdrive:marantau-backup/pindah/$g"
+          echo "::notice::Dump terakhir Supabase tersimpan: marantau-backup/pindah/$g"
+      - name: Timpa VM + migrasi + ANALYZE
+        if: inputs.tahap == 'salin'
+        env: { ISI: '${{ env.WORK }}/isi', MAINT: '0' }
+        run: bash tools/vps/sync-cloud-to-vps.sh
+      - name: VM tetap pemeliharaan, tanpa PindahKe
+        if: inputs.tahap == 'salin'
+        run: |
+          ssh vps "docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1" <<'SQL'
+          delete from game.config where key = 'PindahKe';
+          insert into game.config (key, value) values ('MaintenanceMode', 'on') on conflict (key) do update set value = 'on';
+          SQL
+      - name: Sidik data Supabase = VM (harus sama persis)
+        if: inputs.tahap == 'salin'
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          psql "$DB" -X -At -F '|' -v ON_ERROR_STOP=1 -f tools/vps/cek-data.sql > "$WORK/cloud.tsv"
+          ssh vps "docker exec -i supabase-db psql -U supabase_admin -d postgres -X -At -F '|' -v ON_ERROR_STOP=1" < tools/vps/cek-data.sql > "$WORK/vm.tsv"
+          echo "tabel / total             Supabase          VM"
+          paste -d'|' "$WORK/cloud.tsv" "$WORK/vm.tsv" | awk -F'|' '{ s = ($1 == $3 && $2 == $4) ? "OK" : "BEDA"; printf "%-22s %12s %12s  %s\n", $1, $2, $4, s }'
+          if diff -q "$WORK/cloud.tsv" "$WORK/vm.tsv" >/dev/null; then echo "::notice::Sidik data SAMA. Lanjut uji GM di $API/uji/ lalu tahap alihkan."
+          else echo "::error::Data Supabase dan VM BEDA - jangan alihkan. Ulangi tahap salin."; exit 1; fi
+
+      # ---------------- alihkan ----------------
+      - name: Supabase -> mode PINDAH
+        if: inputs.tahap == 'alihkan'
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          psql "$DB" -X -q -v ON_ERROR_STOP=1 -c "insert into game.config (key, value) values ('PindahKe', '$API') on conflict (key) do update set value = excluded.value"
+          psql "$DB" -X -At -c "select 'Supabase: PindahKe=' || game.cfg('PindahKe') || ', gmStatus pemeliharaan=' || coalesce(game.maint_active()::text, '-')"
+          vm=$(ssh vps "docker exec -i supabase-db psql -U supabase_admin -d postgres -X -At -c \"select game.maint_active()\"")
+          if [ "$vm" = t ]; then echo "::warning::Server Biznet MASIH mode pemeliharaan. Pemain akan menunggu di layar maintenis sampai GM membukanya (Panel GM di game -> Pemeliharaan OFF)."
+          else echo "::notice::Server Biznet terbuka. Pemain dialihkan dalam ±15-30 dtk."; fi
+
+      # ---------------- batal ----------------
+      - name: Batal - Supabase kembali mode pemeliharaan
+        if: inputs.tahap == 'batal'
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: |
+          psql "$DB" -X -q -v ON_ERROR_STOP=1 -c "delete from game.config where key = 'PindahKe'" \
+            -c "insert into game.config (key, value) values ('MaintenanceMode', 'on') on conflict (key) do update set value = 'on'"
+          echo "::notice::Supabase: mode PINDAH dihapus, pemeliharaan ON. Lanjut: DB_TARGET=supabase -> Deploy web -> GM buka pemeliharaan Supabase."
+
+      - name: Bersihkan
+        if: always()
+        run: rm -rf "$WORK"

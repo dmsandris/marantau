@@ -199,7 +199,11 @@ declare v_block text; v_path text; v_info jsonb; v_u text; v_msg text; v_pid uui
 begin
   begin
     v_path := lower(coalesce(current_setting('request.path', true), ''));
-    if game.maint_active() then
+    -- Fase 3 pindah server (config PindahKe): server lama menolak semua API untuk semua akun (termasuk GM).
+    -- Klien jatuh ke layar maintenis, api_gmStatus bilang "buka" -> muat ulang -> build baru -> server baru.
+    if coalesce(game.cfg('PindahKe'), '') <> '' and v_path !~ 'rpc/(api_ping|api_gmstatus)$' then
+      v_block := 'pindah';
+    elsif game.maint_active() then
       if v_path ~ 'rpc/(api_ping|api_gmstatus)$' then return; end if;
       if not game.is_gm(auth.uid()) then v_info := game.maint_info(); v_block := 'maint'; end if;
     end if;
@@ -213,7 +217,12 @@ begin
   exception when others then
     return;   -- gagal-terbuka: jangan pernah mematikan game karena gerbang ini error
   end;
-  if v_block = 'maint' then
+  if v_block = 'pindah' then
+    raise sqlstate 'PGRST' using
+      message = json_build_object('code', 'MT_MAINT', 'message', 'Pelabuhan pindah dermaga, muat ulang sebentar ya Kapten.',
+                                  'details', json_build_object('on', true, 'tx', 'Pelabuhan pindah ke dermaga baru. Game memuat ulang otomatis.')::text)::text,
+      detail = json_build_object('status', 503, 'status_text', 'Moved', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+  elsif v_block = 'maint' then
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Maintenis dulu ya gaes, kembali sebentar lagi.',
                                   'details', coalesce(v_info, '{}'::jsonb)::text)::text,

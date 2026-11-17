@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Fase 2.1 - timpa database VM Biznet dengan salinan Supabase cloud (VM = salinan, boleh ditimpa).
+# Timpa database VM Biznet dengan salinan Supabase cloud. Dipakai workflow "Pindah server" tahap salin.
 # Dijalankan dari runner, di root repo, sesudah tools/backup/backup-db.sh (ISI berisi db.dump & counts.tsv)
 # dan host SSH "vps" sudah disiapkan. Dump dikirim lewat SSH (stdin), tidak pernah disimpan di disk VM.
 #
 # Urutan: hentikan auth/rest/realtime -> hapus schema game, public, auth -> pg_restore (pemilik objek dipertahankan)
 #         -> semua migrasi main (tools/vps/migrate-vps.sh) -> ANALYZE -> setelan role Marantau -> mode pemeliharaan VM
 #         -> cocokkan jumlah baris -> nyalakan lagi layanan.
-# MAINT=1 (bawaan): VM masuk mode pemeliharaan, hanya akun GM yang bisa main di versi uji.
+# MAINT=1: paksa mode pemeliharaan di VM. MAINT=0: ikut config salinan cloud (tahap salin: cloud sudah pemeliharaan).
 # Tidak mencetak data apa pun (repo publik) - hanya nama tabel & jumlah.
 set -euo pipefail
 : "${ISI:?folder dump}"

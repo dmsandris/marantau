@@ -1,7 +1,7 @@
 # Fase 2.3 - versi uji game yang memakai server Biznet: https://api.marantau.web.id/uji/
 # Kode web sama dengan game asli, hanya config.js menunjuk server VM (+ pita "VERSI UJI").
 # Disajikan Caddy di VM (origin terpisah dari GitHub Pages -> sesi & localStorage tidak bercampur).
-# Data VM = salinan malam (VPS sync) dan dalam mode pemeliharaan -> hanya GM bisa main.
+# Sebelum pindah: data VM = salinan tahap "salin" (mode pemeliharaan -> hanya GM bisa main).
 # Secret: VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS. ANON_KEY dibaca dari .env VM (kunci publik).
 name: VPS web uji
 on:
@@ -37,7 +37,7 @@ jobs:
           url=$(ssh vps "sed -n 's/^API_EXTERNAL_URL=//p' /opt/marantau/selfhost/.env")
           [ -n "$key" ] || { echo "::error::ANON_KEY tidak ada di .env VM."; exit 1; }
           echo "::add-mask::$key"
-          MT_OUT=dist-uji MT_API_URL="${url:-https://api.marantau.web.id}" MT_API_KEY="$key" node tools/build.js
+          MT_UJI=1 MT_OUT=dist-uji MT_API_URL="${url:-https://api.marantau.web.id}" MT_API_KEY="$key" node tools/build.js
       - name: Kirim ke VM
         if: steps.ssh.outputs.ok == '1'
         run: |
