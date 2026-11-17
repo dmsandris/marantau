@@ -1,7 +1,8 @@
 # Backup harian database Marantau (Supabase) -> Google Drive, terenkripsi.
 # - Jadwal 03:17 WIB, atau manual dari tab Actions ("Backup sekarang").
 # - pg_dump schema game/public/auth + kebijakan Realtime -> tar -> enkripsi age -> rclone ke Google Drive.
-# - Tiap run: tes restore ke Postgres kosong di runner + cocokkan jumlah baris.
+# - Tiap run: tes restore ke Postgres kosong di runner + cocokkan dengan perkiraan jumlah baris.
+#   Tes gagal tetap upload, tapi run ditandai merah.
 # - Retensi 30 hari di Drive (file lama dihapus permanen, bukan ke Sampah).
 # Repo PUBLIK: dump TIDAK PERNAH jadi artifact/cache/commit. Yang keluar dari runner hanya file .age.
 # Secret: SUPABASE_DB_URL (sudah ada), BACKUP_AGE_RECIPIENT (kunci publik age1...), RCLONE_CONF (isi rclone.conf, remote "gdrive").
@@ -55,6 +56,8 @@ jobs:
         env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
         run: bash tools/backup/backup-db.sh
       - name: Tes restore ke Postgres kosong
+        id: restore
+        continue-on-error: true # hasil buruk tetap di-upload (lebih baik ada backup), job digagalkan di akhir
         env: { TARGET: 'postgresql://postgres:tes@localhost:5432/tes' }
         run: ISI="$WORK/isi" bash tools/backup/restore-test.sh
       - name: Enkripsi (age)
@@ -78,6 +81,9 @@ jobs:
           [ "$sz" = "$(stat -c %s "$f")" ] || { echo "::error::Ukuran di Drive ($sz) beda dengan lokal."; exit 1; }
           $R delete "$REMOTE" --min-age 30d --drive-use-trash=false
           echo "::notice::Upload OK. File di Drive: $($R lsf "$REMOTE" | wc -l)"
+      - name: Hasil tes restore
+        if: steps.restore.outcome != 'success'
+        run: echo "::error::Tes restore GAGAL - backup tetap di-upload, cek log langkah tes restore."; exit 1
       - name: Bersihkan
         if: always()
         run: rm -rf "$WORK"
