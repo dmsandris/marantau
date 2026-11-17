@@ -1,0 +1,83 @@
+# Backup harian database Marantau (Supabase) -> Google Drive, terenkripsi.
+# - Jadwal 03:17 WIB, atau manual dari tab Actions ("Backup sekarang").
+# - pg_dump schema game/public/auth + kebijakan Realtime -> tar -> enkripsi age -> rclone ke Google Drive.
+# - Tiap run: tes restore ke Postgres kosong di runner + cocokkan jumlah baris.
+# - Retensi 30 hari di Drive (file lama dihapus permanen, bukan ke Sampah).
+# Repo PUBLIK: dump TIDAK PERNAH jadi artifact/cache/commit. Yang keluar dari runner hanya file .age.
+# Secret: SUPABASE_DB_URL (sudah ada), BACKUP_AGE_RECIPIENT (kunci publik age1...), RCLONE_CONF (isi rclone.conf, remote "gdrive").
+# Push ke branch infra-backup-harian = uji coba: dump + tes restore saja, tanpa upload.
+name: Backup database
+on:
+  schedule:
+    - cron: '17 20 * * *' # 20:17 UTC = 03:17 WIB
+  workflow_dispatch:
+  push:
+    branches: [infra-backup-harian]
+    paths: ['.github/workflows/backup-db.yml', 'tools/backup/**']
+permissions: { contents: read }
+concurrency: { group: backup-db, cancel-in-progress: false }
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      pgtes:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: tes, POSTGRES_DB: tes }
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      UPLOAD: ${{ github.event_name != 'push' && '1' || '0' }}
+      REMOTE: gdrive:marantau-backup/supabase
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cek secret
+        env:
+          DB: ${{ secrets.SUPABASE_DB_URL }}
+          AGE_R: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          RC: ${{ secrets.RCLONE_CONF }}
+        run: |
+          [ -n "$DB" ] || { echo "::error::Secret SUPABASE_DB_URL kosong."; exit 1; }
+          if [ "$UPLOAD" = 1 ]; then
+            [ -n "$AGE_R" ] || { echo "::error::Secret BACKUP_AGE_RECIPIENT belum diisi."; exit 1; }
+            [ -n "$RC" ] || { echo "::error::Secret RCLONE_CONF belum diisi."; exit 1; }
+          fi
+          echo "TANGGAL=$(TZ=Asia/Jakarta date +%F)" >> "$GITHUB_ENV"
+          echo "WORK=$RUNNER_TEMP/backup" >> "$GITHUB_ENV"
+      - name: Pasang pg_dump 17, age, rclone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common >/dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 age rclone >/dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Dump database
+        env: { DB: '${{ secrets.SUPABASE_DB_URL }}' }
+        run: bash tools/backup/backup-db.sh
+      - name: Tes restore ke Postgres kosong
+        env: { TARGET: 'postgresql://postgres:tes@localhost:5432/tes' }
+        run: ISI="$WORK/isi" bash tools/backup/restore-test.sh
+      - name: Enkripsi (age)
+        if: env.UPLOAD == '1'
+        env: { AGE_R: '${{ secrets.BACKUP_AGE_RECIPIENT }}' }
+        run: |
+          f="$WORK/marantau-db-$TANGGAL.tar"
+          printf '%s\n' "$AGE_R" > "$WORK/penerima.txt"
+          age -R "$WORK/penerima.txt" -o "$f.age" "$f"
+          echo "::notice::Terenkripsi: $(du -h "$f.age" | cut -f1)"
+      - name: Upload ke Google Drive + retensi 30 hari
+        if: env.UPLOAD == '1'
+        env: { RC: '${{ secrets.RCLONE_CONF }}' }
+        run: |
+          umask 077
+          printf '%s\n' "$RC" > "$WORK/rclone.conf"
+          R="rclone --config $WORK/rclone.conf"
+          f="$WORK/marantau-db-$TANGGAL.tar.age"
+          $R copyto "$f" "$REMOTE/$(basename "$f")"
+          sz=$($R size --json "$REMOTE/$(basename "$f")" | sed -E 's/.*"bytes":([0-9]+).*/\1/')
+          [ "$sz" = "$(stat -c %s "$f")" ] || { echo "::error::Ukuran di Drive ($sz) beda dengan lokal."; exit 1; }
+          $R delete "$REMOTE" --min-age 30d --drive-use-trash=false
+          echo "::notice::Upload OK. File di Drive: $($R lsf "$REMOTE" | wc -l)"
+      - name: Bersihkan
+        if: always()
+        run: rm -rf "$WORK"
