@@ -1,0 +1,52 @@
+# Fase 2.3 - versi uji game yang memakai server Biznet: https://api.marantau.web.id/uji/
+# Kode web sama dengan game asli, hanya config.js menunjuk server VM (+ pita "VERSI UJI").
+# Disajikan Caddy di VM (origin terpisah dari GitHub Pages -> sesi & localStorage tidak bercampur).
+# Data VM = salinan malam (VPS sync) dan dalam mode pemeliharaan -> hanya GM bisa main.
+# Secret: VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS. ANON_KEY dibaca dari .env VM (kunci publik).
+name: VPS web uji
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'tools/build.js', '.github/workflows/vps-web-uji.yml']
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: vps-web-uji, cancel-in-progress: true }
+jobs:
+  uji:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - id: ssh
+        uses: ./.github/actions/vps-ssh
+        with:
+          key: ${{ secrets.VPS_SSH_KEY }}
+          known: ${{ secrets.VPS_KNOWN_HOSTS }}
+          host: ${{ secrets.VPS_HOST }}
+          user: ${{ secrets.VPS_USER }}
+      - name: VM siap?
+        if: steps.ssh.outputs.ok != '1'
+        run: |
+          echo "::warning::VM tidak bisa dihubungi - versi uji tidak diperbarui."; exit 0
+      - name: Build versi uji
+        if: steps.ssh.outputs.ok == '1'
+        run: |
+          key=$(ssh vps "sed -n 's/^ANON_KEY=//p' /opt/marantau/selfhost/.env")
+          url=$(ssh vps "sed -n 's/^API_EXTERNAL_URL=//p' /opt/marantau/selfhost/.env")
+          [ -n "$key" ] || { echo "::error::ANON_KEY tidak ada di .env VM."; exit 1; }
+          echo "::add-mask::$key"
+          MT_OUT=dist-uji MT_API_URL="${url:-https://api.marantau.web.id}" MT_API_KEY="$key" node tools/build.js
+      - name: Kirim ke VM
+        if: steps.ssh.outputs.ok == '1'
+        run: |
+          ssh vps 'install -d -m 755 /opt/marantau/uji'
+          rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r dist-uji/ vps:/opt/marantau/uji/
+          v=$(node -p "require('./dist-uji/version.json').v")
+          for i in $(seq 1 6); do
+            got=$(curl -s https://api.marantau.web.id/uji/version.json | sed -nE 's/.*"v":"([^"]+)".*/\1/p')
+            [ "$got" = "$v" ] && break; sleep 5
+          done
+          if [ "$got" = "$v" ]; then echo "::notice::Versi uji $v aktif: https://api.marantau.web.id/uji/"
+          else echo "::warning::Berkas terkirim, tapi /uji/ belum melayani versi $v (jalankan VPS deploy sekali supaya Caddy memuat rute /uji/)."; fi

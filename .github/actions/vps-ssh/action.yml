@@ -1,0 +1,36 @@
+# Siapkan SSH ke VM Biznet sebagai host "vps" (satu koneksi dipakai ulang - ufw `limit 22`).
+# Dipakai workflow vps-sync, deploy-db (job VM), vps-web-uji.
+name: VPS SSH
+description: Tulis kunci, known_hosts dan ~/.ssh/config untuk host "vps"
+inputs:
+  key: { required: true }
+  known: { required: true }
+  host: { required: true }
+  user: { required: true }
+outputs:
+  ok:
+    description: "'1' bila secret lengkap & VM bisa dihubungi"
+    value: ${{ steps.s.outputs.ok }}
+runs:
+  using: composite
+  steps:
+    - id: s
+      shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        KNOWN: ${{ inputs.known }}
+        HOST: ${{ inputs.host }}
+        USR: ${{ inputs.user }}
+      run: |
+        for v in KEY KNOWN HOST USR; do
+          [ -n "${!v}" ] || { echo "::warning::Secret VPS_* belum lengkap ($v)."; echo "ok=0" >> "$GITHUB_OUTPUT"; exit 0; }
+        done
+        install -d -m 700 ~/.ssh
+        printf '%s\n' "$KEY" > ~/.ssh/vps && chmod 600 ~/.ssh/vps
+        printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+        printf 'Host vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/vps\n  StrictHostKeyChecking yes\n  ServerAliveInterval 20\n  ControlMaster auto\n  ControlPath ~/.ssh/cm-%%C\n  ControlPersist 30m\n' "$HOST" "$USR" > ~/.ssh/config
+        if ssh -o ConnectTimeout=20 vps 'docker inspect -f "{{.State.Running}}" supabase-db' 2>/dev/null | grep -q true; then
+          echo "ok=1" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::VM tidak bisa dihubungi atau supabase-db tidak jalan."; echo "ok=0" >> "$GITHUB_OUTPUT"
+        fi

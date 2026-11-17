@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Uji kecepatan - Supabase vs Biznet</title>
+<!-- Fase 2.5 rencana pindah server. Dibuka dari browser di Indonesia, mengukur server lama & baru bergantian.
+     Hanya membaca / denyut biasa: tidak mengirim chat, tidak mengubah data pemain. Sandi tidak disimpan. -->
+<script src="vendor/supabase.js"></script>
+<script src="cloud-config.js"></script>
+<script src="config.js"></script>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 0; background: #0f1720; color: #e6edf3; }
+  main { max-width: 980px; margin: 0 auto; padding: 18px; }
+  h1 { font-size: 20px; margin: 0 0 4px; } .muted { color: #8b98a5; }
+  form, .card { background: #16212c; border: 1px solid #243341; border-radius: 10px; padding: 14px; margin: 12px 0; }
+  input { background: #0f1720; color: inherit; border: 1px solid #2f4253; border-radius: 6px; padding: 7px 9px; width: 150px; }
+  button { background: #2f81f7; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; } button.ghost { background: #243341; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #243341; text-align: right; } th:first-child, td:first-child { text-align: left; }
+  .ok { color: #3fb950; } .bad { color: #f85149; } .eh { color: #d29922; }
+  pre { white-space: pre-wrap; font-size: 12px; background: #0b1117; padding: 10px; border-radius: 8px; max-height: 260px; overflow: auto; }
+  label { margin-right: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Uji kecepatan: Supabase (lama) vs Biznet (baru)</h1>
+  <p class="muted">Masuk dengan akun <b>GM</b> (server baru sedang mode pemeliharaan, hanya GM yang lolos). Sandi sama di kedua server.
+    Tidak ada chat terkirim dan tidak ada data yang berubah. Jalankan dari HP / laptop di Indonesia, idealnya 2-3 kali di jam berbeda.</p>
+  <form id="f">
+    <label>Username <input id="u" autocomplete="username" required></label>
+    <label>Sandi <input id="p" type="password" autocomplete="current-password" required></label>
+    <label>Ulangan <input id="n" type="number" value="15" min="5" max="60" style="width:70px"></label>
+    <button id="go">Mulai uji</button>
+  </form>
+  <div class="card"><div id="status" class="muted">Belum mulai.</div>
+    <table id="tbl" hidden><thead><tr><th>Ukuran</th><th>Lama p50</th><th>Lama p95</th><th>Baru p50</th><th>Baru p95</th><th>Baru maks</th><th>Hasil</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="card"><button id="copy" class="ghost" disabled>Salin hasil (kirim ke Claude)</button><pre id="out" hidden></pre></div>
+</main>
+<script>
+'use strict';
+(function () {
+  var SERVERS = [
+    { id: 'lama', nama: 'Supabase', cfg: window.MT_CONFIG_CLOUD },
+    { id: 'baru', nama: 'Biznet', cfg: window.MT_CONFIG }
+  ];
+  // Syarat Fase 2.5: "lebih cepat" (atau "sama atau lebih cepat" untuk broadcast).
+  var UKURAN = [
+    { k: 'join', t: 'Masuk kanal privat (chat:global)', syarat: 'lebih' },
+    { k: 'bc', t: 'Pulang-pergi broadcast', syarat: 'sama' },
+    { k: 'api_ping', t: 'api_ping', syarat: 'lebih' },
+    { k: 'api_mppulse', t: 'api_mpPulse', syarat: 'lebih' },
+    { k: 'api_gamestate', t: 'api_getGameState', syarat: 'lebih' },
+    { k: 'api_citybundle', t: 'api_getCityBundle', syarat: 'lebih' }
+  ];
+  var $ = function (s) { return document.querySelector(s); };
+  var hasil = {}, catatan = [];
+  function st(m) { $('#status').textContent = m; }
+  function now() { return performance.now(); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function pct(a, q) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }); return s[Math.min(s.length - 1, Math.floor(q * (s.length - 1) + 0.5))]; }
+  function catat(sv, k, ms) { var h = hasil[sv] = hasil[sv] || {}; (h[k] = h[k] || []).push(ms); }
+  function withTimeout(p, ms, what) { return Promise.race([p, sleep(ms).then(function () { throw new Error(what + ' > ' + ms + ' ms'); })]); }
+
+  async function masuk(s, u, p) {
+    s.sb = window.supabase.createClient(s.cfg.supabaseUrl, s.cfg.supabaseKey,
+      { auth: { persistSession: false, autoRefreshToken: true, storageKey: 'mt_uji_kc_' + s.id } });
+    var r = await s.sb.auth.signInWithPassword({ email: u + '@' + (s.cfg.emailDomain || 'marantau.game'), password: p });
+    if (r.error) throw new Error(s.nama + ': login gagal - ' + r.error.message);
+    var g = await s.sb.rpc('api_getgamestate', { a: [] });
+    if (g.error) throw new Error(s.nama + ': api_getGameState - ' + (g.error.code === 'MT_MAINT' ? 'mode pemeliharaan (pakai akun GM)' : g.error.message));
+    s.city = g.data && g.data.city && g.data.city.CityId;
+    await s.sb.realtime.setAuth();
+  }
+  async function rpc(s, k, fn, args) {
+    var t = now(), r = await s.sb.rpc(fn, { a: args });
+    var ms = now() - t;
+    if (r.error) { catatan.push(s.nama + ' ' + fn + ': ' + (r.error.code || '') + ' ' + r.error.message); return; }
+    catat(s.id, k, ms);
+  }
+  async function join(s) {
+    var ch = s.sb.channel('chat:global', { config: { private: true } }), t = now();
+    try {
+      await withTimeout(new Promise(function (ok, no) {
+        ch.subscribe(function (stt, err) { if (stt === 'SUBSCRIBED') ok(); else if (stt !== 'CLOSED') no(err || new Error(stt)); });
+      }), 10000, 'masuk kanal');
+      catat(s.id, 'join', now() - t);
+    } catch (e) { catatan.push(s.nama + ' kanal: ' + e.message); }
+    await s.sb.removeChannel(ch);
+  }
+  async function broadcast(s, n) {
+    // Kanal publik acak (tanpa kebijakan RLS, bukan kanal game) + self:true -> waktu pulang-pergi server Realtime.
+    var topic = 'uji-kc-' + Math.random().toString(36).slice(2), tunggu = {};
+    var ch = s.sb.channel(topic, { config: { broadcast: { self: true, ack: false } } });
+    ch.on('broadcast', { event: 'p' }, function (m) { var f = tunggu[m.payload.i]; if (f) f(); });
+    try {
+      await withTimeout(new Promise(function (ok, no) { ch.subscribe(function (stt, err) { if (stt === 'SUBSCRIBED') ok(); else if (stt !== 'CLOSED') no(err || new Error(stt)); }); }), 10000, 'kanal broadcast');
+      for (var i = 0; i < n; i++) {
+        var t = now();
+        await withTimeout(new Promise(function (ok) { tunggu[i] = ok; ch.send({ type: 'broadcast', event: 'p', payload: { i: i } }); }), 5000, 'broadcast')
+          .then(function () { catat(s.id, 'bc', now() - t); }, function (e) { catatan.push(s.nama + ' ' + e.message); });
+        await sleep(150);
+      }
+    } catch (e) { catatan.push(s.nama + ' broadcast: ' + e.message); }
+    await s.sb.removeChannel(ch);
+  }
+
+  function f0(v) { return v == null ? '-' : Math.round(v) + ' ms'; }
+  function render() {
+    var tb = $('#tbl tbody'), lines = [];
+    tb.innerHTML = '';
+    lines.push('Uji kecepatan Supabase vs Biznet - ' + new Date().toLocaleString('id-ID') + ' - ' + navigator.userAgent.replace(/\s+/g, ' ').slice(0, 90));
+    lines.push(['ukuran', 'lama_p50', 'lama_p95', 'baru_p50', 'baru_p95', 'baru_maks', 'n', 'hasil'].join('\t'));
+    UKURAN.forEach(function (u) {
+      var a = (hasil.lama || {})[u.k] || [], b = (hasil.baru || {})[u.k] || [];
+      var a50 = pct(a, .5), a95 = pct(a, .95), b50 = pct(b, .5), b95 = pct(b, .95), bmax = b.length ? Math.max.apply(null, b) : null;
+      var lulus = a50 != null && b50 != null && (u.syarat === 'lebih' ? b50 < a50 : b50 <= a50 * 1.1) && (b95 <= Math.max(a95, 3000));
+      var label = a50 == null || b50 == null ? '?' : lulus ? 'LOLOS' : 'KALAH';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + u.t + '</td><td>' + f0(a50) + '</td><td>' + f0(a95) + '</td><td>' + f0(b50) + '</td><td>' + f0(b95) + '</td><td>' + f0(bmax) +
+        '</td><td class="' + (label === 'LOLOS' ? 'ok' : label === 'KALAH' ? 'bad' : 'eh') + '">' + label + '</td>';
+      tb.appendChild(tr);
+      lines.push([u.k, a50, a95, b50, b95, bmax, a.length + '/' + b.length, label].map(function (x) { return x == null ? '-' : typeof x === 'number' ? Math.round(x) : x; }).join('\t'));
+    });
+    if (catatan.length) lines.push('Catatan (' + catatan.length + '): ' + catatan.slice(0, 12).join(' | '));
+    $('#tbl').hidden = false; $('#out').hidden = false; $('#out').textContent = lines.join('\n'); $('#copy').disabled = false;
+  }
+
+  $('#f').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var u = $('#u').value.trim().toLowerCase(), p = $('#p').value, n = Math.max(5, Math.min(60, +$('#n').value || 15));
+    $('#go').disabled = true; hasil = {}; catatan = [];
+    try {
+      if (!window.MT_CONFIG_CLOUD || !window.MT_CONFIG) throw new Error('Konfigurasi server tidak lengkap.');
+      for (var s of SERVERS) { st('Masuk ke ' + s.nama + '...'); await masuk(s, u, p); }
+      $('#p').value = '';
+      var since = { g: Date.now(), c: Date.now(), ib: Date.now() };
+      // Bergantian lama/baru tiap ulangan supaya kondisi jaringan adil.
+      for (var i = 0; i < n; i++) {
+        for (var s2 of (i % 2 ? SERVERS.slice().reverse() : SERVERS)) {
+          st('Ulangan ' + (i + 1) + '/' + n + ' - ' + s2.nama);
+          await rpc(s2, 'api_ping', 'api_ping', []);
+          await rpc(s2, 'api_mppulse', 'api_mppulse', [since]);
+          await rpc(s2, 'api_gamestate', 'api_getgamestate', []);
+          if (s2.city) await rpc(s2, 'api_citybundle', 'api_getcitybundle', [s2.city]);
+          await join(s2);
+          await sleep(200);
+        }
+        render();
+      }
+      for (var s3 of SERVERS) { st('Broadcast ' + s3.nama + '...'); await broadcast(s3, n); }
+      render();
+      st('Selesai. ' + (catatan.length ? catatan.length + ' catatan error - lihat di bawah.' : 'Tanpa error.'));
+    } catch (err) { st('Gagal: ' + err.message); }
+    for (var s4 of SERVERS) { try { if (s4.sb) await s4.sb.auth.signOut({ scope: 'local' }); } catch (e2) {} }
+    $('#go').disabled = false;
+  });
+  $('#copy').addEventListener('click', function () { navigator.clipboard.writeText($('#out').textContent).then(function () { st('Hasil tersalin.'); }); });
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 # HTTPS otomatis (Let's Encrypt) untuk server Marantau.
-# api.<domain> : hanya jalur yang dipakai game (auth, rest, realtime). Selain itu 404.
+# api.<domain> : hanya jalur yang dipakai game (auth, rest, realtime) + /uji/ (versi uji game, Fase 2).
+#                Selain itu 404.
 # ops.<domain> : Panel Ops (1.5), login sandi + 2FA.
 {
 	email {$ACME_EMAIL}
@@ -16,6 +17,17 @@
 		reverse_proxy api-gw:8000 {
 			header_up X-Real-IP {remote_host}
 		}
+	}
+
+	# Versi uji game (Fase 2): asal (origin) terpisah dari GitHub Pages -> localStorage/sesi tidak
+	# bercampur dengan game asli. Berkas dikirim workflow "VPS web uji" ke /opt/marantau/uji.
+	redir /uji /uji/ 308
+	handle_path /uji/* {
+		root * /srv/uji
+		@segar path / /index.html /config.js /version.json
+		header @segar Cache-Control "no-cache"
+		header X-Robots-Tag "noindex, nofollow"
+		file_server
 	}
 
 	handle {

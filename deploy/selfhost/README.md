@@ -66,5 +66,15 @@ Bot hanya menjawab chat pemilik (`OPS_TELEGRAM_CHAT_ID`), lewat long polling dar
 (puncak server 24 jam, layanan & restart, pemain online + puncak, endpoint terlambat, 5xx, sertifikat, backup).
 Tidak ada perintah restart/ubah data - restart hanya lewat Panel Ops (2FA).
 
-## Belum di sini
-Uji Realtime di Panel Ops & sinkron data (Fase 2).
+## Fase 2 - gladi resik
+| Bagian | Berkas | Kapan |
+|---|---|---|
+| 2.1 Sync malam cloud → VM | `.github/workflows/vps-sync.yml`, `tools/vps/sync-cloud-to-vps.sh` | 02:37 WIB + manual |
+| 2.2 Deploy migrasi ganda | job `deploy-vps` di `deploy-db.yml`, `tools/vps/migrate-vps.sh`, `tools/vps/fixups-vps.sql` | tiap migrasi di main |
+| 2.3 Versi uji game | `.github/workflows/vps-web-uji.yml`, `tools/build.js` (`MT_API_URL`), rute `/uji/` di `Caddyfile` | tiap perubahan `web/` di main + manual |
+| 2.5 Uji kecepatan A/B | `web/uji/kecepatan.html` → `https://api.marantau.web.id/uji/kecepatan.html` | manual, dari browser di Indonesia |
+
+- **Sync** = pg_dump cloud (skrip Fase 0) → lewat SSH (stdin, tidak disimpan di disk VM) → hentikan auth/rest/realtime → hapus schema `game`, `public`, `auth` → `pg_restore` (pemilik objek dipertahankan) → semua migrasi main → `marantau.sql` → **mode pemeliharaan ON di VM** → cocokkan jumlah baris → layanan nyala lagi. Manual dengan `maint = false` untuk uji multi-akun / `test/raidbot.js`.
+- **Migrasi ke VM** dijalankan `supabase_admin` + `set role postgres` (pemilik & hak sama dengan cloud), satu transaksi. Sesudahnya `fixups-vps.sql` (superuser) memastikan gerbang `pgrst.db_pre_request`, 3 kebijakan Realtime, dan hak baca `mt_ops_ro`. Gagal di VM tidak memblokir deploy cloud.
+- **Versi uji** disajikan Caddy di `https://api.marantau.web.id/uji/` (origin beda dari GitHub Pages → sesi/localStorage game asli tidak tersentuh). `ANON_KEY` dibaca dari `.env` VM. Pita merah "VERSI UJI" di layar, `noindex`.
+- **Token server lama** (rencana 1.4) di `web/mt-supabase.js`: `iss` token ≠ server sekarang → `refreshSession()` sekali; 401/JWT ditolak → refresh + ulangi panggilan sekali.
