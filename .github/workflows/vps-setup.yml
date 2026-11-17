@@ -1,0 +1,30 @@
+# Pengamanan & persiapan VM Biznet (Fase 1.2). Manual dari tab Actions. Aman diulang.
+# Secret: VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS.
+name: VPS setup
+on: workflow_dispatch
+concurrency: { group: vps, cancel-in-progress: false }
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Siapkan SSH
+        env:
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN: ${{ secrets.VPS_KNOWN_HOSTS }}
+          HOST: ${{ secrets.VPS_HOST }}
+          USR: ${{ secrets.VPS_USER }}
+        run: |
+          for v in KEY KNOWN HOST USR; do [ -n "${!v}" ] || { echo "::error::Secret VPS_* belum lengkap ($v)."; exit 1; }; done
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/vps && chmod 600 ~/.ssh/vps
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+          printf 'Host vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/vps\n  StrictHostKeyChecking yes\n  ServerAliveInterval 20\n' "$HOST" "$USR" > ~/.ssh/config
+          ssh vps 'echo "Tersambung ke $(hostname) sebagai $(whoami)"'
+      - name: Jalankan setup.sh
+        run: |
+          scp -q deploy/vps/setup.sh vps:/tmp/marantau-setup.sh
+          ssh vps 'sudo bash /tmp/marantau-setup.sh "$(whoami)"; rc=$?; rm -f /tmp/marantau-setup.sh; exit $rc'
+      - name: Cek ulang SSH setelah pengamanan
+        run: ssh vps 'echo "SSH masih bisa masuk - aman."'
