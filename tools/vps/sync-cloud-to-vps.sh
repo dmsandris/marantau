@@ -66,8 +66,9 @@ echo "--- 4b. ANALYZE (pg_restore tidak membawa statistik -> tanpa ini rencana q
 psql_vps -c "analyze"
 
 echo "--- 5. Setelan role Marantau + sandi role hanya-baca"
-ssh vps "cd $SH && docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1 < volumes/db/marantau.sql \
-  && set -a && . ./.env && set +a \
+# marantau.sql dari repo (bukan salinan di VM, yang hanya diperbarui VPS deploy).
+psql_vps < deploy/selfhost/volumes/db/marantau.sql
+ssh vps "cd $SH && set -a && . ./.env && set +a \
   && printf \"alter role mt_ops_ro password '%s';\n\" \"\$MT_OPS_RO_PASSWORD\" | docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1"
 
 echo "--- 6. Mode pemeliharaan VM: $([ "$MAINT" = 1 ] && echo ON '(hanya GM)' || echo 'tidak diubah (ikut cloud)')"
