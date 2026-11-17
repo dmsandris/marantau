@@ -33,7 +33,7 @@ jobs:
       - name: Kirim berkas compose
         run: |
           # -i: catat berkas yang berubah, supaya layanan yang konfigurasinya berubah ikut dimuat ulang.
-          rsync -azi --delete \
+          rsync -aziL --delete \
             --exclude '.env' --exclude 'volumes/db/data/' --exclude 'ops/node_modules/' \
             deploy/selfhost/ vps:/opt/marantau/selfhost/ | tee /tmp/rsync.log
           reload=""
@@ -42,6 +42,33 @@ jobs:
           echo "RELOAD=$reload" >> "$GITHUB_ENV"
           echo "Layanan yang akan dimuat ulang:${reload:- (tidak ada)}"
           ssh vps 'chmod +x /opt/marantau/selfhost/*.sh; command -v qrencode >/dev/null || sudo apt-get install -y -qq qrencode >/dev/null'
+
+      - name: Pasang backup VM (1.7)
+        env:
+          RC: ${{ secrets.RCLONE_CONF }}
+          AGE_R: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          ssh vps 'install -d -m 755 /opt/marantau/backup /opt/marantau/backup/req && install -d -m 700 ~/.config/marantau'
+          r=$(printf '%s' "$AGE_R" | grep -oE 'age1[0-9a-z]{58}' | head -1 || true)
+          if [ -n "$r" ]; then printf '%s\n' "$r" | ssh vps 'umask 077; cat > ~/.config/marantau/age-recipient.txt'; echo "Kunci publik age: terpasang";
+          else echo "::warning::Secret BACKUP_AGE_RECIPIENT kosong/tidak valid - backup VM belum bisa jalan."; fi
+          if [ -n "$RC" ]; then
+            if ssh vps 'test -s ~/.config/marantau/rclone.conf'; then echo "rclone.conf: sudah ada (tidak ditimpa)";
+            else printf '%s\n' "$RC" | ssh vps 'umask 077; cat > ~/.config/marantau/rclone.conf'; echo "rclone.conf: dipasang"; fi
+          else echo "::warning::Secret RCLONE_CONF kosong - backup VM belum bisa upload."; fi
+          ssh vps 'set -e
+            v=$(rclone version 2>/dev/null | head -1 | grep -oE "[0-9]+\.[0-9]+" | head -1 | cut -d. -f2)
+            if [ "${v:-0}" -lt 70 ]; then
+              sudo apt-get install -y -qq unzip >/dev/null
+              curl -fsSL https://rclone.org/install.sh | sudo bash >/dev/null 2>&1 || true
+            fi
+            echo "$(rclone version | head -1)"
+            rclone --config ~/.config/marantau/rclone.conf lsd gdrive:marantau-backup >/dev/null 2>&1 \
+              && echo "Google Drive: terhubung" || echo "::warning::rclone belum bisa membuka gdrive:marantau-backup"
+            sudo install -m 644 /opt/marantau/selfhost/backup/systemd/* /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now marantau-backup.timer marantau-restore-test.timer marantau-backup-req.path marantau-restore-req.path >/dev/null 2>&1
+            systemctl list-timers "marantau-*" --no-pager | head -4'
 
       - name: Buat .env (sekali saja) & atur profil HTTPS
         env: { HTTPS_ON: '${{ inputs.https }}' }
@@ -81,6 +108,11 @@ jobs:
           echo "https://ops.marantau.web.id/healthz -> $ops"
           echo "$ops" | grep -q '"ok":true' || { echo "::error::Panel Ops tidak menjawab (Caddy masih konfigurasi lama?)."; exit 1; }
           { [ "$code" = 401 ] || [ "$code" = 200 ]; } || { echo "::error::HTTPS belum jalan. Cek DNS & log caddy."; ssh vps 'cd /opt/marantau/selfhost && docker compose logs --tail 30 caddy'; exit 1; }
+
+      - name: Backup pertama (bila belum pernah)
+        run: |
+          ssh vps 'if [ ! -s /opt/marantau/backup/status.json ] && [ -s ~/.config/marantau/age-recipient.txt ]; then
+            sudo systemctl start --no-block marantau-backup.service; echo "Backup pertama dimulai - lihat Panel Ops > Backup."; else echo "Lewati."; fi'
 
       - name: Pemakaian RAM
         run: ssh vps 'free -h; echo; docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}"'

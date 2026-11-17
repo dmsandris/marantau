@@ -48,6 +48,7 @@ ensure() {
 ensure OPS_PASSWORD "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
 ensure OPS_TOTP_SECRET "$(base32)"
 ensure OPS_SESSION_SECRET "$(openssl rand -hex 32)"
+ensure OPS_MCP_TOKEN "$(openssl rand -hex 32)"
 ensure OPS_TELEGRAM_TOKEN ""
 ensure OPS_TELEGRAM_CHAT_ID ""
 

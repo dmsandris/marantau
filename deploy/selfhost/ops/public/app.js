@@ -151,18 +151,57 @@ async function loadDb() {
 }
 
 // ---------- Backup ----------
+const ago = iso => { if (!iso) return '-'; const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 60 ? `${m} menit lalu` : m < 2880 ? `${Math.round(m / 60)} jam lalu` : `${Math.round(m / 1440)} hari lalu`; };
 async function loadBackup() {
   const [b, o] = await Promise.all([api('/api/backup'), api('/api/overview')]);
-  const s = b.status;
-  $('#bkStatus').innerHTML = s
-    ? `Terakhir berhasil: <b>${esc(s.lastOk || '-')}</b> · ukuran ${esc(s.size || '-')} · tes restore: <b>${esc(s.restoreTest || '-')}</b>`
-    : `<span class="muted">${esc(b.note || 'Belum ada status backup.')}</span>`;
-  $('#bkFiles').innerHTML = table([{ h: 'Berkas', k: 'name' }, { h: 'Ukuran', k: 'sz', num: 1 }, { h: 'Waktu', k: 'tm' }],
-    b.files.map(f => ({ ...f, sz: mb(f.size), tm: fmtTime(f.mtime) })));
-  $('#tgState').textContent = o.telegram ? 'Aktif: RAM > 85%, swap, disk > 80%, IOwait, layanan mati, backup basi, lonjakan 5xx.' : 'Belum diatur. Isi OPS_TELEGRAM_TOKEN dan OPS_TELEGRAM_CHAT_ID di .env VM.';
+  const s = b.status || {};
+  const running = s.running || (b.pending || []).join(', ');
+  const okAge = s.lastOk ? (Date.now() - Date.parse(s.lastOk)) / 3600e3 : null;
+  $('#bkStatus').innerHTML = !b.status && b.note ? `<span class="muted">${esc(b.note)}</span>` : `<div class="bk-grid">
+    <div><span class="muted">Terakhir berhasil</span><b class="${okAge == null || okAge > 30 ? 'err' : ''}">${esc(s.lastOk ? fmtTime(s.lastOk) : 'belum pernah')}</b><span class="muted">${esc(ago(s.lastOk))}</span></div>
+    <div><span class="muted">Hasil terakhir</span><b class="${s.lastResult === 'gagal' ? 'err' : ''}">${esc(s.lastResult || '-')}</b><span class="muted">${esc(s.lastError || '')}</span></div>
+    <div><span class="muted">Ukuran / isi</span><b>${esc(s.size || '-')}</b><span class="muted">${esc(s.tables || '-')} tabel · ${esc(s.rows || '-')} baris · Realtime ${esc(s.realtimePolicies ?? '-')} kebijakan</span></div>
+    <div><span class="muted">Tes restore</span><b class="${s.restoreTest === 'GAGAL' ? 'err' : ''}">${esc(s.restoreTest || 'belum')}</b><span class="muted">${esc(s.restoreAt ? fmtTime(s.restoreAt) : '')}</span></div>
+    <div><span class="muted">Google Drive</span><b>${esc(s.driveFiles ?? '-')} file</b><span class="muted">vps/ · simpan 30 hari</span></div>
+    <div><span class="muted">Sedang berjalan</span><b>${esc(running || 'tidak')}</b><span class="muted">jadwal 03:47 WIB · tes Minggu 04:20</span></div>
+  </div>${s.restoreNote ? `<p class="muted">${esc(s.restoreNote)}</p>` : ''}`;
+  $('#bkRun').disabled = $('#bkTest').disabled = !!running;
+  $('#bkFiles').innerHTML = table([{ h: 'Berkas lokal (7 hari)', k: 'name' }, { h: 'Ukuran', k: 'sz', num: 1 }, { h: 'Waktu', k: 'tm' }],
+    b.files.filter(f => f.name !== 'status.json').map(f => ({ ...f, sz: mb(f.size), tm: fmtTime(f.mtime) })));
+  $('#tgState').textContent = o.telegram ? 'Aktif: RAM > 85%, swap, disk > 80%, IOwait, layanan mati, backup basi/gagal, lonjakan 5xx.' : 'Belum diatur. Jalankan di VM: sh /opt/marantau/selfhost/set-telegram.sh';
   $('#tgTest').disabled = !o.telegram;
+  if (running) setTimeout(() => { if (tab === 'backup') loadBackup().catch(() => {}); }, 10000);
 }
+async function runBackup(kind, label) {
+  if (!confirm(`${label}? Proses berjalan di latar belakang (±1–5 menit).`)) return;
+  try { await api('/api/backup/run', { method: 'POST', body: JSON.stringify({ kind }) }); toast(`${label} dimulai.`); setTimeout(loadBackup, 3000); }
+  catch (e) { toast(e.message); }
+}
+$('#bkRun').addEventListener('click', () => runBackup('backup', 'Backup sekarang'));
+$('#bkTest').addEventListener('click', () => runBackup('restore-test', 'Backup + tes restore'));
 $('#tgTest').addEventListener('click', async () => { try { await api('/api/telegram-test', { method: 'POST' }); toast('Pesan tes terkirim.'); } catch (e) { toast(e.message); } });
+
+// ---------- Debug ----------
+let dbgText = '';
+$('#dbgMake').addEventListener('click', async () => {
+  const b = $('#dbgMake'); b.disabled = true; b.textContent = 'Menyusun…';
+  try {
+    dbgText = (await api('/api/debug')).text;
+    $('#dbgText').textContent = dbgText; $('#dbgText').classList.remove('hidden');
+    $('#dbgCopy').disabled = $('#dbgSave').disabled = false;
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = 'Buat laporan';
+});
+$('#dbgCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(dbgText); toast('Laporan tersalin. Tempel ke chat Claude.'); }
+  catch { const r = document.createRange(); r.selectNodeContents($('#dbgText')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Tekan Ctrl+C untuk menyalin.'); }
+});
+$('#dbgSave').addEventListener('click', () => {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const name = `marantau-debug-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.txt`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([dbgText], { type: 'text/plain' })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
 
 // ---------- refresh ----------
 async function refresh() {
@@ -171,12 +210,13 @@ async function refresh() {
     if (tab === 'layanan') await loadServer();
     if (tab === 'db') await loadDb();
     if (tab === 'backup') await loadBackup();
+    // tab debug: laporan hanya dibuat saat tombol ditekan
   } catch (e) { if (e.message !== 'Belum login') toast(e.message); }
 }
 let timers = [];
 function startTimers() {
   stopTimers(); refresh();
-  timers.push(setInterval(() => { if (!document.hidden && tab !== 'backup') refresh(); }, 30000));
+  timers.push(setInterval(() => { if (!document.hidden && tab !== 'backup' && tab !== 'debug') refresh(); }, 30000));
   timers.push(setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('id-ID'); }, 1000));
 }
 function stopTimers() { timers.forEach(clearInterval); timers = []; }
