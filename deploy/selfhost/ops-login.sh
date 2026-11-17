@@ -15,4 +15,12 @@ echo "Pindai QR ini dengan Google Authenticator / Authy / 1Password:"
 if command -v qrencode >/dev/null; then qrencode -t ansiutf8 "$uri"; else echo "(qrencode belum terpasang: sudo apt-get install -y qrencode)"; fi
 echo "Kalau QR tidak bisa dipindai, masukkan kode manual: $secret"
 echo
+mcp=$(sed -n 's/^OPS_MCP_TOKEN=//p' .env)
+if [ -n "$mcp" ]; then
+  echo "Connector Claude (claude.ai > Settings > Connectors > Add custom connector):"
+  echo "  Nama : marantau-ops"
+  echo "  URL  : https://$domain/mcp/$mcp"
+  echo "  (URL ini rahasia - siapa pun yang punya bisa membaca server.)"
+  echo
+fi
 echo "Setelah tersimpan, bersihkan layar: clear"

@@ -20,7 +20,12 @@ const SESSION_KEY = ENV.OPS_SESSION_SECRET || crypto.randomBytes(32).toString('h
 const TG_TOKEN = ENV.OPS_TELEGRAM_TOKEN || '';
 const TG_CHAT = ENV.OPS_TELEGRAM_CHAT_ID || '';
 const DEV = ENV.OPS_DEV === '1';
+const BACKUP_REQ = ENV.OPS_BACKUP_REQ || '/backup-req';
+const MCP_TOKEN = ENV.OPS_MCP_TOKEN || '';
+const API_DOMAIN = ENV.OPS_API_DOMAIN || 'api.marantau.web.id';
+const VERSION = '1.6.0';
 
+if (MCP_TOKEN && MCP_TOKEN.length < 32) { console.error('OPS_MCP_TOKEN minimal 32 karakter.'); process.exit(1); }
 if (!PASSWORD || PASSWORD.length < 16 || !TOTP_SECRET) {
   console.error('OPS_PASSWORD (>=16) dan OPS_TOTP_SECRET wajib diisi.');
   process.exit(1);
@@ -250,7 +255,9 @@ async function dbStats() {
     slow: q(`select calls::int, round(mean_exec_time)::int as mean_ms, round(max_exec_time)::int as max_ms,
                     round(total_exec_time / 1000)::int as total_s,
                     coalesce(substring(query from 'public\\.(api_[a-zA-Z0-9_]+)'), left(regexp_replace(query, '\\s+', ' ', 'g'), 90)) as q
-             from extensions.pg_stat_statements where calls > 5 order by mean_exec_time desc limit 15`),
+             from extensions.pg_stat_statements
+             where calls > 5 and userid not in (select oid from pg_roles where rolname in ('mt_ops_ro', 'supabase_admin'))
+             order by mean_exec_time desc limit 15`),
     tables: q(`select c.relname as name, pg_size_pretty(pg_total_relation_size(c.oid)) as size, c.reltuples::bigint as rows_est
                from pg_class c join pg_namespace n on n.oid = c.relnamespace
                where n.nspname = 'game' and c.relkind = 'r' order by pg_total_relation_size(c.oid) desc limit 12`),
@@ -287,8 +294,13 @@ function backups() {
       const st = fs.statSync(path.join(BACKUP_DIR, f)); return { name: f, size: st.size, mtime: st.mtimeMs };
     }).sort((a, b) => b.mtime - a.mtime);
     let status = null; try { status = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, 'status.json'), 'utf8')); } catch {}
-    return { files: files.slice(0, 40), status };
-  } catch { return { files: [], status: null, note: 'Folder backup belum ada (menunggu 1.7).' }; }
+    let pending = []; try { pending = fs.readdirSync(BACKUP_REQ).filter(f => f === 'backup' || f === 'restore-test'); } catch {}
+    return { files: files.slice(0, 40), status, pending };
+  } catch { return { files: [], status: null, pending: [], note: 'Folder backup belum ada (jalankan VPS deploy).' }; }
+}
+function requestBackup(kind) {
+  if (kind !== 'backup' && kind !== 'restore-test') throw new Error('Jenis tidak dikenal.');
+  fs.writeFileSync(path.join(BACKUP_REQ, kind), new Date().toISOString());
 }
 
 // ---------- Peringatan Telegram ----------
@@ -338,6 +350,214 @@ if (TG_TOKEN && TG_CHAT) {
   setInterval(() => run5xxAlert().catch(() => {}), 10 * 60e3);
 }
 
+
+// ---------- Redaksi rahasia ----------
+const SECRET_VALUES = Object.entries(ENV)
+  .filter(([k, v]) => v && v.length >= 8 && /PASSWORD|SECRET|TOKEN|KEY|PGRST_JWT/i.test(k))
+  .map(([, v]) => v).sort((a, b) => b.length - a.length);
+function redact(text) {
+  let t = String(text);
+  for (const v of SECRET_VALUES) t = t.split(v).join('[rahasia]');
+  return t
+    .replace(/eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, '[JWT]')
+    .replace(/\bsb_(publishable|secret)_[\w-]+/g, '[kunci-sb]')
+    .replace(/(apikey|authorization|password|passwd|token|secret)(["'=:\s]+)(bearer\s+)?[^\s"',&]{6,}/gi, '$1$2[rahasia]')
+    .replace(/postgres(ql)?:\/\/([^:\s/]+):[^@\s]+@/g, 'postgres://$2:[rahasia]@');
+}
+
+// ---------- Laporan debug (untuk dikirim ke Claude) ----------
+const PROBLEM_RE = /\b(error|fatal|panic|fail(ed|ure)?|timeout|timed out|refused|denied|unhealthy|oom|killed|crash|exception|too many|reset by peer|could not)\b/i;
+async function containerInfo(name) {
+  try {
+    const j = await docker('GET', `/containers/${encodeURIComponent(name)}/json`);
+    return { restarts: j.RestartCount, oom: j.State.OOMKilled, started: j.State.StartedAt, exit: j.State.ExitCode, health: j.State.Health && j.State.Health.Status };
+  } catch (e) { return { error: e.message }; }
+}
+async function logLines(name, tail = 400, sinceSec = 0) {
+  const since = sinceSec ? `&since=${Math.floor(now() / 1000) - sinceSec}` : '';
+  const buf = await docker('GET', `/containers/${encodeURIComponent(name)}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=1${since}`, { raw: true, timeout: 20000 });
+  return demux(buf).split('\n').filter(Boolean);
+}
+function certInfo(host) {
+  return new Promise(resolve => {
+    const tls = require('tls');
+    const sock = tls.connect({ host: ENV.OPS_TLS_CHECK_HOST || 'caddy', port: 443, servername: host, rejectUnauthorized: false, timeout: 5000 }, () => {
+      const c = sock.getPeerCertificate(); sock.end();
+      if (!c || !c.valid_to) return resolve({ error: 'tidak ada sertifikat' });
+      resolve({ issuer: (c.issuer && (c.issuer.O || c.issuer.CN)) || '?', validTo: new Date(c.valid_to).toISOString().slice(0, 10), daysLeft: Math.floor((Date.parse(c.valid_to) - now()) / 86400e3) });
+    });
+    sock.on('error', e => resolve({ error: e.message }));
+    sock.on('timeout', () => { sock.destroy(); resolve({ error: 'timeout' }); });
+  });
+}
+function peaks(hours) {
+  const cut = now() - hours * 3600e3, pts = ring.filter(x => x.t >= cut);
+  const mx = k => { const v = pts.map(x => x[k]).filter(x => x != null); return v.length ? Math.round(Math.max(...v) * 10) / 10 : '-'; };
+  return `CPU ${mx('cpu')}% · IOwait ${mx('iow')}% · RAM ${mx('mem')}% · swap ${mx('swapMb')} MB · load ${mx('load')}`;
+}
+async function debugReport({ logLinesPer = 25 } = {}) {
+  const L = [], add = (...a) => L.push(...a);
+  const h0 = current(), r = v => v == null ? '-' : Math.round(v * 10) / 10;
+  const h = { ...h0, cpu: r(h0.cpu), iow: r(h0.iow), steal: r(h0.steal), load: r(h0.load) };
+  const [sv, stats, db, h5, certApi, certOps] = await Promise.all([
+    services(), serviceStats(), dbStats().catch(e => ({ errors: { all: e.message } })), http5xx(24),
+    certInfo(API_DOMAIN), certInfo(ENV.OPS_DOMAIN || 'ops.marantau.web.id'),
+  ]);
+  add(`# Laporan debug Marantau Ops v${VERSION}`, `Waktu: ${new Date().toISOString()} (WIB ${new Date(now() + 7 * 3600e3).toISOString().slice(11, 16)})`, '');
+  add('## Host',
+    `CPU ${h.cpu ?? '-'}% · IOwait ${h.iow ?? '-'}% · steal ${h.steal ?? '-'}% · load ${h.load ?? '-'} (${h.cores} core)`,
+    `RAM ${Math.round(h.memUsed / 1048576)}/${Math.round(h.memTotal / 1048576)} MB · swap ${Math.round(h.swapUsed / 1048576)}/${Math.round(h.swapTotal / 1048576)} MB · disk ${(h.diskUsed / 1073741824).toFixed(1)}/${(h.diskTotal / 1073741824).toFixed(1)} GB · uptime ${Math.round(h.uptimeSec / 3600)} jam`,
+    `Puncak 1 jam: ${peaks(1)}`, `Puncak 24 jam: ${peaks(24)}`, '');
+  add('## Sertifikat HTTPS',
+    `api: ${certApi.error || `${certApi.issuer}, berlaku s/d ${certApi.validTo} (${certApi.daysLeft} hari)`}`,
+    `ops: ${certOps.error || `${certOps.issuer}, berlaku s/d ${certOps.validTo} (${certOps.daysLeft} hari)`}`, '');
+  add('## Layanan');
+  if (sv.error) add(`Docker tidak terbaca: ${sv.error}`);
+  const infos = await Promise.all((sv.items || []).map(s => containerInfo(s.name)));
+  (sv.items || []).forEach((s, i) => {
+    const inf = infos[i];
+    add(`- ${s.label} [${s.name}]: ${s.state}${s.health ? '/' + s.health : ''} · ${s.status || '-'} · RAM ${stats[s.name] ? stats[s.name].memMb + ' MB' : '-'} · restart ${inf.restarts ?? '-'}${inf.oom ? ' · OOMKilled!' : ''} · ${s.image || ''}`);
+  });
+  add('');
+  add('## Database');
+  if (db.errors) add(`Error: ${JSON.stringify(db.errors)}`);
+  const conns = (db.conns || []).reduce((a, c) => a + c.n, 0);
+  add(`Online ${db.online ?? '-'} · koneksi ${conns}/${db.maxConn ?? '-'} · kunci menunggu ${db.waitingLocks ?? '-'} · ukuran ${db.size ?? '-'}`);
+  for (const c of db.conns || []) add(`  koneksi ${c.role}/${c.state}: ${c.n}`);
+  for (const t of db.longTx || []) add(`  transaksi lama: pid ${t.pid} ${t.role} ${t.state} ${t.sec}s :: ${t.query}`);
+  add('Endpoint terlambat (rata² ms / maks ms / panggilan):');
+  for (const r of (db.slow || []).slice(0, 10)) add(`  ${r.q}: ${r.mean_ms} / ${r.max_ms} / ${r.calls}`);
+  add('');
+  add('## HTTP api (24 jam)', h5.error ? `Log Caddy tidak terbaca: ${h5.error}` : `${h5.total} permintaan · ${h5.err} error 5xx · per jam (UTC): ${JSON.stringify(h5.perHour)}`, '');
+  const b = backups();
+  add('## Backup', b.status ? JSON.stringify(b.status) : (b.note || 'belum ada status'), `File lokal: ${b.files.filter(f => f.name.endsWith('.age')).length} · antrean: ${b.pending.join(',') || '-'}`, '');
+  add('## Peringatan aktif', [...alertState.entries()].filter(([, v]) => v.active).map(([k]) => k).join(', ') || '-', '');
+  add(`## Log bermasalah (maks ${logLinesPer} baris per layanan, 24 jam terakhir)`);
+  for (const s of SERVICES) {
+    try {
+      const lines = (await logLines(s.name, 2000, 86400)).filter(l => PROBLEM_RE.test(l) && !/"status":(2|3)\d\d/.test(l));
+      add(`### ${s.name} (${lines.length} baris bermasalah)`);
+      for (const l of lines.slice(-logLinesPer)) add(l.slice(0, 400));
+    } catch (e) { add(`### ${s.name}: log tidak terbaca (${e.message})`); }
+  }
+  add('', '## Log terakhir (10 baris per layanan)');
+  for (const s of SERVICES) {
+    try { add(`### ${s.name}`, ...(await logLines(s.name, 10)).map(l => l.slice(0, 300))); } catch {}
+  }
+  return redact(L.join('\n'));
+}
+
+// ---------- Connector Claude (MCP, hanya-baca) ----------
+const roPool = new Pool({
+  host: ENV.OPS_PG_HOST || 'db', port: +(ENV.OPS_PG_PORT || 5432), database: 'postgres',
+  user: ENV.OPS_PG_USER || 'mt_ops_ro', password: ENV.OPS_PG_PASSWORD || '',
+  max: 2, idleTimeoutMillis: 30000, connectionTimeoutMillis: 4000, application_name: 'marantau-ops-mcp',
+});
+roPool.on('error', e => console.error('pg ro pool:', e.message));
+const MAX_ROWS = 200;
+let qSeq = 0;
+async function readOnlyQuery(sql) {
+  sql = String(sql || '').trim().replace(/;\s*$/, '');
+  if (!sql) throw new Error('SQL kosong.');
+  if (sql.length > 8000) throw new Error('SQL terlalu panjang (maks 8000 karakter).');
+  const c = await roPool.connect();
+  let broken = false;
+  try {
+    await c.query('begin read only');
+    await c.query("set local statement_timeout = '5s'");
+    await c.query("set local idle_in_transaction_session_timeout = '10s'");
+    // Prepared statement (protokol extended) => Postgres menolak lebih dari SATU pernyataan.
+    const name = 'mt_q' + (++qSeq);
+    if (/^\s*(explain|show)\b/i.test(sql)) {
+      const r = await c.query({ name, text: sql });
+      return { columns: (r.fields || []).map(f => f.name), rows: r.rows.slice(0, MAX_ROWS), rowCount: r.rowCount, truncated: r.rows.length > MAX_ROWS };
+    }
+    // Lewat cursor supaya hasil besar tidak ditarik semua ke memori.
+    await c.query({ name, text: `declare mt_cur no scroll cursor for ${sql}` });
+    const r = await c.query(`fetch ${MAX_ROWS + 1} from mt_cur`);
+    return { columns: (r.fields || []).map(f => f.name), rows: r.rows.slice(0, MAX_ROWS), rowCount: Math.min(r.rows.length, MAX_ROWS), truncated: r.rows.length > MAX_ROWS };
+  } catch (e) {
+    if (/syntax error at or near "(declare|;)"/i.test(e.message) || /cannot insert multiple commands/i.test(e.message)) e.message = 'Hanya SATU pernyataan SELECT/WITH/VALUES/EXPLAIN/SHOW. ' + e.message;
+    throw e;
+  } finally {
+    try { await c.query('rollback'); await c.query('deallocate all'); } catch { broken = true; }
+    c.release(broken);
+  }
+}
+const MCP_TOOLS = [
+  { name: 'server_status', description: 'Kondisi server Marantau di Biznet: CPU, IOwait, RAM, swap, disk, load, puncak 1/24 jam, status & RAM tiap layanan (Postgres, PostgREST, Auth, Realtime, Envoy, Caddy, Panel Ops).', inputSchema: { type: 'object', properties: {} } },
+  { name: 'db_stats', description: 'Statistik database: pemain online, koneksi per role/state, kunci menunggu, transaksi > 10 detik, endpoint api_* paling lambat (pg_stat_statements), tabel terbesar schema game.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'db_query', description: `Jalankan SATU query SQL hanya-baca (role mt_ops_ro, transaksi read only, timeout 5 detik, maks ${MAX_ROWS} baris). Bisa membaca schema game & statistik Postgres; schema auth tidak bisa dibaca.`, inputSchema: { type: 'object', properties: { sql: { type: 'string', description: 'Satu pernyataan SELECT / WITH / EXPLAIN / SHOW' } }, required: ['sql'] } },
+  { name: 'logs_tail', description: 'Baris log terakhir satu layanan (rahasia disamarkan).', inputSchema: { type: 'object', properties: { service: { type: 'string', enum: SERVICES.map(s => s.name) }, lines: { type: 'integer', minimum: 1, maximum: 500, default: 150 }, filter: { type: 'string', description: 'Opsional: hanya baris yang mengandung teks ini (tidak peka huruf besar/kecil)' } }, required: ['service'] } },
+  { name: 'backup_list', description: 'Status backup VM (terakhir berhasil, ukuran, tes restore) dan daftar file backup lokal.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'debug_report', description: 'Laporan debug lengkap (sama dengan menu Debug di Panel Ops): host, sertifikat, layanan, database, 5xx, backup, peringatan, log bermasalah 24 jam.', inputSchema: { type: 'object', properties: {} } },
+];
+async function mcpCall(name, args = {}) {
+  switch (name) {
+    case 'server_status': {
+      const [sv, stats] = await Promise.all([services(), serviceStats()]);
+      return { host: current(), peak1h: peaks(1), peak24h: peaks(24), services: (sv.items || []).map(s => ({ ...s, memMb: stats[s.name] && stats[s.name].memMb })), dockerError: sv.error };
+    }
+    case 'db_stats': return dbStats();
+    case 'db_query': return readOnlyQuery(args.sql);
+    case 'logs_tail': {
+      if (!SERVICE_NAMES.has(args.service)) throw new Error('Layanan tidak dikenal.');
+      const n = Math.min(500, Math.max(1, +args.lines || 150));
+      let lines = await logLines(args.service, args.filter ? 3000 : n);
+      if (args.filter) { const f = String(args.filter).toLowerCase(); lines = lines.filter(l => l.toLowerCase().includes(f)).slice(-n); }
+      return lines.join('\n');
+    }
+    case 'backup_list': return backups();
+    case 'debug_report': return debugReport();
+    default: throw new Error('Alat tidak dikenal: ' + name);
+  }
+}
+const mcpHits = [];
+async function handleMcp(req, res) {
+  const cut = now() - 60e3; while (mcpHits.length && mcpHits[0] < cut) mcpHits.shift();
+  if (mcpHits.length >= 60) return json(res, 429, { jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Terlalu banyak permintaan (60/menit).' } });
+  mcpHits.push(now());
+  if (req.method === 'GET') { res.writeHead(405, { Allow: 'POST' }); return res.end(); }
+  if (req.method === 'DELETE') { res.writeHead(200); return res.end(); }
+  if (req.method !== 'POST') { res.writeHead(405); return res.end(); }
+  let msg;
+  try { msg = await readBody(req, 64 * 1024); } catch (e) { return json(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: e.message } }); }
+  const one = async m => {
+    if (!m || m.jsonrpc !== '2.0' || typeof m.method !== 'string') return { jsonrpc: '2.0', id: m && m.id !== undefined ? m.id : null, error: { code: -32600, message: 'Permintaan tidak valid' } };
+    if (m.id === undefined) return null; // notifikasi
+    const ok = result => ({ jsonrpc: '2.0', id: m.id, result });
+    try {
+      switch (m.method) {
+        case 'initialize': {
+          const want = m.params && m.params.protocolVersion;
+          const ver = ['2025-06-18', '2025-03-26', '2024-11-05'].includes(want) ? want : '2025-06-18';
+          return ok({ protocolVersion: ver, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'marantau-ops', version: VERSION },
+            instructions: 'Connector hanya-baca untuk server Marantau (Biznet self-host). Mulai dari server_status / debug_report. db_query: satu pernyataan, read only, 5 dtk, maks 200 baris; schema auth tidak terbaca. Tidak ada aksi restart/ubah data.' });
+        }
+        case 'ping': return ok({});
+        case 'tools/list': return ok({ tools: MCP_TOOLS });
+        case 'resources/list': return ok({ resources: [] });
+        case 'prompts/list': return ok({ prompts: [] });
+        case 'tools/call': {
+          const { name, arguments: args } = m.params || {};
+          console.log(`[mcp] ${new Date().toISOString()} ${name}${name === 'db_query' ? ' ' + String((args || {}).sql || '').slice(0, 120).replace(/\s+/g, ' ') : ''}`);
+          try {
+            const r = await mcpCall(name, args || {});
+            let text = typeof r === 'string' ? r : JSON.stringify(r);
+            text = redact(text);
+            if (text.length > 120000) text = text.slice(0, 120000) + '\n…(dipotong)';
+            return ok({ content: [{ type: 'text', text }] });
+          } catch (e) { return ok({ content: [{ type: 'text', text: 'Error: ' + redact(e.message) }], isError: true }); }
+        }
+        default: return { jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'Metode tidak dikenal: ' + m.method } };
+      }
+    } catch (e) { return { jsonrpc: '2.0', id: m.id, error: { code: -32603, message: e.message } }; }
+  };
+  const out = Array.isArray(msg) ? (await Promise.all(msg.map(one))).filter(Boolean) : await one(msg);
+  if (!out || (Array.isArray(out) && !out.length)) { res.writeHead(202); return res.end(); }
+  return json(res, 200, out);
+}
+
 // ---------- HTTP ----------
 const PUB = path.join(__dirname, 'public');
 const SEC_HEADERS = {
@@ -358,7 +578,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return sendFile(res, 'index.html', 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/app.js') return sendFile(res, 'app.js', 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && p === '/app.css') return sendFile(res, 'app.css', 'text/css; charset=utf-8');
-    if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true });
+    if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true, v: VERSION });
+    if (MCP_TOKEN && p.startsWith('/mcp/')) {
+      if (!safeEq(p.slice(5).replace(/\/$/, ''), MCP_TOKEN)) { await sleep(300); res.writeHead(404); return res.end('Not found'); }
+      return handleMcp(req, res);
+    }
 
     // POST wajib header khusus (penangkal CSRF lintas situs, selain SameSite=Strict).
     if (req.method === 'POST' && req.headers['x-ops'] !== '1') return json(res, 403, { error: 'ditolak' });
@@ -402,7 +626,7 @@ const server = http.createServer(async (req, res) => {
         const name = url.searchParams.get('name');
         if (!SERVICE_NAMES.has(name)) return json(res, 400, { error: 'Layanan tidak dikenal.' });
         const buf = await docker('GET', `/containers/${encodeURIComponent(name)}/logs?stdout=1&stderr=1&tail=200&timestamps=1`, { raw: true });
-        return json(res, 200, { name, text: demux(buf) });
+        return json(res, 200, { name, text: redact(demux(buf)) });
       }
       if (req.method === 'POST' && p === '/api/restart') {
         const b = await readBody(req);
@@ -416,6 +640,15 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === '/api/db') return json(res, 200, await dbStats());
       if (req.method === 'GET' && p === '/api/http') return json(res, 200, await http5xx(24));
       if (req.method === 'GET' && p === '/api/backup') return json(res, 200, backups());
+      if (req.method === 'POST' && p === '/api/backup/run') {
+        const b = await readBody(req);
+        requestBackup(b.kind); audit(ip, 'minta ' + b.kind);
+        return json(res, 200, { ok: true });
+      }
+      if (req.method === 'GET' && p === '/api/debug') {
+        audit(ip, 'laporan debug');
+        return json(res, 200, { text: await debugReport() });
+      }
       if (req.method === 'POST' && p === '/api/telegram-test') {
         if (!TG_TOKEN || !TG_CHAT) return json(res, 400, { error: 'OPS_TELEGRAM_TOKEN / OPS_TELEGRAM_CHAT_ID belum diisi di .env.' });
         await tg('🔔 Tes peringatan dari Panel Ops Marantau.');
