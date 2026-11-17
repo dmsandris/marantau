@@ -345,7 +345,7 @@ async function run5xxAlert() {
   lastErrCount = r.err;
 }
 if (TG_TOKEN && TG_CHAT) {
-  setTimeout(() => tg('ℹ️ Panel Ops Marantau menyala.'), 5000);
+  setTimeout(() => tg('ℹ️ Panel Ops Marantau menyala. Ketik /bantuan untuk daftar perintah.'), 5000);
   setInterval(() => runAlerts().catch(e => console.error('alert:', e.message)), 60e3);
   setInterval(() => run5xxAlert().catch(() => {}), 10 * 60e3);
 }
@@ -556,6 +556,211 @@ async function handleMcp(req, res) {
   const out = Array.isArray(msg) ? (await Promise.all(msg.map(one))).filter(Boolean) : await one(msg);
   if (!out || (Array.isArray(out) && !out.length)) { res.writeHead(202); return res.end(); }
   return json(res, 200, out);
+}
+
+
+// ---------- Bot Telegram (perintah) ----------
+// Hanya menjawab chat pemilik (OPS_TELEGRAM_CHAT_ID). Tidak ada perintah restart/ubah data.
+const TG_STATE_FILE = path.join(DATA, 'tg-state.json');
+let tgState = { offset: 0, lastDaily: '', onlinePeak: {} };
+try { tgState = { ...tgState, ...JSON.parse(fs.readFileSync(TG_STATE_FILE, 'utf8')) }; } catch {}
+function saveTgState() { try { fs.writeFileSync(TG_STATE_FILE, JSON.stringify(tgState)); } catch (e) { console.error('tg-state:', e.message); } }
+const hEsc = t => String(t ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const wibDate = (t = now()) => new Date(t + 7 * 3600e3).toISOString().slice(0, 10);
+const wibTime = (t = now()) => new Date(t + 7 * 3600e3).toISOString().slice(11, 16);
+async function tgApi(method, body, timeoutMs = 15000) {
+  const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/${method}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error(`telegram ${method}: ${j.description}`);
+  return j.result;
+}
+async function tgHtml(html) {
+  for (let i = 0; i < html.length; i += 3900) {
+    await tgApi('sendMessage', { chat_id: TG_CHAT, text: html.slice(i, i + 3900), parse_mode: 'HTML', disable_web_page_preview: true });
+  }
+}
+async function tgDoc(filename, text, caption) {
+  const fd = new FormData();
+  fd.append('chat_id', TG_CHAT);
+  if (caption) fd.append('caption', caption);
+  fd.append('document', new Blob([text], { type: 'text/plain' }), filename);
+  const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendDocument`, { method: 'POST', body: fd, signal: AbortSignal.timeout(30000) });
+  const j = await r.json(); if (!j.ok) throw new Error('sendDocument: ' + j.description);
+}
+
+// Puncak pemain online per hari (WIB), sampel tiap 5 menit.
+async function sampleOnline() {
+  try {
+    const r = await q(`select count(*)::int as n from game.mp_presence where ts > now() - interval '2 minutes'`);
+    const d = wibDate(), n = r[0].n;
+    if (!tgState.onlinePeak[d] || n > tgState.onlinePeak[d].n) tgState.onlinePeak[d] = { n, at: wibTime() };
+    for (const k of Object.keys(tgState.onlinePeak)) if (k < wibDate(now() - 8 * 86400e3)) delete tgState.onlinePeak[k];
+    saveTgState();
+  } catch {}
+}
+
+const dot = (ok, warn) => ok ? '🟢' : warn ? '🟡' : '🔴';
+const r1 = v => v == null ? '-' : Math.round(v * 10) / 10;
+async function textStatus() {
+  const h = current();
+  const [sv, stats] = await Promise.all([services(), serviceStats()]);
+  const memPct = h.memTotal ? Math.round(100 * h.memUsed / h.memTotal) : null;
+  const diskPct = h.diskTotal ? Math.round(100 * h.diskUsed / h.diskTotal) : null;
+  const L = [`<b>🖥 Status server</b> · ${wibTime()} WIB`,
+    `${dot(h.cpu < 70, h.cpu < 90)} CPU ${r1(h.cpu)}% · load ${r1(h.load)}`,
+    `${dot(h.iow < 10, h.iow < 30)} IOwait ${r1(h.iow)}%`,
+    `${dot(memPct < 75, memPct < 85)} RAM ${memPct}% (${Math.round(h.memUsed / 1048576)}/${Math.round(h.memTotal / 1048576)} MB)`,
+    `${dot(h.swapUsed < 50 * 1048576, h.swapUsed < 200 * 1048576)} Swap ${Math.round(h.swapUsed / 1048576)} MB`,
+    `${dot(diskPct < 70, diskPct < 80)} Disk ${diskPct}% (${(h.diskUsed / 1073741824).toFixed(1)}/${(h.diskTotal / 1073741824).toFixed(0)} GB)`,
+    `⏱ Uptime ${Math.floor(h.uptimeSec / 86400)}h ${Math.floor(h.uptimeSec % 86400 / 3600)}j`, '', '<b>Layanan</b>'];
+  if (sv.error) L.push('🔴 Docker tidak terbaca: ' + hEsc(sv.error));
+  for (const s of sv.items || []) {
+    const ok = s.state === 'running' && s.health !== 'unhealthy';
+    L.push(`${dot(ok && s.health !== 'starting', ok)} ${hEsc(s.label)}${stats[s.name] ? ` · ${stats[s.name].memMb} MB` : ''}${ok ? '' : ` · <b>${hEsc(s.state)}${s.health ? '/' + hEsc(s.health) : ''}</b>`}`);
+  }
+  const act = [...alertState.entries()].filter(([, v]) => v.active).map(([k]) => k);
+  if (act.length) L.push('', '⚠️ Peringatan aktif: ' + hEsc(act.join(', ')));
+  return L.join('\n');
+}
+async function textDb() {
+  const d = await dbStats();
+  const total = (d.conns || []).reduce((a, c) => a + c.n, 0);
+  const pk = tgState.onlinePeak[wibDate()];
+  const L = [`<b>🗄 Database</b> · ${wibTime()} WIB`,
+    `👥 Online: <b>${d.online ?? '-'}</b>${pk ? ` (puncak hari ini ${pk.n} @${pk.at})` : ''}`,
+    `${dot(total < (d.maxConn || 60) * 0.6, total < (d.maxConn || 60) * 0.85)} Koneksi ${total}/${d.maxConn ?? '-'}`,
+    `${dot(!d.waitingLocks, d.waitingLocks <= 5)} Kunci menunggu ${d.waitingLocks ?? '-'}`,
+    `💾 Ukuran ${hEsc(d.size ?? '-')}`];
+  if ((d.longTx || []).length) L.push(`🐢 Transaksi > 10 dtk: ${d.longTx.length} (terlama ${d.longTx[0].sec} dtk)`);
+  L.push('', '<b>Endpoint terlambat</b> (rata² / maks ms)');
+  for (const r of (d.slow || []).slice(0, 6)) L.push(`${r.mean_ms > 1000 ? '🔴' : r.mean_ms > 300 ? '🟡' : '▫️'} ${hEsc(r.q)}: ${r.mean_ms} / ${r.max_ms} (${r.calls}x)`);
+  if (!(d.slow || []).length) L.push('▫️ belum ada data');
+  if (d.errors) L.push('', '⚠️ ' + hEsc(Object.entries(d.errors).map(([k, v]) => `${k}: ${v}`).join(' · ')));
+  return L.join('\n');
+}
+function textBackup() {
+  const b = backups(), s = b.status || {};
+  const age = s.lastOk ? (now() - Date.parse(s.lastOk)) / 3600e3 : null;
+  return [`<b>📦 Backup VM</b>`,
+    `${dot(age != null && age < 26, age != null && age < 30)} Terakhir berhasil: ${s.lastOk ? `${wibDate(Date.parse(s.lastOk))} ${wibTime(Date.parse(s.lastOk))} WIB (${Math.round(age)} jam lalu)` : 'belum pernah'}`,
+    `${s.lastResult === 'gagal' ? '🔴 Gagal terakhir: ' + hEsc(s.lastError) : '▫️ Hasil terakhir: ' + hEsc(s.lastResult || '-')}`,
+    `▫️ Ukuran ${hEsc(s.size || '-')} · ${hEsc(s.tables || '-')} tabel · ${hEsc(s.rows || '-')} baris`,
+    `${s.restoreTest === 'GAGAL' ? '🔴' : s.restoreTest === 'OK' ? '🟢' : '▫️'} Tes restore: ${hEsc(s.restoreTest || 'belum')}${s.restoreAt ? ' (' + wibDate(Date.parse(s.restoreAt)) + ')' : ''}`,
+    `☁️ Google Drive: ${hEsc(s.driveFiles ?? '-')} file · lokal ${b.files.filter(f => f.name.endsWith('.age')).length} file`,
+    s.running || b.pending.length ? `⏳ Sedang berjalan: ${hEsc(s.running || b.pending.join(', '))}` : ''].filter(Boolean).join('\n');
+}
+async function textDaily() {
+  const yest = wibDate(now() - 86400e3), today = wibDate();
+  const [d, h5, cert] = await Promise.all([dbStats().catch(() => ({})), http5xx(24), certInfo(API_DOMAIN)]);
+  const sv = await services();
+  const down = (sv.items || []).filter(s => s.state !== 'running' || s.health === 'unhealthy');
+  const infos = await Promise.all((sv.items || []).map(s => containerInfo(s.name)));
+  const restarts = (sv.items || []).map((s, i) => [s.label, infos[i].restarts]).filter(([, n]) => n > 0);
+  const pk = tgState.onlinePeak[yest] || tgState.onlinePeak[today];
+  const h = current();
+  const L = [`<b>☀️ Laporan harian Marantau</b> · ${today}`, '',
+    `<b>Server (24 jam)</b>`, 'Puncak: ' + hEsc(peaks(24)),
+    `Kini: RAM ${Math.round(100 * h.memUsed / h.memTotal)}% · disk ${Math.round(100 * h.diskUsed / h.diskTotal)}% · uptime ${Math.round(h.uptimeSec / 3600)} jam`,
+    sv.error ? '🔴 Docker tidak terbaca: ' + hEsc(sv.error) : down.length ? '🔴 Layanan bermasalah: ' + hEsc(down.map(s => s.label).join(', ')) : '🟢 Semua layanan sehat',
+    restarts.length ? `🔁 Pernah restart: ${hEsc(restarts.map(([l, n]) => `${l} ${n}x`).join(', '))}` : '',
+    '', `<b>Pemain & database</b>`,
+    `👥 Online sekarang ${d.online ?? '-'}${pk ? ` · puncak ${pk.n} (@${pk.at})` : ''}`,
+    `🐢 Endpoint terlambat: ${(d.slow || []).slice(0, 3).map(r => `${hEsc(r.q)} ${r.mean_ms} ms`).join(', ') || '-'}`,
+    `💾 Ukuran DB ${hEsc(d.size ?? '-')}`,
+    '', `<b>API</b>`,
+    h5.error ? '⚠️ log tidak terbaca' : `${dot(h5.err === 0, h5.err < 20)} ${h5.total.toLocaleString('id-ID')} permintaan · ${h5.err} error 5xx`,
+    cert.error ? `🔴 Sertifikat: ${hEsc(cert.error)}` : `${dot(cert.daysLeft > 20, cert.daysLeft > 7)} Sertifikat HTTPS ${cert.daysLeft} hari lagi`,
+    '', textBackup()];
+  const act = [...alertState.entries()].filter(([, v]) => v.active).map(([k]) => k);
+  if (act.length) L.push('', '⚠️ Peringatan aktif: ' + hEsc(act.join(', ')));
+  return L.filter(x => x !== '').join('\n').replace(/\n<b>/g, '\n\n<b>');
+}
+async function textErrors(hours = 1) {
+  const L = [`<b>🧯 Log bermasalah ${hours} jam terakhir</b>`];
+  for (const s of SERVICES) {
+    try {
+      const lines = (await logLines(s.name, 3000, hours * 3600)).filter(l => PROBLEM_RE.test(l) && !/"status":(2|3)\d\d/.test(l));
+      L.push(`${lines.length ? '🔴' : '🟢'} ${hEsc(s.label)}: ${lines.length} baris`);
+      for (const l of lines.slice(-3)) L.push(`<code>${hEsc(redact(l).slice(0, 220))}</code>`);
+    } catch (e) { L.push(`⚠️ ${hEsc(s.label)}: ${hEsc(e.message)}`); }
+  }
+  return L.join('\n');
+}
+const LOG_ALIAS = { db: 'supabase-db', postgres: 'supabase-db', rest: 'supabase-rest', api: 'supabase-rest', auth: 'supabase-auth', realtime: 'realtime-dev.supabase-realtime', rt: 'realtime-dev.supabase-realtime', envoy: 'supabase-envoy', gateway: 'supabase-envoy', caddy: 'marantau-caddy', https: 'marantau-caddy', ops: 'marantau-ops', panel: 'marantau-ops' };
+const TG_COMMANDS = [
+  ['status', 'Kondisi server & layanan'],
+  ['db', 'Pemain online, koneksi, endpoint terlambat'],
+  ['backup', 'Status backup VM'],
+  ['harian', 'Laporan harian sekarang'],
+  ['error', 'Log bermasalah 1 jam (/error 6 = 6 jam)'],
+  ['log', 'Log layanan: /log rest 30 (db, rest, auth, realtime, envoy, caddy, ops)'],
+  ['debug', 'Laporan debug lengkap (.txt) untuk Claude'],
+  ['backup_sekarang', 'Jalankan backup sekarang'],
+  ['tes_restore', 'Backup + tes restore'],
+  ['bantuan', 'Daftar perintah'],
+];
+async function tgCommand(text) {
+  const [raw, ...args] = text.trim().split(/\s+/);
+  const cmd = raw.replace(/^\//, '').replace(/@.*$/, '').toLowerCase();
+  switch (cmd) {
+    case 'start': case 'bantuan': case 'help':
+      return tgHtml('<b>Marantau Ops</b>\n' + TG_COMMANDS.map(([c, d]) => `/${c} - ${hEsc(d)}`).join('\n') + `\n\nLaporan harian otomatis jam 07:00 WIB. Restart layanan hanya lewat Panel Ops.`);
+    case 'status': return tgHtml(await textStatus());
+    case 'db': return tgHtml(await textDb());
+    case 'backup': return tgHtml(textBackup());
+    case 'harian': case 'laporan': return tgHtml(await textDaily());
+    case 'error': case 'errors': return tgHtml(await textErrors(Math.min(24, Math.max(1, +args[0] || 1))));
+    case 'log': {
+      const name = LOG_ALIAS[(args[0] || '').toLowerCase()] || args[0];
+      if (!SERVICE_NAMES.has(name)) return tgHtml('Pakai: /log &lt;layanan&gt; [baris]\nLayanan: db, rest, auth, realtime, envoy, caddy, ops');
+      const n = Math.min(80, Math.max(5, +args[1] || 30));
+      const lines = (await logLines(name, n)).map(l => redact(l).slice(0, 300));
+      return tgHtml(`<b>Log ${hEsc(name)}</b> (${lines.length} baris)\n<pre>${hEsc(lines.join('\n')).slice(0, 3700)}</pre>`);
+    }
+    case 'debug': {
+      await tgHtml('⏳ Menyusun laporan debug…');
+      const t = await debugReport();
+      return tgDoc(`marantau-debug-${wibDate()}-${wibTime().replace(':', '')}.txt`, t, 'Laporan debug - kirim ke Claude bila ada masalah.');
+    }
+    case 'backup_sekarang': requestBackup('backup'); return tgHtml('📦 Backup dimulai. Hasilnya: /backup (±1-5 menit).');
+    case 'tes_restore': requestBackup('restore-test'); return tgHtml('🧪 Backup + tes restore dimulai (±3-10 menit). Hasilnya: /backup');
+    default: return tgHtml('Perintah tidak dikenal. /bantuan');
+  }
+}
+async function tgPoll() {
+  try { await tgApi('setMyCommands', { commands: TG_COMMANDS.map(([command, description]) => ({ command, description: description.slice(0, 250) })) }); }
+  catch (e) { console.error('setMyCommands:', e.message); }
+  for (;;) {
+    try {
+      const ups = await tgApi('getUpdates', { offset: tgState.offset, timeout: 50, allowed_updates: ['message'] }, 65000);
+      for (const u of ups) {
+        tgState.offset = u.update_id + 1; saveTgState();
+        const m = u.message; if (!m || !m.text) continue;
+        if (String(m.chat.id) !== String(TG_CHAT)) { console.log(`[tg] abaikan chat ${m.chat.id}`); continue; }
+        if (!m.text.startsWith('/')) { await tgHtml('Ketik /bantuan untuk daftar perintah.'); continue; }
+        console.log(`[tg] ${m.text.slice(0, 60)}`);
+        try { await tgCommand(m.text); } catch (e) { await tgHtml('⚠️ Error: ' + hEsc(redact(e.message))).catch(() => {}); }
+      }
+    } catch (e) {
+      console.error('tg poll:', e.message);
+      await sleep(/409|Conflict/.test(e.message) ? 60000 : 10000);
+    }
+  }
+}
+async function dailyTick() {
+  const t = now() + 7 * 3600e3, hh = new Date(t).getUTCHours(), today = wibDate();
+  if (hh >= 7 && tgState.lastDaily !== today) {
+    tgState.lastDaily = today; saveTgState();
+    try { await tgHtml(await textDaily()); } catch (e) { console.error('laporan harian:', e.message); }
+  }
+}
+if (TG_TOKEN && TG_CHAT) {
+  if (!tgState.lastDaily) { tgState.lastDaily = wibDate(); saveTgState(); } // jangan kirim laporan saat pertama dipasang
+  tgPoll();
+  setInterval(() => dailyTick().catch(() => {}), 60e3);
+  setInterval(() => sampleOnline(), 5 * 60e3); setTimeout(sampleOnline, 20000);
 }
 
 // ---------- HTTP ----------
