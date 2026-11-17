@@ -1,5 +1,6 @@
 # Bangun tampilan game (web/) lalu terbitkan ke GitHub Pages.
 # Syarat sekali saja: Settings > Pages > Source = "GitHub Actions".
+# Variabel repo DB_TARGET = 'vps' -> config.js menunjuk server Biznet (alamat & kunci anon dibaca dari .env VM).
 name: Deploy web
 on:
   push:
@@ -15,7 +16,27 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
-      - run: node tools/build.js
+      - id: ssh
+        if: vars.DB_TARGET == 'vps'
+        uses: ./.github/actions/vps-ssh
+        with:
+          key: ${{ secrets.VPS_SSH_KEY }}
+          known: ${{ secrets.VPS_KNOWN_HOSTS }}
+          host: ${{ secrets.VPS_HOST }}
+          user: ${{ secrets.VPS_USER }}
+      - name: Build
+        env: { TARGET: '${{ vars.DB_TARGET }}' }
+        run: |
+          if [ "$TARGET" = vps ]; then
+            [ "${{ steps.ssh.outputs.ok }}" = 1 ] || { echo "::error::DB_TARGET=vps tapi VM tidak bisa dihubungi - build dibatalkan (situs lama tetap)."; exit 1; }
+            key=$(ssh vps "sed -n 's/^ANON_KEY=//p' /opt/marantau/selfhost/.env")
+            url=$(ssh vps "sed -n 's/^API_EXTERNAL_URL=//p' /opt/marantau/selfhost/.env")
+            [ -n "$key" ] && [ -n "$url" ] || { echo "::error::ANON_KEY / API_EXTERNAL_URL tidak ada di .env VM."; exit 1; }
+            MT_API_URL="$url" MT_API_KEY="$key" node tools/build.js
+          else
+            node tools/build.js
+          fi
+          grep -o 'supabaseUrl[^,]*' dist/config.js
       - uses: actions/upload-pages-artifact@v5
         with: { path: dist }
   deploy:

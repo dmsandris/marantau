@@ -56,6 +56,9 @@ create or replace function game.maint_active() returns boolean
 language plpgsql stable as $$
 declare v_start bigint;
 begin
+  -- Fase 3 pindah server: server lama melaporkan "buka" supaya klien di layar maintenis memuat ulang
+  -- (dan mendapat build baru yang menunjuk server baru). Penolakan API ditangani mt_pre_request.
+  if coalesce(game.cfg('PindahKe'), '') <> '' then return false; end if;
   if lower(coalesce(game.cfg('MaintenanceMode'), 'off')) in ('on', '1', 'true', 'ya') then return true; end if;
   v_start := game.cfg_num('MaintenanceStartAt', 0)::bigint;
   return v_start > 0 and game.now_ms() >= v_start;
