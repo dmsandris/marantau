@@ -60,5 +60,11 @@ Tombol **Buat laporan** → teks berisi host, sertifikat HTTPS, layanan (restart
 ## Telegram
 `sh /opt/marantau/selfhost/set-telegram.sh` di VM (minta token bot, cari chat ID otomatis, tulis `.env`, nyalakan ulang Panel Ops).
 
+Bot hanya menjawab chat pemilik (`OPS_TELEGRAM_CHAT_ID`), lewat long polling dari Panel Ops:
+`/status`, `/db`, `/backup`, `/harian`, `/error [jam]`, `/log <db|rest|auth|realtime|envoy|caddy|ops> [baris]`,
+`/debug` (laporan .txt), `/backup_sekarang`, `/tes_restore`, `/bantuan`. Laporan harian otomatis 07:00 WIB
+(puncak server 24 jam, layanan & restart, pemain online + puncak, endpoint terlambat, 5xx, sertifikat, backup).
+Tidak ada perintah restart/ubah data - restart hanya lewat Panel Ops (2FA).
+
 ## Belum di sini
 Uji Realtime di Panel Ops & sinkron data (Fase 2).
