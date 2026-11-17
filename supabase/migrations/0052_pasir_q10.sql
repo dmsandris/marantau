@@ -199,6 +199,8 @@ declare v_block text; v_path text; v_info jsonb; v_u text; v_msg text; v_pid uui
 begin
   begin
     v_path := lower(coalesce(current_setting('request.path', true), ''));
+    -- Root (OpenAPI) dipakai health check gateway: jangan ditolak, supaya gateway tidak menganggap PostgREST mati.
+    if v_path in ('', '/') then return; end if;
     -- Fase 3 pindah server (config PindahKe): server lama menolak semua API untuk semua akun (termasuk GM).
     -- Klien jatuh ke layar maintenis, api_gmStatus bilang "buka" -> muat ulang -> build baru -> server baru.
     if coalesce(game.cfg('PindahKe'), '') <> '' and v_path !~ 'rpc/(api_ping|api_gmstatus)$' then
@@ -221,16 +223,16 @@ begin
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Pelabuhan pindah dermaga, muat ulang sebentar ya Kapten.',
                                   'details', json_build_object('on', true, 'tx', 'Pelabuhan pindah ke dermaga baru. Game memuat ulang otomatis.')::text)::text,
-      detail = json_build_object('status', 503, 'status_text', 'Moved', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+      detail = json_build_object('status', 423, 'status_text', 'Moved', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib; JANGAN 503 (PostgREST menganggap DB putus -> reconnect + muat ulang skema)
   elsif v_block = 'maint' then
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Maintenis dulu ya gaes, kembali sebentar lagi.',
                                   'details', coalesce(v_info, '{}'::jsonb)::text)::text,
-      detail = json_build_object('status', 503, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+      detail = json_build_object('status', 423, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib; JANGAN 503 (PostgREST menganggap DB putus -> reconnect + muat ulang skema)
   elsif v_block = 'pw' then
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_PWCHANGE', 'message', 'Pasang sandi baru dulu, Kapten.', 'details', '{}')::text,
-      detail = json_build_object('status', 403, 'status_text', 'Password change required', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+      detail = json_build_object('status', 403, 'status_text', 'Password change required', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib; JANGAN 503 (PostgREST menganggap DB putus -> reconnect + muat ulang skema)
   end if;
   -- Pasir: hanya diperiksa untuk endpoint kisah lama / Pacu Dagang (satu baris pasir_state)
   begin
