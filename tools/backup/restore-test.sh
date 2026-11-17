@@ -2,7 +2,7 @@
 # Tes restore: pulihkan db.dump ke Postgres kosong, lalu bandingkan jumlah baris dengan counts.tsv.
 # Butuh: TARGET (connection string Postgres kosong), ISI (folder berisi db.dump & counts.tsv).
 # Gagal bila: pg_restore error (selain yang wajar di Postgres polos), tabel hilang,
-# atau tabel yang berisi di sumber jadi jauh lebih kecil setelah restore.
+# atau tabel jauh lebih kecil dari perkiraan statistik sumber.
 set -euo pipefail
 : "${TARGET:?}" "${ISI:?}"
 
@@ -33,12 +33,13 @@ while IFS=$'\t' read -r t n; do
     echo "::error::Tabel hilang setelah restore: $t"; hilang=$((hilang + 1)); continue
   fi
   dst=$((dst + m))
-  if [ "$n" -gt 20 ] && [ "$m" -lt $((n * 9 / 10)) ]; then
+  # n = perkiraan statistik, bisa meleset; yang dicari hanya kehilangan besar.
+  if [ "$n" -gt 50 ] && [ "$m" -lt $((n * 7 / 10)) ]; then
     echo "::error::$t: $m baris (sumber $n)"; kecil=$((kecil + 1))
   fi
 done < "$ISI/counts.tsv"
 
-echo "::notice::Tes restore: $(wc -l < "$ISI/counts.tsv") tabel, baris sumber $src / hasil $dst, error lain $nerr, tabel hilang $hilang, tabel menyusut $kecil"
+echo "::notice::Tes restore: $(wc -l < "$ISI/counts.tsv") tabel, baris perkiraan sumber $src / hasil restore $dst, error lain $nerr, tabel hilang $hilang, tabel menyusut $kecil"
 if [ "$nerr" -gt 0 ]; then
   # Hanya 5 baris pertama; pesan pg_restore berisi nama objek, bukan isi data.
   head -5 "$ISI/restore-err-sisa.txt" | cut -c1-300 | while IFS= read -r l; do echo "::error::$l"; done
