@@ -1127,14 +1127,139 @@ var MKW = (function () {
           if (r && r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
           try { au_('achieve'); } catch (e) { }
           showToast((r && r.nama ? r.nama : 'Komponen') + ' terpasang.', 'success');
+          // Tide v66: komponen keempat -> adegan pendek kapal Panglima Laut keluar dari garasi (sekali, bisa dilewati, tanpa pengumuman)
+          var penuhBaru = !!(r && r.warlord && r.warlord.penuh);
+          if (state && state.shipVisual && r && r.warlord && r.warlord.set) state.shipVisual.wl = r.warlord.set.slice();
           render(); loadState();
+          if (penuhBaru) { try { adeganPanglima(); } catch (e) { } }
         }).withFailureHandler(function (e) {
           b.disabled = false; showToast((e && e.message) || String(e), 'error');
         }).api_warlord('bangun', b.getAttribute('data-w'));
       };
     });
   }
-  return { show: show, ada: function () { var w = st(); return !!(w && w.buka); } };
+  /** Adegan "Panglima Laut" (±8 detik): pintu Garasi Yaptob terbuka, kapal Warlord pemain meluncur keluar. */
+  function adeganPanglima() {
+    if (!window.MTCine || !document.body || document.querySelector('.qt-cine')) return;
+    var ov = document.createElement('div'); ov.className = 'qt-cine cb-cine';
+    ov.innerHTML = '<canvas></canvas><button class="cb-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button>';
+    document.body.appendChild(ov);
+    var selesai = false, stop = function () { }, tm = 0;
+    function tutup() {
+      if (selesai) return; selesai = true;
+      clearTimeout(tm); document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+    }
+    function onKey(e) { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tutup(); } }
+    document.addEventListener('keydown', onKey);
+    var vis = null; try { vis = typeof myShipVisual_ === 'function' ? myShipVisual_(null, { wl: ['speed', 'cargo', 'condition', 'cannons'], tier: 5 }) : null; } catch (e) { vis = null; }
+    try { stop = MTCine.play(ov.querySelector('canvas'), 'wl_panglima', { vis: vis, onIntroEnd: function () { tm = setTimeout(tutup, 500); } }) || stop; } catch (e) { console.warn('[MKW] cine', e); }
+    var skip = ov.querySelector('.cb-skip'); skip.onclick = tutup; ov.querySelector('canvas').onclick = function () { if (skip.classList.contains('on')) tutup(); };
+    setTimeout(function () { skip.classList.add('on'); }, 900);
+    tm = setTimeout(tutup, 12000);   // jaring pengaman
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+  }
+  return { show: show, ada: function () { var w = st(); return !!(w && w.buka); }, adegan: adeganPanglima };
+})();
+
+/* =====================================================================
+ * Tide v66: adegan 'wl_panglima' - kapal Warlord keluar dari Garasi Yaptob (Zentul)
+ * Garasi dipanggang sekali ke kanvas offscreen (pola MTCine.H.mkCv), kapal digambar MTShip.
+ * ===================================================================== */
+(function () {
+  if (!window.MTCine || !MTCine.register || !window.MTUtil || !window.MTShip || !window.MTSky) return;
+  var H = MTCine.H, U = MTUtil;
+  /** Garasi kayu-tembaga di atas tiang pancang, tampak samping; mulutnya menghadap kanan. Satuan: u px. */
+  function panggangGarasi(u, gw, gh, L) {
+    var cv = H.mkCv(gw, gh), c = cv.getContext('2d'), i;
+    var wallT = gh * 0.3, wallB = gh * 0.9;
+    // tiang pancang
+    c.fillStyle = L('#2a1c12');
+    for (i = 0; i < 9; i++) c.fillRect(gw * (0.03 + i * 0.115), wallB - u * 0.4, u * 0.55, gh - wallB + u * 0.4);
+    // dinding papan
+    var g = c.createLinearGradient(0, wallT, 0, wallB); g.addColorStop(0, L('#6b4a2c')); g.addColorStop(1, L('#3d2817'));
+    c.fillStyle = g; c.fillRect(0, wallT, gw * 0.97, wallB - wallT);
+    c.strokeStyle = L('#1e130a', 0.55); c.lineWidth = Math.max(1, u * 0.06);
+    for (i = 1; i < 9; i++) { c.beginPath(); c.moveTo(0, wallT + (wallB - wallT) * i / 9); c.lineTo(gw * 0.97, wallT + (wallB - wallT) * i / 9); c.stroke(); }
+    for (i = 0; i < 16; i++) { var px = gw * 0.97 * (i + 0.5 * (i % 2)) / 16; c.beginPath(); c.moveTo(px, wallT); c.lineTo(px, wallB); c.globalAlpha = 0.35; c.stroke(); c.globalAlpha = 1; }
+    try { c.globalAlpha = 0.5; c.globalCompositeOperation = 'multiply'; c.fillStyle = c.createPattern(H.grainTile(), 'repeat'); c.fillRect(0, wallT, gw * 0.97, wallB - wallT); } catch (e) { }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    // rangka besi + jendela bundar berkisi kuningan
+    c.fillStyle = L('#2b2622');
+    for (i = 0; i <= 4; i++) c.fillRect(gw * 0.97 * i / 4 - u * 0.2, wallT, u * 0.45, wallB - wallT);
+    c.fillRect(0, wallB - u * 0.5, gw * 0.97, u * 0.6);
+    for (i = 0; i < 4; i++) {
+      var wx = gw * 0.97 * (i + 0.5) / 4, wy = wallT + (wallB - wallT) * 0.42, wr = u * 1.15;
+      c.fillStyle = 'rgba(255,186,96,0.92)'; c.beginPath(); c.arc(wx, wy, wr, 0, 6.3); c.fill();
+      c.strokeStyle = L('#c99a4a'); c.lineWidth = u * 0.22; c.stroke();
+      c.lineWidth = u * 0.1; c.beginPath(); c.moveTo(wx - wr, wy); c.lineTo(wx + wr, wy); c.moveTo(wx, wy - wr); c.lineTo(wx, wy + wr); c.stroke();
+    }
+    // atap tembaga bergelombang (patina di tepi)
+    var rg = c.createLinearGradient(0, 0, 0, wallT); rg.addColorStop(0, L('#c77d45')); rg.addColorStop(0.7, L('#8a5028')); rg.addColorStop(1, L('#4f7a66'));
+    c.fillStyle = rg;
+    c.beginPath(); c.moveTo(-u, wallT + u * 0.5); c.lineTo(gw * 0.07, gh * 0.04); c.lineTo(gw * 0.93, gh * 0.04); c.lineTo(gw, wallT + u * 0.5); c.closePath(); c.fill();
+    c.strokeStyle = L('#3a2010', 0.5); c.lineWidth = Math.max(1, u * 0.07);
+    for (i = 1; i < 22; i++) { var rx = gw * i / 22; c.beginPath(); c.moveTo(rx, wallT + u * 0.5); c.lineTo(gw * 0.07 + (gw * 0.86) * i / 22, gh * 0.04); c.stroke(); }
+    c.fillStyle = L('#e8bf55'); c.fillRect(gw * 0.07, gh * 0.025, gw * 0.86, u * 0.28);
+    // cerobong pandai besi
+    c.fillStyle = L('#5a3a22'); c.fillRect(gw * 0.3, -0 + gh * 0.0, u * 1.2, gh * 0.09);
+    // papan nama
+    c.fillStyle = L('#2a1c12'); c.fillRect(gw * 0.4, wallT + u * 0.5, gw * 0.3, u * 1.5);
+    c.strokeStyle = L('#c99a4a'); c.lineWidth = u * 0.1; c.strokeRect(gw * 0.4, wallT + u * 0.5, gw * 0.3, u * 1.5);
+    c.fillStyle = L('#e8bf55'); c.font = '700 ' + (u * 0.82).toFixed(1) + 'px ' + H.SUB_FONT; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('GARASI YAPTOB', gw * 0.55, wallT + u * 1.3);
+    return cv;
+  }
+  MTCine.register('wl_panglima', function (opts) {
+    var lit = H.makeLit(), P = new H.Particles(), garasi = null, gKey = '', clouds = MTSky.makeClouds(U.rng(31), 5), glit = MTSky.makeGlitter(U.rng(17)), lastSp = 0;
+    var vis = (opts && opts.vis) || { look: {}, up: { speed: 20, cargo: 20, condition: 20, cannons: 20 }, tier: 5, wl: ['speed', 'cargo', 'condition', 'cannons'] };
+    function draw(ctx, W, Ht, t, dt) {
+      var u = Math.min(W, Ht * 1.5) / 60, pal = MTSky.palette(0.012 + H.sm(0, 8, t) * 0.05, null), hy = Ht * 0.6;
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null);
+      MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 1);
+      // perbukitan Zentul di kejauhan
+      ctx.fillStyle = U.css(U.mix(U.hex('#2c4a52'), pal.hor, 0.55));
+      ctx.beginPath(); ctx.moveTo(0, hy); for (var i = 0; i <= 24; i++) ctx.lineTo(W * i / 24, hy - Ht * (0.035 + 0.03 * Math.sin(i * 1.7) + 0.02 * Math.sin(i * 0.6 + 1))); ctx.lineTo(W, hy); ctx.fill();
+      MTSky.paintSea(ctx, W, Ht, hy, pal, t, { glitter: glit, rough: 0.7, drift: 22 });
+      // kapal: meluncur dari dalam garasi ke tengah layar, layar terkembang pelan
+      var o = MTShip.fromVisual(vis), ext = MTShip.extent(o), k = o.sizeK || 1, e = H.ease(H.sm(1.4, 6.4, t));
+      var sc = Math.min(W * 0.5 / ((ext.aft + ext.fore) * k), Ht * 0.56 / (ext.up * k));
+      var gw = Math.max(W * 0.4, (ext.aft + ext.fore) * k * sc * 1.06), gh = Ht * 0.62, gx = Math.min(0, W * 0.36 - gw), gy = hy + Ht * 0.07 - gh * 0.9;
+      var x0 = gx + gw * 0.5, x1 = W * 0.62, x = U.lerp(x0, x1, e), y = hy + Ht * 0.105 + Math.sin(t * 1.2) * u * 0.12;
+      o.dir = 1; o.t = t; o.lit = lit; o.lanterns = Math.max(0.25, pal.lights); o.furl = 1 - H.sm(3.2, 6.6, t); o.roll = Math.sin(t * 1.1) * 0.012 * e; o.moving = 1;
+      var ro = {}; for (var kk in o) ro[kk] = o[kk]; ro.reflect = true; ro.roll = -o.roll;
+      ctx.save(); ctx.globalAlpha = 0.2; MTShip.draw(ctx, x, y + 5 * sc, sc, ro); ctx.restore();
+      MTShip.draw(ctx, x, y, sc, o);
+      MTShip.foam(ctx, x, y, sc, 1, t, 0.25 + 0.75 * Math.sin(Math.PI * H.sm(1.4, 7, t)), 1);
+      // garasi menutupi kapal selama masih di dalam
+      var key = Math.round(u * 10) + '|' + Math.round(gw) + '|' + Math.round(gh) + '|' + lit('#6b4a2c');
+      if (key !== gKey) { gKey = key; garasi = panggangGarasi(u, gw, gh, lit); }
+      ctx.save(); ctx.globalAlpha = 0.16; ctx.translate(gx, gy + gh * 1.8); ctx.scale(1, -0.55); ctx.drawImage(garasi, 0, 0, gw, gh); ctx.restore();
+      ctx.drawImage(garasi, gx, gy, gw, gh);
+      // daun pintu di mulut garasi: terbuka mengayun (tampak menyempit)
+      var op = H.ease(H.sm(0.3, 2.2, t)), dx = gx + gw * 0.97, dT = gy + gh * 0.3, dB = gy + gh * 0.9, dw = u * 6 * (1 - op) + u * 0.5;
+      ctx.fillStyle = lit('#4a3018'); ctx.beginPath(); ctx.moveTo(dx, dT); ctx.lineTo(dx + dw, dT + u * 0.6 * op); ctx.lineTo(dx + dw, dB - u * 0.3 * op); ctx.lineTo(dx, dB); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = lit('#2b2622'); ctx.fillRect(dx, dT + (dB - dT) * 0.18, dw, u * 0.35); ctx.fillRect(dx, dT + (dB - dT) * 0.74, dw, u * 0.35);
+      ctx.fillStyle = lit('#c99a4a'); ctx.fillRect(dx - u * 0.2, dT, u * 0.45, dB - dT);
+      // cahaya hangat tumpah dari mulut garasi + bunga api las Yaptob
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      var gl = ctx.createRadialGradient(dx, (dT + dB) / 2, 0, dx, (dT + dB) / 2, u * 22);
+      gl.addColorStop(0, 'rgba(255,190,110,' + (0.42 * op * (1 - H.sm(5, 8, t) * 0.6)).toFixed(3) + ')'); gl.addColorStop(1, 'rgba(255,150,60,0)');
+      ctx.fillStyle = gl; ctx.fillRect(dx - u * 22, dT - u * 14, u * 44, dB - dT + u * 28);
+      ctx.restore();
+      if (t < 3.4 && t - lastSp > 0.07) {
+        lastSp = t;
+        for (var q = 0; q < 3; q++) P.add({ x: dx + u * (0.5 + Math.random()), y: dT + (dB - dT) * (0.25 + Math.random() * 0.2), vx: u * (0.05 + Math.random() * 0.16), vy: -u * (0.02 + Math.random() * 0.1), g: u * 0.006, r: u * 0.09, life: 0.5 + Math.random() * 0.6, col: 'rgba(255,214,140,A)', add: true });
+      }
+      P.run(ctx, dt);
+      H.vignette(ctx, W, Ht, 0.42);
+      H.title(ctx, W, Ht, H.sm(5.4, 6.6, t) * (1 - H.sm(8.6, 9.4, t)), 'Panglima Laut', (vis.name ? vis.name + '  \u00b7  ' : '') + 'Warlord lengkap', Ht * 0.2);
+      if (t < 0.9) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - H.sm(0, 0.9, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, Ht); }
+    }
+    return { draw: draw, intro: 8.2 };
+  });
 })();
 
 window.MTMahkota = {

@@ -665,13 +665,22 @@
   function shipVisual_() {
     var s = (state && state.ship) || {};
     var pct = s.ConditionPct != null ? s.ConditionPct : 100;
-    return { tier: Number(s.Tier) || 2, cond: pct, visual: (state && state.shipVisual) || null };
+    return { tier: Number(s.Tier) || 2, cond: pct, visual: state && state.shipVisual ? myShipVisual_() : null };   // Tide v66: selalu membawa tier + wl
   }
   /** Opsi gambar kapal milik pemain (warna, bendera, tahap upgrade). `look` = pratinjau yang belum disimpan. */
   function myShipOpts_(look) {
     var v = (state && state.shipVisual) || { look: {}, up: {} };
-    if (look) v = { look: Object.assign({}, v.look, look), up: v.up, name: v.name };
-    return MTShip.fromVisual(v);
+    return MTShip.fromVisual(myShipVisual_(look));
+  }
+  /** Data rupa kapal pemain. Tier dan komponen Warlord diambil dari server (0086); bila belum ada, diturunkan dari state.ship. */
+  function myShipVisual_(look, patch) {
+    var v = (state && state.shipVisual) || { look: {}, up: {} }, s = (state && state.ship) || {}, out = {}, k;
+    for (k in v) out[k] = v[k];
+    if (out.tier == null) out.tier = Math.max(1, Math.min(5, Number(s.TierNum) || ROMAN_NUM_[s.Tier] || 1));
+    if (out.wl == null) out.wl = (state && state.warlord && state.warlord.set) || s.Warlord || [];
+    if (look) out.look = Object.assign({}, v.look, look);
+    if (patch) for (k in patch) out[k] = patch[k];
+    return out;
   }
 
   function cityById_(id) { return (state && state.cities || []).filter(function (c) { return c.CityId === id; })[0]; }
@@ -1208,12 +1217,65 @@
   var shipHeroRaf = 0;
   var shipLookDraft = null;   // pratinjau tampilan kapal yang belum disimpan
   var SHIP_LOOK_STAGES = {
-    speed: ['Layar standar', 'Layar sayap di tiang utama', 'Tiang ketiga', 'Layar sayap di semua tiang', 'Garis layar warna bendera', 'Panji di semua tiang'],
-    cargo: ['Lambung standar', 'Lambung lebih besar', 'Palka + lambung besar', 'Lis emas kedua', 'Derek muatan', 'Lambung raksasa'],
-    condition: ['Papan biasa', 'Sabuk besi', 'Lapisan tembaga', 'Papan jati tebal', 'Pelat baja berpaku', 'Buritan berukir emas'],
-    cannons: ['3 lubang meriam', '4 lubang meriam', '5 lubang meriam', '6 meriam + moncong perunggu', '7 meriam + meriam dek', 'Meriam haluan']
+    speed: ['Layar standar', 'Layar sayap di tiang utama', 'Tiang ketiga', 'Layar sayap di semua tiang', 'Garis layar warna bendera', 'Panji di semua tiang', 'Layar puncak keempat + tiang lebih tinggi', 'Layar penuh berlapis + jib ketiga'],
+    cargo: ['Lambung standar', 'Lambung lebih besar', 'Palka + lambung besar', 'Lis emas kedua', 'Derek muatan', 'Lambung raksasa', 'Dek buritan bertingkat + sekoci cadangan', 'Derek kedua, jaring muatan, pintu muat samping'],
+    condition: ['Papan biasa', 'Sabuk besi', 'Lapisan tembaga', 'Papan jati tebal', 'Pelat baja berpaku', 'Buritan berukir emas', 'Galeri buritan berbingkai kuningan', 'Ukiran emas sepanjang lis + pelindung haluan'],
+    cannons: ['3 lubang meriam', '4 lubang meriam', '5 lubang meriam', '6 meriam + moncong perunggu', '7 meriam + meriam dek', 'Meriam haluan', 'Dek meriam kedua', 'Penutup lubang berengsel, meriam buritan, moncong berukir']
   };
-  var SHIP_STAGE_STEP = [0, 1, 3, 5, 9, 13];
+  // Tide v66: tahap 1..5 tetap (langkah 1, 3, 5, 9, 13); tahap 6 di langkah 17, tahap 7 di langkah 20; tahap 8 = komponen Warlord
+  var SHIP_STAGE_STEP = [0, 1, 3, 5, 9, 13, 17, 20];
+  var SHIP_WL_LOOK = {
+    speed: ['Mesin Jolt Warlord', 'rumah mesin tembaga, lunas berpendar, jejak buih lurus'],
+    cargo: ['Palka Warlord', 'lambung lebih dalam, dinding ganda, pintu muat berengsel besi'],
+    condition: ['Lambung Warlord', 'pelat baja biru-hitam, Rantai Biru, taji haluan'],
+    cannons: ['Meriam Warlord', 'moncong besar berukir, mortir dek, dua meriam haluan']
+  };
+  var shipSweep_ = null;   // { visual: rupa sebelum upgrade } -> pratinjau "sekarang" berganti dengan sapuan
+
+  /** Gambar kecil kapal untuk pratinjau upgrade. fokus 'hull' = lambung diperbesar (jalur Hull & Cannons). */
+  function shipThumbDraw_(cv, v, fokus, sapu) {
+    if (!cv || !window.MTShip) return;
+    var dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(40, cv.clientWidth || 150), H = Math.max(30, cv.clientHeight || 96);
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    var c = cv.getContext('2d');
+    function satu(vv) {
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var hy = H * (fokus === 'hull' ? 0.8 : 0.86);
+      var g = c.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, '#8fbcdc'); g.addColorStop(1, '#e9eee0');
+      c.fillStyle = g; c.fillRect(0, 0, W, hy);
+      var g2 = c.createLinearGradient(0, hy, 0, H); g2.addColorStop(0, '#5b9bbd'); g2.addColorStop(1, '#2f6f96');
+      c.fillStyle = g2; c.fillRect(0, hy, W, H - hy);
+      var o = MTShip.fromVisual(vv); o.dir = 1; o.t = 1.2; o.roll = 0;
+      var e = MTShip.extent ? MTShip.extent(o) : { aft: 72, fore: 90, up: 140 }, k = o.sizeK || 1;
+      var sc = fokus === 'hull' ? Math.min(W * 0.98 / ((e.aft + e.fore - 24) * k), (hy - 2) / (64 * k)) : Math.min(W * 0.94 / ((e.aft + e.fore) * k), (hy - 5) / (e.up * k));
+      var x = W / 2 + (e.aft - e.fore) / 2 * sc * k + (fokus === 'hull' ? -8 * sc * k : 0);
+      MTShip.draw(c, x, hy, sc, o);
+      MTShip.foam(c, x, hy, sc, 1, 1.2, 0, 0.8);
+    }
+    if (!sapu) { satu(v); return; }
+    // sapuan singkat: rupa lama tersingkap menjadi rupa baru dari kiri ke kanan
+    var t0 = performance.now(), dur = 900;
+    (function f(ts) {
+      if (!cv.isConnected) return;
+      var p = Math.min(1, (ts - t0) / dur), e2 = 1 - Math.pow(1 - p, 3);
+      satu(sapu);
+      c.save(); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.beginPath(); c.rect(0, 0, W * e2, H); c.clip(); satu(v); c.restore();
+      if (p < 1) {
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var gl = c.createLinearGradient(W * e2 - 14, 0, W * e2 + 2, 0); gl.addColorStop(0, 'rgba(255,224,150,0)'); gl.addColorStop(1, 'rgba(255,232,170,.85)');
+        c.fillStyle = gl; c.fillRect(W * e2 - 14, 0, 16, H);
+        requestAnimationFrame(f);
+      }
+    })(t0);
+  }
+  /** Isi semua kanvas pratinjau (data-pv = indeks ke daftar rupa) di dalam `root`. */
+  function shipThumbsFill_(root, list) {
+    if (!root) return;
+    [].forEach.call(root.querySelectorAll('canvas[data-pv]'), function (cv) {
+      var d = list[+cv.getAttribute('data-pv')]; if (!d) return;
+      try { shipThumbDraw_(cv, d.v, d.fokus, d.sapu || null); } catch (e) { }
+    });
+  }
   var LOOK_PALETTES = {
     hull: [['#6b4226', 'Jati'], ['#2a211c', 'Eboni'], ['#6e1f1c', 'Marun'], ['#1f3a5a', 'Biru laut'], ['#2f4a2c', 'Hijau lumut'], ['#d9ccb0', 'Gading'], ['#5b5f63', 'Abu karang'], ['#9a6a24', 'Oker']],
     trim: [['#d4a84c', 'Emas'], ['#c9ccd1', 'Perak'], ['#f1ece0', 'Putih'], ['#a8322a', 'Merah'], ['#1c1a18', 'Hitam'], ['#3f79b5', 'Biru']],
@@ -1238,7 +1300,25 @@
     if (s.Legend === 'pearl') return '<p class="muted small tier-note">' + ic('star') + '<span>Black Pearl: kapal legenda Tier V.</span></p>';
     var tn = Number(s.TierNum) || 1, sum = Number(s.UpgradeLevelSum) || 0;
     return '<p class="muted small tier-note">' + ic('ship') + '<span>Tier kapal = rata-rata Level keempat upgrade (total Level <b>' + sum + '</b>/20). ' +
-      (tn < 5 ? 'Naik ke <b>Tier ' + ['I', 'II', 'III', 'IV', 'V'][tn] + '</b> saat total Level ' + ((tn + 1) * 4) + '.' : 'Tier tertinggi.') + '</span></p>';
+      (tn < 5 ? 'Naik ke <b>Tier ' + ['I', 'II', 'III', 'IV', 'V'][tn] + '</b> saat total Level ' + ((tn + 1) * 4) + '.' : 'Tier tertinggi.') + '</span></p>' +
+      '<div id="shipTierPrev"></div>';
+  }
+  var SHIP_TIER_LOOK = ['', 'perahu dagang kecil', 'lambung memanjang, kabin buritan', 'kastil buritan, haluan berparuh, tangga tali', 'kastil dua tingkat, galeri, sekoci', 'kapal panji: buritan menjulang, figur haluan'];
+  /** Tide v66: siluet Tier sekarang -> siluet berikutnya (atau Panglima Laut bila Garasi Warlord terbuka). */
+  function renderShipTierPrev_() {
+    var el = document.getElementById('shipTierPrev'), sv = state && state.shipVisual;
+    if (!el || !sv || sv.legend === 'pearl' || (sv.kd && sv.kd.bentuk)) { if (el) el.innerHTML = ''; return; }
+    var now = myShipVisual_(), tn = now.tier, R = ['', 'I', 'II', 'III', 'IV', 'V'], wl = now.wl || [], list = [{ v: now }], kanan = '', ket;
+    var gar = state.warlord && state.warlord.buka;
+    if (shipSweep_ && (shipSweep_.visual.tier !== tn || (shipSweep_.visual.wl || []).length !== wl.length)) list[0].sapu = shipSweep_.visual;
+    if (wl.length >= 4) ket = '<b>Panglima Laut</b> &middot; siluet tertinggi';
+    else if (tn < 5) { list.push({ v: myShipVisual_(null, { tier: tn + 1 }) }); ket = 'Siluet <b>Tier ' + R[tn + 1] + '</b>: ' + SHIP_TIER_LOOK[tn + 1] + ' &middot; di total Level ' + ((tn + 1) * 4); }
+    else if (gar) { list.push({ v: myShipVisual_(null, { tier: 5, wl: ['speed', 'cargo', 'condition', 'cannons'], up: { speed: 20, cargo: 20, condition: 20, cannons: 20 } }) }); ket = '<b>Panglima Laut</b>: lengkapi 4 komponen Warlord di Garasi Yaptob, Zentul (' + wl.length + '/4)'; }
+    else ket = 'Siluet <b>Tier V</b> &middot; tertinggi di galangan';
+    if (list.length > 1) kanan = '<span class="upg-arrow">&rarr;</span><div class="upg-pv"><canvas data-pv="1"></canvas><span>' + (tn < 5 ? 'Tier ' + R[tn + 1] : 'Panglima Laut') + '</span></div>';
+    el.innerHTML = '<div class="card tier-prev"><div class="upg-prev' + (kanan ? '' : ' satu') + '"><div class="upg-pv"><canvas data-pv="0"></canvas><span>' + (wl.length >= 4 ? 'Panglima Laut' : 'Tier ' + R[tn] + ' &middot; ' + SHIP_TIER_LOOK[tn]) + '</span></div>' + kanan + '</div>' +
+      '<div class="upg-look">' + ic('ship') + '<span>' + ket + '</span></div></div>';
+    shipThumbsFill_(el, list);
   }
 
   var shipLookOpen = false;
@@ -1460,23 +1540,40 @@
   function renderShipUpgradeSection_(data) {
     var el = document.getElementById('shipUpgradeSection');
     if (!el) return;
-    var affordable = data.affordable || {};
+    var affordable = data.affordable || {}, pvList = [];
     el.innerHTML = '<div class="card-grid">' + Object.keys(UPGRADE_GROUP_META).map(function (group) {
       var meta = UPGRADE_GROUP_META[group];
       var info = affordable[group] || {};
       var lt = parseLevelTier_(info.currentLabel);
       var prog = lt ? '<span class="muted small">Lv ' + lt.level + '</span>' + pipsHtml_(lt.tier, 4) : '';
       var stp = state.shipVisual && state.shipVisual.up ? state.shipVisual.up[group] || 0 : 0, stg = MTShip.stage(stp);
-      var lookLine = '<div class="upg-look">' + ic('ship') + '<span>' + SHIP_LOOK_STAGES[group][stg] +
-        (stg < 5 ? ' &rarr; <b>' + SHIP_LOOK_STAGES[group][stg + 1] + '</b> di ' + stepLabel_(SHIP_STAGE_STEP[stg + 1]) : ' &middot; tampilan maksimal') + '</span></div>';
+      // Tide v66: pratinjau "sekarang -> berikutnya" + di Level/Tier berapa tahap berikutnya terbuka
+      var sv0 = state.shipVisual, bisaPv = sv0 && sv0.legend !== 'pearl' && !(sv0.kd && sv0.kd.bentuk), nowV = bisaPv ? myShipVisual_() : null, wlNow = (nowV && nowV.wl) || [];
+      var punyaWl = wlNow.indexOf(group) >= 0, gar = state.warlord && state.warlord.buka, fokus = group === 'condition' || group === 'cannons' ? 'hull' : 'full';
+      var nextV = null, nextNm = '', nextDi = '', nowNm = punyaWl ? SHIP_WL_LOOK[group][0] : SHIP_LOOK_STAGES[group][stg];
+      if (stg < 7) { var upN = {}; for (var gk in (nowV ? nowV.up : {})) upN[gk] = nowV.up[gk]; upN[group] = SHIP_STAGE_STEP[stg + 1]; nextV = nowV ? myShipVisual_(null, { up: upN }) : null; nextNm = SHIP_LOOK_STAGES[group][stg + 1]; nextDi = stepLabel_(SHIP_STAGE_STEP[stg + 1]); }
+      else if (!punyaWl && gar) { nextV = nowV ? myShipVisual_(null, { wl: wlNow.concat([group]) }) : null; nextNm = SHIP_WL_LOOK[group][0] + ' (' + SHIP_WL_LOOK[group][1] + ')'; nextDi = 'Garasi Yaptob, Zentul'; }
+      var lookLine = '<div class="upg-look">' + ic('ship') + '<span>' + nowNm + (nextNm ? ' &rarr; <b>' + nextNm + '</b> di ' + nextDi : ' &middot; tampilan maksimal') + '</span></div>';
+      var pv = '';
+      if (bisaPv && (group === 'cargo' || stg >= 7)) fokus = 'hull';
+      if (bisaPv) {
+        var a = pvList.length; pvList.push({ v: nowV, fokus: fokus, sapu: shipSweep_ && shipSweep_.group === group && MTShip.stage((shipSweep_.visual.up || {})[group]) < stg ? shipSweep_.visual : null });
+        pv = lookLine.replace('class="upg-look"', 'class="upg-look lebar"') + '<div class="upg-prev' + (nextV ? '' : ' satu') + ' f-' + fokus + '"><div class="upg-pv"><canvas data-pv="' + a + '"></canvas><span>Sekarang</span></div>';
+        if (nextV) { pvList.push({ v: nextV, fokus: fokus }); pv += '<span class="upg-arrow">&rarr;</span><div class="upg-pv"><canvas data-pv="' + (a + 1) + '"></canvas><span>' + (stg < 7 ? nextDi : 'Warlord') + '</span></div>'; }
+        pv += '</div>';
+        lookLine = '';
+      }
       if (info.maxed) {
         return '<div class="card upg-card"><span class="upg-ico">' + ic(meta.icon) + '</span><div><div class="upg-name">' + meta.label + ' ' + prog + '</div>' +
-          '<div class="upg-next">' + (info.currentLabel || '') + (info.effect ? ' &middot; ' + info.effect : '') + '</div>' + lookLine + '</div><span class="legend-tag">' + ic('star') + ' LEGENDARY</span></div>';
+          '<div class="upg-next">' + (info.currentLabel || '') + (info.effect ? ' &middot; ' + info.effect : '') + '</div>' + lookLine + '</div><span class="legend-tag">' + ic('star') + ' LEGENDARY</span>' + pv + '</div>';
       }
       return '<div class="card upg-card hover"><span class="upg-ico">' + ic(meta.icon) + '</span><div><div class="upg-name">' + meta.label + ' ' + prog + '</div>' +
         '<div class="upg-next">' + (info.nextLabel || '') + ': ' + (info.effect || info.label || '') + ' &middot; <b style="color:var(--teak-800);">' + formatGold(info.cost) + ' gold</b></div>' + lookLine + '</div>' +
-        '<button class="btn ' + (info.affordable ? 'btn-gold' : '') + ' ship-action" ' + (info.affordable ? '' : 'disabled') + ' onclick="doShipUpgrade(\'' + group + '\')">Upgrade</button></div>';
+        '<button class="btn ' + (info.affordable ? 'btn-gold' : '') + ' ship-action" ' + (info.affordable ? '' : 'disabled') + ' onclick="doShipUpgrade(\'' + group + '\')">Upgrade</button>' + pv + '</div>';
     }).join('') + '</div>';
+    shipThumbsFill_(el, pvList);
+    renderShipTierPrev_();
+    shipSweep_ = null;
   }
 
   function doShipUpgrade(group) {
@@ -1489,6 +1586,7 @@
         txPending = false;
         showToast('Upgrade ' + group + ' ke ' + String(result.newLevelTierLabel || '').replace('&middot;', '-') + ' selesai (' + formatGold(result.goldSpent) + ' gold).', 'success');
         var upBefore = state.shipVisual && state.shipVisual.up ? state.shipVisual.up[group] || 0 : 0;
+        var visBefore = null; try { visBefore = JSON.parse(JSON.stringify(myShipVisual_())); } catch (e) { visBefore = null; }
         setTimeout(function () {
           var up = state.shipVisual && state.shipVisual.up ? state.shipVisual.up[group] || 0 : 0;
           if (MTShip.stage(up) > MTShip.stage(upBefore)) showToast('Tampilan kapal berubah: ' + (SHIP_LOOK_STAGES[group][MTShip.stage(up)] || 'baru') + '!', 'success');
@@ -1498,7 +1596,8 @@
         invalidatePanelCache_();
         google.script.run.withSuccessHandler(function (shipData) {
           patchShip_(shipData.ship, shipData.visual);
-          if (currentPanel === 'ship') renderShip();
+          shipSweep_ = visBefore ? { group: group, visual: visBefore } : null;   // pratinjau berganti dengan sapuan bila tahap baru terbuka
+          if (currentPanel === 'ship') renderShip(); else shipSweep_ = null;
         }).withFailureHandler(function (err) {
           var el = document.getElementById('shipActionMsg'); if (el) el.textContent = err.message;
         }).api_getShipState();
@@ -2645,7 +2744,8 @@
     if (hudB > cvH * 0.5) hudB = 0;
     cvHudBottom = hudB;
     if (uiT < cvH && uiT > cvH * 0.5) py = Math.min(py, uiT - 15 * s * kP);
-    var sFit = Math.min((px - 6) / (72 * kP), (py - hudB + (narrow ? 18 : 64)) / (136 * kP));
+    var ext = { aft: 72, up: 136 }; try { if (state && state.shipVisual && MTShip.extent) ext = MTShip.extent(myShipOpts_()); } catch (e) { ext = { aft: 72, up: 136 }; }   // Tide v66: bentang ikut siluet
+    var sFit = Math.min((px - 6) / (ext.aft * kP), (py - hudB + (narrow ? 18 : 64)) / (ext.up * kP));
     if (sFit > 0) s = Math.max(s * 0.6, Math.min(s, sFit));
     if (uiT < cvH && uiT > cvH * 0.5) py = Math.min(cvH * 0.8, uiT - 15 * s * kP);
     cvPlayerShip.x = px; cvPlayerShip.y = py; cvPlayerShip.s = s;
@@ -2714,7 +2814,7 @@
   /** Pilih n moncong untuk satu salvo: merata sepanjang lambung, lalu meriam dek & meriam haluan bila ada. */
   function cvPickGuns_(sh, dir, n) {
     var g = cvGuns_(sh, dir), ports = [], rail = [], chaser = null, out = [], i;
-    g.forEach(function (p) { if (p.kind === 'port') ports.push(p); else if (p.kind === 'rail') rail.push(p); else chaser = p; });
+    g.forEach(function (p) { if (p.kind === 'port') ports.push(p); else if (p.kind === 'rail') rail.push(p); else if (p.kind === 'chaser') chaser = chaser || p; });   // Tide v66: 'mortar' & 'stern' tidak ikut salvo ke depan
     if (!ports.length) return g.slice(0, n);
     var nExtra = (n >= 5 && chaser ? 1 : 0) + (n >= 4 && rail.length ? 1 : 0), nPort = Math.max(1, Math.min(ports.length, n - nExtra));
     for (i = 0; i < nPort; i++) out.push(ports[Math.min(ports.length - 1, Math.floor((i + 0.5) * ports.length / nPort))]);

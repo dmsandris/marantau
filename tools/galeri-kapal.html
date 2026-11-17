@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Galeri Kapal Marantau (alat uji)</title>
+<!--
+  Galeri Kapal: alat uji rupa kapal (Tide v66). TIDAK ikut build produksi.
+  Cara pakai (dari akar repo):
+      python3 -m http.server 8851
+      buka http://127.0.0.1:8851/tools/galeri-kapal.html
+  Halaman ini memuat MTShip langsung dari web/src/SceneEngine.html dan rupa Kedai dari web/src/KedaiRupa.html,
+  jadi tidak perlu build dulu; cukup muat ulang setelah mengubah kode.
+  Parameter URL:
+      lembar=tier|speed|cargo|hull|cannons|warlord|warna|rusak|skala|malam|kedai|ringkas|sebelum|semua   (bawaan: semua)
+      titik=1     tandai MTShip.gunPoints() (lingkaran merah = port, kuning = rail, hijau = chaser, biru = mortar/stern)
+      hidup=1     animasi berjalan + ukur ms/frame (ditampilkan di pojok)
+      nobake=1    matikan panggang offscreen (untuk membandingkan kinerja dan ketajaman)
+      lama=URL    muat SceneEngine lama (mis. hasil `git show cabang:web/src/SceneEngine.html`) untuk lembar "sebelum"
+      dpr=2       paksa rasio piksel
+-->
+<style>
+  body { margin: 0; padding: 14px 16px 40px; background: #1b1612; color: #e9dcc2; font: 13px/1.35 Georgia, serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 22px 0 8px; color: #e8bf55; border-bottom: 1px solid #4a3a26; padding-bottom: 4px; }
+  .ket { color: #b9a886; margin: 0 0 8px; }
+  .baris { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sel { background: #241d17; border: 1px solid #3d3023; border-radius: 6px; padding: 4px 4px 6px; }
+  .sel canvas { display: block; border-radius: 4px; }
+  .sel .lb { margin-top: 4px; font-size: 12px; text-align: center; color: #e9dcc2; max-width: 100%; }
+  .sel .lb small { color: #a8977a; display: block; }
+  #fps { position: fixed; right: 10px; top: 8px; background: rgba(0,0,0,.7); padding: 4px 8px; border-radius: 4px; font: 12px monospace; }
+  #galat { color: #ff8a70; white-space: pre-wrap; font: 12px monospace; }
+</style>
+</head>
+<body>
+<h1>Galeri Kapal Marantau</h1>
+<p class="ket">Alat uji rupa kapal. Parameter: <code>?lembar=…&amp;titik=1&amp;hidup=1&amp;nobake=1&amp;lama=URL</code> (lihat komentar di sumber halaman).</p>
+<div id="galat"></div>
+<div id="isi"></div>
+<div id="fps" hidden></div>
+<script>
+(function () {
+  var Q = {}; location.search.replace(/^\?/, '').split('&').forEach(function (kv) { if (!kv) return; var p = kv.split('='); Q[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || '1'); });
+  var DPR = +Q.dpr || Math.min(2, window.devicePixelRatio || 1), LEMBAR = Q.lembar || 'semua', TITIK = !!Q.titik, HIDUP = !!Q.hidup, NOBAKE = !!Q.nobake;
+  var galat = document.getElementById('galat');
+  window.addEventListener('error', function (e) { galat.textContent += 'GALAT: ' + e.message + ' @' + e.lineno + '\n'; });
+  function ambil(url) { return fetch(url, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.text(); }); }
+  function isiSkrip(html) { var out = '', re = /<script>([\s\S]*?)<\/script>/g, m; while ((m = re.exec(html))) out += m[1] + '\n;'; return out; }
+  function pasang(kode) { var s = document.createElement('script'); s.text = kode; document.head.appendChild(s); }
+
+  var LAMA = null;
+  ambil('../web/src/SceneEngine.html').then(function (h) {
+    pasang(isiSkrip(h));
+    return ambil('../web/src/KedaiRupa.html').then(function (k) { pasang(isiSkrip(k)); }, function () { });
+  }).then(function () {
+    if (!Q.lama) return;
+    return ambil(Q.lama).then(function (h) {
+      var kode = isiSkrip(h);
+      LAMA = (new Function(kode.slice(0, kode.indexOf('/* =============================== MTScene')) + '\n;return MTShip;'))();
+    });
+  }).then(mulai).catch(function (e) { galat.textContent += 'GALAT muat: ' + (e && e.message || e) + '\n'; });
+
+  /* ---------- data contoh ---------- */
+  var LOOK = { hull: '#6b4226', trim: '#d4a84c', sail: '#f3e9d2', flag: '#9b2d20', emblem: 'anchor', emblemColor: '#f3e9d2', shape: 'swallow' };
+  var WARNA = [
+    ['Jati + merah (bawaan)', LOOK],
+    ['Biru laut + perak', { hull: '#1f3a5a', trim: '#c9ccd1', sail: '#fbfaf5', flag: '#2f7fa3', emblem: 'star', emblemColor: '#ffffff', shape: 'pennant' }],
+    ['Eboni + merah, layar merah', { hull: '#2a211c', trim: '#a8322a', sail: '#a8382c', flag: '#111111', emblem: 'skull', emblemColor: '#f3e9d2', shape: 'flame' }],
+    ['Gading + emas, layar kuning', { hull: '#d9ccb0', trim: '#d4a84c', sail: '#e2b64a', flag: '#3f8c3f', emblem: 'compass', emblemColor: '#e8bf55', shape: 'long' }],
+    ['Hijau lumut + putih, layar hijau', { hull: '#2f4a2c', trim: '#f1ece0', sail: '#4d7a45', flag: '#f4ecd8', emblem: 'crescent', emblemColor: '#b3302a', shape: 'rect' }],
+    ['Marun + hitam, layar hitam', { hull: '#6e1f1c', trim: '#1c1a18', sail: '#2b2826', flag: '#8e3d8a', emblem: 'diamond', emblemColor: '#e8bf55', shape: 'swallow' }]
+  ];
+  var LANGKAH = [0, 1, 3, 5, 9, 13, 17, 20];   // langkah upgrade pertama tiap tahap 0..7
+  var TIER_UP = [0, 0, 5, 9, 13, 17];           // langkah rata yang lazim untuk Tier 1..5
+  function vis(tier, up, wl, look, kd) {
+    up = up || {};
+    return { look: look || LOOK, tier: tier, wl: wl || [], kd: kd || null,
+      up: { speed: up.speed || 0, cargo: up.cargo || 0, condition: up.condition || 0, cannons: up.cannons || 0 } };
+  }
+  function rata(n) { return { speed: n, cargo: n, condition: n, cannons: n }; }
+  var SEMUA = ['speed', 'cargo', 'condition', 'cannons'];
+  var NAMA_WL = { speed: 'Mesin Jolt', cargo: 'Palka', condition: 'Lambung', cannons: 'Meriam' };
+
+  function lembarList() {
+    var L = [], c, i, g;
+    function tambah(id, judul, ket, sel, opt) { L.push({ id: id, judul: judul, ket: ket, sel: sel, opt: opt || {} }); }
+
+    c = [];
+    for (i = 1; i <= 5; i++) c.push({ lb: 'Tier ' + ['I', 'II', 'III', 'IV', 'V'][i - 1], sub: 'upgrade rata langkah ' + TIER_UP[i], v: vis(i, rata(TIER_UP[i])) });
+    tambah('tier', 'Siluet per Tier', 'Tier I–V dengan upgrade yang lazim di Tier itu.', c, { w: 300, h: 300 });
+    c = [];
+    for (i = 1; i <= 5; i++) c.push({ lb: 'Tier ' + ['I', 'II', 'III', 'IV', 'V'][i - 1] + ' polos', sub: 'tanpa upgrade', v: vis(i, rata(0)) });
+    tambah('tier', 'Siluet per Tier: lambung saja', 'Tanpa upgrade, supaya bentuk lambung, kastil, dan haluan terlihat.', c, { w: 300, h: 300 });
+
+    SEMUA.forEach(function (grp) {
+      c = [];
+      for (i = 0; i <= 7; i++) { var u = {}; u[grp] = LANGKAH[i]; c.push({ lb: 'Tahap ' + i, sub: 'langkah ' + LANGKAH[i], v: vis(3, u) }); }
+      tambah({ speed: 'speed', cargo: 'cargo', condition: 'hull', cannons: 'cannons' }[grp], 'Jalur ' + { speed: 'Speed', cargo: 'Cargo', condition: 'Hull (condition)', cannons: 'Cannons' }[grp] + ': tahap 0–7', 'Tier III, jalur lain di tahap 0.', c, { w: 300, h: 290, muat: grp === 'cargo' ? 6 : 0 });
+    });
+
+    c = [];
+    SEMUA.forEach(function (grp) { c.push({ lb: NAMA_WL[grp] + ' Warlord', sub: '1 komponen', v: vis(5, rata(20), [grp]) }); });
+    c.push({ lb: 'Mesin + Meriam', sub: '2 komponen', v: vis(5, rata(20), ['speed', 'cannons']) });
+    c.push({ lb: 'Mesin + Palka + Lambung', sub: '3 komponen', v: vis(5, rata(20), ['speed', 'cargo', 'condition']) });
+    c.push({ lb: 'Tier V mentok', sub: 'pembanding, tanpa Warlord', v: vis(5, rata(20)) });
+    c.push({ lb: 'PANGLIMA LAUT', sub: 'lengkap 4/4', v: vis(5, rata(20), SEMUA) });
+    tambah('warlord', 'Warlord', 'Semua jalur langkah 20. Tiap komponen punya tanda sendiri; lengkap = Panglima Laut.', c, { w: 380, h: 380, laju: 1 });
+    c = [];
+    c.push({ lb: 'Panglima Laut, siang', v: vis(5, rata(20), SEMUA), besar: 1 });
+    c.push({ lb: 'Panglima Laut, malam', v: vis(5, rata(20), SEMUA), malam: 1, besar: 1 });
+    c.push({ lb: 'Panglima Laut, biru + perak', v: vis(5, rata(20), SEMUA, WARNA[1][1]), besar: 1 });
+    c.push({ lb: 'Panglima Laut, eboni + layar merah', v: vis(5, rata(20), SEMUA, WARNA[2][1]), besar: 1 });
+    tambah('warlord', 'Panglima Laut (besar)', 'Skala besar seperti di panel Ship dan layar tempur.', c, { w: 620, h: 620, laju: 1 });
+
+    c = [];
+    WARNA.forEach(function (w) { c.push({ lb: w[0], sub: 'Tier IV, langkah 13', v: vis(4, rata(13), null, w[1]) }); });
+    WARNA.slice(1, 4).forEach(function (w) { c.push({ lb: w[0], sub: 'Tier I', v: vis(1, rata(0), null, w[1]) }); });
+    tambah('warna', 'Contoh warna', 'Warna lambung, lis, layar, bendera, bentuk bendera, dan lambang pilihan pemain.', c, { w: 300, h: 300 });
+
+    c = [];
+    [[1, 0], [3, 9], [5, 20]].forEach(function (p) {
+      c.push({ lb: 'Tier ' + p[0] + ' rusak 35%', sub: 'layar robek', v: vis(p[0], rata(p[1])), rusak: 0.35 });
+      c.push({ lb: 'Tier ' + p[0] + ' rusak 70%', sub: 'tiang depan patah', v: vis(p[0], rata(p[1])), rusak: 0.7 });
+    });
+    c.push({ lb: 'Panglima rusak 70%', v: vis(5, rata(20), SEMUA), rusak: 0.7 });
+    c.push({ lb: 'Tier III layar digulung', v: vis(3, rata(9)), gulung: 1 });
+    c.push({ lb: 'Tier V setengah gulung', v: vis(5, rata(20)), gulung: 0.5 });
+    tambah('rusak', 'Kondisi rusak dan layar digulung', '', c, { w: 300, h: 300 });
+
+    c = [];
+    for (i = 1; i <= 5; i++) c.push({ lb: 'Tier ' + i, sub: 'skala pelabuhan, layar digulung', v: vis(i, rata(TIER_UP[i])), skala: 0.82, gulung: 1 });
+    c.push({ lb: 'Panglima', sub: 'skala pelabuhan', v: vis(5, rata(20), SEMUA), skala: 0.82, gulung: 1 });
+    for (i = 1; i <= 5; i++) c.push({ lb: 'Tier ' + i, sub: 'sangat kecil (jauh di laut)', v: vis(i, rata(TIER_UP[i])), skala: 0.4 });
+    c.push({ lb: 'Panglima', sub: 'sangat kecil', v: vis(5, rata(20), SEMUA), skala: 0.4 });
+    tambah('skala', 'Skala kecil', 'Seperti kapal pemain lain di pelabuhan (±0,8 px per unit × sizeK) dan kapal jauh.', c, { w: 200, h: 230, dprMin: 1 });
+
+    c = [];
+    for (i = 1; i <= 5; i++) c.push({ lb: 'Tier ' + i + ' malam', v: vis(i, rata(TIER_UP[i])), malam: 1 });
+    c.push({ lb: 'Tier V mentok malam', v: vis(5, rata(20)), malam: 1 });
+    c.push({ lb: 'Panglima malam', v: vis(5, rata(20), SEMUA), malam: 1 });
+    c.push({ lb: 'Tier III senja', v: vis(3, rata(9)), jam: 0.74 });
+    tambah('malam', 'Malam (lentera) dan senja', '', c, { w: 300, h: 300 });
+
+    c = [];
+    var KD1 = { layar: 'layar_songket', haluan: 'haluan_naga', panji: 'panji_umbul', aura: 'aura_lampion', penghuni: 'penghuni_kucing', meriam: 'meriam_letusan' };
+    var KD2 = { lambung: 'lambung_lava', layar: 'layar_bara', jejak: 'jejak_bara', haluan: 'haluan_garuda', penghuni: 'penghuni_monyet' };
+    c.push({ lb: 'Tier II + rupa Kedai', sub: 'songket, naga, umbul, lampion, kucing', v: vis(2, rata(5), null, null, KD1), malam: 0 });
+    c.push({ lb: 'Tier IV + rupa Kedai', sub: 'sama', v: vis(4, rata(13), null, null, KD1) });
+    c.push({ lb: 'Tier V + lava', sub: 'lambung lava, layar bara, garuda, monyet', v: vis(5, rata(20), null, null, KD2) });
+    c.push({ lb: 'Panglima + rupa Kedai', sub: 'songket, naga, …', v: vis(5, rata(20), SEMUA, null, KD1), malam: 1 });
+    ['bentuk_lancang', 'bentuk_kora', 'bentuk_jung'].forEach(function (b) {
+      c.push({ lb: b, sub: 'Bentuk Kedai, Tier V', v: vis(5, rata(20), null, null, { bentuk: b }) });
+      c.push({ lb: b + ' + Panglima', sub: 'panji panglima + kilau', v: vis(5, rata(20), SEMUA, null, { bentuk: b }), tKilau: 1 });
+    });
+    tambah('kedai', 'Rupa Kedai Rantau dan Bentuk Kedai', 'Rupa Kedai di atas siluet baru; Bentuk Kedai mengganti siluet tetapi tanda Panglima Laut tetap ditempel.', c, { w: 330, h: 330 });
+
+    c = [];
+    c.push({ lb: 'Klasik polos (NPC)', sub: 'opsi lama tanpa tier', o: { masts: 2, hull: '#5a3a22', trim: '#c9a04a', sail: '#efe4cc', flag: '#9b2d20', flagType: 'crest' } });
+    c.push({ lb: 'Bajak laut biasa', sub: 'opsi lama', o: { masts: 3, hull: '#2b1d16', trim: '#7a6440', sail: '#4d4843', flag: '#111111', flagType: 'skull', pennant: '#6e1d14' } });
+    c.push({ lb: 'Bos bajak laut', sub: 'opsi lama lengkap', o: { masts: 3, hull: '#171112', trim: '#c9a033', sail: '#6e1810', flag: '#111111', flagShape: 'flame', emblem: 'skull', emblemColor: '#e8bf55', pennant: '#b3261e', ports: 7, muzzles: true, railGuns: true, chaser: true, gilded: true, rivets: true, sizeK: 1.22, studding: 2, streamers: true } });
+    c.push({ lb: 'Black Pearl', sub: 'legenda: tidak berubah', v: { legend: 'pearl' } });
+    c.push({ lb: 'Black Pearl malam', sub: 'legenda: tidak berubah', v: { legend: 'pearl' }, malam: 1 });
+    tambah('lama', 'Pemanggil lama dan Black Pearl', 'Kapal tanpa data Tier memakai siluet klasik; Black Pearl digambar kode lama.', c, { w: 330, h: 330 });
+
+    // ringkas: satu lembar "sebelum vs sesudah" (butuh ?lama=URL)
+    c = [];
+    [[1, 0, 'Kapal awal'], [2, 5, 'Langkah 5'], [3, 9, 'Langkah 9'], [4, 13, 'Langkah 13'], [5, 17, 'Langkah 17'], [5, 20, 'Langkah 20']].forEach(function (p) {
+      c.push({ lb: p[2] + ': SEBELUM', sub: 'kode lama', v: vis(p[0], rata(p[1])), lama: 1 });
+      c.push({ lb: p[2] + ': SESUDAH', sub: 'Tier ' + p[0], v: vis(p[0], rata(p[1])) });
+    });
+    c.push({ lb: 'Warlord 4/4: SEBELUM', sub: 'kode lama (tanpa rupa)', v: vis(5, rata(20), SEMUA), lama: 1 });
+    c.push({ lb: 'Warlord 4/4: SESUDAH', sub: 'Panglima Laut', v: vis(5, rata(20), SEMUA) });
+    tambah('sebelum', 'Sebelum vs sesudah', 'Kiri: MTShip lama (param lama=URL). Kanan: MTShip baru. Data kapal sama.', c, { w: 300, h: 300, kolom: 4 });
+    return L;
+  }
+
+  /* ---------- gambar ---------- */
+  var sel = [], PAL = {};
+  function palet(jam) { var k = String(jam); return PAL[k] || (PAL[k] = MTSky.palette(jam, null)); }
+  function buatSel(wadah, def, opt) {
+    var w = opt.w, h = opt.h;
+    if (def.besar) { w = 620; h = 620; }
+    var d = document.createElement('div'); d.className = 'sel'; d.style.width = w + 'px';
+    var cv = document.createElement('canvas'), dpr = Math.max(opt.dprMin || 0, DPR);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    d.appendChild(cv);
+    var lb = document.createElement('div'); lb.className = 'lb'; lb.innerHTML = def.lb + (def.sub ? '<small>' + def.sub + '</small>' : ''); d.appendChild(lb);
+    wadah.appendChild(d);
+    var S = def.lama ? LAMA : MTShip;
+    sel.push({ cv: cv, ctx: cv.getContext('2d'), def: def, opt: opt, w: w, h: h, dpr: dpr, S: S, glit: MTSky.makeGlitter(MTUtil.rng(9)), clouds: MTSky.makeClouds(MTUtil.rng(7), 3) });
+  }
+  function gambar(s, t) {
+    var ctx = s.ctx, def = s.def, W = s.w, H = s.h, S = s.S;
+    if (!S) { ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0); ctx.fillStyle = '#332820'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#b9a886'; ctx.font = '12px Georgia'; ctx.fillText('butuh ?lama=URL', 12, 24); return; }
+    var jam = def.jam != null ? def.jam : (def.malam ? 0.86 : 0.42), pal = palet(jam);
+    ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    var hy = H * 0.66;
+    MTSky.paintSky(ctx, W, hy, pal, t, null);
+    MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: s.glit, rough: 0.7, drift: 20 });
+    var o = def.o ? Object.assign({}, def.o) : S.fromVisual(def.v);
+    if (NOBAKE) o.noBake = true;
+    o.dir = 1; o.t = t; o.lit = pal.lit; o.lanterns = pal.lights; o.roll = HIDUP ? Math.sin(t * 1.1) * 0.03 : 0.012;
+    if (def.rusak) o.damage = def.rusak;
+    if (def.gulung) o.furl = def.gulung;
+    if (s.opt.muat) o.cargo = s.opt.muat;
+    var ext = S.extent ? S.extent(o) : { aft: 72, fore: 90, up: 140, down: 12 }, k = o.sizeK || 1;
+    var fit = Math.min(W * 0.94 / ((ext.aft + ext.fore + (s.opt.laju ? 14 : 0)) * k), H * 0.8 / ((ext.up + 16) * k)), sc = def.skala ? Math.min(def.skala, fit) : fit;
+    var x = W * 0.5 + (ext.aft - ext.fore) * 0.5 * sc * k + (s.opt.laju ? 6 * sc : 0), y = H * 0.86;
+    var ro = Object.assign({}, o); ro.reflect = true; ro.roll = -o.roll;
+    ctx.save(); ctx.globalAlpha = 0.18; S.draw(ctx, x, y + 5 * sc, sc, ro); ctx.restore();
+    S.draw(ctx, x, y, sc, o);
+    S.foam(ctx, x, y, sc, 1, t, s.opt.laju ? 0.9 : 0.35, 1);
+    if (TITIK && S.gunPoints) {
+      var WARNA_T = { port: '#ff3b30', rail: '#ffd60a', chaser: '#34c759', mortar: '#5ac8fa', stern: '#5ac8fa' };
+      S.gunPoints(o).forEach(function (p) {
+        var q = S.toScreen(x, y, sc, o, p.x, p.y);
+        ctx.strokeStyle = WARNA_T[p.kind] || '#fff'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(q.x, q.y, 3.2, 0, 6.3); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(q.x - 5, q.y); ctx.lineTo(q.x + 5, q.y); ctx.moveTo(q.x, q.y - 5); ctx.lineTo(q.x, q.y + 5); ctx.stroke();
+      });
+    }
+  }
+
+  function mulai() {
+    var isi = document.getElementById('isi');
+    lembarList().forEach(function (lb) {
+      if (LEMBAR !== 'semua' && LEMBAR !== lb.id) return;
+      if (LEMBAR === 'semua' && lb.id === 'sebelum' && !LAMA) return;
+      var h = document.createElement('h2'); h.textContent = lb.judul; isi.appendChild(h);
+      if (lb.ket) { var p = document.createElement('p'); p.className = 'ket'; p.textContent = lb.ket; isi.appendChild(p); }
+      var b = document.createElement('div'); b.className = 'baris'; if (lb.opt.kolom) b.style.maxWidth = (lb.opt.kolom * (lb.opt.w + 18)) + 'px'; isi.appendChild(b);
+      lb.sel.forEach(function (d) { buatSel(b, d, lb.opt); });
+    });
+    var T0 = +Q.t || 2.2;
+    sel.forEach(function (s) { gambar(s, s.def.tKilau ? 6.5 + 0.95 : T0); });
+    window.GALERI = { sel: sel, gambar: gambar, siap: true, ukur: ukur };
+    if (HIDUP) {
+      var fps = document.getElementById('fps'); fps.hidden = false;
+      var t0 = performance.now(), acc = 0, n = 0;
+      (function f(ts) {
+        var a = performance.now(), t = (ts - t0) / 1000 + T0;
+        sel.forEach(function (s) { gambar(s, t); });
+        acc += performance.now() - a; n++;
+        if (n % 30 === 0) { fps.textContent = (acc / n).toFixed(2) + ' ms/frame untuk ' + sel.length + ' kapal (' + (acc / n / sel.length).toFixed(3) + ' ms/kapal)'; acc = 0; n = 0; }
+        requestAnimationFrame(f);
+      })(t0);
+    }
+  }
+  /** Ukur ms per frame untuk semua sel (n frame, t maju 1/60 s per frame). */
+  function ukur(n) {
+    n = n || 120; var i, t = 3, a;
+    for (i = 0; i < 20; i++) { t += 1 / 60; sel.forEach(function (s) { gambar(s, t); }); }
+    a = performance.now();
+    for (i = 0; i < n; i++) { t += 1 / 60; sel.forEach(function (s) { gambar(s, t); }); }
+    return { msFrame: (performance.now() - a) / n, kapal: sel.length };
+  }
+})();
+</script>
+</body>
+</html>
