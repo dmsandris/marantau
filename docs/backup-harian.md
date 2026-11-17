@@ -18,8 +18,8 @@ age-keygen -o marantau-backup-kunci.txt
 
 ### 2. Izin Google Drive (`rclone`, akses hanya ke file buatan rclone)
 ```
-winget install Rclone.Rclone        # Windows  (Mac: brew install rclone)
-rclone authorize drive "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ=="
+winget install Rclone.Rclone        # Windows (Mac: brew install rclone). Lalu tutup & buka lagi PowerShell.
+rclone authorize drive "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"
 ```
 Browser terbuka → login akun Google tujuan backup → Izinkan. Terminal mencetak token JSON `{"access_token":...}`.
 
