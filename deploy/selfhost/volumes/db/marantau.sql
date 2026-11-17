@@ -29,5 +29,8 @@ begin
     execute 'grant select on all tables in schema game to mt_ops_ro';
   end if;
 end $$;
+-- Tabel game memakai RLS (tanpa kebijakan untuk role ini) -> tanpa BYPASSRLS semua tabel terbaca 0 baris.
+-- Tetap aman: role ini read only, timeout 5 dtk, dan tidak punya akses ke schema auth.
+alter role mt_ops_ro bypassrls;
 alter role mt_ops_ro set statement_timeout = '5s';
 alter role mt_ops_ro set default_transaction_read_only = on;

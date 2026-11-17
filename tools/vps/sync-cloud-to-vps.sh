@@ -13,7 +13,8 @@ set -euo pipefail
 MAINT="${MAINT:-1}"
 cd "$(dirname "$0")/../.."
 SH=/opt/marantau/selfhost
-psql_vps() { ssh vps 'docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1' "$@"; }
+# Argumen di-quote (%q): ssh menggabungkan argumen jadi satu baris perintah di shell VM.
+psql_vps() { ssh vps "docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1 $(printf '%q ' "$@")"; }
 compose() { ssh vps "cd $SH && docker compose $*"; }
 
 nyalakan() {

@@ -8,7 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 node tools/combine-sql.js >/dev/null
 SQL=dist/marantau_all.sql
-psql_vps() { ssh vps 'docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1' "$@"; }
+# Argumen di-quote (%q): ssh menggabungkan argumen jadi satu baris perintah di shell VM.
+psql_vps() { ssh vps "docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1 $(printf '%q ' "$@")"; }
 
 ok=0
 for try in 1 2 3; do
