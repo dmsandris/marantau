@@ -213,6 +213,34 @@ services:
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
     entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
 
+  ops:
+    container_name: marantau-ops
+    build: ./ops
+    image: marantau-ops:local
+    restart: unless-stopped
+    <<: *log
+    mem_limit: 160m
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      OPS_PASSWORD: ${OPS_PASSWORD}
+      OPS_TOTP_SECRET: ${OPS_TOTP_SECRET}
+      OPS_SESSION_SECRET: ${OPS_SESSION_SECRET}
+      OPS_TELEGRAM_TOKEN: ${OPS_TELEGRAM_TOKEN:-}
+      OPS_TELEGRAM_CHAT_ID: ${OPS_TELEGRAM_CHAT_ID:-}
+      OPS_PG_HOST: db
+      OPS_PG_USER: mt_ops_ro
+      OPS_PG_PASSWORD: ${MT_OPS_RO_PASSWORD}
+      OPS_DISK_PATH: /data
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/host/proc:ro
+      - ops-data:/data
+      - /opt/marantau/backup:/backup:ro
+
   caddy:
     container_name: marantau-caddy
     image: caddy:2.10
@@ -235,6 +263,7 @@ services:
       - caddy-config:/config
 
 volumes:
+  ops-data:
   db-config:
   caddy-data:
   caddy-config:
