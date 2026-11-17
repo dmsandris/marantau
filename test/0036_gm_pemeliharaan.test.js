@@ -12,7 +12,16 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   const gate = async (client, fn) => {
     await H.sql(`select set_config('request.path', $1, false), set_config('request.jwt.claim.sub', $2, false)`, ['/rpc/' + fn, client && client.id ? client.id : '']);
     try { await H.sql('select public.mt_pre_request()'); return null; }
-    catch (e) { return e.message; }
+    catch (e) {
+      // Aturan PostgREST (PGRST121): MESSAGE = JSON {code, message}, DETAIL = JSON {status, headers, status_text?}.
+      // Tanpa 'headers' PostgREST tidak bisa membaca error -> pemain melihat error mentah, bukan layar maintenis.
+      if (e.code === 'PGRST') {
+        const m = JSON.parse(e.message), d = JSON.parse(e.detail || 'null');
+        ok(m && m.code && m.message, 'PGRST: message JSON berisi code & message');
+        ok(d && Number.isInteger(d.status) && d.headers && typeof d.headers === 'object', 'PGRST: detail berisi status & headers');
+      }
+      return e.message;
+    }
   };
 
   // --- keadaan normal -------------------------------------------------------

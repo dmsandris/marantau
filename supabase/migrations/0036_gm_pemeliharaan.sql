@@ -233,7 +233,7 @@ begin
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Maintenis dulu ya gaes, kembali sebentar lagi.',
                                   'details', coalesce(v_info, '{}'::jsonb)::text)::text,
-      detail = json_build_object('status', 503, 'status_text', 'Maintenance')::text;
+      detail = json_build_object('status', 503, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
   end if;
 end $$;
 revoke all on function public.mt_pre_request() from public;

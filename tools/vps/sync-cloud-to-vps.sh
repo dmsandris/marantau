@@ -4,7 +4,7 @@
 # dan host SSH "vps" sudah disiapkan. Dump dikirim lewat SSH (stdin), tidak pernah disimpan di disk VM.
 #
 # Urutan: hentikan auth/rest/realtime -> hapus schema game, public, auth -> pg_restore (pemilik objek dipertahankan)
-#         -> semua migrasi main (tools/vps/migrate-vps.sh) -> setelan role Marantau -> mode pemeliharaan VM
+#         -> semua migrasi main (tools/vps/migrate-vps.sh) -> ANALYZE -> setelan role Marantau -> mode pemeliharaan VM
 #         -> cocokkan jumlah baris -> nyalakan lagi layanan.
 # MAINT=1 (bawaan): VM masuk mode pemeliharaan, hanya akun GM yang bisa main di versi uji.
 # Tidak mencetak data apa pun (repo publik) - hanya nama tabel & jumlah.
@@ -61,6 +61,9 @@ fi
 
 echo "--- 4. Migrasi main ke VM"
 bash tools/vps/migrate-vps.sh
+
+echo "--- 4b. ANALYZE (pg_restore tidak membawa statistik -> tanpa ini rencana query buruk)"
+psql_vps -c "analyze"
 
 echo "--- 5. Setelan role Marantau + sandi role hanya-baca"
 ssh vps "cd $SH && docker exec -i supabase-db psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1 < volumes/db/marantau.sql \
