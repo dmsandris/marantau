@@ -13,8 +13,8 @@ psql_vps() { ssh vps "docker exec -i supabase-db psql -U supabase_admin -d postg
 
 ok=0
 for try in 1 2 3; do
-  if { echo "set lock_timeout = '8s'; set role postgres;"; cat "$SQL"; } | psql_vps > /tmp/vps-migrate.out 2> /tmp/vps-migrate.err; then ok=1; break; fi
-  grep -E "ERROR|psql:|DETAIL|HINT|CONTEXT" /tmp/vps-migrate.err | head -6 | cut -c1-300 | while IFS= read -r l; do echo "::error::VM: $l"; done
+  if { echo "set lock_timeout = '8s'; set statement_timeout = 0; set role postgres;"; cat "$SQL"; } | psql_vps > /tmp/vps-migrate.out 2> /tmp/vps-migrate.err; then ok=1; break; fi
+  grep -E "ERROR|FATAL|DETAIL|HINT|CONTEXT" /tmp/vps-migrate.err | grep -v NOTICE | head -6 | cut -c1-300 | while IFS= read -r l; do echo "::error::VM: $l"; done
   grep -qiE "lock timeout|deadlock|could not obtain lock" /tmp/vps-migrate.err || break
   echo "::warning::VM: percobaan $try bentrok kunci, ulangi..."; sleep $((try * 10))
 done

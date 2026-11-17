@@ -209,11 +209,11 @@ begin
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Maintenis dulu ya gaes, kembali sebentar lagi.',
                                   'details', coalesce(v_info, '{}'::jsonb)::text)::text,
-      detail = json_build_object('status', 503, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+      detail = json_build_object('status', 423, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib; JANGAN 503 (PostgREST menganggap DB putus -> reconnect + muat ulang skema)
   elsif v_block = 'pw' then
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_PWCHANGE', 'message', 'Pasang sandi baru dulu, Kapten.', 'details', '{}')::text,
-      detail = json_build_object('status', 403, 'status_text', 'Password change required', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+      detail = json_build_object('status', 403, 'status_text', 'Password change required', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib; JANGAN 503 (PostgREST menganggap DB putus -> reconnect + muat ulang skema)
   end if;
 end $$;
 revoke all on function public.mt_pre_request() from public;

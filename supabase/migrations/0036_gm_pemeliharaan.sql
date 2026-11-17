@@ -225,7 +225,7 @@ begin
     if not game.maint_active() then return; end if;
     v_path := lower(coalesce(current_setting('request.path', true), ''));
     -- tetap boleh: cek koneksi & cek status pemeliharaan
-    if v_path ~ 'rpc/(api_ping|api_gmstatus)$' then return; end if;
+    if v_path in ('', '/') or v_path ~ 'rpc/(api_ping|api_gmstatus)$' then return; end if;
     if game.is_gm(auth.uid()) then return; end if;
     v_info := game.maint_info();
     v_block := true;
@@ -236,7 +236,7 @@ begin
     raise sqlstate 'PGRST' using
       message = json_build_object('code', 'MT_MAINT', 'message', 'Maintenis dulu ya gaes, kembali sebentar lagi.',
                                   'details', coalesce(v_info, '{}'::jsonb)::text)::text,
-      detail = json_build_object('status', 503, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib
+      detail = json_build_object('status', 423, 'status_text', 'Maintenance', 'headers', json_build_object())::text;  -- PostgREST: 'headers' wajib; JANGAN 503 (PostgREST menganggap DB putus -> reconnect + muat ulang skema)
   end if;
 end $$;
 revoke all on function public.mt_pre_request() from public;

@@ -10,7 +10,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
 
   // Gerbang pre-request: jalankan seperti PostgREST (path + sesi), kembalikan null bila lolos, kode error bila ditolak
   const gate = async (client, fn) => {
-    await H.sql(`select set_config('request.path', $1, false), set_config('request.jwt.claim.sub', $2, false)`, ['/rpc/' + fn, client && client.id ? client.id : '']);
+    await H.sql(`select set_config('request.path', $1, false), set_config('request.jwt.claim.sub', $2, false)`, [fn === '/' ? '/' : '/rpc/' + fn, client && client.id ? client.id : '']);
     try { await H.sql('select public.mt_pre_request()'); return null; }
     catch (e) {
       // Aturan PostgREST (PGRST121): MESSAGE = JSON {code, message}, DETAIL = JSON {status, headers, status_text?}.
@@ -19,6 +19,8 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
         const m = JSON.parse(e.message), d = JSON.parse(e.detail || 'null');
         ok(m && m.code && m.message, 'PGRST: message JSON berisi code & message');
         ok(d && Number.isInteger(d.status) && d.headers && typeof d.headers === 'object', 'PGRST: detail berisi status & headers');
+        // 503 membuat PostgREST mengira database putus -> reconnect pool + muat ulang skema di setiap penolakan.
+        ok(d.status !== 503, 'PGRST: status bukan 503');
       }
       return e.message;
     }
@@ -128,6 +130,7 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   ok(await gate(P, 'api_gmstatus') === null && await gate(null, 'api_ping') === null, 'pindah: ping & gmStatus tetap lolos');
   const stP = await P.call('api_gmStatus', []);
   ok(!stP.m, 'pindah: gmStatus melaporkan buka -> klien di layar maintenis memuat ulang');
+  ok(await gate(P, '/') === null, 'pindah: root (health check gateway) tetap lolos');
   await H.sql(`delete from game.config where key = 'PindahKe'`);
   ok(/MT_MAINT/.test(await gate(P, 'api_getgamestate') || ''), 'PindahKe dihapus: kembali ke maintenance biasa');
   await H.sql(`update game.config set value = 'off' where key = 'MaintenanceMode'`);
