@@ -28,14 +28,39 @@
   // Endpoint yang boleh dipanggil tanpa login (sisanya butuh sesi)
   var PUBLIC = { api_ping: 1, api_gettitlescreenconfig: 1, api_getsailingbackgroundurl: 1, api_getcities: 1,
     api_getarchetypes: 1, api_authwhoami: 1, api_usernameavailable: 1, api_legacycheck: 1, api_gmstatus: 1 };
-  async function rpc(name, args) {
+  // Pindah server (rencana 1.4): sesi tersimpan bisa berisi token dari server lama (JWT ditandatangani kunci lain,
+  // `iss` beda). Tukar sekali lewat refresh token (ikut pindah bersama database) -> pemain tidak perlu login ulang.
+  var ISS = String(C.supabaseUrl).replace(/\/+$/, '') + '/auth/v1';
+  function jwtIss(t) {
+    try { var p = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(p)).iss || ''; }
+    catch (e) { return ''; }
+  }
+  var swapP = null;
+  function swapToken(force) {
+    if (swapP && !force) return swapP;
+    swapP = sb.auth.getSession().then(function (s) {
+      var ses = s.data && s.data.session;
+      if (!ses) return false;
+      if (!force && jwtIss(ses.access_token) === ISS) return true;
+      return sb.auth.refreshSession().then(function (r) { return !r.error && !!(r.data && r.data.session); });
+    }).catch(function () { return false; });
+    return swapP;
+  }
+  function badJwt(e) {
+    var m = (e && (e.message || '')) + ' ' + (e && e.code || '');
+    return /PGRST30[0-3]|JWS|JWT|invalid signature|wrong key/i.test(m);
+  }
+  async function rpc(name, args, retried) {
     var fn = String(name).toLowerCase();
+    await swapToken(false);
     if (!PUBLIC[fn]) {
       // Tunggu sesi tersimpan selesai dimuat; tanpa sesi -> minta login tanpa buang panggilan jaringan
       var s = await sb.auth.getSession();
       if (!s.data || !s.data.session) throw err(AUTH_MSG);
     }
     var r = await sb.rpc(fn, { a: args || [] });
+    // Token ditolak server (kunci beda / kedaluwarsa) -> refresh sekali, ulangi panggilan.
+    if (r.error && !retried && badJwt(r.error) && await swapToken(true)) return rpc(name, args, true);
     if (r.error) {
       // Tide v38: server sedang pemeliharaan -> tampilkan layar maintenis, panggilan ini dibiarkan menggantung
       // (tidak memunculkan pesan error di game; halaman dimuat ulang saat pelabuhan dibuka).
