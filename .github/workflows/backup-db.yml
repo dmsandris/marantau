@@ -65,7 +65,12 @@ jobs:
         env: { AGE_R: '${{ secrets.BACKUP_AGE_RECIPIENT }}' }
         run: |
           f="$WORK/marantau-db-$TANGGAL.tar"
-          printf '%s\n' "$AGE_R" > "$WORK/penerima.txt"
+          # Terima "age1...", "Public key: age1..." atau "# public key: age1...". Tolak kunci privat.
+          if printf '%s' "$AGE_R" | grep -q 'AGE-SECRET-KEY'; then
+            echo "::error::BACKUP_AGE_RECIPIENT berisi KUNCI PRIVAT. Ganti isinya dengan baris age1... saja, lalu buat kunci baru (age-keygen) karena kunci ini sudah keluar."; exit 1
+          fi
+          printf '%s' "$AGE_R" | grep -oE 'age1[0-9a-z]{58}' | head -1 > "$WORK/penerima.txt"
+          [ -s "$WORK/penerima.txt" ] || { echo "::error::BACKUP_AGE_RECIPIENT tidak berisi kunci publik age1... (62 karakter)."; exit 1; }
           age -R "$WORK/penerima.txt" -o "$f.age" "$f"
           echo "::notice::Terenkripsi: $(du -h "$f.age" | cut -f1)"
       - name: Upload ke Google Drive + retensi 30 hari
