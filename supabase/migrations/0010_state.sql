@@ -92,6 +92,12 @@ begin
     r := r || jsonb_build_object('cities', game.cities_json());
   end if;
 
+  -- 0088 Buku Adegan: penanda adegan milik pemain ini, hanya bila klien memintanya (a[1] = 'seen',
+  -- sekali per muat halaman oleh mt-supabase.js) supaya getGameState biasa tetap ringan.
+  if game.arg(a, 1) = 'seen' then
+    r := r || jsonb_build_object('seen', game.seen_state(v_pid));
+  end if;
+
   begin
     perform game.mp_touch(v_pid);
   exception when others then null;
