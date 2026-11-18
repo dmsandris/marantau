@@ -600,9 +600,32 @@ var MTBX = (function () {
   }
   // patung Garuda (detail cahaya) - wing: {ang, dx, dy} transform sayap kanan; crack 0..1
   function statue(ctx, cx, base, h, o) {
-    o = o || {}; var s = h / 100, stone = o.stone || '#6f7a6c', dark = '#3e463c', hi = '#a6b0a0';
+    o = o || {}; var s = h / 100, stone = o.stone || '#6f7a6c', dark = o.dark || '#3e463c', hi = o.hi || '#a6b0a0';
     ctx.save(); ctx.translate(cx, base); ctx.scale(s, s); ctx.lineJoin = 'round';
-    if (o.onlyWing) { featherSet(1, o.wing); ctx.restore(); return; }
+    // Tide v68: siluet patung untuk overlay tekstur (perunggu berlumut) - path saja, transform sama dengan gambar
+    function silF(side, wingT) {
+      ctx.save();
+      if (wingT) { ctx.translate(8 * side, -60); ctx.translate(wingT.dx || 0, wingT.dy || 0); ctx.rotate(wingT.ang || 0); ctx.translate(-8 * side, 60); }
+      for (var layer = 0; layer < 2; layer++) for (var i = 0, n = layer ? 7 : 9, bl = layer ? 26 : 40; i < n; i++) {
+        var a = -Math.PI / 2 + side * (0.28 + i * (layer ? 0.17 : 0.15)), len = bl * (1 - i * 0.045);
+        ctx.save(); ctx.translate(side * (8 + i * 1.2), -60 + i * 2.2); ctx.rotate(a + Math.PI / 2); ctx.moveTo(-3, 0); ctx.quadraticCurveTo(-5.5, -len * 0.6, 0, -len); ctx.quadraticCurveTo(5.5, -len * 0.6, 3, 0); ctx.closePath(); ctx.restore();
+      }
+      ctx.restore();
+    }
+    function texOver() {
+      if (!o.tex) return;
+      ctx.save(); ctx.fillStyle = o.tex; ctx.beginPath();
+      if (o.onlyWing) silF(1, o.wing);
+      else {
+        silF(-1); if (!o.noWing) silF(1, o.wing);
+        for (var tl = -3; tl <= 3; tl++) { ctx.save(); ctx.translate(0, -22); ctx.rotate(tl * 0.16); ctx.moveTo(-2.4, 0); ctx.quadraticCurveTo(-3.6, 8, 0, 13); ctx.quadraticCurveTo(3.6, 8, 2.4, 0); ctx.closePath(); ctx.restore(); }
+        ctx.moveTo(13, -44); ctx.ellipse(0, -44, 13, 22, 0, 0, 6.3);
+        ctx.moveTo(-5, -62); ctx.quadraticCurveTo(-2, -76, 6, -80); ctx.lineTo(10, -74); ctx.quadraticCurveTo(4, -70, 5, -62); ctx.closePath();
+        ctx.moveTo(14, -80); ctx.ellipse(8, -80, 6, 5, 0, 0, 6.3);
+      }
+      ctx.fill(); ctx.restore();
+    }
+    if (o.onlyWing) { featherSet(1, o.wing); texOver(); ctx.restore(); return; }
     // alas
     var pg = ctx.createLinearGradient(-34, -16, 34, 0); pg.addColorStop(0, '#5a5650'); pg.addColorStop(0.5, '#86817a'); pg.addColorStop(1, '#4a4640');
     ctx.fillStyle = pg; ctx.fillRect(-34, -8, 68, 8); ctx.fillRect(-26, -15, 52, 7); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(-34, -8, 68, 0.8); ctx.fillRect(-26, -15, 52, 0.8);
@@ -635,7 +658,8 @@ var MTBX = (function () {
     ctx.fillStyle = '#1a1a16'; ctx.beginPath(); ctx.arc(9, -81, 0.9, 0, 6.3); ctx.fill();
     for (var c = 0; c < 4; c++) { ctx.fillStyle = stone; ctx.beginPath(); ctx.moveTo(3 - c * 2, -84); ctx.lineTo(-2 - c * 3, -88 + c); ctx.lineTo(1 - c * 2, -82); ctx.fill(); }
     ctx.fillStyle = '#7a766a'; ctx.fillRect(-18, -20, 36, 5);
-    ctx.fillStyle = 'rgba(70,110,55,.6)'; [[-30, -70, 5], [-10, -36, 4], [12, -50, 4], [-40, -60, 3.5], [0, -16, 4]].forEach(function (m) { ctx.beginPath(); ctx.arc(m[0], m[1], m[2], 0, 6.3); ctx.fill(); });
+    texOver();
+    ctx.fillStyle = o.tex ? 'rgba(70,110,55,.3)' : 'rgba(70,110,55,.6)'; [[-30, -70, 5], [-10, -36, 4], [12, -50, 4], [-40, -60, 3.5], [0, -16, 4]].forEach(function (m) { ctx.beginPath(); ctx.arc(m[0], m[1], m[2], 0, 6.3); ctx.fill(); });
     if (o.crack > 0.01) {
       ctx.strokeStyle = 'rgba(255,170,90,' + Math.min(1, o.crack * 1.4).toFixed(3) + ')'; ctx.lineWidth = 0.9 + o.crack;
       ctx.beginPath(); ctx.moveTo(7, -63); ctx.lineTo(11, -57); ctx.lineTo(8, -52); if (o.crack > 0.4) { ctx.moveTo(11, -57); ctx.lineTo(16, -60); ctx.lineTo(19, -55); } if (o.crack > 0.7) { ctx.moveTo(8, -52); ctx.lineTo(12, -47); } ctx.stroke();
@@ -645,9 +669,61 @@ var MTBX = (function () {
   }
   function cliffSky(ctx, W, hy, p, t, st, cl, dt) { MTSky.paintSky(ctx, W, hy, p, t, st); if (cl) MTSky.paintClouds(ctx, W, hy * 0.92, p, cl, dt, 0.6); }
 
+  /* ---- Tide v68: pembantu sinematik Saga 1 (tekstur dipanggang SEKALI, kabut bergumpal, butir film) ---- */
+  var bronzeCv = null, fogC = {};
+  /** Ubin overlay perunggu berlumut 160x160 (berulang mulus): kilap hangat, pori gelap, bercak patina hijau. */
+  function bronzeTile() {
+    if (bronzeCv) return bronzeCv;
+    var n = 160, g, im, d, m = C.fbmMap(5101), m2 = C.fbmMap(5108), i = 0;
+    bronzeCv = C.mkCv(n, n); g = bronzeCv.getContext('2d'); im = g.createImageData(n, n); d = im.data;
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++, i += 4) {
+      var a = C.fbmAt(m, x * 1.6, y * 1.6), b = C.fbmAt(m2, x * 4.8, y * 4.8), pat = C.fbmAt(m2, x * 1.6 + 70, y * 1.6 + 30);
+      if (pat > 0.64) { var k = U.clamp((pat - 0.64) * 4, 0, 1); d[i] = 70 + b * 40; d[i + 1] = 124 + b * 40; d[i + 2] = 92 + b * 20; d[i + 3] = (0.12 + 0.4 * k) * (0.6 + b * 0.6) * 255; continue; }
+      var v = (a - 0.5) * 1.2 + (b - 0.5) * 0.7;
+      if (v > 0) { d[i] = 255; d[i + 1] = 214; d[i + 2] = 150; d[i + 3] = Math.min(255, v * 0.42 * 255); }
+      else { d[i] = 12; d[i + 1] = 7; d[i + 2] = 0; d[i + 3] = Math.min(255, -v * 0.7 * 255); }
+    }
+    g.putImageData(im, 0, 0); return bronzeCv;
+  }
+  /** Overlay tembok/kaca gedung IKN runtuh yang sudah dipotong bentuk gedung (dipanggang sekali per ukuran). */
+  function ruinsTex(W, H, bl, hy, seed) {
+    var tex = C.wallTex(Math.ceil(W / 2), Math.ceil(H / 2), { streak: 0.8, hi: 0.2, lo: 0.6, seed: seed || 871, tint: [255, 226, 200] }), r = U.rng(seed || 871);
+    function shape(g, b) { g.moveTo(-b.w / 2, 0); g.lineTo(-b.w / 2, -b.h); g.lineTo(-b.w * 0.1, -b.h * (0.9 - b.cut * 0.2)); g.lineTo(b.w * 0.15, -b.h * (1 - b.cut * 0.35)); g.lineTo(b.w / 2, -b.h * (0.78 + b.cut * 0.1)); g.lineTo(b.w / 2, 0); g.closePath(); }
+    return C.bake(W, H, 1, function (g) {
+      g.save(); g.beginPath(); bl.forEach(function (b) { g.save(); g.translate(b.x + b.w / 2, hy + 2); g.rotate(b.lean); shape(g, b); g.restore(); }); g.clip();
+      g.drawImage(tex, 0, 0, W, H);
+      bl.forEach(function (b) {
+        g.save(); g.translate(b.x + b.w / 2, hy + 2); g.rotate(b.lean);
+        var sg = g.createLinearGradient(-b.w / 2, 0, b.w / 2, 0); sg.addColorStop(0, 'rgba(0,0,0,.32)'); sg.addColorStop(0.35, 'rgba(0,0,0,0)'); sg.addColorStop(0.8, 'rgba(255,220,180,.06)'); sg.addColorStop(1, 'rgba(0,0,0,.18)');
+        g.fillStyle = sg; g.fillRect(-b.w / 2, -b.h * 1.05, b.w, b.h * 1.05);
+        var fl = Math.max(3, b.w * 0.09); g.strokeStyle = 'rgba(10,6,12,.2)'; g.lineWidth = 1; g.beginPath();
+        for (var y = -fl; y > -b.h; y -= fl) { g.moveTo(-b.w / 2, y); g.lineTo(b.w / 2, y); }
+        for (var x = -b.w / 2 + b.w / 5; x < b.w / 2; x += b.w / 5) { g.moveTo(x, 0); g.lineTo(x, -b.h); }
+        g.stroke();
+        for (var k = 0; k < 7; k++) if (r() < 0.5) { g.fillStyle = 'rgba(255,214,160,' + (0.06 + r() * 0.12).toFixed(3) + ')'; g.fillRect(-b.w / 2 + Math.floor(r() * 5) * b.w / 5 + 1, -fl * (1 + Math.floor(r() * (b.h / fl - 2))), b.w / 5 - 2, fl - 2); }
+        g.restore();
+      });
+      g.restore();
+      // besi beton mencuat dari puncak yang patah
+      g.strokeStyle = 'rgba(20,14,18,.75)'; g.lineWidth = 1;
+      bl.forEach(function (b) { g.save(); g.translate(b.x + b.w / 2, hy + 2); g.rotate(b.lean); g.beginPath(); for (var q = 0; q < 3; q++) { var x2 = -b.w * 0.05 + q * b.w * 0.09, y2 = -b.h * (0.9 - b.cut * 0.2 + q * 0.04) - 1; g.moveTo(x2, y2 + 2); g.lineTo(x2 + (r() - 0.5) * b.w * 0.15, y2 - b.h * (0.03 + r() * 0.04)); } g.stroke(); g.restore(); });
+    });
+  }
+  /** Sprite kabut fBm (dipanggang sekali per warna). */
+  function fogSpr(key, dark, lite, seed) { return fogC[key] || (fogC[key] = C.puffSprite(seed || 431, 360, 96, { sx: 0.62, sy: 1, th: 0.24, soft: 0.38, a: 0.55, dark: dark, lite: lite, lx: 0, ly: -4 })); }
+  /** Pita kabut bergumpal yang hanyut pelan: sprite diulang mendatar di ketinggian y. */
+  function fogBank(ctx, spr, W, y, h, t, a, v) {
+    if (a <= 0.01) return;
+    var w = h * 3.6, step = w * 0.7, off = ((t * (v || 6)) % step + step) % step;
+    ctx.save(); ctx.globalAlpha = Math.min(1, a);
+    for (var x = -w + off; x < W + w * 0.2; x += step) ctx.drawImage(spr, x, y - h / 2, w, h);
+    ctx.restore();
+  }
+
   /* ======================= 1. SAYAP YANG PATAH (IKN) ======================= */
   function sceneGaruda() {
     var r = U.rng(2501), clk = Clock([0, 3.6, 7.6]), F = new Fx(), st = stars(r, 60), clouds = MTSky.makeClouds(r, 7), glit = MTSky.makeGlitter(r), lay = null, fired = {}, shake = 0, lt = 0;
+    var ruinM = C.memo(), bzPat = null, gs = {}, fogG = fogSpr('garuda', [92, 78, 84], [214, 186, 170], 437);
     function layout(W, H) {
       var port = W < H, hy = H * (port ? 0.56 : 0.6), base = H * (port ? 0.78 : 0.83), h = Math.min(H * (port ? 0.4 : 0.54), W * 0.95), rr = U.rng(71), bl = [];
       for (var x = -W * 0.05; x < W * 1.05;) { var w = W * (0.04 + rr() * 0.05), hh = H * (0.14 + rr() * 0.28); bl.push({ x: x, w: w, h: hh, lean: (rr() - 0.5) * 0.16, cut: rr() }); x += w + W * (0.01 + rr() * 0.03); }
@@ -674,7 +750,9 @@ var MTBX = (function () {
       var sil = css(U.mix(p.hor, [26, 22, 30], 0.72)), sil2 = css(U.mix(p.hor, [26, 22, 30], 0.6));
       L.bl.forEach(function (b, k) { ctx.save(); ctx.translate(b.x + b.w / 2, hy + 2); ctx.rotate(b.lean); ctx.fillStyle = k % 2 ? sil2 : sil; ctx.beginPath(); ctx.moveTo(-b.w / 2, 0); ctx.lineTo(-b.w / 2, -b.h); ctx.lineTo(-b.w * 0.1, -b.h * (0.9 - b.cut * 0.2)); ctx.lineTo(b.w * 0.15, -b.h * (1 - b.cut * 0.35)); ctx.lineTo(b.w / 2, -b.h * (0.78 + b.cut * 0.1)); ctx.lineTo(b.w / 2, 0); ctx.closePath(); ctx.fill();
         ctx.fillStyle = 'rgba(255,190,110,' + (0.45 * p.lights).toFixed(3) + ')'; for (var wy = 0; wy < 4; wy++) if ((k + wy) % 3 === 0) ctx.fillRect(-b.w * 0.2, -b.h * (0.25 + wy * 0.15), 2, 2); ctx.restore(); });
+      ctx.drawImage(ruinM(W, H, function () { return ruinsTex(W, H, L.bl, hy, 873); }), 0, 0, W, H);
       MTSky.paintSea(ctx, W, hy + H * 0.05, hy, p, t, { glitter: glit, rough: 0.6, drift: 5 });
+      fogBank(ctx, fogG, W, hy - H * 0.01, H * 0.12, t, 0.55, 5);
       ctx.restore();
       // pelataran batu
       ctx.save(); cam(ctx, W, H, c, 1);
@@ -687,10 +765,12 @@ var MTBX = (function () {
       ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(L.cx + 8 * S, L.base + 2, 60 * S, 6 * S, 0, 0, 6.3); ctx.fill();
       var w = wingT(s), onGround = s > 4.95;
       var tint = U.mix(p.tint, [255, 255, 255], 0.15);
-      statue(ctx, L.cx, L.base, L.h, { stone: hex(U.mul([118, 128, 112], tint)), wing: onGround ? null : w, noWing: onGround, crack: sm(1.5, 3.8, s) * (s < 4.4 ? 1 : 1 - sm(4.4, 6, s) * 0.6) });
+      if (!bzPat) { bzPat = ctx.createPattern(bronzeTile(), 'repeat'); try { bzPat.setTransform(new DOMMatrix([0.17, 0, 0, 0.17, 0, 0])); } catch (eP) { } }
+      var bz = { stone: hex(U.mul([132, 104, 70], tint)), hi: hex(U.mul([214, 172, 112], tint)), dark: '#2e2014', tex: bzPat };
+      statue(ctx, L.cx, L.base, L.h, cp(bz, { wing: onGround ? null : w, noWing: onGround, crack: sm(1.5, 3.8, s) * (s < 4.4 ? 1 : 1 - sm(4.4, 6, s) * 0.6) }));
       if (onGround) { // sayap tergeletak
         ctx.save(); ctx.translate(L.cx + 46 * S, L.base - 2 * S); ctx.rotate(1.55);
-        statue(ctx, -8 * S, 60 * S, L.h, { stone: hex(U.mul([110, 120, 104], tint)), wing: { ang: 0 }, onlyWing: true });
+        statue(ctx, -8 * S, 60 * S, L.h, cp(bz, { stone: hex(U.mul([124, 98, 66], tint)), wing: { ang: 0 }, onlyWing: true }));
         ctx.restore();
       }
       // rantai kosong & jubah putih terbakar di kaki patung
@@ -721,6 +801,7 @@ var MTBX = (function () {
       // warna & bingkai
       if (s > 4.95 && s < 5.4) { ctx.fillStyle = 'rgba(255,240,220,' + (0.35 * (1 - (s - 4.95) / 0.45)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       var cg = ctx.createLinearGradient(0, 0, 0, H); cg.addColorStop(0, 'rgba(30,24,40,.3)'); cg.addColorStop(0.5, 'rgba(0,0,0,0)'); cg.addColorStop(1, 'rgba(20,10,10,.35)'); ctx.fillStyle = cg; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gs, 0.5);
       vign(ctx, W, H, 0.6); letterbox(ctx, W, H, sm(0, 1.2, t));
       ttl(ctx, W, H, sm(9.2, 10.6, s), 'SAYAP YANG PATAH', 'Rantai Jendral Tedsky ditemukan kosong', H * (L.port ? 0.14 : 0.16));
       fadeIn(ctx, W, H, t, 1.1);
@@ -730,7 +811,7 @@ var MTBX = (function () {
 
   /* ======================= 2. POSTER BURONAN ======================= */
   function scenePoster() {
-    var r = U.rng(2502), clk = Clock([0, 3.4, 6.8]), F = new Fx(), st = stars(r, 120), lay = null, papers = [], crows = [], wallCv = null, wallKey = '';
+    var r = U.rng(2502), clk = Clock([0, 3.4, 6.8]), F = new Fx(), st = stars(r, 120), lay = null, papers = [], crows = [], wallCv = null, wallKey = '', gs = {}, fogP = fogSpr('poster', [58, 32, 54], [204, 132, 128], 443);
     for (var i = 0; i < 7; i++) crows.push({ dx: (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.07, dy: Math.ceil(i / 2) * 0.035, ph: r() * 6, k: 0.8 + r() * 0.4 });
     for (var j = 0; j < 22; j++) papers.push({ x0: r(), t0: 3.3 + r() * 1.6, sp: 0.6 + r() * 0.5, ph: r() * 6, rot: r() * 6, k: 0.6 + r() * 0.8 });
     function faceImgs() { return [svgImg('bx_zafa', FACES.zafa), svgImg('bx_me_' + JSON.stringify(playerAp()), function () { return MTFace.svg(playerAp(), { bgColors: ['#cdb88a', '#8a6e44'] }); }), svgImg('bx_gala', FACES.gala)]; }
@@ -798,6 +879,7 @@ var MTBX = (function () {
           ctx.fillStyle = 'rgba(255,170,110,.25)'; ctx.fillRect(b.x, top, b.w, 1);
         }
         L.houses.forEach(house);
+        fogBank(ctx, fogP, W, hy - H * 0.01, H * 0.1, t, 0.45, 4);
         var hz = ctx.createLinearGradient(0, hy, 0, H * 0.9); hz.addColorStop(0, 'rgba(60,30,50,.0)'); hz.addColorStop(1, 'rgba(90,40,50,.35)'); ctx.fillStyle = hz; ctx.fillRect(0, hy, W, H * 0.3);
         L.front.forEach(house);
         for (var lp = 0; lp < 5; lp++) { var lx = W * (0.1 + lp * 0.2), ly = H * 0.8; light(ctx, lx, ly, H * 0.05, '255,170,90', 0.5 + 0.15 * Math.sin(t * 7 + lp)); ctx.fillStyle = '#ffd9a0'; ctx.fillRect(lx - 1.5, ly - 2, 3, 4); }
@@ -848,6 +930,7 @@ var MTBX = (function () {
         vign(ctx, W, H, 0.65);
         if (shotB < 1) black(ctx, W, H, Math.sin(shotB * Math.PI) * 1.1);
       }
+      C.filmGrain(ctx, W, H, gs, 0.55);
       letterbox(ctx, W, H, sm(0, 1.2, t));
       fadeIn(ctx, W, H, t, 1);
     }
@@ -870,7 +953,7 @@ var MTBX = (function () {
 
   /* ======================= 3. MAHKOTA DILEMPAR ======================= */
   function sceneCrown() {
-    var clk = Clock([0, 3.2, 6.2]), F = new Fx(), SM = Storm(2503), lay = null, fired = {};
+    var clk = Clock([0, 3.2, 6.2]), F = new Fx(), SM = Storm(2503), lay = null, fired = {}, gs = {}, fogS = fogSpr('storm', [40, 26, 64], [158, 128, 210], 441);
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.34 : 0.3), vx: W * 0.5, vy: H * (port ? 0.6 : 0.62), rx: port ? W * 0.95 : Math.min(W * 0.5, H * 0.9) }; lay.ry = lay.rx * (port ? 0.36 : 0.4); }
     function draw(ctx, W, H, t, dt) {
       if (!lay || lay.W !== W || lay.H !== H) layout(W, H);
@@ -879,6 +962,7 @@ var MTBX = (function () {
       ctx.save(); ctx.translate(W / 2, L.vy); ctx.scale(z, z); ctx.translate(-W / 2, -L.vy);
       M.sky(ctx, W, L.hy, t, { flash: fl, cx: L.vx });
       M.sea(ctx, W, H * 1.1, L.hy, t, { flash: fl, glitter: SM.glit, gx: L.vx, rough: 2 });
+      fogBank(ctx, fogS, W, L.hy + H * 0.01, H * 0.1, t, 0.5 + fl * 0.3, -7);
       M.vortex(ctx, L.vx, L.vy, L.rx, L.ry, t, { flash: fl, path: path });
       SM.drawBolt(ctx, W);
       // mahkota melayang (gerak lambat) lalu tenggelam berpendar
@@ -908,6 +992,7 @@ var MTBX = (function () {
       SM.rain(ctx, W, H, t, 0.22, L.port ? 90 : 160);
       if (fl > 0.02) { ctx.fillStyle = 'rgba(200,205,255,' + (fl * 0.14).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       if (path > 0.05) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,170,80,' + (0.06 * path).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      C.filmGrain(ctx, W, H, gs, 0.5);
       vign(ctx, W, H, 0.6, '10,0,20'); letterbox(ctx, W, H, sm(0, 1, t));
       ttl(ctx, W, H, sm(8.4, 9.8, s), 'JALUR CAHAYA MAHKOTA', 'Yang diambil dari laut, dikembalikan ke laut', H * (L.port ? 0.13 : 0.15));
       fadeIn(ctx, W, H, t, 0.9);
@@ -943,7 +1028,7 @@ var MTBX = (function () {
 
   /* ======================= 4. TIBA DI PUSARAN ======================= */
   function sceneMaelstrom() {
-    var clk = Clock([0, 3.5, 7.2]), F = new Fx(), SM = Storm(2504), lay = null, fired = {}, LT = makeLitC();
+    var clk = Clock([0, 3.5, 7.2]), F = new Fx(), SM = Storm(2504), lay = null, fired = {}, LT = makeLitC(), gs = {}, fogS = fogSpr('storm', [40, 26, 64], [158, 128, 210], 441);
     function makeLitC() { return C.makeLit(); }
     function layout(W, H) { var port = W < H; lay = maelLayout(W, H, port); lay.shipS = port ? W * 0.0034 : Math.min(W * 0.0024, H * 0.0042); }
     function draw(ctx, W, H, t, dt) {
@@ -958,6 +1043,7 @@ var MTBX = (function () {
       ctx.save(); cam(ctx, W, H, c, 0.3); M.sky(ctx, W, L.hy, t, { flash: fl, cx: L.vx }); ctx.restore();
       ctx.save(); cam(ctx, W, H, c, 1);
       M.sea(ctx, W, H * 1.05, L.hy, t, { flash: fl, glitter: SM.glit, gx: L.vx, rough: 2.2, drift: 12 });
+      fogBank(ctx, fogS, W, L.hy + H * 0.005, H * 0.1, t, 0.5 + fl * 0.3, -6);
       M.vortex(ctx, L.vx, L.vy, L.rx, L.ry, t, { flash: fl });
       SM.drawBolt(ctx, W);
       maelWorld(ctx, W, H, t, L, fl, { reveal: Math.max(sm(7.1, 7.6, s), fl * 0.8) });
@@ -972,6 +1058,7 @@ var MTBX = (function () {
       // tirai badai di awal
       if (dark > 0.46) { ctx.fillStyle = 'rgba(8,2,18,' + ((dark - 0.45) * 1.2).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       if (fl > 0.02) { ctx.fillStyle = 'rgba(200,205,255,' + (fl * 0.15).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      C.filmGrain(ctx, W, H, gs, 0.5);
       vign(ctx, W, H, 0.62, '8,0,18'); letterbox(ctx, W, H, sm(0, 1, t));
       ttl(ctx, W, H, sm(8.4, 9.8, s), 'PUSARAN BJORNEO', 'Raja yang tenggelam telah bangkit', H * (port ? 0.13 : 0.15));
       fadeIn(ctx, W, H, t, 1.2);
@@ -981,7 +1068,7 @@ var MTBX = (function () {
 
   /* ======================= 5. ARMADA PUTIH DI GELADAK TEDSKY ======================= */
   function sceneDeck() {
-    var clk = Clock([0, 3.2, 6.4]), F = new Fx(), SM = Storm(2505), lay = null, fired = {}, LJ = C.makeLit(), shake = 0;
+    var clk = Clock([0, 3.2, 6.4]), F = new Fx(), SM = Storm(2505), lay = null, fired = {}, LJ = C.makeLit(), shake = 0, gs = {}, fogS = fogSpr('storm', [40, 26, 64], [158, 128, 210], 441);
     function layout(W, H) {
       var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.42 : 0.46), deckY: H * (port ? 0.62 : 0.64), fh: H * (port ? 0.13 : 0.2) };
       lay.js = port ? W * 0.0019 : Math.min(W * 0.0014, H * 0.0024);
@@ -1015,6 +1102,7 @@ var MTBX = (function () {
       // laut + armada putih muncul dari badai
       ctx.save(); cam(ctx, W, H, c, 0.6);
       M.sea(ctx, W, H, L.hy, t, { flash: fl, glitter: SM.glit, gx: W * 0.5, rough: 2 });
+      fogBank(ctx, fogS, W, L.hy, H * 0.09, t, 0.45 + fl * 0.3, 5);
       LJ.set(U.mix([200, 195, 225], [255, 255, 255], fl * 0.4 + crack * 0.2));
       var JS = L.js;
       L.cr.forEach(function (cr, i) {
@@ -1064,6 +1152,7 @@ var MTBX = (function () {
       SM.rain(ctx, W, H, t, 0.22, port ? 90 : 160);
       if (fired.shot && s - fired.t0 < 1) { var fk = 1 - (s - fired.t0); ctx.fillStyle = 'rgba(200,245,255,' + (0.45 * fk * fk).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       if (fl > 0.02) { ctx.fillStyle = 'rgba(200,205,255,' + (fl * 0.12).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      C.filmGrain(ctx, W, H, gs, 0.5);
       vign(ctx, W, H, 0.62, '8,0,18'); letterbox(ctx, W, H, sm(0, 1, t));
       ttl(ctx, W, H, sm(8, 9.4, s), 'KEADILAN TANPA KOMPROMI', 'Armada Putih Capt Satnislaus S', H * (port ? 0.12 : 0.14));
       fadeIn(ctx, W, H, t, 1);
@@ -1074,6 +1163,7 @@ var MTBX = (function () {
   /* ======================= 6. TOPENG ======================= */
   function sceneMask() {
     var clk = Clock([0, 3.4, 7]), F = new Fx(), SM = Storm(2506), lay = null, fired = {}, LP = C.makeLit(), shake = 0, mastCv = null, mastKey = '';
+    var rainL = C.makeRain(240, 2516), woodM = C.memo(), gs = {};
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.46 : 0.5) }; }
     function mast(W, H, dpr) {
       var key = W + 'x' + H; if (mastCv && mastKey === key) return mastCv; mastKey = key;
@@ -1084,9 +1174,12 @@ var MTBX = (function () {
       g.beginPath(); g.moveTo(mx + mw * 1.2, H * 0.1); g.quadraticCurveTo(mx + mw + W * 0.28, H * 0.34, mx + mw + W * 0.4, H * 0.26); g.lineTo(mx + mw + W * 0.44, H * 0.82); g.quadraticCurveTo(mx + mw + W * 0.28, H * 0.9, mx + mw * 1.2, H * 0.76); g.closePath(); g.fill();
       g.strokeStyle = 'rgba(20,12,10,.95)'; g.lineWidth = 2; g.beginPath(); for (var rp = 0; rp < 6; rp++) { g.moveTo(mx + mw / 2, H * (0.02 + rp * 0.03)); g.lineTo(rp % 2 ? W * 1.05 : -W * 0.05, H * (0.9 + rp * 0.03)); } g.stroke();
       g.strokeStyle = 'rgba(20,12,10,.8)'; g.lineWidth = 1; g.beginPath(); for (var rl = 0; rl < 14; rl++) { var yy = H * (0.4 + rl * 0.04); g.moveTo(mx + mw / 2 - W * 0.05 - rl * W * 0.02, yy); g.lineTo(mx + mw / 2 + W * 0.05 + rl * W * 0.02, yy); } g.stroke();
-      var gr = g.createLinearGradient(mx, 0, mx + mw, 0); gr.addColorStop(0, '#120a06'); gr.addColorStop(0.3, '#4a3020'); gr.addColorStop(0.55, '#6a4630'); gr.addColorStop(1, '#140c08');
+      // Tide v68: tiang kayu berserat (woodTex) + bayangan silinder + kilap basah hujan
+      g.drawImage(C.woodTex(Math.max(8, mw / 2), Math.max(8, H / 2), { vertical: true, base: [128, 90, 60], dark: [30, 18, 10], plank: Math.max(6, mw / 7), wet: 0.6, seed: 633 }), mx, 0, mw, H);
+      var gr = g.createLinearGradient(mx, 0, mx + mw, 0); gr.addColorStop(0, 'rgba(10,5,3,.92)'); gr.addColorStop(0.3, 'rgba(10,5,3,.25)'); gr.addColorStop(0.55, 'rgba(255,220,180,.05)'); gr.addColorStop(0.62, 'rgba(10,5,3,.12)'); gr.addColorStop(1, 'rgba(10,5,3,.9)');
       g.fillStyle = gr; g.fillRect(mx, 0, mw, H);
-      g.strokeStyle = 'rgba(20,10,4,.6)'; g.lineWidth = 1.2; for (var k = 0; k < 26; k++) { var gx = mx + rr() * mw; g.beginPath(); g.moveTo(gx, 0); for (var y = 0; y <= H; y += H / 10) g.lineTo(gx + Math.sin(y * 0.02 + k) * mw * 0.02, y); g.stroke(); }
+      var wg = g.createLinearGradient(mx + mw * 0.5, 0, mx + mw * 0.62, 0); wg.addColorStop(0, 'rgba(200,180,255,0)'); wg.addColorStop(0.5, 'rgba(200,180,255,.10)'); wg.addColorStop(1, 'rgba(200,180,255,0)'); g.fillStyle = wg; g.fillRect(mx + mw * 0.5, 0, mw * 0.12, H);
+      g.strokeStyle = 'rgba(20,10,4,.3)'; g.lineWidth = 1.2; for (var k = 0; k < 26; k++) { var gx = mx + rr() * mw; g.beginPath(); g.moveTo(gx, 0); for (var y = 0; y <= H; y += H / 10) g.lineTo(gx + Math.sin(y * 0.02 + k) * mw * 0.02, y); g.stroke(); }
       [0.18, 0.82].forEach(function (q) { g.fillStyle = '#2a2420'; g.fillRect(mx - 4, H * q, mw + 8, H * 0.035); g.fillStyle = 'rgba(200,180,140,.25)'; g.fillRect(mx - 4, H * q, mw + 8, 2); });
       return mastCv;
     }
@@ -1126,6 +1219,10 @@ var MTBX = (function () {
         ctx.strokeStyle = 'rgba(40,30,30,.9)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(W * (port ? 0.78 : 0.7), H * 0.02); ctx.lineTo(-W * 0.05, dkY - H * 0.3); ctx.moveTo(W * (port ? 0.78 : 0.7), H * 0.12); ctx.lineTo(W * 0.02, dkY - H * 0.12); ctx.stroke();
         // haluan (bowsprit) menjulur ke kiri atas
         ctx.fillStyle = hc; ctx.beginPath(); ctx.moveTo(W * 1.1, H * 1.1); ctx.lineTo(W * 1.1, dkY); ctx.lineTo(W * 0.3, dkY - H * 0.02); ctx.quadraticCurveTo(W * 0.18, dkY - H * 0.03, W * 0.12, dkY - H * 0.08); ctx.lineTo(W * 0.1, dkY + H * 0.02); ctx.quadraticCurveTo(W * 0.3, H * 1.0, W * 0.5, H * 1.1); ctx.closePath(); ctx.fill();
+        // Tide v68: papan lambung basah berserat kayu (dipanggang sekali per ukuran), digelapkan ke bawah
+        var bowT = woodM(W, H, function () { return C.woodTex(Math.max(8, W * 0.5), Math.max(8, H * 0.2), { base: [86, 62, 70], dark: [12, 8, 12], plank: Math.max(5, H * 0.012), wet: 0.9, seed: 641 }); });
+        C.texFill(ctx, function (g) { g.moveTo(W * 1.1, H * 1.1); g.lineTo(W * 1.1, dkY); g.lineTo(W * 0.3, dkY - H * 0.02); g.quadraticCurveTo(W * 0.18, dkY - H * 0.03, W * 0.12, dkY - H * 0.08); g.lineTo(W * 0.1, dkY + H * 0.02); g.quadraticCurveTo(W * 0.3, H * 1.0, W * 0.5, H * 1.1); g.closePath(); }, bowT, W * 0.08, dkY - H * 0.09, W * 1.04, H * 0.4, 0.55 + fl * 0.3);
+        var bsh = ctx.createLinearGradient(0, dkY, 0, H); bsh.addColorStop(0, 'rgba(8,4,10,0)'); bsh.addColorStop(1, 'rgba(8,4,10,.6)'); ctx.fillStyle = bsh; ctx.fillRect(W * 0.1, dkY, W, H - dkY);
         ctx.strokeStyle = hc; ctx.lineWidth = Math.max(3, H * 0.012); ctx.beginPath(); ctx.moveTo(W * 0.2, dkY - H * 0.04); ctx.lineTo(-W * 0.08, dkY - H * 0.24); ctx.stroke();
         ctx.strokeStyle = 'rgba(200,170,255,' + (0.4 + fl * 0.5).toFixed(3) + ')'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(W * 1.1, dkY); ctx.lineTo(W * 0.3, dkY - H * 0.02); ctx.quadraticCurveTo(W * 0.18, dkY - H * 0.03, W * 0.12, dkY - H * 0.08); ctx.stroke();
         // pagar haluan
@@ -1169,9 +1266,10 @@ var MTBX = (function () {
         if (u3 < 0.2) { ctx.fillStyle = 'rgba(230,230,255,' + (1 - u3 / 0.2).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
         ttl(ctx, W, H, sm(8.4, 9.8, s), 'ANDRY IVANKOV', 'Dua kawan datang bila satu jatuh', H * (port ? 0.13 : 0.15));
       }
-      if (shot < 2) SM.rain(ctx, W, H, t, 0.28, port ? 110 : 190);
+      if (shot < 2) C.rain(ctx, rainL, W, H, t, 0.24, 0.9);
       if (fl > 0.02 && shot < 2) { ctx.fillStyle = 'rgba(200,205,255,' + (fl * 0.14).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       if (shot === 1 && s < 3.45) { /* potongan */ }
+      C.filmGrain(ctx, W, H, gs, 0.5);
       vign(ctx, W, H, 0.62, '8,0,18'); letterbox(ctx, W, H, sm(0, 1, t));
       fadeIn(ctx, W, H, t, 0.9);
     }
@@ -1180,7 +1278,7 @@ var MTBX = (function () {
 
   /* ======================= 7. M.A.R.I.E. BICARA ======================= */
   function sceneMarie() {
-    var clk = Clock([0, 2.8, 5.4, 8.2]), F = new Fx(), SM = Storm(2507), lay = null, LJ = C.makeLit(), fired = {};
+    var clk = Clock([0, 2.8, 5.4, 8.2]), F = new Fx(), SM = Storm(2507), lay = null, LJ = C.makeLit(), fired = {}, gs = {}, motes = C.makeMotes(70, 2517), fogS = fogSpr('storm', [40, 26, 64], [158, 128, 210], 441), fogV = fogSpr('vault', [16, 20, 28], [70, 84, 104], 447);
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * 0.47, R: Math.min(W * (port ? 0.34 : 0.17), H * 0.2) }; lay.js = port ? W * 0.0016 : Math.min(W * 0.0012, H * 0.0021); }
     function core(ctx, cx, cy, R, t, col, on) {
       // rumah inti: cincin baja + lensa mata
@@ -1220,6 +1318,8 @@ var MTBX = (function () {
         if (blue > 0.1 && Math.random() < 0.6) F.add({ k: 'g', L: 1, x: cx + (Math.random() - 0.5) * W * 0.6, y: H * 0.8, vy: -H * 0.0025, r: 3, life: 2.2, col: '140,220,255', a: 0.8 });
         if (on > 0 && !fired.p) { fired.p = 1; F.add({ k: 'g', L: 1, x: cx, y: cy, r: R * 6, life: 0.6, col: '255,90,70', a: 0.8 }); }
         F.step(sec); F.draw(ctx, 1);
+        fogBank(ctx, fogV, W, H * 0.8, H * 0.12, t, 0.7, 4);
+        C.motes(ctx, motes, cx - R * 4, cy - R * 2.5, R * 8, R * 5, t, on > 0.02 ? col.map(Math.round).join(',') : '150,160,180', 0.25 + 0.35 * on);
         // Marlya: siluet, telapak tangan ke inti
         var fh = H * (port ? 0.42 : 0.5), mx = cx - R * (port ? 1.2 : 1.9), reach = sm(0.6, 2.8, s);
         fig(ctx, mx, H * 0.96, fh, { dir: 1, col: '#06070a', cape: true, hair: 'bun', t: t * 0.3, armF: U.lerp(0.3, 1.45, reach), elbow: -0.15 * (1 - reach), armB: -0.05, rim: on > 0.02 ? col.map(Math.round).join(',') : '120,140,170', rimA: 0.5 + on * 0.5, rimSide: 1 });
@@ -1232,6 +1332,7 @@ var MTBX = (function () {
         ctx.save(); cam(ctx, W, H, c2, 0.3); M.sky(ctx, W, L.hy, t, { flash: fl, cx: W * 0.5 }); ctx.restore();
         ctx.save(); cam(ctx, W, H, c2, 1);
         M.sea(ctx, W, H, L.hy, t, { flash: fl, glitter: SM.glit, gx: W * 0.5, rough: 2 });
+        fogBank(ctx, fogS, W, L.hy, H * 0.09, t, 0.45 + fl * 0.3, -5);
         SM.drawBolt(ctx, W);
         LJ.set(U.mix([170, 165, 210], [235, 235, 255], fl * 0.5));
         var JS = L.js, list = port ? [[-0.36, 0.01, 0.42, 0.1], [0.36, 0.02, 0.46, 0.35], [0.0, 0.06, 0.62, 0.55]] : [[-0.4, 0.008, 0.4, 0.05], [-0.22, 0.02, 0.48, 0.25], [0.24, 0.016, 0.46, 0.4], [0.42, 0.006, 0.38, 0.6]];
@@ -1250,6 +1351,7 @@ var MTBX = (function () {
         if (s < 8.6) black(ctx, W, H, 1 - (s - 8.2) / 0.4);
         ttl(ctx, W, H, sm(10.6, 12, s), 'KALI INI AKU YANG BICARA', 'Armada Pemerintah Dunia tuli dan buta', H * (port ? 0.13 : 0.15));
       }
+      C.filmGrain(ctx, W, H, gs, 0.5);
       letterbox(ctx, W, H, sm(0, 1, t));
       fadeIn(ctx, W, H, t, 1);
     }
@@ -1258,7 +1360,7 @@ var MTBX = (function () {
 
   /* ======================= 8. BLACK PEARL MENABRAK AEGIS ======================= */
   function sceneRam() {
-    var clk = Clock([0, 3, 5.4]), F = new Fx(), SM = Storm(2508), lay = null, LJ = C.makeLit(), LP = C.makeLit(), fired = {}, shake = 0;
+    var clk = Clock([0, 3, 5.4]), F = new Fx(), SM = Storm(2508), lay = null, LJ = C.makeLit(), LP = C.makeLit(), fired = {}, shake = 0, gs = {}, fogS = fogSpr('storm', [40, 26, 64], [158, 128, 210], 441);
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.44 : 0.48) }; lay.js = port ? W * 0.0013 : Math.min(W * 0.00095, H * 0.0017); lay.ps = port ? W * 0.0022 : Math.min(W * 0.0015, H * 0.0026); }
     function draw(ctx, W, H, t, dt) {
       if (!lay || lay.W !== W || lay.H !== H) layout(W, H);
@@ -1282,6 +1384,7 @@ var MTBX = (function () {
       ctx.save(); cam(ctx, W, H, c, 0.3); M.sky(ctx, W, L.hy, t, { flash: fl, cx: W * 0.5 }); ctx.restore();
       ctx.save(); cam(ctx, W, H, c, 1);
       M.sea(ctx, W, H * 1.05, L.hy, t, { flash: fl, glitter: SM.glit, gx: W * 0.5, rough: 2.2 });
+      fogBank(ctx, fogS, W, L.hy, H * 0.09, t, 0.45 + fl * 0.3, -6);
       M.vortex(ctx, W * 0.42, L.hy + (H - L.hy) * 0.18, W * 0.5, W * 0.5 * 0.18, t, { flash: fl, path: 1 });
       SM.drawBolt(ctx, W);
       LJ.set(U.mix([150, 150, 190], [255, 255, 255], fl * 0.4)); LP.set(U.mix([160, 140, 200], [255, 230, 200], crack * 0.4 + fl * 0.3));
@@ -1298,6 +1401,7 @@ var MTBX = (function () {
       SM.rain(ctx, W, H, t, 0.25, port ? 90 : 170);
       if (gone && s < 6.2) { var fk = 1 - (s - 5.4) / 0.8; ctx.fillStyle = 'rgba(255,248,230,' + (0.7 * fk * fk).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       if (fl > 0.02) { ctx.fillStyle = 'rgba(200,205,255,' + (fl * 0.12).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      C.filmGrain(ctx, W, H, gs, 0.5);
       vign(ctx, W, H, 0.6, '8,0,18'); letterbox(ctx, W, H, sm(0, 1, t));
       ttl(ctx, W, H, sm(6.8, 8.2, s), 'AEGIS SHIELD HANCUR', 'Haluan Black Pearl tak pernah mundur', H * (port ? 0.13 : 0.15));
       fadeIn(ctx, W, H, t, 0.9);
@@ -1308,6 +1412,7 @@ var MTBX = (function () {
   /* ======================= 9. ABSOLUTE JUSTICE TENGGELAM ======================= */
   function sceneSink() {
     var clk = Clock([0, 3.4, 7]), F = new Fx(), SM = Storm(2509), lay = null, LJ = C.makeLit(), acc = 0, shake = 0, sst = null;
+    var rainL = C.makeRain(220, 2519), deckM = C.memo(), gs = {};
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.46 : 0.5) }; lay.js = port ? W * 0.0019 : Math.min(W * 0.0013, H * 0.0022); sst = stars(U.rng(9), 80); }
     function draw(ctx, W, H, t, dt) {
       if (!lay || lay.W !== W || lay.H !== H) layout(W, H);
@@ -1344,14 +1449,19 @@ var MTBX = (function () {
         ctx.save(); cam(ctx, W, H, c2, 1);
         M.sea(ctx, W, H * 1.05, H * 0.62, t, { flash: fl, glitter: SM.glit, gx: W * 0.3, rough: 2.2 });
         ctx.save(); ctx.translate(W * 0.5, H * 0.78); ctx.rotate(tilt);
-        var dw = W * 1.4, dg = ctx.createLinearGradient(0, -H * 0.05, 0, H * 0.4); dg.addColorStop(0, '#d8dde4'); dg.addColorStop(1, '#5a6270');
+        var dw = W * 1.4, dg = ctx.createLinearGradient(0, -H * 0.05, 0, H * 0.4); dg.addColorStop(0, 'rgba(216,221,228,0)'); dg.addColorStop(0.3, 'rgba(70,78,96,.25)'); dg.addColorStop(1, 'rgba(40,46,62,.75)');
+        // Tide v68: geladak kayu pucat yang basah (serat + kilap), dipanggang sekali per ukuran
+        ctx.drawImage(deckM(W, H, function () { return C.woodTex(Math.max(8, dw / 2), Math.max(8, H * 0.25), { base: [222, 216, 206], dark: [118, 112, 108], plank: Math.max(5, H * 0.016), wet: 1, seed: 655 }); }), -dw / 2, 0, dw, H * 0.5);
         ctx.fillStyle = dg; ctx.fillRect(-dw / 2, 0, dw, H * 0.5);
+        var dgl = ctx.createLinearGradient(-dw / 2, 0, dw / 2, 0); dgl.addColorStop(0, 'rgba(180,150,255,0)'); dgl.addColorStop(0.75, 'rgba(255,150,80,.16)'); dgl.addColorStop(1, 'rgba(255,150,80,0)');
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = dgl; ctx.fillRect(-dw / 2, H * 0.01, dw, H * 0.2); ctx.restore();
         ctx.strokeStyle = 'rgba(60,70,80,.4)'; ctx.lineWidth = 1; ctx.beginPath(); for (var k2 = -12; k2 <= 12; k2++) { ctx.moveTo(k2 * W * 0.06, 0); ctx.lineTo(k2 * W * 0.1, H * 0.5); } ctx.stroke();
         ctx.fillStyle = '#c9a64a'; ctx.fillRect(-dw / 2, -H * 0.006, dw, H * 0.008);
         for (var pI = 0; pI < 14; pI++) { ctx.fillStyle = '#9aa4b0'; ctx.fillRect(-dw / 2 + pI * dw / 14, -H * 0.06, Math.max(2, W * 0.004), H * 0.055); } ctx.fillStyle = '#e8ecf0'; ctx.fillRect(-dw / 2, -H * 0.065, dw, H * 0.008);
         var fh = H * (port ? 0.32 : 0.42), sal = sm(0.6, 1.6, u);
         ctx.rotate(-tilt * 0.7);
-        fig(ctx, -W * (port ? 0.02 : 0.06), 0, fh, { dir: -1, col: '#e6e8ec', coat: true, hat: 'bicorne', t: t, armF: U.lerp(0.1, 2.75, sal), elbow: U.lerp(0, 1.9, sal), armB: 0.05, rim: '255,170,90', rimA: 0.9, rimSide: 1 });
+        fig(ctx, -W * (port ? 0.02 : 0.06), 0, fh, { dir: -1, col: '#e6e8ec', trim: '#c9a64a', coat: true, hat: 'bicorne', hatCol: '#eceef2', t: t, armF: U.lerp(0.1, 2.75, sal), elbow: U.lerp(0, 1.9, sal), armB: 0.05, rim: '255,170,90', rimA: 0.9, rimSide: 1 });
+        C.glow(ctx, -W * (port ? 0.02 : 0.06), H * 0.01, fh * 0.35, '255,150,80', 0.12); // pantulan api di geladak basah
         ctx.restore();
         // api di sekeliling, bara terbang
         acc += sec * 22; while (acc > 1) { acc -= 1; F.add({ k: 'k', L: 1, x: Math.random() * W, y: H * (0.7 + Math.random() * 0.3), vx: (Math.random() - 0.5) * 1.2, vy: -1 - Math.random() * 2, drag: 0.99, life: 1.6, col: '255,170,80', w: 1.4, ln: 3 }); }
@@ -1361,7 +1471,8 @@ var MTBX = (function () {
         if (u < 0.15) black(ctx, W, H, 1 - u / 0.15);
         if (u > 3.4) black(ctx, W, H, (u - 3.4) / 0.2);
       }
-      if (calm < 0.9) SM.rain(ctx, W, H, t, 0.25 * (1 - calm), port ? 90 : 160);
+      if (calm < 0.9) C.rain(ctx, rainL, W, H, t, 0.22, 0.85 * (1 - calm));
+      C.filmGrain(ctx, W, H, gs, 0.45);
       if (fl > 0.02) { ctx.fillStyle = 'rgba(200,205,255,' + (fl * 0.12).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       if (calm > 0.02) { ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = 'rgba(255,170,100,' + (0.3 * calm).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
       vign(ctx, W, H, 0.6 - calm * 0.15); letterbox(ctx, W, H, sm(0, 1, t));
@@ -1373,7 +1484,7 @@ var MTBX = (function () {
 
   /* ======================= 10. GENDERANG EMPAT PENABUH ======================= */
   function sceneDrums() {
-    var clk = Clock([0, 3.6, 7.2]), F = new Fx(), lay = null, glit = MTSky.makeGlitter(U.rng(10)), birds = [], beatT = -1, beats = [], fired = {};
+    var clk = Clock([0, 3.6, 7.2]), F = new Fx(), lay = null, glit = MTSky.makeGlitter(U.rng(10)), birds = [], beatT = -1, beats = [], fired = {}, gs = {}, fogD = fogSpr('dawn', [150, 96, 96], [255, 206, 160], 449);
     for (var i = 0; i < 16; i++) birds.push({ x: hs(i), y: hs(i + 3), ph: hs(i + 5) * 6, k: 0.6 + hs(i + 7) * 0.6 });
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.6 : 0.62) }; lay.fh = H * (port ? 0.17 : 0.27); }
     function drum(ctx, x, y, r, hit) {
@@ -1399,6 +1510,7 @@ var MTBX = (function () {
       ctx.save(); cam(ctx, W, H, c, 0.55);
       p._sunX = sunX; p.glitter = [255, 220, 160];
       MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 0.7, drift: 5 });
+      fogBank(ctx, fogD, W, hy - H * 0.005, H * 0.08, t, 0.35, 3);
       // Armada Terakhir di kejauhan
       for (var a = 0; a < (port ? 5 : 8); a++) { var fx = W * (0.05 + a * (port ? 0.21 : 0.125) + hs(a + 40) * 0.05), fs = H * (0.00028 + hs(a + 50) * 0.00016); MTShip.draw(ctx, fx, hy + 2, fs, { dir: a % 2 ? -1 : 1, t: t, hull: '#2a1a1a', sail: '#6a4a4a', masts: 3, lit: function (h, al) { return U.css(U.mix(U.hex(h), [70, 40, 50], 0.6), al); }, furl: 0.4 }); }
       ctx.restore();
@@ -1427,6 +1539,7 @@ var MTBX = (function () {
       ctx.restore();
       if (fin && s < 8) { var fk = 1 - (s - 7.2) / 0.8; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,220,170,' + (0.4 * fk * fk).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
       ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = 'rgba(255,160,90,.25)'; ctx.fillRect(0, 0, W, H); ctx.restore();
+      C.filmGrain(ctx, W, H, gs, 0.45);
       vign(ctx, W, H, 0.5, '30,8,0'); letterbox(ctx, W, H, sm(0, 1, t));
       ttl(ctx, W, H, sm(8.4, 9.8, s), 'SAUDARA KEEMPAT', 'Genderang yang ditabuh bersama', H * (port ? 0.13 : 0.15));
       fadeIn(ctx, W, H, t, 1);
@@ -1437,7 +1550,7 @@ var MTBX = (function () {
   /* ======================= 11. DERMAGA SKITRAW (Uda Gala & Chafik) ======================= */
   // Hangat, pelan, tanpa judul besar. Ketukan: duduk berdua | Kotak Hati dibuka | bersandar & menunjuk | kamera ke kapal pemain.
   function sceneDock() {
-    var clk = Clock([0, 3.2, 6.4, 9.6]), lay = null, glit = MTSky.makeGlitter(U.rng(11)), clouds = MTSky.makeClouds(U.rng(12), 5), LT = C.makeLit(), gulls = [];
+    var clk = Clock([0, 3.2, 6.4, 9.6]), lay = null, glit = MTSky.makeGlitter(U.rng(11)), clouds = MTSky.makeClouds(U.rng(12), 5), LT = C.makeLit(), gulls = [], gs = {}, fogD = fogSpr('dusk', [140, 92, 96], [255, 200, 150], 451);
     for (var i = 0; i < 5; i++) gulls.push({ x: hs(i + 20), y: 0.15 + hs(i + 21) * 0.25, ph: hs(i + 22) * 6, v: 0.004 + hs(i + 23) * 0.004 });
     function layout(W, H) { var port = W < H; lay = { W: W, H: H, port: port, hy: H * (port ? 0.55 : 0.58) }; lay.fh = H * (port ? 0.2 : 0.28); lay.shipS = port ? W * 0.0018 : Math.min(W * 0.0012, H * 0.0021); }
     // sosok duduk tampak belakang (punggung ke kamera, menghadap matahari). (x,y) = garis duduk
@@ -1478,6 +1591,8 @@ var MTBX = (function () {
       ctx.strokeStyle = css(U.mix(p.mountainFar, [40, 30, 40], 0.5)); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W * 0.18, hy - H * 0.035); ctx.lineTo(W * 0.2, hy - H * 0.11); ctx.lineTo(W * 0.28, hy - H * 0.09); ctx.stroke();
       p._sunX = sunX; p.glitter = [255, 210, 150];
       MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 0.45, drift: 3 });
+      C.waterGlint(ctx, sunX, hy, W * 0.04, (H - hy) * 0.5, '255,206,150', 0.22, t, 9);
+      fogBank(ctx, fogD, W, hy - H * 0.005, H * 0.07, t, 0.3, 2);
       ctx.restore();
       ctx.save(); cam(ctx, W, H, c, 1);
       // kapal pemain ditambatkan di sisi kanan (layar sedang digulung)
@@ -1510,6 +1625,7 @@ var MTBX = (function () {
       for (var e = 0; e < 26; e++) { var k2 = (t * (0.02 + hs(e) * 0.02) + hs(e + 3)) % 1, ex = W * hs(e + 7) + Math.sin(t * 0.6 + e) * W * 0.02, ey = H * (0.95 - k2 * 0.8); ctx.globalAlpha = Math.sin(k2 * Math.PI) * 0.45; ctx.fillStyle = '#ffd8a0'; ctx.fillRect(ex, ey, 1.6, 1.6); }
       ctx.restore();
       ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = 'rgba(255,150,80,.22)'; ctx.fillRect(0, 0, W, H); ctx.restore();
+      C.filmGrain(ctx, W, H, gs, 0.45);
       vign(ctx, W, H, 0.5, '30,10,0'); letterbox(ctx, W, H, sm(0, 1.6, t));
       fadeIn(ctx, W, H, t, 1.6);
     }
@@ -1563,7 +1679,7 @@ var MTBX = (function () {
     for (i = 0; i < parts.length; i++) { ctx.font = (i % 2 ? '700 ' : '400 ') + fs.toFixed(1) + 'px Georgia, serif'; ctx.fillStyle = i % 2 ? bcol : col; ctx.fillText(parts[i], x, y); x += ctx.measureText(parts[i]).width; }
   }
   function sceneCredits() {
-    var r = U.rng(2512), st = stars(r, 220), glit = MTSky.makeGlitter(r), LT = C.makeLit(), lay = null, block = null;
+    var r = U.rng(2512), st = stars(r, 220), glit = MTSky.makeGlitter(r), LT = C.makeLit(), lay = null, block = null, gs = {}, fogN = fogSpr('night', [22, 28, 52], [120, 136, 180], 453);
     function layout(ctx, W, H) {
       var port = W < H, fs = port ? Math.max(13, W * 0.04) : Math.min(22, Math.max(15, H * 0.024)), maxW = Math.min(W * (port ? 0.86 : 0.56), 720), lh = fs * 1.5, items = [], y = 0;
       THANKS.forEach(function (it) {
@@ -1586,6 +1702,7 @@ var MTBX = (function () {
       drawStars(ctx, st, W, hy, t, 0.9);
       var mx = W * (port ? 0.84 : 0.74), my = hy * (port ? 0.88 : 0.32), mr = Math.max(9, H * (port ? 0.022 : 0.035)); light(ctx, mx, my, mr * 8, '200,215,255', 0.35); ctx.fillStyle = '#f4f0de'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.3); ctx.fill();
       p._moonX = W * (port ? 0.84 : 0.74); MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 0.5, drift: 4 });
+      fogBank(ctx, fogN, W, hy, H * 0.08, t, 0.4, 3);
       LT.set(U.mix(p.tint, [210, 215, 245], 0.55));
       var ss = port ? W * 0.0016 : Math.min(W * 0.0011, H * 0.0019), drift = t * 0.006, sx = W * (port ? 0.12 : 0.16) + drift * W, sy = hy + (H - hy) * 0.45;
       var po = MTShip.pearlOpts({ dir: 1, t: t, lit: LT, lanterns: 1, furl: 0.1, roll: Math.sin(t * 0.8) * 0.012 }), mo = myShip({ dir: 1, t: t, lit: LT, lanterns: 1, furl: 0.1, roll: Math.sin(t * 0.8 + 1) * 0.012 });
@@ -1620,6 +1737,7 @@ var MTBX = (function () {
       var ca = sm(26.6, 27.8, t);
       if (ca > 0.01) { ctx.save(); ctx.globalAlpha = ca; ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = 12; ctx.textAlign = 'center'; ctx.fillStyle = '#f4ead0'; ctx.font = 'italic ' + Math.min(W * 0.05, H * 0.036).toFixed(1) + 'px Georgia, serif';
         var lines = port ? ['Lautan masih luas.', 'Pelayaranmu belum berakhir.'] : ['Lautan masih luas. Pelayaranmu belum berakhir.']; lines.forEach(function (ln, i) { ctx.fillText(ln, W / 2, H * 0.5 + (i - (lines.length - 1) / 2) * Math.min(W * 0.065, H * 0.05)); }); ctx.restore(); }
+      C.filmGrain(ctx, W, H, gs, 0.4);
       vign(ctx, W, H, 0.55);
       fadeIn(ctx, W, H, t, 1.2);
     }

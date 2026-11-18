@@ -202,6 +202,287 @@ var MTCine = (function () {
     return grainCv;
   }
 
+  /* ---------- Tide v68: kit bersama sinematik (tokoh berpakaian, kayu, kertas, tembok, kamera, cahaya) ----------
+   * Semua dipakai lewat MTCine.H. Tekstur = kanvas yang dipanggang SEKALI (panggil saat layout/ukuran berubah,
+   * jangan per frame). Tokoh & cahaya = gambar langsung per frame, ringan. */
+
+  /** Panggang: kanvas w×h (×q untuk layar rapat), fn(g) menggambar dalam koordinat w×h. */
+  function bake(w, h, q, fn) {
+    q = q || 1; var cv = mkCv(w * q, h * q), g = cv.getContext('2d'); g.scale(q, q); fn(g, w, h); return cv;
+  }
+  /** Skala kamera q yang aman untuk dipanggang: ikut devicePixelRatio, maks 1,5, turun ke 1 kalau kanvas besar. */
+  function bakeQ(ctx, W, H) {
+    var tf = 1; try { tf = ctx.getTransform().a || 1; } catch (e) { }
+    var q = U.clamp(tf, 1, 1.5); if (W * H * q * q > 1700000) q = 1; return q;
+  }
+  /** Cache panggang per ukuran: memo(key, W, H, fn) memanggil fn hanya saat W/H berubah. Simpan objeknya per adegan. */
+  function memo() {
+    var k = null, v = null;
+    return function (W, H, fn) { var nk = W + 'x' + H; if (nk !== k) { k = nk; v = fn(); } return v; };
+  }
+
+  /** Serat kayu: papan-papan dengan serat, mata kayu, celah gelap. Mengembalikan kanvas warna (bukan overlay).
+   *  o: { base:[r,g,b], dark:[r,g,b], plank: lebar papan px, vertical: bool, wet: 0..1 (kilap basah), seed } */
+  function woodTex(w, h, o) {
+    o = o || {}; var cv = mkCv(w, h), g = cv.getContext('2d'), m = fbmMap(o.seed || 611), m2 = fbmMap((o.seed || 611) + 3), i = 0;
+    w = cv.width; h = cv.height;
+    var im = g.createImageData(w, h), d = im.data, base = o.base || [92, 62, 38], dark = o.dark || [38, 24, 14], pw = o.plank || 26, vert = !!o.vertical, wet = o.wet || 0;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++, i += 4) {
+      var a = vert ? x : y, b = vert ? y : x, pi = Math.floor(a / pw), pa = a - pi * pw, off = pi * 97.3;
+      var grain = fbmAt(m, b * 0.05 + off, a * 1.4 + off), fine = fbmAt(m2, b * 0.6 + off, a * 5 + off);
+      var ring = Math.sin((grain * 9 + a * 0.35) * 2.2) * 0.5 + 0.5, knot = fbmAt(m2, b * 0.18 + off, a * 0.6);
+      var v = 0.45 + (grain - 0.5) * 0.7 + (ring - 0.5) * 0.22 + (fine - 0.5) * 0.25 + (((pi * 7919) % 13) / 13 - 0.5) * 0.22;
+      if (knot > 0.83) v -= (knot - 0.83) * 3;
+      var seam = Math.min(pa, pw - pa); if (seam < 1.2) v *= 0.25 + seam * 0.4;
+      var endJ = (b + pi * 173) % 240; if (endJ < 1.2) v *= 0.35;
+      v = U.clamp(v, 0, 1);
+      d[i] = dark[0] + (base[0] - dark[0]) * v; d[i + 1] = dark[1] + (base[1] - dark[1]) * v; d[i + 2] = dark[2] + (base[2] - dark[2]) * v;
+      if (wet) { var sh = Math.max(0, fine - 0.62) * wet * 260; d[i] += sh * 0.7; d[i + 1] += sh * 0.8; d[i + 2] += sh; }
+      d[i + 3] = 255;
+    }
+    g.putImageData(im, 0, 0); return cv;
+  }
+
+  /** Kertas tua: serat, noda air, tepi menggelap/terbakar. Kanvas warna.
+   *  o: { base:[r,g,b], edge: 0..1 (gelap tepi), burn: bool, stains: 0..1, seed } */
+  function paperTex(w, h, o) {
+    o = o || {}; var cv = mkCv(w, h), g = cv.getContext('2d'), m = fbmMap(o.seed || 733), m2 = fbmMap((o.seed || 733) + 11), i = 0;
+    w = cv.width; h = cv.height;
+    var im = g.createImageData(w, h), d = im.data, base = o.base || [226, 208, 168], edge = o.edge == null ? 0.55 : o.edge, st = o.stains == null ? 0.5 : o.stains;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++, i += 4) {
+      var u = x / w, v = y / h, n = fbmAt(m, x * 0.9, y * 0.9), f = fbmAt(m2, x * 4.2, y * 0.7), f2 = fbmAt(m2, x * 0.7 + 50, y * 4.2);
+      var e = Math.min(u, 1 - u, v, 1 - v) * 2, ed = 1 - U.smooth(e / 0.35 + (n - 0.5) * 0.9);
+      var stain = Math.max(0, fbmAt(m, x * 0.35 + 90, y * 0.35) - 0.62) * 2.6 * st, ring = Math.abs(fbmAt(m, x * 0.35 + 90, y * 0.35) - 0.62) < 0.008 ? 0.12 * st : 0;
+      var k = 1 - (f - 0.5) * 0.09 - (f2 - 0.5) * 0.07 - (n - 0.5) * 0.12 - ed * edge * 0.55 - stain * 0.3 - ring;
+      var r = base[0] * k, gg = base[1] * k, b = base[2] * k * (1 - ed * edge * 0.18 - stain * 0.12);
+      if (o.burn && ed > 0.86) { var bt = (ed - 0.86) / 0.14; r *= 1 - bt * 0.85; gg *= 1 - bt * 0.9; b *= 1 - bt * 0.92; }
+      d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = o.burn && ed > 0.985 ? 0 : 255;
+    }
+    g.putImageData(im, 0, 0); return cv;
+  }
+
+  /** Tembok plester / bata / marmer: overlay terang-gelap ber-alpha (seperti rockTex), ditimpa di atas bentuk yang di-clip.
+   *  o: { brick: tinggi bata px (0 = tanpa bata), streak: 0..1 (luntur hujan), marble: bool, hi, lo, tint:[r,g,b], seed } */
+  function wallTex(w, h, o) {
+    o = o || {}; var cv = mkCv(w, h), g = cv.getContext('2d'), m = fbmMap(o.seed || 857), m2 = fbmMap((o.seed || 857) + 5), i = 0;
+    w = cv.width; h = cv.height;
+    var im = g.createImageData(w, h), d = im.data, bh = o.brick || 0, tn = o.tint || [255, 248, 230], hi = o.hi == null ? 0.22 : o.hi, lo = o.lo == null ? 0.5 : o.lo, sk = o.streak || 0;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++, i += 4) {
+      var n = fbmAt(m, x * 0.8, y * 0.8), n2 = fbmAt(m2, x * 3, y * 3), v = (n - 0.5) * 0.9 + (n2 - 0.5) * 0.35;
+      if (bh) {
+        var row = Math.floor(y / bh), bw = bh * 2.3, bx = (x + (row % 2) * bw * 0.5) % bw, by = y - row * bh;
+        if (by < 1.1 || bx < 1.1) v -= 0.45 * (0.6 + n2 * 0.6) * U.clamp(fbmAt(m, x * 0.3 + 40, y * 0.3) * 1.6 - 0.2, 0, 1);
+        v += ((Math.floor((x + (row % 2) * bw * 0.5) / bw) * 31 + row * 17) % 7 / 7 - 0.5) * 0.12;
+      }
+      if (o.marble) { var vein = Math.abs(Math.sin((x * 0.02 + y * 0.012 + n * 6) * 3)); if (vein < 0.06) v -= (0.06 - vein) * 4; }
+      if (sk) v -= Math.max(0, fbmAt(m2, x * 2.5, y * 0.08) - 0.55) * sk * 1.6 * (y / h + 0.3);
+      if (v > 0) { d[i] = tn[0]; d[i + 1] = tn[1]; d[i + 2] = tn[2]; d[i + 3] = Math.min(255, v * hi * 255); }
+      else { d[i] = 0; d[i + 1] = 0; d[i + 2] = 4; d[i + 3] = Math.min(255, -v * lo * 255); }
+    }
+    g.putImageData(im, 0, 0); return cv;
+  }
+
+  /** Tempel overlay tekstur ke bentuk: pathFn(g) membuat path, lalu tekstur digambar di dalam clip. */
+  function texFill(g, pathFn, tex, x, y, w, h, alpha) {
+    g.save(); g.beginPath(); pathFn(g); g.clip(); if (alpha != null) g.globalAlpha = alpha; g.drawImage(tex, x, y, w, h); g.restore();
+  }
+
+  /* ---------- Kamera ---------- */
+  /** Zoom/geser di sekitar titik (cx, cy). Pakai di dalam save/restore. k = skala, dx/dy = geser px. */
+  function camAt(ctx, cx, cy, k, dx, dy) { ctx.translate(cx + (dx || 0), cy + (dy || 0)); ctx.scale(k, k); ctx.translate(-cx, -cy); }
+  /** Nilai kamera pelan untuk lapisan berkedalaman `depth` (0 = langit jauh, 1 = paling depan) pada detik t.
+   *  Mengembalikan { k, dx, dy }. push = seberapa jauh maju (0,05–0,12 wajar), pan = geser px per detik kedalaman 1. */
+  function camLayer(t, depth, o) {
+    o = o || {}; var dur = o.dur || 10, e = U.smooth(U.clamp(t / dur, 0, 1)), push = o.push == null ? 0.08 : o.push, pan = o.pan || 0, sway = o.sway == null ? 1 : o.sway;
+    return { k: 1 + push * depth * e + 0.004 * sway * depth * Math.sin(t * 0.23), dx: pan * depth * e * dur, dy: Math.sin(t * 0.17) * 1.2 * sway * depth };
+  }
+
+  /* ---------- Cahaya & suasana ---------- */
+  /** Berkas cahaya lembut (god ray) dari (x,y) ke arah ang (radian), panjang len, lebar sudut spread. col = 'r,g,b'. */
+  function shaft(ctx, x, y, ang, len, spread, col, a) {
+    if (a <= 0.005) return;
+    var gr = ctx.createRadialGradient(x, y, 0, x, y, len);
+    gr.addColorStop(0, 'rgba(' + col + ',' + a.toFixed(3) + ')'); gr.addColorStop(0.6, 'rgba(' + col + ',' + (a * 0.35).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(ang - spread) * len, y + Math.sin(ang - spread) * len); ctx.lineTo(x + Math.cos(ang + spread) * len, y + Math.sin(ang + spread) * len);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  /** Pendar bulat (lampu, obor, lentera). col = 'r,g,b'. */
+  function glow(ctx, x, y, r, col, a) {
+    if (a <= 0.005 || r <= 0) return;
+    var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(' + col + ',' + a.toFixed(3) + ')'); g.addColorStop(0.35, 'rgba(' + col + ',' + (a * 0.32).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.restore();
+  }
+  /** Pantulan cahaya di air: garis-garis bergoyang di bawah sumber (x, waterY). w = lebar dasar, n = jumlah garis. */
+  function waterGlint(ctx, x, waterY, w, len, col, a, t, n) {
+    n = n || 9; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (var j = 0; j < n; j++) {
+      var f = j / n, ww = w * (1 + f * 1.6) * (0.6 + 0.4 * Math.abs(Math.sin(t * 1.7 + j * 1.9))), xx = x + Math.sin(t * 2.1 + j * 1.3) * w * 0.25 * f;
+      ctx.fillStyle = 'rgba(' + col + ',' + (a * (1 - f)).toFixed(3) + ')'; ctx.fillRect(xx - ww / 2, waterY + 2 + f * len, ww, Math.max(1, len / n * 0.4));
+    }
+    ctx.restore();
+  }
+  /** Debu/serbuk melayang di berkas cahaya. Simpan `motes = makeMotes(n, seed)` sekali, gambar tiap frame. */
+  function makeMotes(n, seed) { var r = U.rng(seed || 41), a = []; for (var i = 0; i < n; i++) a.push({ x: r(), y: r(), s: 0.6 + r() * 1.4, v: 0.004 + r() * 0.01, ph: r() * 6.3 }); return a; }
+  function motes(ctx, list, x, y, w, h, t, col, a) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i], px = x + (((p.x + Math.sin(t * 0.3 + p.ph) * 0.03) % 1) + 1) % 1 * w, py = y + (((p.y - t * p.v) % 1) + 1) % 1 * h, al = a * (0.35 + 0.65 * Math.abs(Math.sin(t * 0.8 + p.ph)));
+      ctx.fillStyle = 'rgba(' + col + ',' + al.toFixed(3) + ')'; ctx.fillRect(px, py, p.s, p.s);
+    }
+    ctx.restore();
+  }
+  /** Hujan berlapis (3 kedalaman). Simpan `rain = makeRain(n, seed)` sekali. wind = kemiringan (px per px jatuh). */
+  function makeRain(n, seed) { var r = U.rng(seed || 57), a = []; for (var i = 0; i < n; i++) a.push({ x: r(), y: r(), z: i % 3, v: 0.8 + r() * 0.5 }); return a; }
+  function rain(ctx, list, W, H, t, wind, a) {
+    ctx.save(); ctx.lineCap = 'round';
+    for (var z = 0; z < 3; z++) {
+      var len = H * (0.02 + z * 0.018), sp = H * (1.1 + z * 0.6);
+      ctx.strokeStyle = 'rgba(190,205,235,' + (a * (0.18 + z * 0.14)).toFixed(3) + ')'; ctx.lineWidth = 0.6 + z * 0.45; ctx.beginPath();
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i]; if (p.z !== z) continue;
+        var py = ((p.y * H + t * sp * p.v) % (H + len)) - len, px = ((p.x * W + py * (wind || 0.15)) % W + W) % W;
+        ctx.moveTo(px, py); ctx.lineTo(px + len * (wind || 0.15), py + len);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  /** Nada warna seluruh layar: col 'r,g,b', a 0..1, mode 'soft-light' (default) / 'multiply' / 'screen' / 'color'. */
+  function grade(ctx, W, H, col, a, mode) {
+    if (a <= 0.005) return;
+    ctx.save(); try { ctx.globalCompositeOperation = mode || 'soft-light'; } catch (e) { }
+    ctx.fillStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+  /** Butir film tipis (hanya layar kerapatan biasa; di layar rapat diabaikan karena tak terlihat tapi mahal).
+   *  Simpan `var gs = {}` per adegan, panggil filmGrain(ctx, W, H, gs, 0..1). */
+  function filmGrain(ctx, W, H, gs, a) {
+    if (gs.pat === undefined) { var dpr = 1; try { dpr = ctx.getTransform().a || 1; } catch (e) { } try { gs.pat = dpr <= 1.3 ? ctx.createPattern(grainTile(), 'repeat') : null; } catch (e2) { gs.pat = null; } gs.n = 0; }
+    if (!gs.pat) return;
+    if ((gs.n++ & 1) === 0) { gs.ox = Math.floor(Math.random() * 128); gs.oy = Math.floor(Math.random() * 128); }
+    ctx.save(); ctx.globalAlpha = a == null ? 1 : a; ctx.translate(-gs.ox, -gs.oy); ctx.fillStyle = gs.pat; ctx.fillRect(gs.ox, gs.oy, W, H); ctx.restore();
+  }
+
+  /* ---------- Kit Tokoh: siluet berpakaian ----------
+   * figure(ctx, x, y, h, o): (x, y) = titik kaki, h = tinggi tubuh px (tanpa topi).
+   * o.dress : 'coat' (jas panjang) | 'shirt' | 'gown' (gaun/kebaya panjang) | 'robe' (jubah) | 'uniform' (seragam berbahu) | 'skirt'
+   * o.hat   : 'none' | 'bowler' | 'tricorn' | 'cap' (topi kadet/pet) | 'peci' | 'wide' (caping/topi lebar) | 'bun' (sanggul) | 'scarf' (kerudung) | 'bicorne'
+   * o.pose  : 'stand' | 'walk' | 'point' | 'salute' | 'arms' (tangan di pinggang) | 'raise' (dua tangan terangkat) | 'hold' (memegang di depan) | 'sit'
+   * o.prop  : 'none' | 'umbrella' | 'cane' | 'lantern' | 'sword' | 'drum' | 'scroll' | 'pipe'
+   * o.dir   : 1 hadap kanan, -1 hadap kiri · o.t: detik (untuk langkah & kibar) · o.build: 0,8–1,4 (gemuk) · o.child: true (anak)
+   * o.col   : warna tubuh (default '#07080f') · o.rim: 'r,g,b' warna cahaya tepi · o.rimSide: -1/1 sisi cahaya · o.rimA: 0..1
+   * o.accent: warna aksen kecil (selendang, pita, medali) atau null · o.lit: fungsi makeLit() opsional untuk menyamakan pencahayaan
+   * Gaya: siluet, tanpa wajah. Sopan: gaun & kebaya selalu panjang. */
+  function figurePath(ctx, x, y, h, o) {
+    var dir = o.dir || 1, b = o.build || 1, u = h / 100, t = o.t || 0, pose = o.pose || 'stand', dress = o.dress || 'coat', child = !!o.child;
+    var sw = (o.pose === 'walk' ? Math.sin(t * 6 + (o.ph || 0)) : 0), hr = u * (child ? 9.5 : 7.6), hy = y - h + hr;
+    var sh = u * 13 * b, wa = u * 9.5 * b, hip = u * (dress === 'gown' || dress === 'robe' || dress === 'skirt' ? 18 : 11) * b, ny = y - h + hr * 2.1, wy = y - h * 0.47, ky = y - h * 0.26;
+    if (pose === 'sit') { wy = y - h * 0.3; ky = y - h * 0.18; }
+    // kepala & leher
+    ctx.moveTo(x + hr, hy); ctx.arc(x, hy, hr, 0, 6.2832);
+    ctx.rect(x - u * 2.6, hy + hr * 0.6, u * 5.2, ny - hy - hr * 0.3);
+    // badan
+    var shY = ny + u * 2.5, slope = dress === 'uniform' ? 0.6 : 1;
+    ctx.moveTo(x - sh, shY + u * 3 * slope);
+    ctx.quadraticCurveTo(x - sh * 0.9, shY - u * 1.2 * (2 - slope), x - u * 3, shY - u * 1.6);
+    ctx.lineTo(x + u * 3, shY - u * 1.6);
+    ctx.quadraticCurveTo(x + sh * 0.9, shY - u * 1.2 * (2 - slope), x + sh, shY + u * 3 * slope);
+    if (dress === 'gown' || dress === 'robe' || dress === 'skirt') {
+      var hem = dress === 'skirt' ? ky + u * 4 : y - u * 0.5, flare = (dress === 'robe' ? 1.0 : 1.25) + sw * 0.06;
+      ctx.lineTo(x + wa, wy); ctx.quadraticCurveTo(x + hip * 1.05 * flare, (wy + hem) / 2, x + hip * flare + sw * u * 2, hem);
+      ctx.quadraticCurveTo(x, hem + u * 1.5, x - hip * flare + sw * u * 2, hem); ctx.quadraticCurveTo(x - hip * 1.05 * flare, (wy + hem) / 2, x - wa, wy);
+    } else if (dress === 'coat') {
+      var ch = ky + u * 6;
+      ctx.lineTo(x + wa, wy); ctx.lineTo(x + hip * 1.25 + sw * u, ch); ctx.lineTo(x - hip * 1.25 + sw * u, ch); ctx.lineTo(x - wa, wy);
+    } else { ctx.lineTo(x + wa, wy + u * 2); ctx.lineTo(x - wa, wy + u * 2); }
+    ctx.closePath();
+    // kaki (kecuali gaun panjang yang menutup)
+    if (!(dress === 'gown' || dress === 'robe')) {
+      var lw = u * 4.4 * Math.min(1.2, b), st = pose === 'sit' ? 0 : sw * u * 9;
+      if (pose === 'sit') {
+        ctx.rect(dir > 0 ? x - u * 4 : x - u * 18, wy - u, u * 22, lw * 1.6);
+        ctx.rect(x + (dir > 0 ? u * 18 : -u * 22), wy, lw, y - wy);
+      } else {
+        ctx.moveTo(x - u * 7, wy); ctx.lineTo(x - u * 1.2, wy); ctx.lineTo(x - u * 1.5 - st, y - u * 2); ctx.lineTo(x - u * 2 - st + dir * u * 4, y); ctx.lineTo(x - lw - u * 3.5 - st, y); ctx.closePath();
+        ctx.moveTo(x + u * 1.2, wy); ctx.lineTo(x + u * 7, wy); ctx.lineTo(x + lw + u * 3.5 + st, y - u * 2); ctx.lineTo(x + lw + u * 3.5 + st + dir * u * 3, y); ctx.lineTo(x + u * 2 + st, y); ctx.closePath();
+      }
+    } else { // ujung kaki mengintip di bawah gaun
+      ctx.moveTo(x - u * 6 + dir * u * 3, y - u * 1.2); ctx.lineTo(x - u * 1 + dir * u * 5, y - u * 1.2); ctx.lineTo(x - u * 1 + dir * u * 6, y); ctx.lineTo(x - u * 6 + dir * u * 3, y); ctx.closePath();
+    }
+    // lengan
+    var aw = u * 4.2 * Math.min(1.25, b), ax = sh - u * 1.5;
+    function arm(side, ang, len, ang2) { // side -1/1, ang = sudut lengan atas dari bawah (rad, + = ke depan sesuai dir)
+      var sx = x + side * ax, sy = shY + u * 1.5, a1 = Math.PI / 2 - ang * dir, ex = sx + Math.cos(a1) * len * 0.52, ey = sy + Math.sin(a1) * len * 0.52;
+      var a2 = Math.PI / 2 - (ang2 == null ? ang : ang2) * dir, hx = ex + Math.cos(a2) * len * 0.5, hy2 = ey + Math.sin(a2) * len * 0.5;
+      var nx1 = -Math.sin(a1) * aw / 2, ny1 = Math.cos(a1) * aw / 2, nx2 = -Math.sin(a2) * aw * 0.42, ny2 = Math.cos(a2) * aw * 0.42;
+      ctx.moveTo(sx + nx1, sy + ny1); ctx.lineTo(ex + nx1, ey + ny1); ctx.lineTo(hx + nx2, hy2 + ny2); ctx.lineTo(hx - nx2, hy2 - ny2); ctx.lineTo(ex - nx1, ey - ny1); ctx.lineTo(sx - nx1, sy - ny1); ctx.closePath();
+      ctx.moveTo(hx + u * 2.2, hy2); ctx.arc(hx, hy2, u * 2.2, 0, 6.2832);
+      return [hx, hy2];
+    }
+    var L = u * (child ? 34 : 38), hands = {};
+    if (pose === 'point') { hands.f = arm(dir, 1.45, L, 1.5); hands.b = arm(-dir, 0.08, L); }
+    else if (pose === 'salute') { hands.f = arm(dir, 2.3, L, -2.6); hands.b = arm(-dir, 0.05, L); }
+    else if (pose === 'raise') { hands.f = arm(dir, 2.7, L, 2.9); hands.b = arm(-dir, -2.7, L, -2.9); }
+    else if (pose === 'arms') { hands.f = arm(dir, 0.75, L, -0.6); hands.b = arm(-dir, -0.75, L, 0.6); }
+    else if (pose === 'hold') { hands.f = arm(dir, 0.55, L, 1.35); hands.b = arm(-dir, -0.1, L, 1.2); }
+    else { hands.f = arm(dir, 0.12 - sw * 0.35, L); hands.b = arm(-dir, -0.12 - sw * 0.35, L); }
+    // topi / rambut
+    var hat = o.hat || 'none';
+    if (hat === 'bowler') { ctx.moveTo(x - hr * 1.65, hy - hr * 0.55); ctx.lineTo(x + hr * 1.65, hy - hr * 0.55); ctx.lineTo(x + hr * 1.6, hy - hr * 0.3); ctx.lineTo(x - hr * 1.6, hy - hr * 0.3); ctx.closePath(); ctx.moveTo(x + hr * 1.05, hy - hr * 0.5); ctx.arc(x, hy - hr * 0.5, hr * 1.05, 0, Math.PI, true); }
+    else if (hat === 'tricorn') { ctx.moveTo(x - hr * 2, hy - hr * 0.35); ctx.quadraticCurveTo(x, hy - hr * 2.6, x + hr * 2, hy - hr * 0.35); ctx.quadraticCurveTo(x, hy - hr * 0.95, x - hr * 2, hy - hr * 0.35); }
+    else if (hat === 'bicorne') { ctx.moveTo(x - hr * 2.4, hy - hr * 0.5); ctx.quadraticCurveTo(x, hy - hr * 2.9, x + hr * 2.4, hy - hr * 0.5); ctx.quadraticCurveTo(x, hy - hr * 1.1, x - hr * 2.4, hy - hr * 0.5); }
+    else if (hat === 'cap') { ctx.moveTo(x - hr * 1.15, hy - hr * 0.3); ctx.lineTo(x - hr * 1.25, hy - hr * 1.15); ctx.lineTo(x + hr * 1.25, hy - hr * 1.15); ctx.lineTo(x + hr * 1.15, hy - hr * 0.3); ctx.lineTo(x + dir * hr * 2, hy - hr * 0.2); ctx.lineTo(x + dir * hr * 1.1, hy - hr * 0.05); ctx.closePath(); }
+    else if (hat === 'peci') { ctx.rect(x - hr * 1.02, hy - hr * 1.35, hr * 2.04, hr * 0.95); }
+    else if (hat === 'wide') { ctx.moveTo(x - hr * 2.7, hy - hr * 0.2); ctx.lineTo(x, hy - hr * 1.9); ctx.lineTo(x + hr * 2.7, hy - hr * 0.2); ctx.closePath(); }
+    else if (hat === 'bun') { ctx.moveTo(x - dir * hr * 0.35 + hr * 0.75, hy - hr * 0.75); ctx.arc(x - dir * hr * 0.35, hy - hr * 0.75, hr * 0.75, 0, 6.2832); }
+    else if (hat === 'scarf') { ctx.moveTo(x - hr * 1.3, hy + hr * 0.2); ctx.quadraticCurveTo(x - hr * 1.4, hy - hr * 1.5, x, hy - hr * 1.35); ctx.quadraticCurveTo(x + hr * 1.4, hy - hr * 1.5, x + hr * 1.3, hy + hr * 0.2); ctx.lineTo(x + hr * 1.6, shY + u * 4); ctx.lineTo(x - hr * 1.6, shY + u * 4); ctx.closePath(); }
+    return { hands: hands, head: [x, hy], hr: hr, shY: shY, wy: wy, u: u };
+  }
+  function figure(ctx, x, y, h, o) {
+    o = o || {}; if (o.prop === 'umbrella' && (!o.pose || o.pose === 'stand' || o.pose === 'walk')) { o = Object.assign({}, o, { pose: 'hold' }); }
+    var dir = o.dir || 1, col = o.col || '#07080f', geo;
+    ctx.save();
+    if (o.rim && (o.rimA == null || o.rimA > 0.01)) { // cahaya tepi: siluet warna terang digeser ke arah cahaya, ditimpa siluet tubuh
+      var rs = o.rimSide || 1, off = Math.max(0.8, h * 0.012);
+      ctx.fillStyle = 'rgba(' + o.rim + ',' + (o.rimA == null ? 0.75 : o.rimA).toFixed(3) + ')';
+      ctx.beginPath(); figurePath(ctx, x + rs * off, y - off * 0.5, h, o); ctx.fill();
+    }
+    ctx.fillStyle = o.lit ? o.lit(col) : col; ctx.beginPath(); geo = figurePath(ctx, x, y, h, o); ctx.fill();
+    var u = geo.u, hd = geo.hands, prop = o.prop || 'none';
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineCap = 'round';
+    if (prop === 'umbrella' && hd.f) { var ux = hd.f[0], uy = hd.f[1], top = geo.head[1] - geo.hr * 3.4; ctx.lineWidth = Math.max(1, u * 1.1); ctx.beginPath(); ctx.moveTo(ux, uy + u * 3); ctx.lineTo(ux, top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(ux - u * 22, top + u * 7); ctx.quadraticCurveTo(ux, top - u * 9, ux + u * 22, top + u * 7); for (var sc = 1; sc >= -1; sc -= 0.5) ctx.quadraticCurveTo(ux + u * 22 * (sc - 0.25), top + u * 4, ux + u * 22 * (sc - 0.5), top + u * 7); ctx.fill(); }
+    else if (prop === 'cane' && hd.f) { ctx.lineWidth = Math.max(1, u * 1.2); ctx.beginPath(); ctx.moveTo(hd.f[0], hd.f[1]); ctx.lineTo(hd.f[0] + dir * u * 6, y); ctx.stroke(); }
+    else if (prop === 'sword' && hd.f) { ctx.lineWidth = Math.max(1, u * 1.3); ctx.beginPath(); ctx.moveTo(hd.f[0], hd.f[1]); ctx.lineTo(hd.f[0] + dir * u * 26, hd.f[1] - u * 20); ctx.stroke(); }
+    else if (prop === 'scroll' && hd.f) { ctx.save(); ctx.fillStyle = o.accent || '#d8c49a'; ctx.fillRect(hd.f[0] - u * 2, hd.f[1] - u * 7, u * 4.5, u * 12); ctx.restore(); }
+    else if (prop === 'pipe') { ctx.lineWidth = Math.max(1, u * 1.2); ctx.beginPath(); ctx.moveTo(geo.head[0] + dir * geo.hr * 0.6, geo.head[1] + geo.hr * 0.5); ctx.lineTo(geo.head[0] + dir * geo.hr * 1.9, geo.head[1] + geo.hr * 0.8); ctx.lineTo(geo.head[0] + dir * geo.hr * 1.9, geo.head[1] + geo.hr * 0.25); ctx.stroke(); }
+    else if (prop === 'drum') { ctx.beginPath(); ctx.ellipse(x + dir * u * 10, geo.wy + u * 4, u * 9, u * 3, 0, 0, 6.2832); ctx.rect(x + dir * u * 10 - u * 9, geo.wy + u * 4, u * 18, u * 13); ctx.fill(); }
+    else if (prop === 'lantern' && hd.f) { ctx.lineWidth = Math.max(0.8, u * 0.6); ctx.beginPath(); ctx.moveTo(hd.f[0], hd.f[1]); ctx.lineTo(hd.f[0], hd.f[1] + u * 5); ctx.stroke(); ctx.save(); ctx.fillStyle = '#ffd38a'; ctx.fillRect(hd.f[0] - u * 2.5, hd.f[1] + u * 5, u * 5, u * 6.5); ctx.restore(); glow(ctx, hd.f[0], hd.f[1] + u * 8, u * 26, '255,190,110', 0.45 * (0.85 + 0.15 * Math.sin((o.t || 0) * 9))); }
+    if (o.accent && prop !== 'scroll') { // aksen kecil di dada (medali/selendang/pita)
+      ctx.fillStyle = o.accent;
+      if (o.dress === 'uniform') { for (var md = 0; md < 3; md++) ctx.fillRect(x + dir * u * (2 + md * 2.6), geo.shY + u * 5, u * 1.8, u * 2.4); ctx.fillRect(x - u * 13, geo.shY - u * 0.5, u * 5, u * 1.6); ctx.fillRect(x + u * 8, geo.shY - u * 0.5, u * 5, u * 1.6); }
+      else { ctx.beginPath(); ctx.moveTo(x - u * 9, geo.shY + u * 1); ctx.lineTo(x - u * 6, geo.shY + u * 1); ctx.lineTo(x + u * 8, geo.wy); ctx.lineTo(x + u * 5, geo.wy); ctx.closePath(); ctx.fill(); }
+    }
+    ctx.restore();
+    return geo;
+  }
+  /** Kerumunan: n tokoh berjajar dari x0 ke x1 di garis kaki y, tinggi h ±15%, pakaian & pose acak tapi tetap (seed).
+   *  o: { seed, dresses:[...], hats:[...], poses:[...], col, rim, rimSide, rimA, t, depthRows: 1..3, sway } */
+  function crowd(ctx, x0, x1, y, h, n, o) {
+    o = o || {}; var r = U.rng(o.seed || 91), rows = o.depthRows || 1, dresses = o.dresses || ['coat', 'shirt', 'gown', 'robe', 'skirt'], hats = o.hats || ['none', 'peci', 'wide', 'bun', 'scarf', 'bowler', 'none'], poses = o.poses || ['stand', 'stand', 'stand', 'raise', 'point', 'arms'];
+    var list = [];
+    for (var i = 0; i < n; i++) {
+      var row = Math.floor(r() * rows), k = 1 - row * 0.16, d = dresses[Math.floor(r() * dresses.length)], hat = hats[Math.floor(r() * hats.length)];
+      if ((d === 'gown' || d === 'skirt') && (hat === 'bowler' || hat === 'peci')) hat = r() < 0.5 ? 'bun' : 'scarf';
+      list.push({ x: x0 + (x1 - x0) * ((i + 0.5 + (r() - 0.5) * 0.7) / n), y: y - row * h * 0.12, h: h * k * (0.85 + r() * 0.3), dress: d, hat: hat, pose: poses[Math.floor(r() * poses.length)], dir: r() < 0.5 ? -1 : 1, build: 0.85 + r() * 0.4, child: r() < 0.08, ph: r() * 6.3, row: row });
+    }
+    list.sort(function (a, b) { return b.row - a.row; });
+    for (var j = 0; j < list.length; j++) {
+      var p = list[j], bob = o.sway ? Math.sin((o.t || 0) * 2 + p.ph) * p.h * 0.012 : 0, shade = p.row ? 'rgba(' + (o.backCol || '20,24,40') + ',1)' : null;
+      figure(ctx, p.x, p.y + bob, p.h * (p.child ? 0.62 : 1), { dress: p.dress, hat: p.hat, pose: p.pose, dir: p.dir, build: p.build, child: p.child, t: o.t, ph: p.ph, col: shade || o.col, rim: p.row ? null : o.rim, rimSide: o.rimSide, rimA: o.rimA });
+    }
+  }
+
   /* ============================ BLACK PEARL ============================
    * Tide v64: gambar ditingkatkan (tekstur batu, awan fBm, Dok Kering di punggung bukit, gerbang besi gua,
    * obor + pantulan, kelelawar, sulur, riak haluan, kamera maju pelan, butir film).
@@ -722,6 +1003,28 @@ var MTCine = (function () {
   function sceneArrest() {
     var r = U.rng(5150), P = new Particles(), L = makeLit(), clouds = MTSky.makeClouds(r, 7), glit = MTSky.makeGlitter(r), stars = [], lay = null, flare = false;
     for (var i = 0; i < 120; i++) stars.push({ x: r(), y: Math.pow(r(), 1.4) * 0.9, r: r() < 0.9 ? 1 : 1.6, tw: 0.5 + r() * 2, ph: r() * 6.28 });
+    // Tide v68: awan fBm bergumpal, gedung IKN bertekstur (dipanggang sekali per ukuran), kabut cakrawala, butir film
+    var cSpr = null, fogS = null, ruinM = memo(), gs = {}, puffs = [], rc = U.rng(5157);
+    for (var c0 = 0; c0 < 6; c0++) puffs.push({ x: rc() * 1.3 - 0.15, y: 0.06 + rc() * 0.36, w: 0.22 + rc() * 0.2, v: 0.004 + rc() * 0.006, a: 0.55 + rc() * 0.35, k: c0 % 3 });
+    function bakeRuins(W, H) {
+      var tex = wallTex(Math.ceil(W / 2), Math.ceil(H / 2), { streak: 0.8, hi: 0.2, lo: 0.6, seed: 877, tint: [255, 226, 200] }), r4 = U.rng(879), hy = lay.hy;
+      function shape(g, b) { g.moveTo(-b.w / 2, 0); g.lineTo(-b.w / 2, -b.h); g.lineTo(-b.w * 0.1, -b.h * (0.9 - b.cut * 0.2)); g.lineTo(b.w * 0.15, -b.h * (1 - b.cut * 0.35)); g.lineTo(b.w / 2, -b.h * (0.78 + b.cut * 0.1)); g.lineTo(b.w / 2, 0); g.closePath(); }
+      function each(g, fn) { lay.bl.forEach(function (b) { g.save(); g.translate(b.x + b.w / 2, hy + 2); g.rotate(b.lean); fn(b); g.restore(); }); }
+      return bake(W, H, 1, function (g) {
+        g.save(); g.beginPath(); each(g, function (b) { shape(g, b); }); g.clip(); g.drawImage(tex, 0, 0, W, H);
+        each(g, function (b) {
+          var sg = g.createLinearGradient(-b.w / 2, 0, b.w / 2, 0); sg.addColorStop(0, 'rgba(255,200,150,.10)'); sg.addColorStop(0.3, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.3)');
+          g.fillStyle = sg; g.fillRect(-b.w / 2, -b.h * 1.05, b.w, b.h * 1.05);
+          var fl = Math.max(3, b.w * 0.1); g.strokeStyle = 'rgba(8,4,12,.22)'; g.lineWidth = 1; g.beginPath();
+          for (var y = -fl; y > -b.h; y -= fl) { g.moveTo(-b.w / 2, y); g.lineTo(b.w / 2, y); }
+          for (var x = -b.w / 2 + b.w / 4; x < b.w / 2; x += b.w / 4) { g.moveTo(x, 0); g.lineTo(x, -b.h); }
+          g.stroke();
+        });
+        g.restore();
+        g.strokeStyle = 'rgba(20,12,18,.8)'; g.lineWidth = 1;
+        each(g, function (b) { g.beginPath(); for (var q = 0; q < 3; q++) { var x2 = -b.w * 0.05 + q * b.w * 0.09, y2 = -b.h * (0.9 - b.cut * 0.2 + q * 0.04) - 1; g.moveTo(x2, y2 + 2); g.lineTo(x2 + (r4() - 0.5) * b.w * 0.15, y2 - b.h * (0.03 + r4() * 0.04)); } g.stroke(); });
+      });
+    }
     var NAVY = [
       { sail: '#f1dccb', stripe: '#b3261e', flag: '#b3261e', emb: 'crest', hull: '#6b4226', a: [-0.3, 0.93], b: [0.2, 0.9], k: 1, dir: 1 },
       { sail: '#dde8f1', stripe: '#2f7fa3', flag: '#2f7fa3', emb: 'anchor', hull: '#4a3322', a: [1.3, 0.95], b: [0.8, 0.91], k: 1, dir: -1 },
@@ -737,8 +1040,16 @@ var MTCine = (function () {
     function draw(ctx, W, H, t, dt) {
       if (!lay || lay.W !== W || lay.H !== H) layout(W, H);
       var hy = lay.hy, s = lay.s, frac = U.lerp(0.625, 0.74, sm(0, 10, t)), p = MTSky.palette(frac, null, 'overcast');
+      if (!cSpr) { cSpr = [0, 1, 2].map(function (j) { return puffSprite(5161 + j * 13, 420, 170, { sx: 0.75, sy: 1.1, th: 0.14, soft: 0.3, a: 0.95, dark: [70, 50, 78], lite: [244, 178, 142], lx: 3, ly: -6 }); }); fogS = puffSprite(5171, 360, 96, { sx: 0.62, sy: 1, th: 0.24, soft: 0.38, a: 0.5, dark: [88, 62, 84], lite: [220, 168, 150], lx: 0, ly: -4 }); }
+      var push = 1 + 0.035 * sm(0, 11, t);
+      ctx.save(); camAt(ctx, W * 0.5, hy, push, 0, 0);
       MTSky.paintSky(ctx, W, hy, p, t, stars);
-      MTSky.paintClouds(ctx, W, hy * 0.9, p, clouds, dt, 0.6);
+      var dusk = 1 - sm(4, 10, t) * 0.45;
+      for (var pc = 0; pc < puffs.length; pc++) {
+        var cl = puffs[pc], cw = cl.w * W * (W < H ? 1.8 : 1), chh = cw * 0.42, cx0 = ((cl.x + t * cl.v) % 1.4 + 1.4) % 1.4 * W - cw * 0.5 - W * 0.1;
+        ctx.globalAlpha = cl.a * dusk; ctx.drawImage(cSpr[cl.k], cx0, cl.y * hy * 0.9, cw, chh);
+      }
+      ctx.globalAlpha = 1;
       // siluet kota runtuh + patung garuda
       var sil = rgb(U.mix(p.hor, [20, 14, 30], 0.86)), sil2 = rgb(U.mix(p.hor, [20, 14, 30], 0.78));
       lay.bl.forEach(function (b, k) {
@@ -748,8 +1059,13 @@ var MTCine = (function () {
         if (b.wins > 0.55 && p.lights > 0.2) { ctx.fillStyle = 'rgba(255,190,110,' + (0.6 * p.lights).toFixed(3) + ')'; for (var wy = 0; wy < 3; wy++) ctx.fillRect(-b.w * 0.25 + (wy % 2) * b.w * 0.2, -b.h * (0.3 + wy * 0.17), 2, 2); }
         ctx.restore();
       });
-      garudaSil(ctx, W * (W > H ? 0.15 : 0.22), hy + 3, H * (W > H ? 0.42 : 0.3), rgb(U.mix(p.hor, [16, 10, 24], 0.9)));
+      ctx.drawImage(ruinM(W, H, function () { return bakeRuins(W, H); }), 0, 0, W, H);
+      var gx = W * (W > H ? 0.15 : 0.22), gh = H * (W > H ? 0.42 : 0.3);
+      garudaSil(ctx, gx, hy + 3, gh, rgb(U.mix(p.hor, [16, 10, 24], 0.9)));
+      glow(ctx, gx, hy - gh * 0.55, gh * 0.75, '255,170,120', 0.1 * dusk);
+      ctx.restore();
       MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 1, drift: 7 });
+      ctx.save(); ctx.globalAlpha = 0.5; var fw = H * 0.12 * 3.6, fo = (t * 6) % (fw * 0.7); for (var fx = -fw + fo; fx < W; fx += fw * 0.7) ctx.drawImage(fogS, fx, hy - H * 0.06, fw, H * 0.12); ctx.restore();
       // armada lima pulau mengepung kapal kelabu
       var e = ease((t - 0.2) / 6.6), lan = Math.max(p.lights, sm(3, 6.5, t));
       L.set(p.tint);
@@ -787,6 +1103,7 @@ var MTCine = (function () {
       if (!flare && t > 9.9) { flare = true; P.add({ x: W * 0.5, y: H * 0.74, vy: -H * 0.012, g: H * 0.00012, r: 2, life: 1.2, col: 'rgba(255,120,80,A)', add: true, glow: false, burstAt: true }); }
       P.a.forEach(function (q) { if (q.burstAt && q.age > 1.1) { q.burstAt = false; burst(P, q.x, q.y, Math.max(1.2, H * 0.004), ['255,255,240', '255,210,90']); } });
       P.run(ctx, dt);
+      filmGrain(ctx, W, H, gs, 0.45);
       vignette(ctx, W, H, 0.55);
       if (t < 1.2) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - sm(0, 1.2, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
@@ -802,6 +1119,8 @@ var MTCine = (function () {
       for (var j = 0; j < 7; j++) puffs.push({ dx: (j - 3) * 0.035 + (r() - 0.5) * 0.02, dy: -Math.sin(j / 6 * Math.PI) * 0.08 * r() - r() * 0.03, r: 0.05 + r() * 0.05 });
       smoke.push({ x: cxk, y: cyk, puffs: puffs, d: r() * 0.7, dir: cxk < 0.5 ? -1 : 1 });
     }
+    // Tide v68: asap fBm yang terangkat, berkas cahaya pagi, roket kembang api + kilau di laut, butir film
+    var smSpr = null, rockets = [], flashes = [], gs = {};
     function layout(W, H) {
       var hy = H * 0.55, port = W < H, rr = U.rng(17), land = port ? W * 0.98 : W * 0.72, houses = [];
       function hillY(x) { var u = x / land; return hy + H * 0.02 - H * (port ? 0.2 : 0.24) * Math.exp(-Math.pow((u - 0.55) / 0.42, 2)) * (1 - Math.pow(Math.min(1, u), 8)) - Math.sin(x * 0.03) * H * 0.008; }
@@ -831,19 +1150,17 @@ var MTCine = (function () {
       ctx.restore();
       p._sunX = sx; p.glitter = [255, 226, 170];
       MTSky.paintClouds(ctx, W, hy * 0.9, p, clouds, dt, 0.8);
-      // awan asap gelap yang tersibak
-      var SD = [40, 35, 42], rim = U.mix(SD, [236, 140, 88], 0.6 * (1 - clear * 0.4)), M = Math.max(W, H * 1.2);
+      // berkas cahaya pagi menembus asap yang tersibak
+      for (var bI = 0; bI < 3; bI++) shaft(ctx, sx, sy, Math.PI * (1.08 + bI * 0.1) + Math.sin(t * 0.2 + bI) * 0.02, Math.max(W, H) * 0.9, 0.05 + bI % 2 * 0.03, '255,214,160', 0.05 * clear * (1 - sm(5, 10, t) * 0.6));
+      // awan asap gelap yang tersibak & terangkat (sprite fBm: pinggir tersinari fajar, inti gelap)
+      if (!smSpr) smSpr = [0, 1].map(function (j) { return puffSprite(1951 + j * 7, 300, 210, { sx: 0.8, sy: 0.8, th: 0.12, soft: 0.34, a: 1, dark: [30, 26, 34], lite: [226, 136, 92], lx: 4, ly: 6 }); });
+      var M = Math.max(W, H * 1.2);
       for (var sI = 0; sI < smoke.length; sI++) {
         var sm0 = smoke[sI], a = 0.95 * (1 - U.smooth((clear - sm0.d * 0.45) / 0.55));
         if (a < 0.01) continue;
-        var drift = clear * (0.25 + sm0.d * 0.3), gx0 = (sm0.x + sm0.dir * drift + t * 0.004) * W, gy0 = (sm0.y - clear * 0.18) * hy, grow = 1 + clear * 0.5;
-        // lintasan 1: pinggiran tersinari fajar; lintasan 2: inti gelap menutup tepi dalam
-        for (var pass = 0; pass < 2; pass++) for (var pj = 0; pj < sm0.puffs.length; pj++) {
-          var pf = sm0.puffs[pj], cx = gx0 + pf.dx * M * grow, cy = gy0 + pf.dy * M, rr = pf.r * M * grow, gg;
-          if (!pass) { gg = ctx.createRadialGradient(cx, cy + rr * 0.12, rr * 0.5, cx, cy + rr * 0.12, rr * 1.08); gg.addColorStop(0, rgb(rim, a * 0.7)); gg.addColorStop(1, rgb(rim, 0)); }
-          else { gg = ctx.createRadialGradient(cx, cy - rr * 0.1, 0, cx, cy - rr * 0.1, rr * 0.92); gg.addColorStop(0, rgb(U.mix(SD, [0, 0, 0], 0.25), a)); gg.addColorStop(0.7, rgb(SD, a * 0.95)); gg.addColorStop(1, rgb(SD, 0)); }
-          ctx.fillStyle = gg; ctx.fillRect(cx - rr * 1.1, cy - rr * 1.1, rr * 2.2, rr * 2.2);
-        }
+        var drift = clear * (0.25 + sm0.d * 0.3), gx0 = (sm0.x + sm0.dir * drift + t * 0.004) * W, gy0 = (sm0.y - clear * 0.3) * hy - t * H * 0.004, grow = 1 + clear * 0.6;
+        var sw = M * 0.36 * grow, sh2 = sw * 0.62;
+        ctx.globalAlpha = a; ctx.drawImage(smSpr[sI % 2], gx0 - sw / 2, gy0 - sh2 * 0.6, sw, sh2); ctx.globalAlpha = 1;
       }
       MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: glit, rough: 0.8, drift: 6 });
       // pulau TooGood yang merdeka
@@ -868,6 +1185,10 @@ var MTCine = (function () {
         ctx.fillStyle = h.lit > 0.4 && night > 0.1 ? 'rgba(255,205,120,' + (0.4 + 0.5 * night).toFixed(3) + ')' : L('#3a2a1e');
         ctx.fillRect(h.x + h.w * 0.22, h.base - h.h * 0.7, h.w * 0.18, h.h * 0.26); ctx.fillRect(h.x + h.w * 0.55, h.base - h.h * 0.7, h.w * 0.18, h.h * 0.26);
       });
+      // sisa asap tipis terangkat dari atap-atap TooGood, menipis saat fajar
+      var wa = 0.5 * (1 - sm(3, 8.5, t));
+      if (wa > 0.01) for (var wI = 0; wI < 5; wI++) { var wu = ((t * 0.09 + wI * 0.23) % 1), wx = lay.land * (0.15 + wI * 0.17) + Math.sin(t * 0.5 + wI) * H * 0.02 + wu * H * 0.06, wy = hy - H * 0.06 - wu * H * 0.32, ws = H * (0.07 + wu * 0.16); ctx.globalAlpha = wa * Math.sin(wu * Math.PI); ctx.drawImage(smSpr[wI % 2], wx - ws / 2, wy - ws * 0.35, ws, ws * 0.7); }
+      ctx.globalAlpha = 1;
       // dermaga + untaian bendera
       ctx.fillStyle = L('#b9ab92'); ctx.fillRect(0, hy + H * 0.012, lay.land * 0.95, H * 0.018);
       var BC = ['#c9342a', '#f2c230', '#2f7fa3', '#3f8c3f', '#f7efe0'];
@@ -887,10 +1208,26 @@ var MTCine = (function () {
       MTShip.foam(ctx, pxp, pyp, ps, -1, t, 0, 0.5);
       MTShip.jukung(ctx, W * 0.15, H * 0.78, ps * 1.3, 1, t, '#e0b64c', L);
       MTShip.jukung(ctx, W * (lay.port ? 0.86 : 0.9), H * 0.72, ps * 1.1, -1, t, '#c9342a', L);
-      // kembang api perayaan
+      // kembang api perayaan: roket naik berekor, lalu pecah + kilau di langit & pantulan di laut
       fwT -= dt / 1000;
-      if (fwT <= 0 && t > 2.4) { fwT = t < 9 ? 0.45 + Math.random() * 0.8 : 1.4 + Math.random() * 2.4; burst(P, W * (0.1 + Math.random() * 0.8), hy * (0.18 + Math.random() * 0.45), Math.max(1.1, Math.min(W, H) * 0.0035), FW); }
+      if (fwT <= 0 && t > 2.4) { fwT = t < 9 ? 0.45 + Math.random() * 0.8 : 1.4 + Math.random() * 2.4; rockets.push({ x: W * (0.1 + Math.random() * 0.8), y: hy * (0.18 + Math.random() * 0.45), t0: t, w: (Math.random() - 0.5) * W * 0.03 }); }
+      for (var rI = rockets.length - 1; rI >= 0; rI--) {
+        var rk = rockets[rI], ru = (t - rk.t0) / 0.55;
+        if (ru >= 1) { burst(P, rk.x, rk.y, Math.max(1.1, Math.min(W, H) * 0.0035), FW); flashes.push({ x: rk.x, y: rk.y, t0: t, c: FW[Math.floor(Math.random() * FW.length)] }); rockets.splice(rI, 1); continue; }
+        var ee = 1 - Math.pow(1 - ru, 2), rx = rk.x - rk.w * (1 - ee), ry = U.lerp(hy, rk.y, ee), tl = H * 0.05;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+        var rg = ctx.createLinearGradient(rx, ry, rx, ry + tl); rg.addColorStop(0, 'rgba(255,236,190,.9)'); rg.addColorStop(1, 'rgba(255,170,90,0)');
+        ctx.strokeStyle = rg; ctx.lineWidth = Math.max(1, H * 0.003); ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + rk.w * 0.1, ry + tl); ctx.stroke(); ctx.restore();
+      }
+      for (var fI = flashes.length - 1; fI >= 0; fI--) {
+        var fq = flashes[fI], fa = 1 - (t - fq.t0) / 0.9;
+        if (fa <= 0) { flashes.splice(fI, 1); continue; }
+        glow(ctx, fq.x, fq.y, H * 0.16, fq.c || '255,222,176', 0.34 * fa * fa); glow(ctx, fq.x, fq.y, H * 0.03, '255,250,235', 0.6 * fa * fa * fa);
+        waterGlint(ctx, fq.x, hy, H * 0.025, H * 0.16, fq.c || '255,214,160', 0.3 * fa, t, 6);
+        if (fa < 0.75) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (var sp = 0; sp < 10; sp++) { var sa = sp * 0.628 + fq.t0, sd = (1 - fa) * H * 0.16 * (0.7 + (sp % 3) * 0.15), tw = Math.sin(t * 30 + sp * 2.1) > 0.2 ? 1 : 0.3; ctx.fillStyle = 'rgba(255,248,220,' + (0.8 * fa * tw).toFixed(3) + ')'; ctx.fillRect(fq.x + Math.cos(sa) * sd, fq.y + Math.sin(sa) * sd + (1 - fa) * H * 0.03, 2, 2); } ctx.restore(); }
+      }
       P.run(ctx, dt);
+      filmGrain(ctx, W, H, gs, 0.4);
       vignette(ctx, W, H, 0.38);
       if (t < 1.2) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - sm(0, 1.2, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
@@ -940,7 +1277,10 @@ var MTCine = (function () {
   function register(kind, factory) { KINDS[kind] = factory; }
   var helpers = { U: U, ease: ease, sm: sm, rgb: rgb, makeLit: makeLit, Particles: Particles, burst: burst, FW: FW, fogSprite: fogSprite,
     title: title, vignette: vignette, waveFlag: waveFlag, garudaSil: garudaSil, shipPt: shipPt, TITLE_FONT: TITLE_FONT, SUB_FONT: SUB_FONT,
-    mkCv: mkCv, fbmMap: fbmMap, fbmAt: fbmAt, puffSprite: puffSprite, rockTex: rockTex, grainTile: grainTile };
+    mkCv: mkCv, fbmMap: fbmMap, fbmAt: fbmAt, puffSprite: puffSprite, rockTex: rockTex, grainTile: grainTile,
+    bake: bake, bakeQ: bakeQ, memo: memo, woodTex: woodTex, paperTex: paperTex, wallTex: wallTex, texFill: texFill,
+    camAt: camAt, camLayer: camLayer, shaft: shaft, glow: glow, waterGlint: waterGlint, makeMotes: makeMotes, motes: motes,
+    makeRain: makeRain, rain: rain, grade: grade, filmGrain: filmGrain, figure: figure, figurePath: figurePath, crowd: crowd };
   return { play: play, register: register, H: helpers };
 })();
 </script>
