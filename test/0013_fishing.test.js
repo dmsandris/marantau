@@ -99,8 +99,15 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   await H.sql(`update game.mp_fish set fish = 'dewa', kg = 12.5, t0 = t0 - 60000 where player_id = $1`, [A.id]);
   const rl = await A.call('api_mgFishReel', [cl.castId, 'caught', 0.5]);
   assert(rl.caught && rl.fish.rarity === 7, 'dewa');
-  const chat = await H.sql(`select msg from game.mp_chat where channel = 'g' order by id desc limit 1`);
-  assert(chat.length && chat[0].msg.p === 'sys' && /Ikan Dewa 12.5 kg/.test(chat[0].msg.tx), 'chat dunia ' + JSON.stringify(chat));
+  // v72: kabar Syahbandar pindah ke menu Dermaga (kanal 'd'), bukan chat Dunia
+  const chat = await H.sql(`select msg from game.mp_chat where channel = 'd' order by id desc limit 1`);
+  assert(chat.length && chat[0].msg.p === 'sys' && chat[0].msg.n === 'Syahbandar' && /Ikan Dewa 12.5 kg/.test(chat[0].msg.tx), 'kanal dermaga ' + JSON.stringify(chat));
+  const dunia = await H.sql(`select count(*)::int n from game.mp_chat where channel = 'g' and msg ->> 'n' = 'Syahbandar'`);
+  assert(dunia[0].n === 0, 'Dunia tidak lagi memuat Syahbandar');
+  const news = await A.call('api_mgFishNews', []);
+  assert(news.length && /Ikan Dewa 12.5 kg/.test(news[news.length - 1].tx), 'api_mgFishNews ' + JSON.stringify(news));
+  const sent = await H.sql(`select count(*)::int n from realtime.sent where topic = 'chat:global'`);
+  assert(sent[0].n === 0, 'tanpa siaran Realtime untuk Syahbandar');
   const anon = await H.anon();
   await H.expectError(() => anon.call('api_mgFishBook', []), /AUTH_REQUIRED|permission/);
   console.log('FISHING TESTS PASSED');

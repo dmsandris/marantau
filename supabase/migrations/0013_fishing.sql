@@ -288,17 +288,14 @@ begin
     best_at = case when excluded.best_kg > b.best_kg then now() else b.best_at end;
 
   if f.v >= 240 then perform game.log(v_id, 'Memancing ' || f.name || ' ' || fr.kg || ' kg di dermaga dan menjualnya ' || v_gold || ' gold!'); end if;
-  -- kabar ke kanal dunia untuk tangkapan legendaris
+  -- kabar Syahbandar untuk tangkapan legendaris: tampil di menu Dermaga (kanal 'd'), bukan di chat Dunia (v72)
   if f.rarity >= 6 then
     begin
       select * into v_info from game.mp_presence where player_id = v_id;
-      insert into game.mp_chat_channels as ch (channel, last_id) values ('g', 1)
-      on conflict (channel) do update set last_id = ch.last_id + 1 returning last_id into v_mid;
-      v_msg := jsonb_build_object('id', v_mid, 'p', 'sys', 'n', 'Syahbandar', 'a', '', 'ts', v_now, 'city', coalesce(v_info.c, ''),
-        'tx', coalesce(v_me.character_name, 'Seorang kapten') || ' mendaratkan ' || f.name || ' ' || fr.kg || ' kg di dermaga ' ||
-              coalesce(game.city_name(v_info.c), '') || '!' || case when v_global then ' Rekor dermaga baru!' else '' end);
-      insert into game.mp_chat(channel, id, msg) values ('g', v_mid, v_msg);
-      perform game.mp_rt('chat:global', 'chat', v_msg);
+      perform game.sys_chat('Syahbandar',
+        coalesce(v_me.character_name, 'Seorang kapten') || ' mendaratkan ' || f.name || ' ' || fr.kg || ' kg di dermaga ' ||
+        coalesce(game.city_name(v_info.c), '') || '!' || case when v_global then ' Rekor dermaga baru!' else '' end,
+        coalesce(v_info.c, ''));
     exception when others then null;
     end;
   end if;

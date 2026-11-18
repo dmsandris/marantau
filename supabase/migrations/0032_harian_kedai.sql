@@ -902,14 +902,15 @@ end $$;
 
 create or replace function game.sys_chat(p_name text, p_text text, p_city text default '') returns void
 language plpgsql as $$
-declare v_mid int; v_msg jsonb;
+declare v_mid int; v_msg jsonb; v_ch text := case when p_name = 'Syahbandar' then 'd' else 'g' end;
 begin
-  insert into game.mp_chat_channels as ch (channel, last_id) values ('g', 1)
+  -- Syahbandar (kabar tangkapan ikan) tinggal di menu Dermaga (kanal 'd'): tanpa siaran, tanpa lencana (v72)
+  insert into game.mp_chat_channels as ch (channel, last_id) values (v_ch, 1)
   on conflict (channel) do update set last_id = ch.last_id + 1 returning last_id into v_mid;
   v_msg := jsonb_build_object('id', v_mid, 'p', 'sys', 'n', p_name, 'a', '', 'ts', game.now_ms(), 'city', coalesce(p_city, ''), 'tx', p_text);
-  insert into game.mp_chat(channel, id, msg) values ('g', v_mid, v_msg);
-  delete from game.mp_chat where channel = 'g' and id <= v_mid - 60;
-  perform game.mp_rt('chat:global', 'chat', v_msg);
+  insert into game.mp_chat(channel, id, msg) values (v_ch, v_mid, v_msg);
+  delete from game.mp_chat where channel = v_ch and id <= v_mid - 60;
+  if v_ch = 'g' then perform game.mp_rt('chat:global', 'chat', v_msg); end if;
 exception when others then null;
 end $$;
 
