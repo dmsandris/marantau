@@ -1613,7 +1613,10 @@ var MTShip = (function () {
       c.strokeStyle = L('#fff0b8', 0.7); c.lineWidth = 0.5; c.beginPath(); c.moveTo(S.tip[0] - 1.4, S.tip[1] + 1); c.quadraticCurveTo(S.bc[0] - 1.6, S.bc[1], S.k1[0] - 1.4, S.k1[1] - 1); c.stroke();
     }
     // rupa lambung dari Kedai (hidup, di dalam klip lambung): hanya pada gambar langsung
-    if (live && o.kd && o.kd.lambung && KDH.hull) { try { KDH.hull(c, o, { t: Q.t, L: L, s: Q.s, hull: hull, trim: trim }); } catch (e) { } }
+    // Tide v70: rupa lambung yang punya bagian diam (KDH.hullStatic) ikut dipanggang; bagian hidupnya ditimpa sesudah tempel bitmap
+    if (o.kd && o.kd.lambung && KDH.hull) {
+      try { if (live) KDH.hull(c, o, { t: Q.t, L: L, s: Q.s, hull: hull, trim: trim }); else if (KDH.hullStatic) KDH.hullStatic(c, o, { t: Q.t, L: L, s: Q.s, hull: hull, trim: trim }); } catch (e) { }
+    }
     c.restore();
     hullPathS(c, S);
     c.strokeStyle = L('#140c07', 0.6); c.lineWidth = Math.max(0.8, hair); c.stroke();
@@ -2147,7 +2150,7 @@ var MTShip = (function () {
     return G.key + '|' + (o.hull || '') + (o.trim || '') + (o.flag || '') + (o.mast || '') + (o.portCol || '') + '|' + (o.emblem || o.flagType || '') + (o.emblemColor || '') + '|' + (o.ports || 7) + '|' +
       (o.muzzles ? 'm' : '') + (o.railGuns ? 'r' : '') + (o.chaser ? 'c' : '') + (o.gunDeck2 ? 'd' : '') + (o.lids ? 'l' : '') + (o.hatch ? 'h' : '') + (o.wale2 ? 'w' : '') + (o.bands ? 'b' : '') +
       (o.copper ? 'k' : '') + (o.planks ? 'p' : '') + (o.rivets ? 'v' : '') + (o.gilded ? 'g' : '') + (o.gallery ? 'G' : '') + (o.gildLine ? 'L' : '') + (o.boom2 ? 'B' : '') + (o.fullSail ? 'F' : '') +
-      '|' + (wl ? (wl.speed ? 's' : '') + (wl.cargo ? 'c' : '') + (wl.condition ? 'h' : '') + (wl.cannons ? 'm' : '') : '') + '|' + (o.cargo | 0) + '|' + lanB + (broke ? 'X' : '') + (kd && kd.haluan ? 'H' : '');
+      '|' + (wl ? (wl.speed ? 's' : '') + (wl.cargo ? 'c' : '') + (wl.condition ? 'h' : '') + (wl.cannons ? 'm' : '') : '') + '|' + (o.cargo | 0) + '|' + lanB + (broke ? 'X' : '') + (kd && kd.haluan ? 'H' : '') + (kd && kd.lambung ? '|' + kd.lambung : '');
   }
 
   function drawBaru(ctx, x, y, s, o) {
@@ -2196,7 +2199,8 @@ var MTShip = (function () {
 
     // lapis statis: dipanggang bila bisa (skala wajar, tanpa rupa lambung hidup dari Kedai)
     // Diukur: pada skala besar, kapal sederhana (Tier I-II tanpa Warlord) lebih murah digambar langsung daripada menempel bitmap besar.
-    var canBake = BAKE && m && !o.noBake && px >= 0.12 && px <= 9 && !(o.kd && o.kd.lambung) && !(px > 3 && G.tier >= 1 && G.tier <= 2 && !o.wl), eA = null, eB = null, eS = null, bakeA = px <= 2.5;
+    var lamSplit = !!(o.kd && o.kd.lambung && KDH.hullSplit && KDH.hullSplit(o));
+    var canBake = BAKE && m && !o.noBake && px >= 0.12 && px <= 9 && !(o.kd && o.kd.lambung && !lamSplit) && !(px > 3 && G.tier >= 1 && G.tier <= 2 && !o.wl), eA = null, eB = null, eS = null, bakeA = px <= 2.5;
     if (canBake) {
       var q = Math.round(px * (px < 2 ? 1.5 : px < 4 ? 1.25 : 1) * 100) / 100;
       var lanB = o.lanterns > 0.05 ? Math.round(Math.min(1, o.lanterns) * 8) : 0;
@@ -2208,11 +2212,15 @@ var MTShip = (function () {
         if (eB && bakeA) { eA = baked('A', key, idKey, q, G, o, L, Q); if (!eA) eB = null; }
       }
     }
-    if (eS) ctx.drawImage(eS.cv, eS.x, eS.y, eS.w, eS.h);
+    if (eS) {
+      ctx.drawImage(eS.cv, eS.x, eS.y, eS.w, eS.h);
+      if (lamSplit && KDH.hullDyn) { ctx.save(); hullPathS(ctx, G.S); ctx.clip(); try { KDH.hullDyn(ctx, o, { t: t, L: L, s: s, hull: hull, trim: trim }); } catch (e) { } ctx.restore(); }
+    }
     else if (eB) {
       if (eA) ctx.drawImage(eA.cv, eA.x, eA.y, eA.w, eA.h); else paintA(ctx, G, o, L, Q);
       paintSails(ctx, G, o, L, Q);
       ctx.drawImage(eB.cv, eB.x, eB.y, eB.w, eB.h);
+      if (lamSplit && KDH.hullDyn) { ctx.save(); hullPathS(ctx, G.S); ctx.clip(); try { KDH.hullDyn(ctx, o, { t: t, L: L, s: s, hull: hull, trim: trim }); } catch (e) { } ctx.restore(); }
     } else {
       stat.direct++;
       paintA(ctx, G, o, L, Q);
@@ -2231,7 +2239,7 @@ var MTShip = (function () {
       var E = beakEnd(G), S = G.S;
       try {
         KDH.after(ctx, o, { M: G.M, t: t, L: L, deckY: G.deckY, trim: trim, sail: sail, flag: flag, hull: hull, s: s, dir: dir, deckPt: G.dk, ports: o.ports || 7,
-          hal: S.beak ? [E[0] - 61, E[1] + 26.5] : [S.tip[0] - 57, S.tip[1] + 23], dek: [G.castFront + 36, G.deckAt(G.castFront + 3) + 20.2], bur: [S.s[0] + 60, 0] });
+          hal: S.beak ? [E[0] - 61, E[1] + 26.5] : [S.tip[0] - 57, S.tip[1] + 23], dek: [G.castFront + 36, G.deckAt(G.castFront + 3) + 20.2], bur: [S.s[0] + 60, 0], st: G.sternTop });
       } catch (e) { }
     }
     ctx.restore();

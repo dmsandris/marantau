@@ -161,6 +161,40 @@
     c.push({ lb: 'Black Pearl malam', sub: 'legenda: tidak berubah', v: { legend: 'pearl' }, malam: 1 });
     tambah('lama', 'Pemanggil lama dan Black Pearl', 'Kapal tanpa data Tier memakai siluet klasik; Black Pearl digambar kode lama.', c, { w: 330, h: 330 });
 
+    // rupa: setiap rupa Kedai di Tier I / III / V / Panglima / skala pelabuhan (?slot=layar dst)
+    if (window.MTKD_RUPA && (LEMBAR === 'rupa')) {
+      var SET = {
+        api_gunung: { lambung: 'lambung_lava', layar: 'layar_bara', jejak: 'jejak_bara', meriam: 'meriam_letusan', kedatangan: 'datang_asap' },
+        naga_samudra: { haluan: 'haluan_naga', lambung: 'lambung_sisik', layar: 'layar_sirip', jejak: 'jejak_ekor', aura: 'aura_mutiara' },
+        badai_petir: { layar: 'layar_badai', lambung: 'lambung_petir', panji: 'panji_penangkal', meriam: 'meriam_guntur', kedatangan: 'datang_petir' },
+        kapal_hantu: { layar: 'layar_koyak', lambung: 'lambung_karam', aura: 'aura_arwah', jejak: 'jejak_kabut', kedatangan: 'datang_lonceng' },
+        mutiara_paradiso: { haluan: 'haluan_penyu', lambung: 'lambung_mutiara', layar: 'layar_senja', aura: 'aura_gelembung', jejak: 'jejak_kamboja' },
+        zaman_gemilang: { haluan: 'haluan_garuda', lambung: 'lambung_pelitur', layar: 'layar_gading', panji: 'panji_akademi', jejak: 'jejak_debu_emas' },
+        benang_merah: { layar: 'layar_surat', panji: 'panji_benang', aura: 'aura_simpul' },
+        pasir_waktu: { aura: 'aura_pasir', jejak: 'jejak_bayang', kedatangan: 'datang_kilat' },
+        jaring_putus: { lambung: 'lambung_rantai', layar: 'layar_sutra_biru', panji: 'panji_obor', jejak: 'jejak_garis_api', kedatangan: 'datang_stempel' }
+      };
+      var KOL = [['Tier I', 1, 0, null], ['Tier III', 3, 9, null], ['Tier V', 5, 20, null], ['Panglima', 5, 20, SEMUA], ['Jung Jawa', 5, 20, null, 'bentuk_jung']];
+      var slots = Q.slot ? Q.slot.split(',') : Object.keys(MTKD_RUPA);
+      slots.forEach(function (slot) {
+        var ids = slot === 'sakti' ? Object.keys(SET) : (MTKD_RUPA[slot] || []);
+        if (Q.id) ids = ids.filter(function (x) { return Q.id.split(',').indexOf(x) >= 0; });
+        ids.forEach(function (id) {
+          c = [];
+          KOL.forEach(function (k) {
+            var kd = slot === 'sakti' ? Object.assign({}, SET[id], { sakti: [id] }) : {};
+            if (slot === 'layar' && id === 'layar_emas') kd.layar = id; else if (slot !== 'sakti') kd[slot] = id;
+            if (k[4] && slot !== 'bentuk') kd.bentuk = k[4];
+            var ex = { moving: 1, docked: Q.dok ? 1 : 0, dockPt: [140, 6] };
+            if (slot === 'kedatangan' || slot === 'sakti') ex.arrive = +(Q.arrive || 0.45);
+            c.push({ lb: id, sub: k[0], v: vis(k[1], rata(k[2]), k[3], null, kd), extra: ex, malam: Q.malam === '1' ? 1 : 0 });
+          });
+          if (Q.kecil !== '0') c.push({ lb: id, sub: 'skala pelabuhan T3', v: vis(3, rata(9), null, null, slot === 'sakti' ? Object.assign({}, SET[id], { sakti: [id] }) : (function () { var o = {}; o[slot] = id; return o; })()), skala: 0.82, extra: { moving: 1 } });
+          tambah('rupa', slot + ' · ' + id, '', c, { w: +Q.w || 230, h: +Q.w || 230 });
+        });
+      });
+    }
+
     // ringkas: satu lembar "sebelum vs sesudah" (butuh ?lama=URL)
     c = [];
     [[1, 0, 'Kapal awal'], [2, 5, 'Langkah 5'], [3, 9, 'Langkah 9'], [4, 13, 'Langkah 13'], [5, 17, 'Langkah 17'], [5, 20, 'Langkah 20']].forEach(function (p) {
@@ -202,6 +236,7 @@
     if (def.rusak) o.damage = def.rusak;
     if (def.gulung) o.furl = def.gulung;
     if (s.opt.muat) o.cargo = s.opt.muat;
+    if (def.extra) Object.keys(def.extra).forEach(function (k) { o[k] = def.extra[k]; });
     var ext = S.extent ? S.extent(o) : { aft: 72, fore: 90, up: 140, down: 12 }, k = o.sizeK || 1;
     var fit = Math.min(W * 0.94 / ((ext.aft + ext.fore + (s.opt.laju ? 14 : 0)) * k), H * 0.8 / ((ext.up + 16) * k)), sc = def.skala ? Math.min(def.skala, fit) : fit;
     var x = W * 0.5 + (ext.aft - ext.fore) * 0.5 * sc * k + (s.opt.laju ? 6 * sc : 0), y = H * 0.86;
