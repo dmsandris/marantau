@@ -4,88 +4,134 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Panel Ops Marantau: kondisi server, layanan, database, backup, ekonomi, dan kapten.">
 <title>Marantau Ops</title>
+<link rel="icon" href="data:,">
+<link rel="preload" href="/fonts/chivo-mono-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
 <section id="login" class="login hidden">
-  <form id="loginForm" class="card login-card" autocomplete="off">
+  <form id="loginForm" class="login-card" autocomplete="off">
     <h1>Marantau Ops</h1>
-    <label>Sandi<input id="pw" type="password" autocomplete="current-password" required></label>
-    <label>Kode 2FA<input id="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" required></label>
-    <button type="submit">Masuk</button>
-    <p id="loginErr" class="err"></p>
+    <p class="lead">Masuk dengan sandi dan kode 2FA.</p>
+    <label class="field" for="pw">Sandi<input id="pw" name="password" type="password" autocomplete="current-password" required></label>
+    <label class="field" for="code">Kode 2FA<input id="code" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" required></label>
+    <button type="submit" class="btn btn--primary">Masuk</button>
+    <p id="loginErr" class="err" role="alert"></p>
   </form>
 </section>
 
-<main id="app" class="hidden">
-  <header class="top">
-    <div class="brand">Marantau Ops <span id="clock" class="muted"></span></div>
-    <nav id="tabs">
-      <button data-tab="server" class="on">Server</button>
-      <button data-tab="layanan">Layanan</button>
-      <button data-tab="db">Database</button>
-      <button data-tab="backup">Backup</button>
-      <button data-tab="debug">Debug</button>
-    </nav>
-    <button id="logout" class="ghost">Keluar</button>
+<div id="app" class="hidden">
+  <header class="bar">
+    <div class="bar-in">
+      <a class="brand" href="#/server" aria-label="Marantau Ops, ke Server">Marantau Ops</a>
+      <nav id="tabs" class="menu" aria-label="Menu utama">
+        <a class="tab" href="#/server" data-tab="server">Server</a>
+        <a class="tab" href="#/layanan" data-tab="layanan">Layanan</a>
+        <a class="tab" href="#/db" data-tab="db">Database</a>
+        <a class="tab" href="#/backup" data-tab="backup">Backup</a>
+        <a class="tab" href="#/debug" data-tab="debug">Debug</a>
+        <span class="tab-gap" aria-hidden="true"></span>
+        <a class="tab" href="#/ekonomi" data-tab="ekonomi">Ekonomi</a>
+        <a class="tab" href="#/kapten" data-tab="kapten">Kapten</a>
+      </nav>
+      <div class="who"><span id="clock"></span><button id="logout" type="button" class="btn btn--small">Keluar</button></div>
+    </div>
   </header>
 
-  <section data-panel="server">
-    <div id="hostCards" class="cards"></div>
-    <div class="row">
-      <h2>Grafik</h2>
-      <div class="seg" id="range">
-        <button data-h="6">6 jam</button><button data-h="24" class="on">24 jam</button><button data-h="168">7 hari</button>
+  <main class="page">
+    <section data-panel="server" aria-labelledby="h-server">
+      <div class="head"><div><h1 id="h-server">Server</h1><p class="sub">Mesin Biznet. Angka diperbarui tiap 30 detik.</p></div></div>
+      <div id="hostCards"></div>
+      <div class="block">
+        <div class="head"><h2 class="visually-hidden">Grafik</h2>
+          <div class="seg" id="range" role="group" aria-label="Rentang grafik">
+            <button type="button" data-h="6" aria-pressed="false">6 jam</button><button type="button" data-h="24" aria-pressed="true">24 jam</button><button type="button" data-h="168" aria-pressed="false">7 hari</button>
+          </div>
+        </div>
+        <div id="charts" class="charts"></div>
       </div>
-    </div>
-    <div id="charts" class="charts"></div>
-    <h2>Lalu lintas API (24 jam)</h2>
-    <div id="httpBox" class="card muted">Memuat…</div>
-  </section>
+      <div class="block"><h2>Lalu lintas API, 24 jam</h2><div id="httpBox"></div></div>
+    </section>
 
-  <section data-panel="layanan" class="hidden">
-    <div id="svcList" class="list"></div>
-    <div id="logBox" class="card hidden">
-      <div class="row"><h2 id="logTitle">Log</h2><button id="logClose" class="ghost">Tutup</button></div>
-      <pre id="logText"></pre>
-    </div>
-  </section>
+    <section data-panel="layanan" class="hidden" aria-labelledby="h-layanan">
+      <div class="head"><div><h1 id="h-layanan">Layanan</h1><p class="sub">Tujuh container yang menjalankan game. Restart Postgres memutus semua pemain 10 sampai 30 detik.</p></div></div>
+      <div id="svcList"></div>
+      <div id="logBox" class="logbox hidden">
+        <div class="head"><h2 id="logTitle">Log</h2><button id="logClose" type="button" class="btn btn--small">Tutup</button></div>
+        <pre id="logText"></pre>
+      </div>
+    </section>
 
-  <section data-panel="db" class="hidden">
-    <div id="dbCards" class="cards"></div>
-    <h2>Endpoint paling lambat (rata-rata)</h2>
-    <div id="dbSlow" class="card table-wrap"></div>
-    <h2>Transaksi &gt; 10 dtk</h2>
-    <div id="dbLong" class="card table-wrap"></div>
-    <h2>Koneksi</h2>
-    <div id="dbConns" class="card table-wrap"></div>
-    <h2>Tabel terbesar (schema game)</h2>
-    <div id="dbTables" class="card table-wrap"></div>
-  </section>
+    <section data-panel="db" class="hidden" aria-labelledby="h-db">
+      <div class="head"><div><h1 id="h-db">Database</h1><p class="sub">Postgres game. Statistik dari pg_stat_statements dan pg_stat_activity.</p></div></div>
+      <div id="dbCards"></div>
+      <div class="block"><h2>Endpoint paling lambat, rata-rata</h2><div id="dbSlow"></div></div>
+      <div class="block"><h2>Transaksi lebih dari 10 detik</h2><div id="dbLong"></div></div>
+      <div class="grid2">
+        <div class="block"><h2>Koneksi</h2><div id="dbConns"></div></div>
+        <div class="block"><h2>Tabel terbesar, schema game</h2><div id="dbTables"></div></div>
+      </div>
+    </section>
 
-  <section data-panel="backup" class="hidden">
-    <div class="row"><h2>Backup database VM</h2>
-      <div class="btns"><button id="bkRun">Backup sekarang</button><button id="bkTest" class="ghost">Tes restore</button></div>
-    </div>
-    <div id="bkStatus" class="card"></div>
-    <div id="bkFiles" class="card table-wrap"></div>
-    <div class="card">
-      <h2>Peringatan Telegram</h2>
-      <p id="tgState" class="muted"></p>
-      <button id="tgTest">Kirim pesan tes</button>
-    </div>
-  </section>
-  <section data-panel="debug" class="hidden">
-    <div class="card">
-      <h2>Laporan debug</h2>
-      <p class="muted">Berisi kondisi server, layanan, database, sertifikat, backup, dan log bermasalah 24 jam terakhir. Sandi, token, dan kunci otomatis disamarkan. Salin atau unduh, lalu kirim ke Claude.</p>
-      <div class="btns"><button id="dbgMake">Buat laporan</button><button id="dbgCopy" class="ghost" disabled>Salin</button><button id="dbgSave" class="ghost" disabled>Unduh .txt</button></div>
-    </div>
-    <pre id="dbgText" class="hidden"></pre>
-  </section>
-  <div id="toast" class="toast hidden"></div>
-</main>
+    <section data-panel="backup" class="hidden" aria-labelledby="h-backup">
+      <div class="head"><div><h1 id="h-backup">Backup</h1><p class="sub">Backup harian 03:47 WIB, tes restore tiap Minggu 04:20. Disimpan 7 hari di server dan 30 hari di Google Drive.</p></div>
+        <div class="tools"><button id="bkRun" type="button" class="btn btn--primary">Backup sekarang</button><button id="bkTest" type="button" class="btn">Tes restore</button></div>
+      </div>
+      <div id="bkStatus"></div>
+      <div class="block"><h2>Berkas lokal</h2><div id="bkFiles"></div></div>
+      <div class="block"><h2>Peringatan Telegram</h2><p id="tgState" class="note"></p><button id="tgTest" type="button" class="btn">Kirim pesan tes</button></div>
+    </section>
+
+    <section data-panel="debug" class="hidden" aria-labelledby="h-debug">
+      <div class="head"><div><h1 id="h-debug">Debug</h1><p class="sub">Laporan berisi kondisi server, layanan, database, sertifikat, backup, dan log bermasalah 24 jam. Sandi, token, dan kunci disamarkan. Salin atau unduh, lalu kirim ke Claude.</p></div>
+        <div class="tools"><button id="dbgMake" type="button" class="btn btn--primary">Buat laporan</button><button id="dbgCopy" type="button" class="btn" disabled>Salin</button><button id="dbgSave" type="button" class="btn" disabled>Unduh .txt</button></div>
+      </div>
+      <pre id="dbgText" class="hidden"></pre>
+    </section>
+
+    <section data-panel="ekonomi" class="hidden" aria-labelledby="h-ekonomi">
+      <div class="head"><div><h1 id="h-ekonomi">Ekonomi</h1><p class="sub">Uang beredar, dagang, bunga bank, dan semua saluran gold di game. Hanya baca, di-cache 60 detik.</p></div>
+        <div class="tools"><span id="ekoStamp" class="stamp"></span><button id="ekoRefresh" type="button" class="btn">Muat ulang</button></div>
+      </div>
+      <div id="ekoBoard"></div><p id="ekoTake" class="takeaway"></p>
+      <div class="grid2">
+        <div class="block"><h2>Siapa memegang kekayaan</h2><p class="note">12 kapten terkaya, dipecah saldo bank dan gold di tangan. Angka di ujung adalah pangsa dari seluruh kekayaan server.</p><div id="ekoKaya"></div></div>
+        <div class="block"><h2>Laba dagang harian</h2><p class="note">14 hari terakhir, WIB. Laba adalah hasil jual dikurangi biaya beli semua pemain. Hari ini masih berjalan.</p><div id="ekoDagang"></div></div>
+      </div>
+      <div class="block"><h2>Arus gold, 24 jam</h2><p class="note">Dari catatan kapten. Setor dan tarik bank hanya memindahkan gold. Bunga bank tidak tercatat di sini.</p><div id="ekoArus"></div></div>
+      <div class="block"><h2>Tren harian</h2><p class="note">Snapshot dicatat tiap jam, nilai terakhir hari itu yang dipakai. Grafik mulai terisi sejak panel ini dipasang.</p><div id="ekoTren"></div></div>
+      <div class="block"><h2>Restorasi IKN</h2><p class="note">Kolam sumbangan yang membuka tahap berikutnya. Sumbangan dari Kongsi, Gudang Door, dan Rekening J.T. ikut terhitung.</p><div id="ekoIkn"></div></div>
+      <div class="grid2">
+        <div class="block"><h2>Balai Kongsi</h2><p class="note">Modal dan bayaran per tingkat risiko. Rasio di atas 100% berarti pemain untung dari kongsi.</p><div id="ekoKongsi"></div></div>
+        <div class="block"><h2>Keping Rantau</h2><p class="note">Terbit dan terpakai 7 hari terakhir per sumber.</p><div id="ekoKeping"></div></div>
+      </div>
+      <div class="grid2">
+        <div class="block"><h2>Tony dan Gank</h2><p class="note">Yang dirampas dari pemain, dan hasil Perburuan Rabu.</p><div id="ekoTony"></div></div>
+        <div class="block"><h2>Pacu Dagang</h2><p class="note">Lima Sabtu terakhir.</p><div id="ekoPacu"></div></div>
+      </div>
+      <div class="block"><h2>Kesehatan stok barang</h2><p class="note">Stok rata-rata di semua kota dibanding stok normal (100%). Di bawah 30% berarti menipis. Barang premium di atas.</p><div id="ekoStok"></div></div>
+    </section>
+
+    <section data-panel="kapten" class="hidden" aria-labelledby="h-kapten">
+      <div class="head"><div><h1 id="h-kapten">Kapten</h1><p class="sub">Setiap pemain: kekayaan, aktivitas, dan progres quest. Hanya baca, di-cache 60 detik.</p></div>
+        <div class="tools"><span id="kapStamp" class="stamp"></span><button id="kapRefresh" type="button" class="btn">Muat ulang</button></div>
+      </div>
+      <div id="kapBoard"></div>
+      <div class="block"><h2>Detail setiap kapten</h2><p class="note">Klik judul kolom untuk mengurutkan. Bunga per hari dihitung dari saldo bank dengan tingkat bunga di konfigurasi. Kolom 24 jam dari catatan jual-beli.</p>
+        <div class="filterbar"><input id="cariKapten" class="search" type="search" name="cari-kapten" placeholder="Cari kapten, arketipe, atau lokasi" aria-label="Cari kapten">
+          <div class="legend"><span><i class="sq" data-level="ok"></i>aktif kurang dari 1 jam</span><span><i class="sq" data-level="warn"></i>aktif hari ini</span><span><i class="sq"></i>lebih dari 24 jam</span></div></div>
+        <div id="kapTabel"></div></div>
+      <div class="block"><h2>Sebaran kapten per quest</h2><p class="note">Berapa kapten sudah menamatkan dan sedang menjalani tiap quest, termasuk quest sampingan.</p><div id="kapSebaran"></div></div>
+      <div class="block"><h2>Progres quest tiap kapten</h2><p class="note">Saga 1 Q1 sampai Q4, Saga 2 Q5 sampai Q9, Saga 3 Q10 sampai Q14, Saga 4 Q15 sampai Q19. Belum terpicu berarti quest sebelumnya tamat tetapi pemicu berikutnya belum terjadi.</p>
+        <div class="filterbar"><input id="cariQuest" class="search" type="search" name="cari-quest" placeholder="Cari kapten, saga, atau quest" aria-label="Cari progres quest"></div>
+        <div id="kapQuest"></div></div>
+    </section>
+  </main>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+</div>
 <script src="/app.js"></script>
+<script src="/ekonomi.js"></script>
 </body>
 </html>

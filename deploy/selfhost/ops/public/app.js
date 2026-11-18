@@ -1,12 +1,25 @@
 'use strict';
+// Panel Ops: inti (login, rute, helper, tab infrastruktur). Tab Ekonomi dan Kapten ada di ekonomi.js.
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const gb = b => (b / 1073741824).toFixed(1) + ' GB';
-const mb = b => Math.round(b / 1048576) + ' MB';
+const NF = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
+const NF1 = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
+const n0 = v => v == null || isNaN(+v) ? '-' : NF.format(Math.round(+v));
+const gb = b => NF1.format(b / 1073741824) + ' GB';
+const mb = b => NF.format(Math.round(b / 1048576)) + ' MB';
 const fmtTime = t => new Date(t).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const r1 = v => v == null ? null : Math.round(v * 10) / 10;
-const dur = s => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d}h ${h}j` : h ? `${h}j ${m}m` : `${m}m`; };
+const dur = s => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d} hari ${h} jam` : h ? `${h} jam ${m} mnt` : `${m} mnt`; };
+// Angka gold dipadatkan: 96,3 jt, 2,6 M. Di bawah satu juta ditulis penuh.
+const idr = v => {
+  if (v == null || isNaN(+v)) return '-';
+  const a = Math.abs(+v), s = +v < 0 ? '-' : '';
+  if (a >= 1e9) return s + NF1.format(a / 1e9) + ' M';
+  if (a >= 1e6) return s + NF1.format(a / 1e6) + ' jt';
+  return s + NF.format(Math.round(a));
+};
+const signed = v => v == null || isNaN(+v) ? '-' : (+v > 0 ? '+' : '') + NF.format(Math.round(+v));
 
 async function api(path, opt = {}) {
   const r = await fetch(path, { ...opt, headers: { 'X-Ops': '1', 'Content-Type': 'application/json', ...(opt.headers || {}) }, credentials: 'same-origin' });
@@ -17,6 +30,46 @@ async function api(path, opt = {}) {
 }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('hidden'), 3500); }
 
+// ---------- keadaan: memuat, kosong, gagal ----------
+const skel = el => { el.innerHTML = '<div class="skel" aria-hidden="true"><i></i><i></i><i></i></div>'; el.setAttribute('aria-busy', 'true'); };
+const empty = (el, html) => { el.innerHTML = `<div class="empty">${html}</div>`; el.removeAttribute('aria-busy'); };
+function showErr(el, msg, retry) {
+  el.removeAttribute('aria-busy');
+  el.innerHTML = `<div class="errbox" role="alert"><span>Gagal memuat: ${esc(msg)}</span><button type="button" class="btn btn--small">Coba lagi</button></div>`;
+  el.querySelector('button').addEventListener('click', () => { skel(el); retry(); });
+}
+// Jalankan fn; tampilkan kerangka sampai data pertama datang, dan kotak galat bila gagal.
+async function load(ids, fn) {
+  const els = ids.map(id => typeof id === 'string' ? $(id) : id).filter(Boolean);
+  els.forEach(e => { if (!e.dataset.ready) skel(e); });
+  try { await fn(); els.forEach(e => { e.dataset.ready = '1'; e.removeAttribute('aria-busy'); }); }
+  catch (err) {
+    if (err.message === 'Belum login') return;
+    els.forEach(e => { if (!e.dataset.ready) showErr(e, err.message, refresh); });
+    toast(err.message);
+  }
+}
+// Panjang batang dan persen diatur lewat variabel CSS (CSP melarang atribut style di markup).
+function setVars(root) {
+  root.querySelectorAll('[data-w]').forEach(e => e.style.setProperty('--w', e.dataset.w));
+  root.querySelectorAll('[data-p]').forEach(e => e.style.setProperty('--p', e.dataset.p));
+}
+function board(cells, n) {
+  return `<div class="board" data-n="${n || cells.length}">${cells.map(c => `<div class="cell"${c.level ? ` data-level="${c.level}"` : ''}>
+    <div class="k">${c.level ? `<i class="sq" data-level="${c.level}"></i>` : ''}<span>${esc(c.k)}</span></div><div class="v">${esc(c.v)}</div><div class="s">${esc(c.s || '')}</div></div>`).join('')}</div>`;
+}
+// cols: { h, k, num, q, cls: (row)=>string, f: (row)=>text, sort }
+function table(cols, rows, { rowLevel, tall, id } = {}) {
+  if (!rows || !rows.length) return '<div class="empty">Tidak ada.</div>';
+  return `<div class="tw${tall ? ' tall' : ''}"><table${id ? ` id="${id}"` : ''}><thead><tr>${cols.map(c => `<th scope="col" class="${c.num ? 'num' : ''}"${c.sort ? ` data-k="${esc(c.k)}"` : ''}${c.aria ? ` aria-sort="${c.aria}"` : ''}>${c.sort ? `<button type="button">${esc(c.h)}</button>` : esc(c.h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r =>
+    `<tr${rowLevel && rowLevel(r) ? ` data-level="${rowLevel(r)}"` : ''}>${cols.map(c => {
+      const v = c.f ? c.f(r) : r[c.k];
+      const cls = [c.num ? 'num' : '', c.q ? 'q' : '', c.cls ? c.cls(r) : ''].filter(Boolean).join(' ');
+      return `<td class="${cls}">${c.html ? v : esc(v)}</td>`;
+    }).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+const lvl = (v, w, b) => v == null || isNaN(v) ? '' : v >= b ? 'bad' : v >= w ? 'warn' : 'ok';
+
 // ---------- login ----------
 function showLogin() { $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); $('#pw').focus(); stopTimers(); }
 function showApp() { $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); startTimers(); }
@@ -26,47 +79,53 @@ $('#loginForm').addEventListener('submit', async e => {
   try {
     await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('#pw').value, code: $('#code').value }) });
     $('#pw').value = ''; $('#code').value = ''; showApp();
-  } catch (err) { $('#loginErr').textContent = err.message; }
+  } catch (err) { $('#loginErr').textContent = err.message; $('#pw').focus(); }
   btn.disabled = false;
 });
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
 
-// ---------- tab ----------
+// ---------- rute: tab disimpan di URL (#/ekonomi) ----------
+const TABS = ['server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten'];
+const TITLES = { server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten' };
+const loaders = {}; // diisi ekonomi.js
 let tab = 'server';
-$$('#tabs button').forEach(b => b.addEventListener('click', () => {
-  tab = b.dataset.tab;
-  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
-  $$('main section').forEach(s => s.classList.toggle('hidden', s.dataset.panel !== tab));
+function routeTab() { const h = location.hash.replace(/^#\/?/, ''); return TABS.includes(h) ? h : 'server'; }
+function applyTab() {
+  tab = routeTab();
+  $$('#tabs .tab').forEach(a => { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $$('main section[data-panel]').forEach(s => s.classList.toggle('hidden', s.dataset.panel !== tab));
+  document.title = `${TITLES[tab]} - Marantau Ops`;
+  const cur = $(`#tabs .tab[data-tab="${tab}"]`); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   refresh();
-}));
+}
+window.addEventListener('hashchange', () => { if (!$('#app').classList.contains('hidden')) applyTab(); });
 
 // ---------- Server ----------
 let hours = 24;
 $$('#range button').forEach(b => b.addEventListener('click', () => {
-  hours = +b.dataset.h; $$('#range button').forEach(x => x.classList.toggle('on', x === b)); loadCharts();
+  hours = +b.dataset.h; $$('#range button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); loadCharts().catch(e => toast(e.message));
 }));
-function stat(k, v, s, level) { return `<div class="card stat ${level || ''}"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s || '')}</div></div>`; }
-const lvl = (v, w, b) => v == null ? '' : v >= b ? 'bad' : v >= w ? 'warn' : 'ok';
 async function loadServer() {
   const o = await api('/api/overview');
   const h = o.host;
-  $('#hostCards').innerHTML = [
-    stat('CPU', h.cpu == null ? '…' : r1(h.cpu) + '%', `${h.cores} core · load ${r1(h.load) ?? '-'}`, lvl(h.cpu, 70, 90)),
-    stat('IOwait', h.iow == null ? '…' : r1(h.iow) + '%', h.steal ? `steal ${r1(h.steal)}%` : 'tunggu disk', lvl(h.iow, 10, 30)),
-    stat('RAM', h.memTotal ? Math.round(100 * h.memUsed / h.memTotal) + '%' : '-', `${gb(h.memUsed)} / ${gb(h.memTotal)}`, lvl(100 * h.memUsed / h.memTotal, 75, 85)),
-    stat('Swap', mb(h.swapUsed), `dari ${mb(h.swapTotal)}`, h.swapUsed > 200 * 1048576 ? 'bad' : h.swapUsed > 50 * 1048576 ? 'warn' : 'ok'),
-    stat('Disk', h.diskTotal ? Math.round(100 * h.diskUsed / h.diskTotal) + '%' : '-', `${gb(h.diskUsed)} / ${gb(h.diskTotal)}`, lvl(100 * h.diskUsed / h.diskTotal, 70, 80)),
-    stat('Uptime', dur(h.uptimeSec), o.telegram ? 'Telegram aktif' : 'Telegram belum diatur'),
-  ].join('');
+  const memPct = h.memTotal ? 100 * h.memUsed / h.memTotal : null, diskPct = h.diskTotal ? 100 * h.diskUsed / h.diskTotal : null;
+  $('#hostCards').innerHTML = board([
+    { k: 'CPU', v: h.cpu == null ? '...' : r1(h.cpu) + '%', s: `${h.cores} core, load ${r1(h.load) ?? '-'}`, level: lvl(h.cpu, 70, 90) },
+    { k: 'IOwait', v: h.iow == null ? '...' : r1(h.iow) + '%', s: h.steal ? `steal ${r1(h.steal)}%` : 'menunggu disk', level: lvl(h.iow, 10, 30) },
+    { k: 'RAM', v: memPct == null ? '-' : Math.round(memPct) + '%', s: `${gb(h.memUsed)} dari ${gb(h.memTotal)}`, level: lvl(memPct, 75, 85) },
+    { k: 'Swap', v: mb(h.swapUsed), s: `dari ${mb(h.swapTotal)}`, level: h.swapUsed > 200 * 1048576 ? 'bad' : h.swapUsed > 50 * 1048576 ? 'warn' : 'ok' },
+    { k: 'Disk', v: diskPct == null ? '-' : Math.round(diskPct) + '%', s: `${gb(h.diskUsed)} dari ${gb(h.diskTotal)}`, level: lvl(diskPct, 70, 80) },
+    { k: 'Uptime', v: dur(h.uptimeSec), s: o.telegram ? 'Telegram aktif' : 'Telegram belum diatur' },
+  ], 6);
   renderServices(o.services, o.stats);
 }
 function chart(title, pts, key, { max, unit = '', limit } = {}) {
-  const W = 400, H = 120, P = 4;
+  const W = 400, H = 140, P = 4;
   const vals = pts.map(p => p[key]).filter(v => v != null);
   const top = max ?? Math.max(1, ...vals) * 1.15;
   const last = vals.length ? r1(vals[vals.length - 1]) : null;
   const peak = vals.length ? r1(Math.max(...vals)) : null;
-  if (pts.length < 2) return `<div class="card chart"><h3>${esc(title)}<span>belum ada data</span></h3><svg viewBox="0 0 ${W} ${H}"></svg></div>`;
+  if (pts.length < 2) return `<div class="chart"><h3>${esc(title)}</h3><p class="cap">belum ada data</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}, belum ada data"></svg></div>`;
   const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
   const x = t => P + (W - 2 * P) * (t - t0) / Math.max(1, t1 - t0);
   const y = v => H - P - (H - 2 * P) * Math.min(v, top) / top;
@@ -74,19 +133,19 @@ function chart(title, pts, key, { max, unit = '', limit } = {}) {
   for (const p of pts) { if (p[key] == null) { started = false; continue; } d += (started ? 'L' : 'M') + x(p.t).toFixed(1) + ' ' + y(p[key]).toFixed(1); started = true; }
   const first = pts.find(p => p[key] != null), lastP = [...pts].reverse().find(p => p[key] != null);
   const area = first ? `${d}L${x(lastP.t).toFixed(1)} ${H - P}L${x(first.t).toFixed(1)} ${H - P}Z` : '';
-  const grid = [0.25, 0.5, 0.75].map(f => `<line class="grid" x1="0" x2="${W}" y1="${y(top * f)}" y2="${y(top * f)}"/>`).join('');
-  const lim = limit != null && limit < top ? `<line class="lim" x1="0" x2="${W}" y1="${y(limit)}" y2="${y(limit)}"/>` : '';
-  return `<div class="card chart"><h3>${esc(title)}<span>kini ${last ?? '-'}${unit} · puncak ${peak ?? '-'}${unit}</span></h3>
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${lim}<path class="area" d="${area}"/><path class="line" d="${d}"/></svg>
-    <div class="row muted small"><span>${fmtTime(t0)}</span><span>${fmtTime(t1)}</span></div></div>`;
+  const grid = [0.25, 0.5, 0.75].map(f => `<line class="c-grid" x1="0" x2="${W}" y1="${y(top * f)}" y2="${y(top * f)}"/>`).join('');
+  const lim = limit != null && limit < top ? `<line class="c-lim" x1="0" x2="${W}" y1="${y(limit)}" y2="${y(limit)}"/>` : '';
+  return `<div class="chart"><h3>${esc(title)}</h3><p class="cap">kini ${last ?? '-'}${unit}, puncak ${peak ?? '-'}${unit}</p>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(title)}: kini ${last ?? '-'}${unit}, puncak ${peak ?? '-'}${unit}">${grid}${lim}<path class="c-area" d="${area}"/><path class="c-line" d="${d}"/></svg>
+    <div class="axis"><span>${fmtTime(t0)}</span><span>${fmtTime(t1)}</span></div></div>`;
 }
 async function loadCharts() {
   const m = await api('/api/metrics?hours=' + hours);
   const p = m.points;
   $('#charts').innerHTML = [
     chart('CPU', p, 'cpu', { max: 100, unit: '%', limit: 90 }),
-    chart('IOwait (puncak)', p, 'iow', { unit: '%', limit: 30 }),
-    chart('RAM (puncak)', p, 'mem', { max: 100, unit: '%', limit: 85 }),
+    chart('IOwait, puncak', p, 'iow', { unit: '%', limit: 30 }),
+    chart('RAM, puncak', p, 'mem', { max: 100, unit: '%', limit: 85 }),
     chart('Swap terpakai', p, 'swapMb', { unit: ' MB', limit: 200 }),
     chart('Load 1 menit', p, 'load', { limit: 2 }),
     chart('Disk', p, 'disk', { max: 100, unit: '%', limit: 80 }),
@@ -94,27 +153,31 @@ async function loadCharts() {
 }
 async function loadHttp() {
   const r = await api('/api/http');
-  if (r.error) { $('#httpBox').textContent = 'Log Caddy tidak terbaca: ' + r.error; return; }
-  const hrs = Object.entries(r.perHour || {}).sort().slice(-6).map(([h, n]) => `${h.slice(11)}:00 → ${n}`).join(' · ');
-  $('#httpBox').innerHTML = `${r.total.toLocaleString('id-ID')} permintaan · <b class="${r.err ? 'err' : ''}">${r.err} error 5xx</b>${hrs ? '<br><span class="muted">Jam dengan 5xx (UTC): ' + esc(hrs) + '</span>' : ''}`;
+  if (r.error) { $('#httpBox').innerHTML = `<div class="errbox" role="alert"><span>Log Caddy tidak terbaca: ${esc(r.error)}</span></div>`; return; }
+  const hrs = Object.entries(r.perHour || {}).sort().slice(-6).map(([h, n]) => `${h.slice(11)}:00 sebanyak ${n}`).join(', ');
+  $('#httpBox').innerHTML = board([
+    { k: 'Permintaan', v: n0(r.total), s: '24 jam terakhir' },
+    { k: 'Error 5xx', v: n0(r.err), s: hrs ? `jam UTC: ${hrs}` : 'tidak ada', level: r.err ? (r.err >= 20 ? 'bad' : 'warn') : 'ok' },
+  ], 4);
 }
 
 // ---------- Layanan ----------
 function renderServices(sv, stats = {}) {
-  if (sv.error) { $('#svcList').innerHTML = `<div class="card err">Docker tidak terbaca: ${esc(sv.error)}</div>`; return; }
-  $('#svcList').innerHTML = sv.items.map(s => {
+  if (sv.error) { $('#svcList').innerHTML = `<div class="errbox" role="alert"><span>Docker tidak terbaca: ${esc(sv.error)}</span></div>`; return; }
+  $('#svcList').innerHTML = `<div class="rows">${sv.items.map(s => {
     const st = s.state === 'running' ? (s.health === 'unhealthy' ? 'bad' : s.health === 'starting' ? 'warn' : 'ok') : 'bad';
-    const mem = stats[s.name] ? ` · RAM ${stats[s.name].memMb} MB` : '';
-    return `<div class="card svc"><span class="dot ${st}"></span><span class="name">${esc(s.label)}</span>
-      <span class="meta">${esc(s.status || s.state)}${mem}<br>${esc(s.image || '')}</span>
-      <button class="ghost" data-log="${esc(s.name)}">Log</button>
-      <button class="${s.risky ? 'danger' : ''}" data-restart="${esc(s.name)}" data-label="${esc(s.label)}" data-risky="${s.risky ? 1 : ''}">Restart</button></div>`;
-  }).join('');
+    const word = st === 'ok' ? 'sehat' : st === 'warn' ? 'memulai' : (s.state === 'running' ? 'tidak sehat' : esc(s.state));
+    const mem = stats[s.name] ? `RAM ${stats[s.name].memMb} MB` : '';
+    return `<div class="svc"><i class="sq" data-level="${st}" aria-hidden="true"></i><span class="name">${esc(s.label)} <span class="muted">${word}</span></span>
+      <span class="meta">${esc(s.status || s.state)}${mem ? ', ' + esc(mem) : ''}<br>${esc(s.image || '')}</span>
+      <span class="acts"><button type="button" class="btn btn--small" data-log="${esc(s.name)}">Log</button>
+      <button type="button" class="btn btn--small ${s.risky ? 'btn--danger' : ''}" data-restart="${esc(s.name)}" data-label="${esc(s.label)}" data-risky="${s.risky ? 1 : ''}">Restart</button></span></div>`;
+  }).join('')}</div>`;
 }
 $('#svcList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.log) {
-    $('#logBox').classList.remove('hidden'); $('#logTitle').textContent = 'Log ' + b.dataset.log; $('#logText').textContent = 'Memuat…';
+    $('#logBox').classList.remove('hidden'); $('#logTitle').textContent = 'Log ' + b.dataset.log; $('#logText').textContent = 'Memuat...';
     try { const r = await api('/api/logs?name=' + encodeURIComponent(b.dataset.log)); $('#logText').textContent = r.text || '(kosong)'; $('#logText').scrollTop = 1e9; }
     catch (err) { $('#logText').textContent = err.message; }
   }
@@ -130,24 +193,19 @@ $('#svcList').addEventListener('click', async e => {
 $('#logClose').addEventListener('click', () => $('#logBox').classList.add('hidden'));
 
 // ---------- Database ----------
-function table(cols, rows, rowClass) {
-  if (!rows || !rows.length) return '<p class="muted">Tidak ada.</p>';
-  return `<table><tr>${cols.map(c => `<th class="${c.num ? 'num' : ''}">${esc(c.h)}</th>`).join('')}</tr>${rows.map(r =>
-    `<tr class="${rowClass ? rowClass(r) : ''}">${cols.map(c => `<td class="${c.num ? 'num' : ''} ${c.q ? 'q' : ''}">${esc(r[c.k])}</td>`).join('')}</tr>`).join('')}</table>`;
-}
 async function loadDb() {
   const d = await api('/api/db');
   const total = (d.conns || []).reduce((a, c) => a + c.n, 0);
-  $('#dbCards').innerHTML = [
-    stat('Pemain online', d.online ?? '-', '2 menit terakhir'),
-    stat('Koneksi', `${total} / ${d.maxConn ?? '?'}`, 'semua role', lvl(total / (d.maxConn || 60) * 100, 60, 85)),
-    stat('Kunci menunggu', d.waitingLocks ?? '-', 'pg_locks', d.waitingLocks > 5 ? 'bad' : d.waitingLocks > 0 ? 'warn' : 'ok'),
-    stat('Ukuran DB', d.size ?? '-', 'postgres'),
-  ].join('') + (d.errors ? `<div class="card err">${esc(Object.entries(d.errors).map(([k, v]) => k + ': ' + v).join(' · '))}</div>` : '');
-  $('#dbSlow').innerHTML = table([{ h: 'Endpoint / query', k: 'q', q: 1 }, { h: 'Panggilan', k: 'calls', num: 1 }, { h: 'Rata² ms', k: 'mean_ms', num: 1 }, { h: 'Maks ms', k: 'max_ms', num: 1 }, { h: 'Total dtk', k: 'total_s', num: 1 }], d.slow, r => r.mean_ms > 1000 ? 'bad' : '');
-  $('#dbLong').innerHTML = table([{ h: 'PID', k: 'pid', num: 1 }, { h: 'Role', k: 'role' }, { h: 'State', k: 'state' }, { h: 'Detik', k: 'sec', num: 1 }, { h: 'Query', k: 'query', q: 1 }], d.longTx);
+  $('#dbCards').innerHTML = board([
+    { k: 'Pemain online', v: n0(d.online), s: '2 menit terakhir' },
+    { k: 'Koneksi', v: `${total} / ${d.maxConn ?? '?'}`, s: 'semua role', level: lvl(total / (d.maxConn || 60) * 100, 60, 85) },
+    { k: 'Kunci menunggu', v: n0(d.waitingLocks), s: 'pg_locks', level: d.waitingLocks > 5 ? 'bad' : d.waitingLocks > 0 ? 'warn' : 'ok' },
+    { k: 'Ukuran database', v: d.size ?? '-', s: 'postgres' },
+  ], 4) + (d.errors ? `<div class="errbox" role="alert"><span>${esc(Object.entries(d.errors).map(([k, v]) => k + ': ' + v).join(', '))}</span></div>` : '');
+  $('#dbSlow').innerHTML = table([{ h: 'Endpoint atau query', k: 'q', q: 1 }, { h: 'Panggilan', k: 'calls', num: 1, f: r => n0(r.calls) }, { h: 'Rata-rata ms', k: 'mean_ms', num: 1, f: r => n0(r.mean_ms) }, { h: 'Maks ms', k: 'max_ms', num: 1, f: r => n0(r.max_ms) }, { h: 'Total detik', k: 'total_s', num: 1, f: r => n0(r.total_s) }], d.slow, { rowLevel: r => r.mean_ms > 1000 ? 'bad' : '' });
+  $('#dbLong').innerHTML = (d.longTx || []).length ? table([{ h: 'PID', k: 'pid', num: 1 }, { h: 'Role', k: 'role' }, { h: 'State', k: 'state' }, { h: 'Detik', k: 'sec', num: 1 }, { h: 'Query', k: 'query', q: 1 }], d.longTx) : '<div class="empty"><b>Tidak ada.</b> Tidak ada transaksi yang berjalan lebih dari 10 detik.</div>';
   $('#dbConns').innerHTML = table([{ h: 'Role', k: 'role' }, { h: 'State', k: 'state' }, { h: 'Jumlah', k: 'n', num: 1 }], d.conns);
-  $('#dbTables').innerHTML = table([{ h: 'Tabel', k: 'name' }, { h: 'Ukuran', k: 'size', num: 1 }, { h: 'Baris (perkiraan)', k: 'rows_est', num: 1 }], d.tables);
+  $('#dbTables').innerHTML = table([{ h: 'Tabel', k: 'name' }, { h: 'Ukuran', k: 'size', num: 1 }, { h: 'Baris (perkiraan)', k: 'rows_est', num: 1, f: r => n0(r.rows_est) }], d.tables);
 }
 
 // ---------- Backup ----------
@@ -157,24 +215,24 @@ async function loadBackup() {
   const s = b.status || {};
   const running = s.running || (b.pending || []).join(', ');
   const okAge = s.lastOk ? (Date.now() - Date.parse(s.lastOk)) / 3600e3 : null;
-  $('#bkStatus').innerHTML = !b.status && b.note ? `<span class="muted">${esc(b.note)}</span>` : `<div class="bk-grid">
-    <div><span class="muted">Terakhir berhasil</span><b class="${okAge == null || okAge > 30 ? 'err' : ''}">${esc(s.lastOk ? fmtTime(s.lastOk) : 'belum pernah')}</b><span class="muted">${esc(ago(s.lastOk))}</span></div>
-    <div><span class="muted">Hasil terakhir</span><b class="${s.lastResult === 'gagal' ? 'err' : ''}">${esc(s.lastResult || '-')}</b><span class="muted">${esc(s.lastError || '')}</span></div>
-    <div><span class="muted">Ukuran / isi</span><b>${esc(s.size || '-')}</b><span class="muted">${esc(s.tables || '-')} tabel · ${esc(s.rows || '-')} baris · Realtime ${esc(s.realtimePolicies ?? '-')} kebijakan</span></div>
-    <div><span class="muted">Tes restore</span><b class="${s.restoreTest === 'GAGAL' ? 'err' : ''}">${esc(s.restoreTest || 'belum')}</b><span class="muted">${esc(s.restoreAt ? fmtTime(s.restoreAt) : '')}</span></div>
-    <div><span class="muted">Google Drive</span><b>${esc(s.driveFiles ?? '-')} file</b><span class="muted">vps/ · simpan 30 hari</span></div>
-    <div><span class="muted">Sedang berjalan</span><b>${esc(running || 'tidak')}</b><span class="muted">jadwal 03:47 WIB · tes Minggu 04:20</span></div>
-  </div>${s.restoreNote ? `<p class="muted">${esc(s.restoreNote)}</p>` : ''}`;
+  $('#bkStatus').innerHTML = !b.status && b.note ? `<div class="empty">${esc(b.note)}</div>` : `<dl class="kv">
+    <div><dt>Terakhir berhasil</dt><dd class="${okAge == null || okAge > 30 ? 'bad' : ''}">${esc(s.lastOk ? fmtTime(s.lastOk) : 'belum pernah')}</dd><dd class="s">${esc(ago(s.lastOk))}</dd></div>
+    <div><dt>Hasil terakhir</dt><dd class="${s.lastResult === 'gagal' ? 'bad' : ''}">${esc(s.lastResult || '-')}</dd><dd class="s">${esc(s.lastError || '')}</dd></div>
+    <div><dt>Ukuran dan isi</dt><dd>${esc(s.size || '-')}</dd><dd class="s">${esc(s.tables || '-')} tabel, ${esc(s.rows || '-')} baris, Realtime ${esc(s.realtimePolicies ?? '-')} kebijakan</dd></div>
+    <div><dt>Tes restore</dt><dd class="${s.restoreTest === 'GAGAL' ? 'bad' : ''}">${esc(s.restoreTest || 'belum')}</dd><dd class="s">${esc(s.restoreAt ? fmtTime(s.restoreAt) : '')}</dd></div>
+    <div><dt>Google Drive</dt><dd>${esc(s.driveFiles ?? '-')} file</dd><dd class="s">folder vps, simpan 30 hari</dd></div>
+    <div><dt>Sedang berjalan</dt><dd>${esc(running || 'tidak ada')}</dd><dd class="s">jadwal 03:47 WIB, tes Minggu 04:20</dd></div>
+  </dl>${s.restoreNote ? `<p class="note">${esc(s.restoreNote)}</p>` : ''}`;
   $('#bkRun').disabled = $('#bkTest').disabled = !!running;
-  $('#bkFiles').innerHTML = table([{ h: 'Berkas lokal (7 hari)', k: 'name' }, { h: 'Ukuran', k: 'sz', num: 1 }, { h: 'Waktu', k: 'tm' }],
+  $('#bkFiles').innerHTML = table([{ h: 'Berkas lokal (7 hari)', k: 'name' }, { h: 'Ukuran', k: 'sz', num: 1 }, { h: 'Waktu', k: 'tm', num: 1 }],
     b.files.filter(f => f.name !== 'status.json').map(f => ({ ...f, sz: mb(f.size), tm: fmtTime(f.mtime) })));
-  $('#tgState').textContent = o.telegram ? 'Aktif: RAM > 85%, swap, disk > 80%, IOwait, layanan mati, backup basi/gagal, lonjakan 5xx.' : 'Belum diatur. Jalankan di VM: sh /opt/marantau/selfhost/set-telegram.sh';
+  $('#tgState').textContent = o.telegram ? 'Aktif: RAM di atas 85%, swap, disk di atas 80%, IOwait, layanan mati, backup basi atau gagal, lonjakan 5xx.' : 'Belum diatur. Jalankan di VM: sh /opt/marantau/selfhost/set-telegram.sh';
   $('#tgTest').disabled = !o.telegram;
   if (running) setTimeout(() => { if (tab === 'backup') loadBackup().catch(() => {}); }, 10000);
 }
 async function runBackup(kind, label) {
   if (!confirm(`${label}? Proses berjalan di latar belakang (±1–5 menit).`)) return;
-  try { await api('/api/backup/run', { method: 'POST', body: JSON.stringify({ kind }) }); toast(`${label} dimulai.`); setTimeout(loadBackup, 3000); }
+  try { await api('/api/backup/run', { method: 'POST', body: JSON.stringify({ kind }) }); toast(`${label} dimulai.`); setTimeout(() => loadBackup().catch(e => toast(e.message)), 3000); }
   catch (e) { toast(e.message); }
 }
 $('#bkRun').addEventListener('click', () => runBackup('backup', 'Backup sekarang'));
@@ -184,7 +242,7 @@ $('#tgTest').addEventListener('click', async () => { try { await api('/api/teleg
 // ---------- Debug ----------
 let dbgText = '';
 $('#dbgMake').addEventListener('click', async () => {
-  const b = $('#dbgMake'); b.disabled = true; b.textContent = 'Menyusun…';
+  const b = $('#dbgMake'); b.disabled = true; b.textContent = 'Menyusun...';
   try {
     dbgText = (await api('/api/debug')).text;
     $('#dbgText').textContent = dbgText; $('#dbgText').classList.remove('hidden');
@@ -206,19 +264,22 @@ $('#dbgSave').addEventListener('click', () => {
 // ---------- refresh ----------
 async function refresh() {
   try {
-    if (tab === 'server') await Promise.all([loadServer(), loadCharts(), loadHttp()]);
-    if (tab === 'layanan') await loadServer();
-    if (tab === 'db') await loadDb();
-    if (tab === 'backup') await loadBackup();
+    if (tab === 'server') await Promise.all([
+      load(['#hostCards'], loadServer), load(['#charts'], loadCharts), load(['#httpBox'], loadHttp)]);
+    if (tab === 'layanan') await load(['#svcList'], loadServer);
+    if (tab === 'db') await load(['#dbCards', '#dbSlow', '#dbLong', '#dbConns', '#dbTables'], loadDb);
+    if (tab === 'backup') await load(['#bkStatus', '#bkFiles'], loadBackup);
+    if (loaders[tab]) await loaders[tab]();
     // tab debug: laporan hanya dibuat saat tombol ditekan
   } catch (e) { if (e.message !== 'Belum login') toast(e.message); }
 }
 let timers = [];
 function startTimers() {
-  stopTimers(); refresh();
+  stopTimers(); applyTab();
   timers.push(setInterval(() => { if (!document.hidden && tab !== 'backup' && tab !== 'debug') refresh(); }, 30000));
   timers.push(setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('id-ID'); }, 1000));
 }
 function stopTimers() { timers.forEach(clearInterval); timers = []; }
 
+window.OPS = { $, $$, esc, n0, idr, signed, r1, api, toast, board, table, load, skel, empty, showErr, setVars, loaders, lvl, refresh, NF1 };
 api('/api/me').then(r => r.authed ? showApp() : showLogin()).catch(showLogin);
