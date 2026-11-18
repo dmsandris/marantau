@@ -16,7 +16,8 @@
   function mapError(e) {
     var m = (e && (e.message || e.error_description || e.msg)) || String(e);
     var code = e && e.code;
-    if (code === '42501' || /permission denied|JWT expired|invalid JWT|jwt/i.test(m)) return err(AUTH_MSG);
+    if (code === '42501' || /^PGRST30\d$/.test(String(code || '')) ||
+        /permission denied|JWT expired|invalid JWT|jwt|JWS|wrong key|no suitable key/i.test(m)) return err(AUTH_MSG);
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return err('Koneksi ke server terputus. Periksa internet lalu coba lagi.');
     return err(m.replace(/^Error:\s*/, ''));
   }
@@ -36,14 +37,28 @@
     catch (e) { return ''; }
   }
   var swapP = null;
+  function withTimeout(p, ms) {
+    return Promise.race([p, new Promise(function (_, no) { setTimeout(function () { no(new Error('timeout')); }, ms); })]);
+  }
+  // Sesi yang tidak bisa ditukar (refresh token tidak dikenal server ini) -> buang sesi lokal saja, supaya
+  // layar login muncul. Hanya kunci login yang dihapus; penanda adegan/setelan pemain tetap.
+  function purgeSession() {
+    try { localStorage.removeItem('mt_sb_auth_v1'); localStorage.removeItem('mt_token_v1'); localStorage.removeItem('mt_user_v1'); } catch (e) {}
+    return withTimeout(sb.auth.signOut({ scope: 'local' }), 3000).catch(function () {}).then(function () {
+      try { localStorage.removeItem('mt_sb_auth_v1'); } catch (e) {}
+    });
+  }
   function swapToken(force) {
     if (swapP && !force) return swapP;
-    swapP = sb.auth.getSession().then(function (s) {
+    swapP = withTimeout(sb.auth.getSession(), 8000).then(function (s) {
       var ses = s.data && s.data.session;
       if (!ses) return false;
       if (!force && jwtIss(ses.access_token) === ISS) return true;
-      return sb.auth.refreshSession().then(function (r) { return !r.error && !!(r.data && r.data.session); });
-    }).catch(function () { return false; });
+      return withTimeout(sb.auth.refreshSession(), 10000).then(function (r) {
+        if (!r.error && r.data && r.data.session) return true;
+        return purgeSession().then(function () { return false; });
+      });
+    }).catch(function () { return purgeSession().then(function () { return false; }); });
     return swapP;
   }
   function badJwt(e) {
@@ -60,7 +75,11 @@
     }
     var r = await sb.rpc(fn, { a: args || [] });
     // Token ditolak server (kunci beda / kedaluwarsa) -> refresh sekali, ulangi panggilan.
-    if (r.error && !retried && badJwt(r.error) && await swapToken(true)) return rpc(name, args, true);
+    // Refresh gagal -> sesi lokal sudah dibuang (purgeSession) -> AUTH_REQUIRED -> layar login.
+    if (r.error && badJwt(r.error)) {
+      if (!retried && await swapToken(true)) return rpc(name, args, true);
+      throw err(AUTH_MSG);
+    }
     if (r.error) {
       // Tide v38: server sedang pemeliharaan -> tampilkan layar maintenis, panggilan ini dibiarkan menggantung
       // (tidak memunculkan pesan error di game; halaman dimuat ulang saat pelabuhan dibuka).
