@@ -674,39 +674,161 @@ var SP = (function () {
   if (!window.MTCine || !MTCine.register || !window.MTUtil) return;
   var C = MTCine.H, U = C.U, sm = C.sm;
   function scene() {
-    var r = U.rng(7171), env = [];
-    for (var i = 0; i < 46; i++) env.push({ x: 0.08 + (i % 23) * 0.037 + r() * 0.006, row: Math.floor(i / 23), h: 0.75 + r() * 0.3, tint: r() });
-    function draw(ctx, W, H, t) {
-      var m = Math.min(W, H);
-      ctx.fillStyle = '#140d08'; ctx.fillRect(0, 0, W, H);
-      // lampu minyak
-      var fl = 0.9 + 0.1 * Math.sin(t * 9) * Math.sin(t * 3.1);
-      var g = ctx.createRadialGradient(W * 0.5, H * 0.78, 0, W * 0.5, H * 0.78, m * 0.9 * fl);
-      g.addColorStop(0, 'rgba(255,196,110,.55)'); g.addColorStop(1, 'rgba(255,196,110,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // rak
-      var zoom = 1 + 0.18 * (1 - sm(0, 6, t)), cx = W * 0.5, cy = H * 0.45;
-      ctx.save(); ctx.translate(cx, cy); ctx.scale(zoom, zoom); ctx.translate(-cx, -cy);
-      for (var row = 0; row < 2; row++) {
-        var y = H * (0.3 + row * 0.24);
-        ctx.fillStyle = '#4a3220'; ctx.fillRect(W * 0.05, y + m * 0.07, W * 0.9, m * 0.018);
-        env.forEach(function (e) {
-          if (e.row !== row) return;
-          var ex = W * e.x, eh = m * 0.085 * e.h;
-          ctx.fillStyle = 'rgb(' + Math.round(220 + e.tint * 20) + ',' + Math.round(200 + e.tint * 20) + ',' + Math.round(160 + e.tint * 20) + ')';
-          ctx.fillRect(ex, y + m * 0.07 - eh, m * 0.022, eh);
-          ctx.fillStyle = 'rgba(120,80,40,.6)'; ctx.fillRect(ex, y + m * 0.07 - eh * 0.6, m * 0.022, m * 0.004);
-        });
+    var H_ = C, mem = H_.memo(), motes = H_.makeMotes(70, 7173), gs = {}, lay = null;
+    function layout(ctx, W, H) {
+      var m = Math.min(W, H), q = H_.bakeQ(ctx, W, H), r = U.rng(7171), L = { W: W, H: H, m: m };
+      L.tableY = H * (W < H ? 0.84 : 0.8); L.lx = W * 0.5; L.ly = L.tableY - m * 0.13;
+      var top = H * 0.08, rows = Math.max(2, Math.min(5, Math.round((L.tableY - top) / (m * 0.29)))), gap = (L.tableY - top) / rows;
+      L.rows = rows; L.gap = gap; L.bottles = []; L.shelves = [];
+      for (var i = 0; i < rows; i++) L.shelves.push(top + gap * (i + 1) - m * 0.03);
+      var slotRow = rows - 1; L.slot = { x: W * 0.9, y: L.shelves[slotRow], h: gap * 0.52, w: gap * 0.075 };
+      var pap = H_.paperTex(64, 96, { base: [226, 210, 172], edge: 0.35, stains: 0.6, seed: 741 });
+      var envSpr = H_.bake(Math.ceil(gap * 0.08) + 2, Math.ceil(gap * 0.55) + 2, q, function (g, w, h) { g.drawImage(pap, 0, 0, w, h); });
+      L.env = envSpr;
+      function bottle(g, x, y, w, h, col, side) {
+        var nw = w * 0.32, sh = h * 0.62;
+        function path() { g.beginPath(); g.moveTo(x - w / 2, y); g.lineTo(x - w / 2, y - sh + w * 0.2); g.quadraticCurveTo(x - w / 2, y - sh - w * 0.15, x - nw / 2, y - sh - w * 0.35); g.lineTo(x - nw / 2, y - h * 0.94); g.lineTo(x + nw / 2, y - h * 0.94); g.lineTo(x + nw / 2, y - sh - w * 0.35); g.quadraticCurveTo(x + w / 2, y - sh - w * 0.15, x + w / 2, y - sh + w * 0.2); g.lineTo(x + w / 2, y); g.closePath(); }
+        path(); g.fillStyle = 'rgba(' + col + ',0.55)'; g.fill();
+        g.save(); path(); g.clip();
+        g.globalAlpha = 0.55; g.drawImage(pap, x - w * 0.22, y - sh * 0.95, w * 0.44, sh * 0.85); g.globalAlpha = 1; // surat tergulung
+        g.strokeStyle = 'rgba(120,60,30,.7)'; g.lineWidth = Math.max(1, w * 0.04); g.beginPath(); g.moveTo(x - w * 0.22, y - sh * 0.5); g.lineTo(x + w * 0.22, y - sh * 0.5); g.stroke();
+        var gl = g.createLinearGradient(x - w / 2, 0, x + w / 2, 0); gl.addColorStop(0, 'rgba(0,0,0,.35)'); gl.addColorStop(0.5, 'rgba(0,0,0,0)'); gl.addColorStop(1, 'rgba(0,0,0,.35)');
+        g.fillStyle = gl; g.fillRect(x - w / 2, y - h, w, h);
+        g.fillStyle = 'rgba(' + col + ',0.3)'; g.fillRect(x - w / 2, y - h, w, h);
+        g.restore();
+        path(); g.strokeStyle = 'rgba(255,236,200,.28)'; g.lineWidth = Math.max(1, w * 0.035); g.stroke();
+        g.fillStyle = 'rgba(255,240,215,.42)'; g.fillRect(x + side * w * 0.28 - w * 0.04, y - sh + w * 0.1, w * 0.08, sh * 0.8);
+        g.fillStyle = '#6b4a2c'; g.fillRect(x - nw * 0.55, y - h, nw * 1.1, h * 0.09); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x - nw * 0.55, y - h + h * 0.06, nw * 1.1, h * 0.03);
+        g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(x, y, w * 0.55, w * 0.08, 0, 0, 6.3); g.fill();
       }
-      // amplop baru diselipkan
-      var k = sm(5, 8, t), ex2 = W * 0.93, y2 = H * 0.54 + m * 0.07;
-      ctx.fillStyle = '#f4ead2'; ctx.fillRect(ex2, y2 - m * 0.09 - (1 - k) * m * 0.25, m * 0.024, m * 0.09);
-      ctx.fillStyle = '#7a2a1a'; ctx.beginPath(); ctx.arc(ex2 + m * 0.012, y2 - m * 0.05 - (1 - k) * m * 0.25, m * 0.006, 0, 6.3); ctx.fill();
+      var pad = L.pad = Math.ceil(m * 0.04);
+      L.bg = H_.bake(W + pad * 2, H, q, function (g) {
+        g.translate(pad, 0);
+        g.fillStyle = '#1a110a'; g.fillRect(-pad, 0, W + pad * 2, H);
+        var wt = H_.wallTex(Math.ceil(W / 2), Math.ceil(H / 2), { streak: 0.6, hi: 0.14, lo: 0.55, tint: [255, 214, 160], seed: 7175 });
+        g.drawImage(wt, -pad, 0, W + pad * 2, H);
+        var bx0 = W * 0.03, bx1 = W * 0.97, by0 = H * 0.05;
+        var back = H_.woodTex(Math.ceil((bx1 - bx0) / 2), Math.ceil((L.tableY - by0) / 2), { base: [84, 56, 34], dark: [26, 16, 9], plank: 22, vertical: true, seed: 7177 });
+        g.drawImage(back, bx0, by0, bx1 - bx0, L.tableY - by0);
+        g.fillStyle = 'rgba(10,6,3,.35)'; g.fillRect(bx0, by0, bx1 - bx0, L.tableY - by0);
+        var post = H_.woodTex(24, Math.ceil(L.tableY / 2), { base: [110, 74, 44], dark: [36, 22, 12], plank: 30, vertical: true, seed: 7179 });
+        g.drawImage(post, bx0 - m * 0.02, by0 - m * 0.02, m * 0.035, L.tableY - by0 + m * 0.02); g.drawImage(post, bx1 - m * 0.015, by0 - m * 0.02, m * 0.035, L.tableY - by0 + m * 0.02);
+        var board = H_.woodTex(Math.ceil(W / 2), 16, { base: [128, 86, 50], dark: [44, 26, 14], plank: 40, seed: 7181 });
+        for (var i = 0; i < rows; i++) {
+          var y = L.shelves[i], bt = m * 0.022;
+          // bayangan di papan belakang di atas rak
+          var sg = g.createLinearGradient(0, y - L.gap * 0.6, 0, y); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = sg; g.fillRect(bx0, y - L.gap * 0.6, bx1 - bx0, L.gap * 0.6);
+          var x = W * 0.05, endX = W * 0.95;
+          while (x < endX) {
+            if (i === slotRow && x > L.slot.x - L.gap * 0.12 && x < L.slot.x + L.gap * 0.2) { x = L.slot.x + L.gap * 0.2; continue; }
+            var kind = r(), side = x < L.lx ? 1 : -1;
+            if (kind < 0.55) { // ikatan amplop
+              var n = 3 + Math.floor(r() * 5), ew = L.gap * 0.075, eh = L.gap * (0.42 + r() * 0.14), lean = (r() - 0.5) * 0.12, x0 = x;
+              for (var e = 0; e < n; e++) {
+                var hh = eh * (0.92 + r() * 0.1), cx = x + ew * 0.5;
+                g.save(); g.translate(cx, y); g.rotate(lean);
+                g.drawImage(pap, -ew / 2, -hh, ew, hh);
+                g.fillStyle = 'rgba(' + (r() < 0.5 ? '90,60,30' : '40,30,20') + ',' + (0.26 + r() * 0.2).toFixed(2) + ')'; g.fillRect(-ew / 2, -hh, ew, hh);
+                g.strokeStyle = 'rgba(40,24,10,.55)'; g.lineWidth = 1; g.strokeRect(-ew / 2, -hh, ew, hh);
+                g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(ew * 0.32, -hh, ew * 0.18, hh);
+                if (r() < 0.2) { g.fillStyle = '#7a2418'; g.beginPath(); g.arc(0, -hh * 0.78, ew * 0.22, 0, 6.3); g.fill(); }
+                g.restore();
+                x += ew * 0.92;
+              }
+              g.strokeStyle = 'rgba(150,96,52,.95)'; g.lineWidth = Math.max(1.2, m * 0.004);
+              g.beginPath(); g.moveTo(x0 - 1, y - eh * 0.5); g.lineTo(x + 1, y - eh * 0.52); g.stroke();
+              g.beginPath(); g.moveTo(x0 + (x - x0) * 0.5, y - eh * 0.51); g.lineTo(x0 + (x - x0) * 0.42, y - eh * 0.3); g.moveTo(x0 + (x - x0) * 0.5, y - eh * 0.51); g.lineTo(x0 + (x - x0) * 0.6, y - eh * 0.32); g.stroke();
+              x += L.gap * (0.03 + r() * 0.05);
+            } else if (kind < 0.88) { // botol surat
+              var bw = L.gap * (0.13 + r() * 0.05), bh = L.gap * (0.5 + r() * 0.18), cols = ['70,120,90', '150,100,40', '90,120,140', '120,140,90'], col = cols[Math.floor(r() * cols.length)];
+              bottle(g, x + bw / 2, y, bw, bh, col, side);
+              L.bottles.push({ x: x + bw / 2 + side * bw * 0.28, y: y - bh * 0.62 * 0.55, h: bh * 0.5, w: bw, ph: r() * 6.3, row: i });
+              x += bw + L.gap * (0.04 + r() * 0.05);
+            } else { // tumpukan surat rebah
+              var sw2 = L.gap * (0.3 + r() * 0.15), k = 2 + Math.floor(r() * 4);
+              for (var s2 = 0; s2 < k; s2++) { var yy = y - (s2 + 1) * m * 0.007; g.drawImage(pap, x + (r() - 0.5) * 4, yy, sw2, m * 0.007); g.strokeStyle = 'rgba(40,24,10,.4)'; g.strokeRect(x, yy, sw2, m * 0.007); }
+              x += sw2 + L.gap * 0.06;
+            }
+          }
+          // papan rak
+          g.drawImage(board, bx0, y, bx1 - bx0, bt);
+          g.fillStyle = 'rgba(255,210,150,.18)'; g.fillRect(bx0, y, bx1 - bx0, Math.max(1, bt * 0.15));
+          var ug = g.createLinearGradient(0, y + bt, 0, y + bt + m * 0.04); ug.addColorStop(0, 'rgba(0,0,0,.55)'); ug.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = ug; g.fillRect(bx0, y + bt, bx1 - bx0, m * 0.04);
+        }
+        // cahaya lampu: gelap menjauh dari lampu + nada hangat
+        var R = Math.hypot(W, H) * 0.7, lg = g.createRadialGradient(L.lx, L.ly, m * 0.05, L.lx, L.ly, R);
+        lg.addColorStop(0, 'rgba(0,0,0,0)'); lg.addColorStop(0.3, 'rgba(6,3,1,.4)'); lg.addColorStop(0.7, 'rgba(6,3,1,.78)'); lg.addColorStop(1, 'rgba(6,3,1,.93)'); g.fillStyle = lg; g.fillRect(-pad, 0, W + pad * 2, H);
+        g.save(); g.globalCompositeOperation = 'soft-light'; g.fillStyle = 'rgba(255,160,80,.35)'; g.fillRect(-pad, 0, W + pad * 2, H); g.restore();
+        g.save(); g.translate(-pad, 0); g.scale((W + pad * 2) / W, 1); H_.vignette(g, W, H, 0.55); g.restore();
+        g.save(); g.globalAlpha = 0.6; g.fillStyle = g.createPattern(H_.grainTile(), 'repeat'); g.fillRect(-pad, 0, W + pad * 2, H); g.restore();
+      });
+      // meja depan
+      var th = H - L.tableY;
+      L.table = H_.bake(W, Math.ceil(th) + 2, q, function (g) {
+        var tw = H_.woodTex(Math.ceil(W / 2), Math.ceil(th / 2) + 1, { base: [96, 62, 36], dark: [22, 13, 7], plank: 14, seed: 7183 });
+        g.drawImage(tw, 0, 0, W, th + 2);
+        var tg = g.createRadialGradient(L.lx, 0, m * 0.02, L.lx, 0, W * 0.7); tg.addColorStop(0, 'rgba(255,190,110,.22)'); tg.addColorStop(0.4, 'rgba(0,0,0,.25)'); tg.addColorStop(1, 'rgba(0,0,0,.8)');
+        g.fillStyle = tg; g.fillRect(0, 0, W, th + 2);
+        g.fillStyle = 'rgba(255,220,170,.25)'; g.fillRect(0, 0, W, 1.5);
+      });
+      return L;
+    }
+    function draw(ctx, W, H, t) {
+      lay = mem(W, H, function () { return layout(ctx, W, H); });
+      var m = lay.m, fl = 0.86 + 0.08 * Math.sin(t * 9) * Math.sin(t * 3.1) + 0.06 * Math.sin(t * 17.3);
+      // kamera: rak bergeser pelan (piksel bulat = murah), meja & lampu di depan bergeser lebih jauh + sedikit zoom (paralaks)
+      var e = U.smooth(U.clamp(t / 11, 0, 1)), dpx = 1; try { dpx = ctx.getTransform().a || 1; } catch (e0) { }
+      var bx = Math.round((lay.pad * 0.6 - e * lay.pad * 1.2) * dpx) / dpx, cx = lay.lx, cy = lay.ly - m * 0.1;
+      ctx.save(); ctx.translate(bx, 0);
+      ctx.drawImage(lay.bg, -lay.pad, 0, W + lay.pad * 2, H);
+      // pantulan nyala di kaca botol
+      ctx.globalCompositeOperation = 'lighter';
+      for (var i = 0; i < lay.bottles.length; i++) {
+        var b = lay.bottles[i], d = Math.abs(b.x - lay.lx) / W, a = (0.55 - d * 0.7) * fl * (0.75 + 0.25 * Math.sin(t * 2.3 + b.ph));
+        if (a <= 0.02) continue;
+        ctx.fillStyle = 'rgba(255,214,150,' + a.toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(b.x, b.y, Math.max(0.8, b.w * 0.05), b.h * 0.14, 0, 0, 6.3); ctx.fill();
+        ctx.fillStyle = 'rgba(255,240,210,' + Math.min(1, a * 1.4).toFixed(3) + ')'; ctx.fillRect(b.x - 0.8, b.y - b.h * 0.2, 1.6, 1.6);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      // amplop baru diselipkan ke ujung rak
+      var s = lay.slot, kk = U.smooth(U.clamp((t - 4.5) / 3.2, 0, 1)), ew = s.w, eh = s.h, yOff = (1 - kk) * lay.gap * 0.9, xOff = (1 - kk) * lay.gap * 0.15;
+      if (t > 3.6) {
+        var ea = U.clamp((t - 3.6) / 0.8, 0, 1);
+        ctx.save(); ctx.globalAlpha = ea; ctx.translate(s.x + xOff, s.y - yOff); ctx.rotate((1 - kk) * -0.35);
+        ctx.drawImage(lay.env, -ew / 2, -eh, ew, eh);
+        ctx.fillStyle = 'rgba(255,220,170,' + (0.15 * fl).toFixed(3) + ')'; ctx.fillRect(-ew / 2, -eh, ew, eh);
+        ctx.strokeStyle = 'rgba(40,24,10,.6)'; ctx.lineWidth = 1; ctx.strokeRect(-ew / 2, -eh, ew, eh);
+        ctx.fillStyle = '#8a2a1a'; ctx.beginPath(); ctx.arc(0, -eh * 0.7, ew * 0.24, 0, 6.3); ctx.fill();
+        ctx.strokeStyle = 'rgba(160,104,56,.95)'; ctx.lineWidth = Math.max(1.2, m * 0.004); ctx.beginPath(); ctx.moveTo(-ew / 2, -eh * 0.5); ctx.lineTo(ew / 2, -eh * 0.5); ctx.stroke();
+        ctx.restore();
+        if (kk > 0.95) H_.glow(ctx, s.x, s.y - eh * 0.6, lay.gap * 0.35, '255,200,130', 0.18 * (1 - U.clamp((t - 7.7) / 2.5, 0, 1)));
+      }
       ctx.restore();
-      // meja & lampu
-      ctx.fillStyle = '#2a1a0e'; ctx.fillRect(0, H * 0.82, W, H * 0.18);
-      ctx.fillStyle = '#c9a450'; ctx.fillRect(W * 0.49, H * 0.74, m * 0.02, m * 0.06);
-      ctx.fillStyle = 'rgba(255,220,150,' + (0.85 * fl).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(W * 0.5, H * 0.73, m * 0.008, m * 0.018, 0, 0, 6.3); ctx.fill();
-      if (t < 1) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - t).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      // meja (lebih dekat: sedikit lebih kuat geraknya)
+      var k2 = 1.04 - 0.04 * e;
+      ctx.save(); H_.camAt(ctx, cx, lay.tableY, k2, (0.6 - e * 1.2) * lay.pad * 1.8, 0);
+      ctx.drawImage(lay.table, -lay.pad * 2, lay.tableY, W + lay.pad * 4, H - lay.tableY + 2);
+      // lampu minyak
+      var lx = lay.lx, base = lay.tableY + (H - lay.tableY) * 0.35, u = m * 0.0125;
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(lx, base + u * 0.6, u * 7, u * 1.5, 0, 0, 6.3); ctx.fill();
+      var bgd = ctx.createLinearGradient(lx - u * 5, 0, lx + u * 5, 0); bgd.addColorStop(0, '#4a3212'); bgd.addColorStop(0.35, '#e0b860'); bgd.addColorStop(0.6, '#9a7230'); bgd.addColorStop(1, '#3a260c');
+      ctx.fillStyle = bgd;
+      ctx.beginPath(); ctx.ellipse(lx, base, u * 5, u * 1.2, 0, 0, 6.3); ctx.fill();
+      ctx.fillRect(lx - u * 1.1, base - u * 4, u * 2.2, u * 4);
+      ctx.beginPath(); ctx.ellipse(lx, base - u * 6, u * 4.2, u * 2.6, 0, 0, 6.3); ctx.fill();
+      ctx.fillRect(lx - u * 2, base - u * 8.8, u * 4, u * 1.4);
+      var fy = base - u * 13.5, fh = u * 3.6 * (0.9 + 0.12 * fl);
+      H_.glow(ctx, lx, fy, m * 0.42, '255,170,80', 0.42 * fl); H_.glow(ctx, lx, fy, m * 0.08, '255,220,160', 0.5 * fl);
+      // kaca semprong
+      ctx.fillStyle = 'rgba(255,230,190,.10)'; ctx.beginPath(); ctx.moveTo(lx - u * 1.8, base - u * 8.8); ctx.bezierCurveTo(lx - u * 4.2, base - u * 11, lx - u * 3.4, base - u * 15, lx - u * 1.3, base - u * 18); ctx.lineTo(lx - u * 1.3, base - u * 21); ctx.lineTo(lx + u * 1.3, base - u * 21); ctx.lineTo(lx + u * 1.3, base - u * 18); ctx.bezierCurveTo(lx + u * 3.4, base - u * 15, lx + u * 4.2, base - u * 11, lx + u * 1.8, base - u * 8.8); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,236,200,.35)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,250,235,.45)'; ctx.fillRect(lx - u * 2.6, base - u * 14, u * 0.5, u * 3.2);
+      var fg = ctx.createRadialGradient(lx, fy + fh * 0.3, 0, lx, fy + fh * 0.3, fh); fg.addColorStop(0, 'rgba(255,255,230,1)'); fg.addColorStop(0.45, 'rgba(255,200,100,.95)'); fg.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(lx, fy - fh); ctx.quadraticCurveTo(lx + u * 1.3, fy + fh * 0.2, lx, fy + fh * 0.55); ctx.quadraticCurveTo(lx - u * 1.3, fy + fh * 0.2, lx, fy - fh); ctx.fill();
+      ctx.restore();
+      // debu melayang di cahaya
+      H_.motes(ctx, motes, lx - m * 0.45, lay.ly - m * 0.55, m * 0.9, m * 0.6, t, '255,214,160', 0.3);
+      if (t < 1.2) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - U.smooth(t / 1.2)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
     return { draw: draw, intro: 2 };
   }

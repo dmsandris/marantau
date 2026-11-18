@@ -623,9 +623,20 @@ var MTWar = (function () {
     if (W < H || a <= 0.01) return;
     var h = H * 0.065 * a; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, h); ctx.fillRect(0, H - h, W, h);
   }
+  /* Tide v68 (poles Quest 3): kabut cakrawala bergumpal (sprite fBm dipanggang sekali per warna) */
+  var q3FogC = {};
+  function q3Fog(key, dark, lite, seed) { return q3FogC[key] || (q3FogC[key] = C.puffSprite(seed || 461, 360, 96, { sx: 0.62, sy: 1, th: 0.24, soft: 0.38, a: 0.55, dark: dark, lite: lite, lx: 0, ly: -4 })); }
+  function q3FogBank(ctx, spr, W, y, h, t, a, v) {
+    if (a <= 0.01) return;
+    var w = h * 3.6, step = w * 0.7, off = ((t * (v || 5)) % step + step) % step;
+    ctx.save(); ctx.globalAlpha = Math.min(1, a);
+    for (var x = -w + off - W * 0.1; x < W * 1.1 + w * 0.2; x += step) ctx.drawImage(spr, x, y - h / 2, w, h);
+    ctx.restore();
+  }
 
   /* ======================= 1. PELIKAN MEMBAWA SURAT ======================= */
   function scenePelican() {
+    var gsQ = {}, fogQ = q3Fog('pagi', [176, 150, 150], [255, 226, 196], 463);
     var r = U.rng(1771), L = C.makeLit(), clouds = MTSky.makeClouds(r, 7), glit = MTSky.makeGlitter(r), st = stars(r, 60), lay = null;
     var P = new C.Particles(), landed = false, shake = 0, kick = 0, flapPh = 0, lastT = -1, gulls = [], motes = [];
     for (var i = 0; i < 6; i++) gulls.push({ x: r(), y: 0.12 + r() * 0.22, v: (0.006 + r() * 0.008) * (r() < 0.3 ? -1 : 1), s: 0.5 + r() * 0.7, ph: r() * 6 });
@@ -689,6 +700,7 @@ var MTWar = (function () {
       // ===== LAUT + KAPAL (paralaks dekat) =====
       ctx.save(); pwCam(ctx, cam, 1);
       MTSky.paintSea(ctx, W, H * 1.1, hy, p, t, { glitter: glit, rough: 0.9, drift: 9 });
+      q3FogBank(ctx, fogQ, W, hy, H * 0.09, t, 0.4, 4);
       // pantulan & kapal
       ctx.save(); ctx.globalAlpha = 0.2; var sr = {}; for (var k in so) sr[k] = so[k]; sr.reflect = true; MTShip.draw(ctx, sx, sy + 3, s, sr); ctx.restore();
       MTShip.draw(ctx, sx, sy, s, so);
@@ -772,6 +784,7 @@ var MTWar = (function () {
       var cg = ctx.createLinearGradient(0, 0, 0, H); cg.addColorStop(0, 'rgba(20,24,60,.28)'); cg.addColorStop(0.45, 'rgba(20,24,60,0)'); cg.addColorStop(1, 'rgba(10,14,30,.25)');
       ctx.fillStyle = cg; ctx.fillRect(0, 0, W, H);
       if (red > 0.02) { ctx.fillStyle = 'rgba(120,0,0,' + (0.12 * red).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      C.filmGrain(ctx, W, H, gsQ, 0.45);
       C.vignette(ctx, W, H, 0.5);
       pwLetterbox(ctx, W, H, sm(0, 1.6, t));
       ttl(ctx, W, H, sm(8.4, 10, t), 'SURAT DARI LANGIT', 'Pemerintah Moramora', H * (port ? 0.16 : 0.2));
@@ -782,6 +795,7 @@ var MTWar = (function () {
 
   /* ======================= 2. TIBA DI MARIE REGAL ======================= */
   function sceneMarieRegal() {
+    var gsQ = {}, fogQ = q3Fog('regal', [30, 26, 60], [120, 120, 200], 467);
     var r = U.rng(9001), L = C.makeLit(), glit = MTSky.makeGlitter(r), st = stars(r, 160), P = new C.Particles(), lay = null;
     var pulseDone = false, shake = 0, flash = 0, lastT = -1, motes = [];
     for (var m = 0; m < 50; m++) motes.push({ x: r(), y: r(), v: 0.3 + r(), ph: r() * 6, s: 0.5 + r() * 1.2, c: r() < 0.7 });
@@ -1001,6 +1015,7 @@ var MTWar = (function () {
       ctx.save(); pwCam(ctx, cam, 0.85);
       ctx.fillStyle = '#0f1a26'; ctx.fillRect(-W * 0.1, hy, W * 1.2, H * 0.012);
       MTSky.paintSea(ctx, W, H * 1.1, hy + H * 0.01, p, t, { glitter: glit, rough: 0.6, drift: 5 });
+      q3FogBank(ctx, fogQ, W, hy + H * 0.01, H * 0.07, t, 0.35, 3);
       // pantulan kota (strip bergoyang)
       var wb = Math.max(3, H / 170), N = Math.ceil((H * 1.05 - hy) / wb), win = lay.win, dp = lay.dpr, sq = 0.62;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.rect(ix - cityR, hy, cityR * 2, H); ctx.clip();
@@ -1124,6 +1139,7 @@ var MTWar = (function () {
       // gradasi: biru-ungu dingin
       var cgr = ctx.createLinearGradient(0, 0, 0, H); cgr.addColorStop(0, 'rgba(30,10,60,.25)'); cgr.addColorStop(0.5, 'rgba(30,10,60,0)'); cgr.addColorStop(1, 'rgba(0,10,25,.35)');
       ctx.fillStyle = cgr; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gsQ, 0.45);
       C.vignette(ctx, W, H, 0.6);
       pwLetterbox(ctx, W, H, sm(0, 1.6, t));
       ttl(ctx, W, H, sm(7, 8.6, t), 'MARIE REGAL', 'Ibu Kota Pemerintah Moramora', H * (port ? 0.1 : 0.14));
@@ -1202,6 +1218,7 @@ var MTWar = (function () {
 
   /* ======================= 3. FAJAR KELABU: DRONE MENDARAT ======================= */
   function sceneDrones() {
+    var gsQ = {};
     var r = U.rng(3131), L = C.makeLit(), Ld = C.makeLit(), P = new C.Particles(), lay = null, smokeT = 0, i;
     var FOG = [176, 180, 178], sea = MTSky.palette(0.99, null, 'overcast');
     var rain = [], gulls = [];
@@ -1565,6 +1582,7 @@ var MTWar = (function () {
       ctx.fillStyle = 'rgba(28,38,48,' + (0.1 + 0.16 * sm(8.2, 10.2, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H);
       var lb2 = ctx.createLinearGradient(0, 0, 0, H); lb2.addColorStop(0, 'rgba(10,12,16,.45)'); lb2.addColorStop(0.16, 'rgba(10,12,16,0)'); lb2.addColorStop(0.8, 'rgba(10,12,16,0)'); lb2.addColorStop(1, 'rgba(10,12,16,.5)');
       ctx.fillStyle = lb2; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gsQ, 0.5);
       C.vignette(ctx, W, H, 0.6);
       ttl(ctx, W, H, sm(8.6, 10.2, t), 'FAJAR KELABU', 'Tiga pulau diserahkan - dengan tanda tanganmu', H * (port ? 0.84 : 0.86));
       fadeIn(ctx, W, H, t, 1.2);
@@ -1574,6 +1592,7 @@ var MTWar = (function () {
 
   /* ======================= 4. YANG BENAR-BENAR DIAM ======================= */
   function sceneMarlya() {
+    var gsQ = {};
     var r = U.rng(4242), lay = null, drips = [], motes = [], i;
     for (i = 0; i < 9; i++) drips.push({ x: 0.2 + r() * 0.6, ph: r() * 4, sp: 0.35 + r() * 0.3, z: r() });
     for (i = 0; i < 70; i++) motes.push({ s: r(), o: r() - 0.5, sp: 0.01 + r() * 0.02, ph: r() * 6.3, sz: 0.6 + r() * 1.4 });
@@ -1868,6 +1887,7 @@ var MTWar = (function () {
       ctx.save(); wvCam(ctx, W, H, cam, 1.3); wvBlit(ctx, o.fgL); ctx.restore();
       // grading: bayangan hijau-biru, vinyet dalam
       ctx.fillStyle = 'rgba(0,20,30,.12)'; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gsQ, 0.5);
       C.vignette(ctx, W, H, 0.8);
       ttl(ctx, W, H, sm(8.5, 10, t), 'YANG BENAR-BENAR DIAM', '', H * 0.12);
       fadeIn(ctx, W, H, t, 2);
@@ -1877,6 +1897,7 @@ var MTWar = (function () {
 
   /* ======================= 5. GENDERANG DITABUH ======================= */
   function sceneGenderang() {
+    var gsQ = {}, fogQ = q3Fog('senja', [120, 70, 84], [255, 180, 130], 469);
     var r = U.rng(1946), P = new C.Particles(), L = C.makeLit(), glit = MTSky.makeGlitter(r), lay = null, flareT = 3, emberT = 0, lastBeat = -1;
     var sea = MTSky.palette(0.675);
     var BAN = ['#b3261e', '#2f7fa3', '#c9a033', '#3f8c3f', '#8e3d8a'];
@@ -2019,6 +2040,7 @@ var MTWar = (function () {
       ctx.save(); wvCam(ctx, W, H, cam, 0.6); ctx.translate(-W * 0.1, 0);
       MTSky.paintSea(ctx, W * 1.2, H * 1.1, hy, sea, t, { rough: 0.9, drift: 6 });
       ctx.translate(W * 0.1, 0);
+      q3FogBank(ctx, fogQ, W, hy, H * 0.08, t, 0.35, 3);
       ctx.globalCompositeOperation = 'lighter';
       for (var sr = 0; sr < 40; sr++) { var yy = hy + 2 + sr * sr * H * 0.0003, sw = W * (0.02 + sr * 0.004) * (0.5 + 0.5 * Math.sin(t * 1.7 + sr * 2.3)); ctx.fillStyle = 'rgba(255,170,90,' + (0.4 - sr * 0.007).toFixed(3) + ')'; ctx.fillRect(sunX - sw / 2 + Math.sin(t + sr) * sr * 0.8, yy, sw, 1 + sr * 0.05); }
       ctx.globalCompositeOperation = 'source-over';
@@ -2071,6 +2093,7 @@ var MTWar = (function () {
       ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,150,80,' + (0.05 * hit).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
       var lb = ctx.createLinearGradient(0, 0, 0, H); lb.addColorStop(0, 'rgba(5,4,14,.5)'); lb.addColorStop(0.2, 'rgba(5,4,14,0)'); lb.addColorStop(0.85, 'rgba(5,4,14,0)'); lb.addColorStop(1, 'rgba(5,4,14,.45)');
       ctx.fillStyle = lb; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gsQ, 0.45);
       C.vignette(ctx, W, H, 0.55);
       ttl(ctx, W, H, sm(6.5, 8, t), 'PERANG GENDERANG', 'Genderang kebebasan ditabuh', H * (port ? 0.13 : 0.15));
       fadeIn(ctx, W, H, t, 1.2);
@@ -2276,6 +2299,7 @@ var MTWar = (function () {
   // 0-2.3 aliansi menggempur HENING | 2.5-3.8 Rangkiang Merah berputar, kamera mendekat ke Hasiolan
   // 3.05 suar merah | 4.0 salvo pengkhianatan (gerak lambat) | 4.7-5.6 kapal Skitraw ikut berbalik | 5.2-6.8 kubah perisai mekar
   function sceneBetrayal() {
+    var gsQ = {};
     var F = new WX.Fx(), S = [], L = C.makeLit(), LF = C.makeLit(), LN = C.makeLit(), LH = C.makeLit(), glit = MTSky.makeGlitter(U.rng(6060));
     var lay = null, shake = 0, tw = null, fired = {}, acc = { al: 0, fo: 0, tr: 0, ha: 0, fire: 0, dome: 0 }, allyHit = 0, lastT = 0;
     var SKI = { sail: '#eadcc2', stripe: '#1d1815', flag: '#1d1815', emb: 'crest', hull: '#40281a' };
@@ -2577,6 +2601,7 @@ var MTWar = (function () {
       if (t > 5.2 && t < 5.8) { ctx.fillStyle = 'rgba(160,235,255,' + (0.18 * (1 - (t - 5.2) / 0.6)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       var vg = ctx.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.32, W / 2, H * 0.5, Math.hypot(W, H) * 0.6);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(' + Math.round(30 * R) + ',0,0,' + (0.62 + 0.12 * R).toFixed(3) + ')'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gsQ, 0.5);
       WX.letterbox(ctx, W, H, sm(0, 1.2, t));
       ttl(ctx, W, H, sm(7.2, 8.8, t), 'PENGKHIANATAN', 'Meriam Skitraw berbalik arah', H * (port ? 0.12 : 0.14));
       fadeIn(ctx, W, H, t, 1);
@@ -2595,6 +2620,7 @@ var MTWar = (function () {
   // 2.6-4.6 mahkota kaca Istana Hening pecah, dua menara runtuh | 3-6.5 lampu kota padam, hologram mati
   // 6.5-15 fajar menembus asap, kembang api (pantul di laut) sejak 6.6, burung, bendera berkibar | 10 judul
   function sceneFall() {
+    var gsQ = {};
     var F = new WX.Fx(), S = [], L = C.makeLit(), LF = C.makeLit(), st = stars(U.rng(1212), 160), glit = MTSky.makeGlitter(U.rng(1213));
     var lay = null, shake = 0, tw = null, fired = {}, acc = { fw: 0, fire: 0, steam: 0, glass: 0 }, droneDown = {};
     var SKY = [[0, [7, 9, 24], [14, 20, 48], [26, 40, 78]], [0.22, [18, 20, 56], [66, 46, 98], [178, 92, 104]], [0.5, [48, 50, 104], [196, 112, 126], [255, 164, 108]], [0.75, [82, 108, 162], [244, 164, 134], [255, 204, 138]], [1, [104, 146, 198], [250, 204, 164], [255, 228, 176]]];
@@ -2952,6 +2978,7 @@ var MTWar = (function () {
       if (t > 0.6 && t < 2.6) { var fk = Math.exp(-(t - 0.6) * 2.6); ctx.fillStyle = 'rgba(255,250,240,' + Math.min(1, fk * 1.1).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
       var vg = ctx.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.32, W / 2, H * 0.5, Math.hypot(W, H) * 0.62);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.62 - 0.3 * dawn).toFixed(3) + ')'); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      C.filmGrain(ctx, W, H, gsQ, 0.45);
       WX.letterbox(ctx, W, H, 1 - sm(9, 12.5, t));
       ttl(ctx, W, H, sm(10, 11.6, t), 'MARIE REGAL MERDEKA', 'Genderang tak akan pernah diam lagi', H * (port ? 0.12 : 0.14));
       fadeIn(ctx, W, H, t, 0.6);
