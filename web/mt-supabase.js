@@ -73,16 +73,14 @@
    *  2. Rekam    : Storage.setItem/removeItem dibungkus; kunci berpola -> antre -> api_seenMark
    *                (jeda 3 dtk; saat tab disembunyikan/ditutup dikirim dengan fetch keepalive).
    *  3. Unggah   : penanda lama di browser yang belum ada di server ikut diantre (unggah pertama).
-   *  4. Penjaga  : kapten lama yang belum punya cadangan dan browsernya kosong -> selama pemuatan
-   *                pertama, sinematik layar penuh yang muncul sendiri langsung "Lewati" (alur & pilihan
-   *                tetap jalan, penanda tetap tercatat). Selesai saat pemain beraksi / 30 dtk / sekali saja.
+   * TIDAK ADA sinematik yang dilewati/disembunyikan otomatis (keputusan pemilik, 18 Nov 2026).
    * Pola kunci modul baru WAJIB ditambah di sini DAN di game.seen_ok (0088).
    * =================================================================== */
   var SEEN_RE = /^((bx|ww|kp|cb|ts|lt|dt|ps|pd):|th_|mt_pr_|mt_trek_|mt_seen_)/;
   var SP = window.Storage && Storage.prototype, LS = null;
   try { LS = window.localStorage; } catch (e) {}
   var nGet = SP && SP.getItem, nSet = SP && SP.setItem, nDel = SP && SP.removeItem;
-  var SEEN = { me: null, uid: null, synced: null, token: null, qs: {}, qd: {}, t: 0, busy: false, guard: null };
+  var SEEN = { me: null, uid: null, synced: null, token: null, qs: {}, qd: {}, t: 0, busy: false };
   function seenKeyOk(k) { return typeof k === 'string' && k.length >= 3 && k.length <= 96 && SEEN_RE.test(k); }
   // Kunci milik kapten yang sedang masuk (browser bisa dipakai bergantian beberapa akun)
   function seenOwn(k) {
@@ -128,14 +126,14 @@
   function seenFlushNow() {
     if (!SEEN.synced || !SEEN.token || !window.fetch) return;
     clearTimeout(SEEN.t); SEEN.t = 0;
-    var b; while ((b = seenBatch())) {
+    var b = seenBatch(); if (b) {
       try {
         fetch(String(C.supabaseUrl).replace(/\/+$/, '') + '/rest/v1/rpc/api_seenmark', {
           method: 'POST', keepalive: true,
           headers: { 'Content-Type': 'application/json', apikey: C.supabaseKey, Authorization: 'Bearer ' + SEEN.token },
           body: JSON.stringify({ a: b })
         }).catch(function () {});
-      } catch (e) { seenRequeue(b); break; }
+      } catch (e) { seenRequeue(b); }
     }
   }
   if (SP && LS && nSet) {
@@ -161,53 +159,11 @@
       if (!seenKeyOk(k) || !seenOwn(k)) continue;
       try { if (nGet.call(LS, k) === null) nSet.call(LS, k, String(srv[k])); } catch (e) {}
     }
-    own.forEach(function (k) { var v = nGet.call(LS, k); if (v !== null && srv[k] !== v) SEEN.qs[k] = v; });
+    own.forEach(function (k) { var v = nGet.call(LS, k); if (v !== null && !(k in srv)) SEEN.qs[k] = v; });
     SEEN.synced = SEEN.uid;
-    // th_/mt_trek_ tidak bernama kapten -> tidak dihitung sebagai "browser ini sudah punya penanda kapten ini"
-    if (sv.g && !own.some(function (k) { return !/^(th_|mt_trek_)/.test(k); })) seenGuardOn();
     if (Object.keys(SEEN.qs).length) seenSchedule();
   }
-  // Lapis 3: tekan "Lewati" pada sinematik layar penuh yang muncul sendiri saat pemuatan pertama.
-  // Hanya modul yang penandanya di localStorage; hk/ks (penanda server) & pr (sambutan kapten baru) dikecualikan.
-  var SKIP_NO = /(^|\s)(hk-cine|ks-cine|pr-cine)(\s|$)/;
-  function seenGuardOn() {
-    if (SEEN.guard || !window.MutationObserver) return;
-    var g = SEEN.guard = { mo: null, to: 0 };
-    function press(el, n) {
-      if (!SEEN.guard || !el.isConnected || el.classList.contains('out')) return;
-      var b = el.querySelector('button[class*="skip"]');
-      if (b) { try { b.click(); } catch (e) {} }
-      if (n < 2) setTimeout(function () { press(el, n + 1); }, 700);
-    }
-    function look(el) {
-      if (!el || el.nodeType !== 1 || SKIP_NO.test(String(el.className || ''))) return;
-      if (!el.querySelector('button[class*="skip"]') && !/cine|credits|crd/.test(String(el.className || ''))) return;
-      setTimeout(function () { press(el, 0); }, 80);
-    }
-    function start() {
-      if (SEEN.guard !== g) return;
-      g.mo = new MutationObserver(function (ms) { ms.forEach(function (m) { Array.prototype.forEach.call(m.addedNodes, look); }); });
-      g.mo.observe(document.body, { childList: true });
-    }
-    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
-    g.to = setTimeout(seenGuardOff, 30000);
-    document.addEventListener('click', g.onClick = function (e) {
-      // Pemain sengaja memutar ulang dari Tanda Jasa -> jangan dilewati
-      if (e.target && e.target.closest && e.target.closest('[class*="replay"]')) seenGuardOff();
-    }, true);
-    console.info('[Marantau] Buku Adegan: penanda dipulihkan untuk browser ini.');
-  }
-  function seenGuardOff() {
-    var g = SEEN.guard; if (!g) return;
-    SEEN.guard = null; clearTimeout(g.to);
-    try { if (g.mo) g.mo.disconnect(); } catch (e) {}
-    document.removeEventListener('click', g.onClick, true);
-    // Sekali saja per kapten: tanda ini membuat server tidak menyalakan penjaga lagi
-    try { if (SEEN.me) localStorage.setItem('mt_seen_guard:' + SEEN.me.u, '1'); } catch (e) {}
-  }
-  // Panggilan yang tidak mengubah langkah quest; selain ini = pemain beraksi -> penjaga selesai
-  var PASSIVE = /^api_(get|mppulse|gmstatus|ping|seenmark|pwstatus|authwhoami|usernameavailable|pollvoyage)/;
-  window.MTSeen = { flush: seenFlushNow, _s: SEEN, guardOff: seenGuardOff };
+  window.MTSeen = { flush: seenFlushNow, _s: SEEN };
 
   async function rpc(name, args, retried) {
     var fn = String(name).toLowerCase();
@@ -220,7 +176,6 @@
       var uid = s.data.session.user && s.data.session.user.id;
       if (uid !== SEEN.uid) { SEEN.uid = uid; SEEN.synced = null; SEEN.me = null; }
     }
-    if (SEEN.guard && !PASSIVE.test(fn)) seenGuardOff();
     // Buku Adegan: minta penanda dari server sekali per muat halaman (per akun)
     var wantSeen = fn === 'api_getgamestate' && SEEN.uid && SEEN.synced !== SEEN.uid && args && args.length === 1;
     if (wantSeen) args = [args[0], 'seen'];
