@@ -23,7 +23,9 @@ const DEV = ENV.OPS_DEV === '1';
 const BACKUP_REQ = ENV.OPS_BACKUP_REQ || '/backup-req';
 const MCP_TOKEN = ENV.OPS_MCP_TOKEN || '';
 const API_DOMAIN = ENV.OPS_API_DOMAIN || 'api.marantau.web.id';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
+const { Q: EKO, IKN_TARGET_DEFAULT } = require('./eko');
+const IKN_TARGET = +(ENV.OPS_IKN_TARGET || IKN_TARGET_DEFAULT);
 
 if (MCP_TOKEN && MCP_TOKEN.length < 32) { console.error('OPS_MCP_TOKEN minimal 32 karakter.'); process.exit(1); }
 if (!PASSWORD || PASSWORD.length < 16 || !TOTP_SECRET) {
@@ -266,6 +268,84 @@ async function dbStats() {
   const out = {};
   await Promise.all(Object.entries(tasks).map(async ([k, p]) => { try { out[k] = await p; } catch (e) { out[k] = null; (out.errors ||= {})[k] = e.message; } }));
   return out;
+}
+
+// ---------- Ekonomi & Kapten (dashboard) ----------
+// Pool sendiri supaya query berat tidak berebut koneksi dengan tab Database / connector MCP.
+const dashPool = new Pool({
+  host: ENV.OPS_PG_HOST || 'db', port: +(ENV.OPS_PG_PORT || 5432), database: 'postgres',
+  user: ENV.OPS_PG_USER || 'mt_ops_ro', password: ENV.OPS_PG_PASSWORD || '',
+  max: 2, idleTimeoutMillis: 30000, connectionTimeoutMillis: 4000, application_name: 'marantau-ops-dash',
+});
+dashPool.on('error', e => console.error('pg dash pool:', e.message));
+async function dashRows(sql) {
+  const c = await dashPool.connect();
+  let broken = false;
+  try {
+    await c.query('begin read only');
+    await c.query("set local statement_timeout = '15s'");
+    await c.query("set local idle_in_transaction_session_timeout = '20s'");
+    return (await c.query(sql)).rows;
+  } finally {
+    try { await c.query('rollback'); } catch { broken = true; }
+    c.release(broken);
+  }
+}
+const cacheMap = new Map(); // key -> { at, val, pending }
+function cached(key, ttlMs, fn, force = false) {
+  const e = cacheMap.get(key);
+  if (e && e.val !== undefined && !force && now() - e.at < ttlMs) return Promise.resolve(e.val);
+  if (e && e.pending) return e.pending;
+  const pending = fn().then(val => { cacheMap.set(key, { at: now(), val }); return val; },
+    err => { const o = cacheMap.get(key); if (o) delete o.pending; throw err; });
+  cacheMap.set(key, { ...(e || {}), pending });
+  return pending;
+}
+// Satu potongan gagal tidak boleh mematikan seluruh halaman: tiap potongan membawa errornya sendiri.
+async function parts(map) {
+  const out = {}, errors = {};
+  await Promise.all(Object.entries(map).map(async ([k, sql]) => {
+    try { out[k] = await dashRows(sql); } catch (e) { out[k] = null; errors[k] = e.message; }
+  }));
+  return { out, errors };
+}
+
+const EKO_FILE = path.join(DATA, 'ekonomi-harian.json');
+let ekoDays = {};
+try { ekoDays = JSON.parse(fs.readFileSync(EKO_FILE, 'utf8')).days || {}; } catch {}
+async function snapEkonomi() {
+  const { out } = await parts({ r: EKO.ringkasan, k: EKO.kepingTotal, i: EKO.ikn });
+  const r = out.r && out.r[0]; if (!r) return;
+  ekoDays[wibDate()] = {
+    pemain: r.pemain, aktif24: r.aktif_24j, aktif7: r.aktif_7h, gold: r.total_gold, bank: r.total_bank, utang: r.total_utang,
+    kekayaan: r.total_kekayaan, median: r.median_kekayaan, top1: r.pangsa_terkaya_pct, top3: r.pangsa_top3_pct, gini: r.gini,
+    bunga: r.bunga_per_hari, laba: r.laba_dagang_24j,
+    ikn: out.i && out.i[0] ? out.i[0].total : null, keping: out.k && out.k[0] ? out.k[0].beredar : null,
+  };
+  const keys = Object.keys(ekoDays).sort();
+  for (const k of keys.slice(0, Math.max(0, keys.length - 400))) delete ekoDays[k];
+  try { fs.writeFileSync(EKO_FILE + '.tmp', JSON.stringify({ days: ekoDays })); fs.renameSync(EKO_FILE + '.tmp', EKO_FILE); }
+  catch (e) { console.error('simpan ekonomi:', e.message); }
+}
+setTimeout(() => snapEkonomi().catch(e => console.error('snapshot ekonomi:', e.message)), 30e3);
+setInterval(() => snapEkonomi().catch(e => console.error('snapshot ekonomi:', e.message)), 60 * 60e3);
+
+function ekonomi(force) {
+  return cached('ekonomi', 60e3, async () => {
+    const { out, errors } = await parts({
+      ringkasan: EKO.ringkasan, dagang: EKO.dagang, arus: EKO.arus, stok: EKO.stok, ikn: EKO.ikn,
+      kongsiTier: EKO.kongsiTier, kongsiMinggu: EKO.kongsiMinggu, keping: EKO.keping, kepingTotal: EKO.kepingTotal,
+      tony: EKO.tony, tonyBuru: EKO.tonyBuru, pacu: EKO.pacu,
+    });
+    const riwayat = Object.keys(ekoDays).sort().map(d => ({ hari: d, ...ekoDays[d] }));
+    return { at: now(), iknTarget: IKN_TARGET, riwayat, errors, ...out };
+  }, force);
+}
+function kapten(force) {
+  return cached('kapten', 60e3, async () => {
+    const { out, errors } = await parts({ pemain: EKO.pemain, questPemain: EKO.questPemain, questRingkas: EKO.questRingkas });
+    return { at: now(), errors, ...out };
+  }, force);
 }
 
 // ---------- 5xx dari log Caddy (api.) ----------
@@ -769,8 +849,8 @@ const SEC_HEADERS = {
   'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
-function sendFile(res, f, type) {
-  try { const b = fs.readFileSync(path.join(PUB, f)); res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' }); res.end(b); }
+function sendFile(res, f, type, cache = 'no-cache') {
+  try { const b = fs.readFileSync(path.join(PUB, f)); res.writeHead(200, { 'Content-Type': type, 'Cache-Control': cache }); res.end(b); }
   catch { res.writeHead(404); res.end(); }
 }
 const audit = (ip, what) => console.log(`[audit] ${new Date().toISOString()} ${ip} ${what}`);
@@ -782,7 +862,9 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return sendFile(res, 'index.html', 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/app.js') return sendFile(res, 'app.js', 'text/javascript; charset=utf-8');
-    if (req.method === 'GET' && p === '/app.css') return sendFile(res, 'app.css', 'text/css; charset=utf-8');
+    if (req.method === 'GET' && /^\/(app|tokens|base)\.css$/.test(p)) return sendFile(res, p.slice(1), 'text/css; charset=utf-8');
+    if (req.method === 'GET' && p === '/ekonomi.js') return sendFile(res, 'ekonomi.js', 'text/javascript; charset=utf-8');
+    if (req.method === 'GET' && /^\/fonts\/[a-z0-9-]+\.woff2$/.test(p)) return sendFile(res, p.slice(1), 'font/woff2', 'public, max-age=31536000, immutable');
     if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true, v: VERSION });
     if (MCP_TOKEN && p.startsWith('/mcp/')) {
       if (!safeEq(p.slice(5).replace(/\/$/, ''), MCP_TOKEN)) { await sleep(300); res.writeHead(404); return res.end('Not found'); }
@@ -843,6 +925,8 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
       if (req.method === 'GET' && p === '/api/db') return json(res, 200, await dbStats());
+      if (req.method === 'GET' && p === '/api/ekonomi') return json(res, 200, await ekonomi(url.searchParams.get('fresh') === '1'));
+      if (req.method === 'GET' && p === '/api/kapten') return json(res, 200, await kapten(url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/http') return json(res, 200, await http5xx(24));
       if (req.method === 'GET' && p === '/api/backup') return json(res, 200, backups());
       if (req.method === 'POST' && p === '/api/backup/run') {
