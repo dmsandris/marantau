@@ -600,7 +600,7 @@ var FG = (function () {
         '<div class="fg-msg" id="fgMsg"></div><div class="fg-hint" id="fgHint">' + (inT ? 'Kapal sedang berlayar &mdash; mancing saat merapat.' : '<b>Tahan</b> klik / Spasi untuk mengisi tenaga lemparan') + '</div>' +
         '<div class="fg-card" id="fgCard" hidden></div></div>' +
       '<div class="fg-bar" id="fgBar"><div class="skeleton-block" style="height:64px;"></div></div>' +
-      '<div class="fg-tabs"><button data-tab="log" class="on">' + ic('journal') + ' Tangkapan hari ini</button><button data-tab="book">' + ic('book') + ' Buku Ikan <span id="fgBookN"></span></button><button data-tab="legend" id="fgLegTab" hidden>' + ic('star') + ' Buku Legenda <span id="fgLegN"></span></button></div>' +
+      '<div class="fg-tabs"><button data-tab="news">' + ic('chat') + ' Syahbandar</button><button data-tab="log" class="on">' + ic('journal') + ' Tangkapan hari ini</button><button data-tab="book">' + ic('book') + ' Buku Ikan <span id="fgBookN"></span></button><button data-tab="legend" id="fgLegTab" hidden>' + ic('star') + ' Buku Legenda <span id="fgLegN"></span></button></div>' +
       '<div id="fgTab"></div>');
     var cv = document.getElementById('fgCanvas');
     cv.addEventListener('pointerdown', function (e) { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} press(); });
@@ -668,7 +668,7 @@ var FG = (function () {
     };
   }
 
-  function drawTab() { if (S.tab === 'book') drawBook(); else if (S.tab === 'legend') drawLegend(); else drawLog(); }
+  function drawTab() { if (S.tab === 'news') drawNews(); else if (S.tab === 'book') drawBook(); else if (S.tab === 'legend') drawLegend(); else drawLog(); }
   var REGION = { nusantara: 'Mare Nusantara', baru: 'Pulau & laut baru', moramora: 'Benua Moramora', lampau: 'Benua Sudyrman · 40 Tahun Lalu' };
   // pesan tangkapan halaman-halaman terakhir (0083) tampil di kartu hasil
   var LEG_MSG = { ikan_kabut: 1, ikan_rantai: 1, lumba_gema: 1, gurita_arsip: 1, kakap_dua_tangan: 1, hiu_kumis_hitam: 1, ikan_terakhir: 1 };
@@ -741,6 +741,32 @@ var FG = (function () {
     el.innerHTML = html;
     var sb = document.getElementById('fgStumpy'); if (sb) sb.onclick = function () { legStumpy_(sb); };
     paintThumbs(el);
+  }
+  /* Kabar Syahbandar (tangkapan langka): dulu di chat Dunia, kini di sini. Tanpa lencana/penanda baru. */
+  function drawNews() {
+    if (S.tab !== 'news') return;
+    var el = document.getElementById('fgTab'); if (!el) return;
+    if (!S.news) el.innerHTML = '<div class="skeleton-block" style="height:90px;"></div>'; else drawNewsRows_(el, S.news);
+    loadNews_();
+  }
+  function loadNews_() {
+    clearTimeout(S.newsT);
+    google.script.run.withSuccessHandler(function (r) {
+      r = r || [];
+      var ids = function (x) { return (x || []).map(function (m) { return m.id; }).join(','); };
+      var changed = !S.news || ids(S.news) !== ids(r);
+      S.news = r;
+      if (S.tab !== 'news' || currentPanel !== 'fishing') return;
+      if (changed) { var el = document.getElementById('fgTab'); if (el) drawNewsRows_(el, S.news); }
+      S.newsT = setTimeout(function () { if (S.tab === 'news' && currentPanel === 'fishing') loadNews_(); }, 15000);
+    }).withFailureHandler(function (e) { var b = document.getElementById('fgTab'); if (!S.news && b && S.tab === 'news') b.textContent = e.message; }).api_mgFishNews();
+  }
+  function drawNewsRows_(el, list) {
+    el.innerHTML = list.length ? '<div class="fg-news">' + list.slice().reverse().map(function (m) {
+      var t = new Date(m.ts);
+      return '<div class="fg-nw"><span class="fg-nw-n">' + esc_(m.n) + '</span>' + (m.city ? '<span class="fg-nw-c">' + esc_(cityName_(m.city)) + '</span>' : '') +
+        '<span class="fg-nw-t">' + ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + '</span><div class="fg-nw-x">' + esc_(m.tx) + '</div></div>';
+    }).join('') + '</div>' : '<div class="card empty-state">' + ic('chat') + 'Belum ada kabar dari Syahbandar.</div>';
   }
   function drawLog() {
     if (S.tab !== 'log') return;
