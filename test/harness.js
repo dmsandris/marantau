@@ -50,6 +50,9 @@ async function create(opts = {}) {
     try { await db.exec(fs.readFileSync(path.join(MIG_DIR, f), 'utf8')); }
     catch (e) { e.message = `[migrasi ${f}] ${e.message}`; throw e; }
   }
+  // Sorotan Pulau (0090) mati selama tes supaya harga & stok pasar tidak ikut bergeser menurut tanggal;
+  // tes 0090 menyalakannya sendiri.
+  await db.exec("update game.config set value = '0' where key = 'SorotanAktif'").catch(() => { });
   const H = {
     db,
     users: {},
