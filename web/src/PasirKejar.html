@@ -494,19 +494,25 @@ var PSK = (function () {
 
   /* ---------- Tasks: jurnal kisah yang tamat dilipat ---------- */
   wrap_('setModal_', function () {
-    if (currentPanel !== 'tasks' || !p()) return;
-    var c = document.getElementById('modalContent'), box = c && c.querySelector('.ps-wrap'); if (!box || box.querySelector('.psk-done')) return;
-    var q = (p().q) || {}, done = [];
+    if (currentPanel !== 'tasks') return;
+    var c = document.getElementById('modalContent'); if (!c || c.querySelector('.psk-done')) return;
+    var box = c.querySelector('.ps-wrap'), q = (p() && p().q) || {}, done = [];
     function fold(el) { if (el) done.push(el); }
     // Q10 (jurnal langsung di .ps-wrap), Q11..Q14 (div .psNN-j)
-    if (q['11'] >= 1) fold(box.querySelector(':scope > .qg-journal'));
-    if (q['12'] >= 1) fold(box.querySelector('.ps11-j'));
-    if (q['12'] >= 7) fold(box.querySelector('.ps12-j'));
-    if (q['13'] >= 7) fold(box.querySelector('.ps13-j'));
-    if (q['14'] >= 6) fold(box.querySelector('.ps14-j'));
+    if (box) {
+      if (q['11'] >= 1) fold(box.querySelector(':scope > .qg-journal'));
+      if (q['12'] >= 1) fold(box.querySelector('.ps11-j'));
+      if (q['12'] >= 7) fold(box.querySelector('.ps12-j'));
+      if (q['13'] >= 7) fold(box.querySelector('.ps13-j'));
+      if (q['14'] >= 6) fold(box.querySelector('.ps14-j'));
+    }
+    // Saga 2 yang sudah tamat ikut dilipat ke lemari yang sama
+    fold(c.querySelector('.dt-done'));
     if (!done.length) return;
+    box = box || c;
     var det = document.createElement('details'); det.className = 'psk-done';
     det.innerHTML = '<summary>' + ic('scroll') + ' Kisah yang sudah selesai (' + done.length + ')</summary>';
+    done.forEach(function (el) { if (el.tagName === 'DETAILS') el.open = false; });
     done.forEach(function (el) { det.appendChild(el); });
     box.appendChild(det);
   });
