@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Panel Ops Marantau: kondisi server, layanan, database, backup, ekonomi, dan kapten.">
+<meta name="description" content="Panel Ops Marantau: kondisi server, layanan, database, backup, ekonomi, kapten, dan audit.">
 <title>Marantau Ops</title>
 <link rel="icon" href="data:,">
 <link rel="preload" href="/fonts/chivo-mono-800.woff2" as="font" type="font/woff2" crossorigin>
@@ -35,6 +35,7 @@
         <span class="tab-gap" aria-hidden="true"></span>
         <a class="tab" href="#/ekonomi" data-tab="ekonomi">Ekonomi</a>
         <a class="tab" href="#/kapten" data-tab="kapten">Kapten</a>
+        <a class="tab" href="#/audit" data-tab="audit">Audit</a>
       </nav>
       <div class="who"><span id="clock"></span><button id="logout" type="button" class="btn btn--small">Keluar</button></div>
     </div>
@@ -128,10 +129,62 @@
         <div class="filterbar"><input id="cariQuest" class="search" type="search" name="cari-quest" placeholder="Cari kapten, saga, atau quest" aria-label="Cari progres quest"></div>
         <div id="kapQuest"></div></div>
     </section>
+
+    <section data-panel="audit" class="hidden" aria-labelledby="h-audit">
+      <div class="head"><div><h1 id="h-audit">Audit</h1><p class="sub">Isi gudang, transfer gold, jual-beli antar kapten di Bursa, dan jejak satu kapten. Hanya baca, di-cache 60 detik. Klik nama kapten untuk membuka jejaknya.</p></div>
+        <div class="tools"><span id="audStamp" class="stamp"></span><button id="audRefresh" type="button" class="btn">Muat ulang</button></div>
+      </div>
+      <div class="filterbar">
+        <div class="seg" id="audBagian" role="group" aria-label="Bagian audit">
+          <button type="button" data-b="gudang" aria-pressed="true">Gudang</button><button type="button" data-b="transfer" aria-pressed="false">Transfer gold</button><button type="button" data-b="bursa" aria-pressed="false">Bursa</button><button type="button" data-b="jejak" aria-pressed="false">Jejak kapten</button>
+        </div>
+        <div class="seg" id="audJam" role="group" aria-label="Rentang catatan">
+          <button type="button" data-j="24" aria-pressed="false">24 jam</button><button type="button" data-j="168" aria-pressed="true">7 hari</button><button type="button" data-j="720" aria-pressed="false">30 hari</button><button type="button" data-j="semua" aria-pressed="false">Semua</button>
+        </div>
+        <input id="audCari" class="search" type="search" name="cari-audit" placeholder="Cari kapten, pulau, atau barang" aria-label="Cari di audit">
+      </div>
+
+      <div data-aud="gudang">
+        <div id="audGudBoard"></div>
+        <div class="block"><h2>Per kapten</h2><p class="note">Isi gudang sekarang di semua pulau, urut dari nilai terbesar. Nilai dihitung dari harga dasar barang.</p><div id="audGudKapten"></div></div>
+        <div class="block"><h2>Rincian gudang</h2><p class="note">Satu baris per kapten, pulau, dan barang. Pangsa adalah bagian kapten itu dari semua unit barang yang dipegang pemain, gudang dan palka. Klik judul kolom untuk mengurutkan.</p>
+          <div class="filterbar"><label class="chk"><input id="audPalka" type="checkbox" name="ikut-palka"> Ikut isi palka kapal</label></div>
+          <div id="audGudRinci"></div></div>
+        <div class="block"><h2>Arus gudang</h2><p class="note">Barang dititip dan diambil dalam rentang yang dipilih, dari catatan kapten. Bersih positif berarti barang menumpuk di gudang.</p><div id="audGudArus"></div></div>
+      </div>
+
+      <div data-aud="transfer" class="hidden">
+        <div id="audTrBoard"></div>
+        <div class="grid2">
+          <div class="block"><h2>Penerima terbesar</h2><div id="audTrTerima"></div></div>
+          <div class="block"><h2>Pengirim terbesar</h2><div id="audTrKirim"></div></div>
+        </div>
+        <div class="block"><h2>Pasangan terbesar</h2><p class="note">Gold dari pengirim ke penerima, dengan arus balik dari penerima ke pengirim. Urut dari arus bersih terbesar.</p><div id="audTrPasang"></div></div>
+        <div class="block"><h2>Semua transfer</h2><p class="note">Transaksi terakhir di atas, maksimal 1.000 baris. Klik judul kolom untuk mengurutkan.</p><div id="audTrDaftar"></div></div>
+      </div>
+
+      <div data-aud="bursa" class="hidden">
+        <div id="audBuBoard"></div>
+        <div class="block"><h2>Pasangan terbesar</h2><p class="note">Pembeli dan penjual yang paling banyak bertransaksi, urut dari nilai terbesar. Selisih harga jauh di bawah atau di atas harga dasar bisa berarti gold dipindahkan lewat Bursa.</p><div id="audBuPasang"></div></div>
+        <div class="block"><h2>Semua transaksi Bursa</h2><p class="note">Transaksi terakhir di atas, maksimal 1.000 baris. Selisih dibanding harga dasar barang.</p><div id="audBuDaftar"></div></div>
+        <div class="block"><h2>Order terbuka</h2><div id="audBuOrder"></div></div>
+      </div>
+
+      <div data-aud="jejak" class="hidden">
+        <div class="filterbar"><label class="field field--inline" for="audKapten">Kapten<select id="audKapten" class="search" name="kapten"></select></label></div>
+        <div id="audJeBoard"></div>
+        <div class="grid2">
+          <div class="block"><h2>Transfer gold</h2><p class="note">Masuk dan keluar dalam rentang yang dipilih.</p><div id="audJeTransfer"></div></div>
+          <div class="block"><h2>Hak Lot, 14 hari</h2><div id="audJeLot"></div></div>
+        </div>
+        <div class="block"><h2>Linimasa catatan</h2><p class="note">400 catatan terakhir dalam rentang. Kotak cari di atas menyaring isi catatan.</p><div id="audJeLog"></div></div>
+      </div>
+    </section>
   </main>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 </div>
 <script src="/app.js"></script>
 <script src="/ekonomi.js"></script>
+<script src="/audit.js"></script>
 </body>
 </html>
