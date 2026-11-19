@@ -4,13 +4,8 @@
   .mk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font: 700 11px Georgia, serif;
     letter-spacing: .1em; text-transform: uppercase; background: rgba(36,71,122,.14); color: #17335e; border: 1px solid rgba(36,71,122,.45); }
   .mk-badge svg { width: 13px; height: 13px; }
-  .mk-arah { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px;
-    background: rgba(36,71,122,.1); border: 1px solid rgba(36,71,122,.3); color: #17335e; }
-  .mk-arah svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
-  .mk-arah .t { font: 700 11px Georgia, serif; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
-  .mk-arah .d { font: 400 14px/1.5 Georgia, serif; margin-top: 2px; }
-  .mk-arah .d b { font-weight: 700; }
-  .mk-tunjuk { display: grid; gap: 2px; }
+  .mk-tunjuk-baris { display: flex; align-items: center; gap: 6px; margin: 2px 0 10px; opacity: .85; }
+  .mk-tunjuk-baris svg { width: 15px; height: 15px; flex: none; }
   .mk-art { display: block; width: 100%; max-width: 420px; height: auto; margin: 4px auto 0; border-radius: 12px; }
   .mk-reward { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px;
     background: rgba(201,164,80,.16); border: 1px solid rgba(150,110,40,.35); color: #3f2a14; }
@@ -150,11 +145,12 @@ var MK = (function () {
   function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
   // nama tempat untuk tiap jenis panel — dipakai penunjuk arah
   var TEMPAT = { tavern: 'Lapau', tasks: 'Papan Tugas', ship: 'Dermaga (panel Kapal)', market: 'Pasar', setsail: 'layar Berlayar',
-    library: 'Perpustakaan', sirkuit: 'Sirkuit Selat Lurus', garasi: 'Garasi Yaptob', tiba: 'begitu kapal merapat', heat: 'begitu kapal merapat' };
+    library: 'Perpustakaan', sirkuit: 'Sirkuit Selat Lurus', garasi: 'Garasi Yaptob', tiba: 'begitu kapal merapat', heat: 'begitu kapal merapat',
+    laut: 'angkat sauh ke sana' };
   // arah satu langkah: kota + tempat + catatan malam
   function arah(d) {
     if (!d) return null;
-    var kota = d.c ? (cityNm(d.c) || null) : null, tempat = TEMPAT[d.setor ? 'market' : d.at] || null;
+    var kota = (d.c || d.tuju) ? (cityNm(d.c || d.tuju) || null) : null, tempat = TEMPAT[d.setor ? 'market' : d.at] || null;
     if (d.setor) { kota = null; tempat = 'Zona Cukai: tembus jaringnya, lalu setor di pasar kota itu'; }
     if (d.at === 'setsail' && !d.c) { kota = null; tempat = 'Zona Cukai mana pun &mdash; lihat tanda di layar Berlayar'; }
     if (!kota && !tempat) return null;
@@ -187,6 +183,8 @@ var MK = (function () {
       if (r.mahkota !== undefined && state) state.mahkota = r.mahkota;
       if (r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
       if (typeof invalidatePanelCache_ === 'function') try { invalidatePanelCache_(); } catch (e) { }
+      // kota/bangunan yang baru terbuka harus langsung terlihat, tanpa menunggu pelayaran berikutnya
+      if (args && args[0] !== 'status' && typeof loadState === 'function') { try { loadState(); } catch (e) { } }
       try { ok(r); } catch (e) { console.warn('[MK]', e); }
     }).withFailureHandler(function (e) {
       if (b) b.disabled = false;
@@ -410,7 +408,8 @@ var MK = (function () {
     /* 1 */ { at: 'tavern', main: 'lapau', icon: 'bird', title: 'Pelikan Ratu',
       p: [{ narr: 'Seekor pelikan di jendela', icon: 'bird', t: '<p>Seekor pelikan besar hinggap di kusen, menjatuhkan gulungan kecil bersegel lilin ungu Marie Regal, lalu pergi tanpa menunggu balasan.</p><p class="muted small">Di cakrawala, garis cahaya biru berkedip dua kali.</p>' }],
       b: btn('go', 'scroll', 'Buka surat'),
-      a: [{ narr: 'Surat Ratu Marlya', icon: 'scroll', t: '<p><i>"Laut menjadi biru. Datanglah ke kota burung perunggu."</i></p><p>Tidak ada tanda tangan. Hanya segel, dan bekas tinta yang terburu-buru.</p>' }],
+      a: [{ narr: 'Surat Ratu Marlya', icon: 'scroll', t: '<p><i>"Laut menjadi biru. Datanglah ke kota burung perunggu."</i></p><p>Tidak ada tanda tangan. Hanya segel, dan bekas tinta yang terburu-buru.</p>' },
+        { narr: 'Burung perunggu', icon: 'map', t: '<p>Pelikan itu menolak terbang sebelum kau menyebut satu nama. Baru setelah kau bilang <b>IKN</b> &mdash; satu-satunya pelabuhan yang punya burung perunggu berdiri di atas monumennya &mdash; ia melepaskan cengkeramannya dari tiang.</p>' }],
       next: 'Kota burung perunggu: IKN.' },
 
     /* 2 */ { at: 'tasks', c: 'ikn', main: 'hitam', icon: 'users', title: 'Monumen Restorasi',
@@ -507,7 +506,9 @@ var MK = (function () {
               { t: '"Nama. Sekarang."', ok: false, r: '<i>Ia menggeleng dan menatap pintu.</i>' },
               { t: '"Saya lindungi kau dari kantor biru."', ok: false, r: '"Dengan apa, Kapten? Kapal Kapten pun kena cukai."' }] }
         ] } },
-      a: [{ narr: 'Hadiah Q15', icon: 'coin', t: '<p>Hasiolan menyelipkan sekantung keping ke tanganmu. "Ini dari zafachmie. Katanya untuk ongkos, bukan untuk bayaran."</p>' }],
+      a: [{ narr: 'Hadiah Q15', icon: 'coin', t: '<p>Hasiolan menyelipkan sekantung keping ke tanganmu. "Ini dari zafachmie. Katanya untuk ongkos, bukan untuk bayaran."</p>' },
+        '"Rantai itu dibayar orang, Kapten, bukan tumbuh sendiri. Dan semua nama yang kalah bayar pernah lewat satu meja." <i>Ia menenggak sisa araknya.</i>',
+        '"Ruang VIP di Paradiso. Cari Bang Rimba &mdash; tapi jangan siang-siang; mejanya baru hidup kalau lampu sudah menyala."'],
       next: 'Ruang VIP, Paradiso, saat lampu dinyalakan.' },
 
     /* 8 */ { at: 'tavern', c: 'paradiso', t: 'malam', main: 'rimba', icon: 'dice', title: 'Ruang VIP',
@@ -535,21 +536,21 @@ var MK = (function () {
         '"Satu lagi, Kapten: di sana gold tidak dihormati. Yang dihormati cuma waktu tempuh."'],
       next: 'Berlayar ke Zentul.' },
 
-    /* 10 */ { at: 'tiba', c: 'zentul', main: 'lapau', icon: 'wind', title: 'Kabut Berbau Oli',
+    /* 10 */ { at: 'laut', tuju: 'zentul', main: 'lapau', icon: 'wind', title: 'Kabut Berbau Oli',
       p: [{ narr: 'Di tepi kabut', icon: 'wind', t: '<p>Kabut berubah pekat dan berbau oli terbakar. Arus asap menyeret haluan ke segala arah sekaligus; di suatu tempat di depan sana ada bunyi mesin.</p>' }],
       b: btn('go', 'wind', 'Baca arus asap'),
       g: { kind: 'angin', opts: { kicker: 'Selat berkabut &middot; menuju Zentul', title: 'Jaring Angin &middot; Kabut Oli', zones: 3,
         intro: 'Asapnya berputar-putar, Kapten. Baca embusannya, cari celah yang berbau oli paling tajam.',
         winLine: 'Sedikit lagi &mdash; obornya sudah kelihatan!' } },
-      cineAfter: { kind: 'mk_zentul', slides: [
+      a: [{ narr: 'Celah di kabut', icon: 'wind', t: '<p>Asap membuka satu jalur sempit yang baunya paling tajam. Kau kunci haluan ke sana dan membiarkan angin menarik kapalmu masuk.</p>' }],
+      next: 'Zentul, di ujung kabut.' },
+    /* 11 */ { at: 'tavern', c: 'zentul', main: 'rayan', icon: 'cup', title: 'Lapau Oli',
+      tibaCine: { kind: 'mk_zentul', slides: [
         'Kabut membuka seperti tirai berminyak. Di depan haluan, sebuah atol tersusun dari lambung-lambung perahu rongsok.',
         'Obor di tiang-tiang bambu menyala siang malam. Bunyi mesin memantul dari dinding lambung kayu.',
         'Lalu sesuatu melesat lurus di selat: satu perahu, satu garis api di air, dan bunyi "trek-trek-trek" yang menjauh dalam dua detik.'] },
-      a: [{ narr: 'Zentul', icon: 'anchor', t: '<p>Kapalmu merapat di antara derek-derek kayu. Seseorang di atap garasi menatap kapalmu sebentar, lalu meludah ke samping dan masuk lagi.</p>' },
+      tibaScene: [{ narr: 'Zentul', icon: 'anchor', t: '<p>Kapalmu merapat di antara derek-derek kayu. Seseorang di atap garasi menatap kapalmu sebentar, lalu meludah ke samping dan masuk lagi.</p>' },
         '"Pendatang. Kalau mau balapan, daftarnya di <b>Lapau Oli</b>. Kalau cuma mau lihat-lihat, jangan berdiri di tengah selat."'],
-      next: 'Lapau Oli, Zentul.' },
-
-    /* 11 */ { at: 'tavern', c: 'zentul', main: 'rayan', icon: 'cup', title: 'Lapau Oli',
       p: [{ narr: 'Lapau Oli &middot; Zentul', icon: 'cup', t: '<p>Gelas-gelas kopi berjejer di atas kaleng oli bekas. Di dinding, papan bagan turnamen dari kayu, penuh cap jempol berminyak.</p>' },
         '"Rayan Bazzy. Saya yang mencatat, saya juga yang menagih kopi." <i>Ia membuka buku turnamen yang halamannya lengket.</i>',
         '"Turunan Obor tahun ini: babak pertama lawan <b>Pariopelan</b>, semifinal lawan <b>KapalMber</b>, final lawan juara bertahan <b>cangcimen</b>."',
@@ -564,6 +565,9 @@ var MK = (function () {
         { n: 'pario', t: '"Kapal dagang? Di selat ini?" <i>Ia melihat lambungmu, lalu ke mesinmu, lalu tertawa.</i> "Tidak apa-apa. Semua orang mulai dari kalah."' },
         '"Aturannya satu: ketuk saat meriam berbunyi, naikkan gigi empat kali, tahan di gigi lima. Sisanya urusan mesin."'],
       b: btn('go', 'flag', 'Turun ke garis start: Babak 1'),
+      a: [{ narr: 'Setelah garis finis', icon: 'flag', t: '<p>Pariopelan menepuk lambungmu dua kali, cara orang Zentul bilang "lumayan". Rayan Bazzy mencoret sesuatu di papan bagan.</p>' },
+        '"Bukan tanganmu yang kalah, Kapten &mdash; mesinmu. Lambung dagang begitu tidak akan pernah menang di selat lurus."',
+        '"Naik ke garasi di ujung dermaga. Yaptob yang pegang mesin di sini. Bilang saya yang suruh."'],
       next: 'Garasi Yaptob, Zentul.' },
 
     /* 13 */ { at: 'garasi', c: 'zentul', main: 'yaptob', icon: 'wrench', title: 'Garasi Yaptob',
@@ -625,7 +629,9 @@ var MK = (function () {
         '"Final melawan cangcimen. Lambungnya Warlord, dibayar uang Kumis Hitam. Mesinmu belum cukup."',
         '"Aku butuh <b>jantung yang lebih kuat</b>. Dan aku harus tahu kenapa Jaring itu buta dua detik." <i>Ia meletakkan kikirnya.</i> "Tanya orang yang pernah bekerja untuk mesin itu. Yang pegang kemudi kapal hitam itu."'],
       b: btn('go', null, 'Catat pesannya', false),
-      a: [{ narr: 'Catatan di sobekan amplas', icon: 'scroll', t: '<p>Satu kata: <b>Skitraw</b>. Di bawahnya, gambar rantai dengan dua mata yang kosong.</p>' }],
+      a: [{ narr: 'Catatan di sobekan amplas', icon: 'scroll', t: '<p>Satu kata: <b>Skitraw</b>. Di bawahnya, gambar rantai dengan dua mata yang kosong.</p>' },
+        '"Pelat sebagus itu tidak dipotong di sini, Kapten. Cuma satu galangan yang bisa: <b>Gaul-Wash</b>, di Skitraw."',
+        '"Bawa kapalmu ke sana, jangan catatannya saja. Mereka cuma mau bicara kalau lambungnya ada di hadapan mereka."'],
       next: 'Galangan Gaul-Wash, Skitraw.' },
 
     /* 19 */ { at: 'ship', c: 'skitraw', main: 'gaul', icon: 'moon', title: 'Pola Rantai',
@@ -672,7 +678,9 @@ var MK = (function () {
         '"Rencananya namanya <b>Banjir Sutra</b>: tiga zona dibanjiri barang tanpa cap sampai pembukuan mereka tidak masuk akal. Tapi Barisan Pacu baru ikut kalau kau <b>juara</b>."',
         '"Dan untuk juara, kau butuh batu itu. Yang punya, seorang ratu yang sekarang tidak bisa tidur."'],
       b: btn('go', null, 'Dengarkan rencananya', false),
-      a: [{ narr: 'Hadiah Q17 &middot; tanda jasa "Dua Detik"', icon: 'medal', t: '<p>Bang Rimba mendorong sekantung keping ke arahmu, lalu satu lencana timah kecil berbentuk dua garis.</p><p><i>"Dua detik. Itu saja jarak antara orang bebas dan orang yang mengantre."</i></p>' }],
+      a: [{ narr: 'Hadiah Q17 &middot; tanda jasa "Dua Detik"', icon: 'medal', t: '<p>Bang Rimba mendorong sekantung keping ke arahmu, lalu satu lencana timah kecil berbentuk dua garis.</p><p><i>"Dua detik. Itu saja jarak antara orang bebas dan orang yang mengantre."</i></p>' },
+        '"Tapi dua detik itu ada yang mengatur, Kapten. Rantai sepanjang itu butuh otak, dan otaknya bukan di sini."',
+        '"Kota kaca. <b>Marie Regal</b>. Di sana ada yang tidak bisa berbohong: robot-robot laboratorium. Datanglah malam, waktu lab mereka menyala."'],
       next: 'Laboratorium Regal, Marie Regal, saat malam.' },
 
     /* 24 */ { at: 'library', c: 'marie_regal', t: 'malam', main: 'marlya', icon: 'eye', title: 'Robot yang Tidak Bisa Bohong',
@@ -693,7 +701,8 @@ var MK = (function () {
             kata: 'PUKUL 02.14 DUA PENCURI MEMANJAT JENDELA DAN MEMBONGKAR PINTU. SAYA MELIHATNYA.', salah: '' }
         ] } },
       a: [{ narr: 'Catatan yang cocok', icon: 'eye', t: '<p>L-07 mengulang kalimat yang sama persis tiga kali, dengan jeda yang sama persis.</p>' },
-        { n: 'marlya', t: '"R-02 menutup catatannya: <b>\'PINTU DIBUKA DENGAN KUNCI RATU.\'</b>"' }],
+        { n: 'marlya', t: '"R-02 menutup catatannya: <b>\'PINTU DIBUKA DENGAN KUNCI RATU.\'</b>"' },
+        { narr: 'Hanya satu kunci', icon: 'crown', t: '<p>L-07 menambahkan satu kalimat, datar seperti sebelumnya: <i>"Kunci Ratu dipegang Ratu. Ratu berada di istana. Istana menerima tamu setelah lampu dinyalakan."</i></p>' }],
       next: 'Istana Marie Regal, saat malam.' },
 
     /* 25 */ { at: 'tasks', c: 'marie_regal', t: 'malam', main: 'marlya', icon: 'crown', title: 'Kunci Ratu',
@@ -706,7 +715,9 @@ var MK = (function () {
          '<button class="btn" data-mk="kabarkan">' + ic('scroll') + '&nbsp; "Lima gubernur harus tahu."</button>',
       pilih: { maafkan: 'maafkan', kabarkan: 'kabarkan' },
       a: [{ narr: 'Satu batu terakhir', icon: 'crown', t: '<p>Marlya membuka laci paling bawah dan mengeluarkan satu batu baterai sebesar kepalan, masih bersegel Laboratorium Regal.</p>' },
-        '"Setidaknya satu batu ini kupakai untuk membebaskan." <i>Ia meletakkannya di tanganmu dengan dua tangan, seperti menyerahkan sesuatu yang berat.</i>'],
+        '"Setidaknya satu batu ini kupakai untuk membebaskan." <i>Ia meletakkannya di tanganmu dengan dua tangan, seperti menyerahkan sesuatu yang berat.</i>',
+        '"Jangan bawa ke dewan mana pun, Kapten. Bawa ke tukang mesin di Zentul itu &mdash; Yaptob. Dia satu-satunya yang akan memasangnya tanpa bertanya dari mana."',
+        '<i>Di ambang pintu ia menambahkan, lebih pelan:</i> "Dan berhati-hatilah di laut. Mereka mencari muatan, bukan batu."'],
       next: 'Bawa batu itu ke Zentul.' },
 
     /* 26 */ { at: 'tiba', c: 'zentul', main: 'yaptob', icon: 'fish', title: 'Pelampung yang Tenggelam',
@@ -835,7 +846,8 @@ var MK = (function () {
         '"Sekarang, Kapten! Lurus saja &mdash; jangan lihat meriamnya!"'],
       b: btn('go', 'flag', 'Masuk gerbang'),
       kalahLine: 'Rantai menutup tepat di depan haluan. Patroli Armada Biru mendorong kapalmu keluar dari jalur.',
-      a: [{ narr: 'Gerbang pertama lewat', icon: 'flag', t: '<p>Rantai menutup di belakang buritanmu. Di depan masih ada barisan berikutnya.</p>' }],
+      a: [{ narr: 'Gerbang pertama lewat', icon: 'flag', t: '<p>Rantai menutup di belakang buritanmu. Di depan masih ada barisan berikutnya.</p>' },
+        '<i>Suara zafachmie pecah-pecah di corong:</i> "Jangan melambat, Kapten! Gerbang kedua sudah mengisi batunya &mdash; dua detik lagi, sekarang!"'],
       next: 'Heat berikutnya, langsung di tempat.' },
 
     /* 38 */ { at: 'heat', c: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Kedua', win: true, heat: true,
@@ -843,7 +855,8 @@ var MK = (function () {
         '"Mereka hafal iramamu sekarang. Ubah titik gigi tiga."'],
       b: btn('go', 'flag', 'Terobos barisan kedua'),
       kalahLine: 'Barisan kedua menutup rapat. Kau terdorong keluar dari jalur.',
-      a: [{ narr: 'Tinggal satu', icon: 'flag', t: '<p>Di depan sana, hanya Juru Sita yang tersisa di antara kau dan rantai utama.</p>' }],
+      a: [{ narr: 'Tinggal satu', icon: 'flag', t: '<p>Di depan sana, hanya Juru Sita yang tersisa di antara kau dan rantai utama.</p>' },
+        '<i>Corong berderak lagi:</i> "Satu gerbang lagi, Kapten. Yang ini tidak dijaga mesin &mdash; yang ini dijaga orang. Haluan lurus, jangan dengarkan apa pun yang dia teriakkan."'],
       next: 'Juru Sita menunggu di gerbang terakhir.' },
 
     /* 39 */ { at: 'heat', c: 'ikn', main: 'cangcimen', icon: 'trophy', title: 'Juru Sita', win: true, heat: true,
@@ -888,16 +901,6 @@ var MK = (function () {
     if (r.oli) h += '<div class="mk-reward">' + ic('crate') + '<div><b>' + r.oli + ' Oli Hitam</b><br><span class="muted small">Dimuat ke palkamu.</span></div></div>';
     return h;
   }
-  function nextLine(d) {
-    var i = S.indexOf(d), nx = i >= 0 ? S[i + 1] : null;
-    if (d.epilog || !nx) return '';
-    var tuju = arahTeks(nx);
-    if (!d.next && !tuju) return '';
-    return '<div class="mk-arah">' + ic('map') + '<div class="mk-tunjuk"><div class="t">Arah berikutnya</div>' +
-      (d.next ? '<div class="d">' + d.next + '</div>' : '') +
-      (tuju ? '<div class="d">' + ic('anchor') + ' ' + tuju + '</div>' : '') + '</div></div>';
-  }
-
   var EPILOG = [
     { narr: 'Di kapal yang pulang', icon: 'ship', t: '<p>Untuk pertama kalinya, kumis hitam itu tidak disisir. Ia berdiri di buritan, memandangi laut yang tidak lagi bisa ia hitung.</p>' },
     { narr: 'IKN', icon: 'alert', t: '<p>Jendral Tedsky mengecat satu garis biru tipis di sayap Garuda perunggu, lalu turun dari tangga tanpa menjelaskan apa-apa pada siapa pun.</p>' },
@@ -929,6 +932,25 @@ var MK = (function () {
     });
   }
 
+  // kembali ke panel tempat langkah itu terjadi, supaya pemain tidak terlempar ke layar kota
+  var PENDING_SAIL = null;
+  function lanjutKe(d) {
+    var pn = d && d.at, lewatPanel = { tiba: 1, heat: 1, setsail: 1, laut: 1 };
+    if (pn === 'laut') {
+      close();
+      var f = PENDING_SAIL; PENDING_SAIL = null;
+      if (f) setTimeout(f, 220);
+      return;
+    }
+    if (!pn || lewatPanel[pn] || d.setor) { close(); return; }
+    if (pn === 'sirkuit' || pn === 'garasi') { close(); return; }   // bangunan Zentul punya pintunya sendiri
+    try { if (typeof invalidatePanelCache_ === 'function') invalidatePanelCache_(); } catch (e) { }
+    try {
+      if (typeof openPanel === 'function') { openPanel(pn); return; }
+    } catch (e) { }
+    close();
+  }
+
   function after(i, r) {
     var d = S[i];
     if (d.epilog) { epilog(i, r); return; }
@@ -937,10 +959,11 @@ var MK = (function () {
     if (!w) return;
     var list = (d.a || [{ narr: d.title, icon: d.icon, t: '<p>Selesai.</p>' }]).slice();
     au('success');
-    pages(w, d.main || 'lapau', list, btn('ok', null, 'Tutup', false), function (w2) {
+    var lanjutLabel = (d.at === 'tiba' || d.at === 'heat' || d.at === 'setsail' || d.setor) ? 'Tutup' : 'Lanjut';
+    pages(w, d.main || 'lapau', list, btn('ok', null, lanjutLabel, false), function (w2) {
       var box = w2.querySelector('.qg-text, .cb-narr');
-      if (box) box.insertAdjacentHTML('beforeend', reward(r) + nextLine(d));
-      on(w2, '[data-mk=ok]', close);
+      if (box) box.insertAdjacentHTML('beforeend', reward(r));
+      on(w2, '[data-mk=ok]', function () { lanjutKe(d); });
     });
   }
 
@@ -1042,15 +1065,13 @@ var MK = (function () {
   /* ---------- kartu di panel ---------- */
   function timeOk(d) { return d.t !== 'malam' || night(); }
   // penunjuk ringkas di panel lain: supaya pemain tidak pernah kehilangan benang ceritanya
-  var TUNJUK_DI = { tasks: 1, tavern: 1, setsail: 1 };
+  var TUNJUK_DI = { tasks: 1 };
   function tunjukArah(d, at) {
     if (!TUNJUK_DI[at]) return;
     var teks = arahTeks(d); if (!teks) return;
     var lain = d.c && d.c !== cid();
-    insertTop('<div class="mk-arah">' + ic('map') + '<div class="mk-tunjuk"><div class="t">Mahkota Selat &middot; lanjutkan di</div>' +
-      '<div class="d">' + teks + '</div>' +
-      (lain ? '<div class="d muted small">' + ic('ship') + ' Berlayarlah ke sana dari layar Berlayar.</div>' : '') +
-      '</div></div>');
+    insertTop('<p class="mk-tunjuk-baris muted small">' + ic('map') + ' Mahkota Selat &middot; ' +
+      (lain ? 'berlayarlah ke ' : 'lanjutkan di ') + teks + '</p>');
   }
 
   function kartu(at) {
@@ -1092,17 +1113,58 @@ var MK = (function () {
     return true;
   }
 
+  // Langkah laut (mis. kabut menuju Zentul) terjadi tepat saat sauh diangkat, bukan setelah merapat.
+  (function () {
+    var orig = window.doSetSail;
+    if (typeof orig !== 'function') return;
+    window.doSetSail = function (cityId) {
+      try {
+        var s = st(), i = idx(), d = s ? S[i] : null;
+        if (aktif() && d && d.at === 'laut' && d.tuju === cityId && !gameOpen && !PENDING_SAIL) {
+          var args = arguments, that = this;
+          PENDING_SAIL = function () { orig.apply(that, args); };
+          var w = modalWrap(d.icon, d.title, 'Haluan ke ' + (cityNm(cityId) || cityId));
+          if (w) { runStep(w, i); return; }
+          PENDING_SAIL = null;
+        }
+      } catch (e) { console.warn('[MK] sail', e); }
+      return orig.apply(this, arguments);
+    };
+  })();
+
+  // Sinematik kedatangan: diputar begitu kapal merapat, sebelum tokoh pertama bicara.
+  var cineKey = 'MT_MK_CINE_';
+  function cineSudah(k) { try { return localStorage.getItem(cineKey + k) === '1'; } catch (e) { return false; } }
+  function cineTandai(k) { try { localStorage.setItem(cineKey + k, '1'); } catch (e) { } }
+  function tibaCine() {
+    var s = st(); if (!s || !docked() || gameOpen) return false;
+    var i = idx(), d = S[i];
+    if (!d || !d.tibaCine || d.c !== cid() || cineSudah(d.tibaCine.kind)) return false;
+    var ov = document.getElementById('modalOverlay');
+    if (ov && ov.classList.contains('open')) return false;
+    if (window.MTGames8 && MTGames8.isOpen && MTGames8.isOpen()) return false;
+    cineTandai(d.tibaCine.kind);
+    cine(d.tibaCine.kind, d.tibaCine.slides, function () {
+      if (!d.tibaScene) return;
+      var w = modalWrap('anchor', cityNm(d.c) || 'Pelabuhan', 'kapalmu merapat');
+      if (!w) return;
+      pages(w, d.main || 'lapau', d.tibaScene, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-mk=ok]', close); });
+    });
+    return true;
+  }
+
   if (typeof wrap_ === 'function') {
     wrap_('setModal_', function () {
       if (gameOpen || !aktif()) return;
       try {
+        if (tibaCine()) return;
         if (tiba(false)) return;
         if (currentPanel === 'tavern' || currentPanel === 'tasks' || currentPanel === 'ship' || currentPanel === 'market' || currentPanel === 'setsail') kartu(currentPanel);
         else if (currentPanel && tiba(false)) return;
       } catch (e) { console.warn('[MK] panel', e); }
     });
   }
-  setInterval(function () { try { if (aktif() && !gameOpen) tiba(true); } catch (e) { } }, 2500);
+  setInterval(function () { try { if (aktif() && !gameOpen) { if (tibaCine()) return; tiba(true); } } catch (e) { } }, 2500);
 
   return {
     S: S, step: step, aktif: aktif, def: def,
