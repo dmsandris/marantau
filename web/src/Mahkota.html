@@ -4,6 +4,13 @@
   .mk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font: 700 11px Georgia, serif;
     letter-spacing: .1em; text-transform: uppercase; background: rgba(36,71,122,.14); color: #17335e; border: 1px solid rgba(36,71,122,.45); }
   .mk-badge svg { width: 13px; height: 13px; }
+  .mk-arah { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+    background: rgba(36,71,122,.1); border: 1px solid rgba(36,71,122,.3); color: #17335e; }
+  .mk-arah svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+  .mk-arah .t { font: 700 11px Georgia, serif; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
+  .mk-arah .d { font: 400 14px/1.5 Georgia, serif; margin-top: 2px; }
+  .mk-arah .d b { font-weight: 700; }
+  .mk-tunjuk { display: grid; gap: 2px; }
   .mk-art { display: block; width: 100%; max-width: 420px; height: auto; margin: 4px auto 0; border-radius: 12px; }
   .mk-reward { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px;
     background: rgba(201,164,80,.16); border: 1px solid rgba(150,110,40,.35); color: #3f2a14; }
@@ -141,7 +148,23 @@ var MK = (function () {
   }
   function modalWrap(icon, title, sub) { showModal(panelHeader_(icon, title, sub)); return insertTop('<div></div>'); }
   function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
-  function badge(d) { return '<span class="mk-badge">' + ic('scroll') + 'Saga 4 &middot; langkah ' + (S.indexOf(d) + 1) + '</span>'; }
+  // nama tempat untuk tiap jenis panel — dipakai penunjuk arah
+  var TEMPAT = { tavern: 'Lapau', tasks: 'Papan Tugas', ship: 'Dermaga (panel Kapal)', market: 'Pasar', setsail: 'layar Berlayar',
+    library: 'Perpustakaan', sirkuit: 'Sirkuit Selat Lurus', garasi: 'Garasi Yaptob', tiba: 'begitu kapal merapat', heat: 'begitu kapal merapat' };
+  // arah satu langkah: kota + tempat + catatan malam
+  function arah(d) {
+    if (!d) return null;
+    var kota = d.c ? (cityNm(d.c) || null) : null, tempat = TEMPAT[d.setor ? 'market' : d.at] || null;
+    if (d.setor) { kota = null; tempat = 'Zona Cukai: tembus jaringnya, lalu setor di pasar kota itu'; }
+    if (d.at === 'setsail' && !d.c) { kota = null; tempat = 'Zona Cukai mana pun &mdash; lihat tanda di layar Berlayar'; }
+    if (!kota && !tempat) return null;
+    return { kota: kota, tempat: tempat, malam: d.t === 'malam' };
+  }
+  function arahTeks(d) {
+    var a = arah(d); if (!a) return '';
+    return (a.kota ? '<b>' + esc(a.kota) + '</b>' + (a.tempat ? ' &middot; ' + a.tempat : '') : a.tempat) +
+      (a.malam ? ' <span class="muted small">(saat lampu dinyalakan)</span>' : '');
+  }
 
   // halaman bertahap: string (pembicara utama) | {n:kunci, t} | {narr, t, icon}
   function pages(w, mainKey, list, lastBtns, bind, d) {
@@ -149,7 +172,7 @@ var MK = (function () {
     function show() {
       var last = i === list.length - 1, pg = list[i], txt = (pg && pg.t) || pg;
       var nav = actions(last ? (lastBtns || '') : btn('next', null, 'Lanjut')) + (list.length > 1 ? dots(i, list.length) : '');
-      var head = i === 0 && d ? '<div style="margin-bottom:8px">' + badge(d) + '</div>' : '';
+      var head = '';
       w.innerHTML = head + (pg && pg.narr ? narr(pg.narr, txt, nav, pg.icon) : speech(who((pg && pg.n) || mainKey), txt, nav));
       au('page');
       if (!last) on(w, '[data-mk=next]', function () { i++; show(); }); else if (bind) bind(w);
@@ -448,6 +471,7 @@ var MK = (function () {
       p: [{ narr: 'Dok Kering &middot; TooGood', icon: 'anchor', t: '<p>Black Pearl terikat di dok, layarnya hitam dan kencang. Hasiolan berdiri di kemudi, memegang secangkir kopi yang sudah dingin.</p>' },
         '"zafachmie meminjamkannya sekali saja, Kapten. Katanya: \'kalau yang tercepat pun gagal, barulah orang mau mendengarkan.\'"',
         '"Naiklah. Kita hantam rantai itu sekali, dan kita lihat sendiri apa yang terjadi."'],
+      next: 'Black\'s Alley, TooGood &mdash; saat lampu dinyalakan.',
       b: btn('go', 'ship', 'Naik Black Pearl'),
       cineAfter: { kind: 'mk_pantul', slides: [
         'Black Pearl meninggalkan TooGood seperti pisau meninggalkan sarungnya. Lima belas detik menuju dinding cahaya biru.',
@@ -627,6 +651,7 @@ var MK = (function () {
       next: 'Berlayarlah ke pulau bertanda CUKAI. Saat dicegat, pilih Tembus Jaring.' },
 
     /* 21 */ { at: 'setsail', main: 'ulin', icon: 'alert', title: 'Tembus Pertama', info: true,
+      next: 'Pulau bertanda CUKAI. Saat dicegat patroli, pilih Tembus Jaring.',
       p: [{ narr: 'Dua detik itu', icon: 'alert', t: '<p>Rantai biru buta dua detik setiap kali batunya diisi ulang. Cukup untuk satu lambung, kalau lambung itu lari lurus.</p>' +
         '<p class="muted small">Berlayarlah ke pulau bertanda <b>CUKAI</b>. Patroli pasti mencegat &mdash; di kartu pencegatan, pilih <b>Tembus Jaring</b>. Kalah di percobaan pertama ini tidak menyita apa pun.</p>' }] },
 
@@ -863,7 +888,15 @@ var MK = (function () {
     if (r.oli) h += '<div class="mk-reward">' + ic('crate') + '<div><b>' + r.oli + ' Oli Hitam</b><br><span class="muted small">Dimuat ke palkamu.</span></div></div>';
     return h;
   }
-  function nextLine(d) { return d.next ? '<p class="muted small" style="margin-top:8px">' + ic('map') + ' ' + d.next + '</p>' : ''; }
+  function nextLine(d) {
+    var i = S.indexOf(d), nx = i >= 0 ? S[i + 1] : null;
+    if (d.epilog || !nx) return '';
+    var tuju = arahTeks(nx);
+    if (!d.next && !tuju) return '';
+    return '<div class="mk-arah">' + ic('map') + '<div class="mk-tunjuk"><div class="t">Arah berikutnya</div>' +
+      (d.next ? '<div class="d">' + d.next + '</div>' : '') +
+      (tuju ? '<div class="d">' + ic('anchor') + ' ' + tuju + '</div>' : '') + '</div></div>';
+  }
 
   var EPILOG = [
     { narr: 'Di kapal yang pulang', icon: 'ship', t: '<p>Untuk pertama kalinya, kumis hitam itu tidak disisir. Ia berdiri di buritan, memandangi laut yang tidak lagi bisa ia hitung.</p>' },
@@ -1008,6 +1041,18 @@ var MK = (function () {
 
   /* ---------- kartu di panel ---------- */
   function timeOk(d) { return d.t !== 'malam' || night(); }
+  // penunjuk ringkas di panel lain: supaya pemain tidak pernah kehilangan benang ceritanya
+  var TUNJUK_DI = { tasks: 1, tavern: 1, setsail: 1 };
+  function tunjukArah(d, at) {
+    if (!TUNJUK_DI[at]) return;
+    var teks = arahTeks(d); if (!teks) return;
+    var lain = d.c && d.c !== cid();
+    insertTop('<div class="mk-arah">' + ic('map') + '<div class="mk-tunjuk"><div class="t">Mahkota Selat &middot; lanjutkan di</div>' +
+      '<div class="d">' + teks + '</div>' +
+      (lain ? '<div class="d muted small">' + ic('ship') + ' Berlayarlah ke sana dari layar Berlayar.</div>' : '') +
+      '</div></div>');
+  }
+
   function kartu(at) {
     if (!docked()) return;
     var s = st(); if (!s) return;
@@ -1019,13 +1064,13 @@ var MK = (function () {
       if (at === 'setsail') {
         if (siap) return;
         var sisa = (s.zonaSisa || []).map(function (z) { return cityNm(z); }).filter(Boolean);
-        insertTop(narr(d.title, '<div style="margin-bottom:8px">' + badge(d) + '</div><p>' + d.tunjuk + '</p>' +
+        insertTop(narr(d.title, '<p>' + d.tunjuk + '</p>' +
           (sisa.length ? '<p class="muted small">' + ic('alert') + ' Belum dibanjiri: <b>' + sisa.join(', ') + '</b>.</p>' : ''), '', d.icon));
         return;
       }
-      if (!siap || at !== 'market' || kota !== cid()) return;
-    } else if (d.at !== at) return;
-    if (d.c && d.c !== cid()) return;
+      if (!siap || at !== 'market' || kota !== cid()) { if (siap) tunjukArah(d, at); return; }
+    } else if (d.at !== at) { tunjukArah(d, at); return; }
+    if (d.c && d.c !== cid()) { tunjukArah(d, at); return; }
     if (!timeOk(d)) { insertTop(speech(who(d.main || 'lapau'), d.wait || '"Datanglah lagi saat lampu-lampu dinyalakan, Kapten."')); return; }
     var w = insertTop('<div></div>'); if (w) runStep(w, i);
   }
