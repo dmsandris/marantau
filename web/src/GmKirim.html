@@ -1,4 +1,4 @@
-<!-- Tide v58 · Panel GM: Kirim Barang (komoditas pasar ke palka pemain). Server: 0073-gm-kirim.sql -->
+<!-- Panel GM: Kirim ke pemain — barang (komoditas ke palka, Tide v58) + gold & Keping Rantau. Server: 0073-gm-kirim.sql, 0092-gm-kirim-uang.sql -->
 <style>
   #gkGm .gk-card { margin-top: 8px; padding: 8px 10px; border-radius: 9px; background: rgba(79,51,30,.07); font-size: 13px; }
   #gkGm .gk-card b { color: var(--teak-700, #372316); }
@@ -11,11 +11,23 @@
   #gkGm .gk-log table { width: 100%; border-collapse: collapse; }
   #gkGm .gk-log td { padding: 4px 4px; border-top: 1px solid rgba(79,51,30,.12); vertical-align: top; }
   #gkGm .gk-log .no { color: #a3361e; }
+  #gkGm .gk-jenis { display: flex; gap: 6px; margin: 10px 0 2px; }
+  #gkGm .gk-jenis label { flex: 1; margin: 0; }
+  #gkGm .gk-jenis input { position: absolute; opacity: 0; pointer-events: none; }
+  #gkGm .gk-jenis span { display: block; text-align: center; padding: 8px 4px; border-radius: 9px; border: 1px solid rgba(79,51,30,.3); font-size: 13px; cursor: pointer; }
+  #gkGm .gk-jenis input:checked + span { background: var(--teak-700, #372316); color: #f4ead6; border-color: transparent; font-weight: 600; }
+  #gkGm .gk-jenis input:focus-visible + span { outline: 2px solid #b8862b; outline-offset: 2px; }
+  #gkGm .mtp-row.gk-one { grid-template-columns: 1fr; }
   #gkGm .gk-log small { color: var(--parch-muted, #7b6445); }
 </style>
 <script>
 var MTGmKirim = (function () {
   var S = { items: [], max: 500, card: null, loaded: false };
+  var JN = { barang: 'Barang', gold: 'Gold', keping: 'Keping Rantau' };
+  function jenis() { var r = document.querySelector('#gkGm input[name=gkJenis]:checked'); return r ? r.value : 'barang'; }
+  // jumlah: angka bulat, titik/koma/spasi ribuan diabaikan. Dikembalikan sebagai string digit (aman untuk angka besar).
+  function qtyStr() { var t = String($('gkQty').value || '').replace(/[.,\s_]/g, ''); return /^\d+$/.test(t) ? t.replace(/^0+(?=\d)/, '') : ''; }
+  function qtyNum() { var t = qtyStr(); return t ? Number(t) : 0; }
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function num(n) { return Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 }); }
@@ -34,11 +46,16 @@ var MTGmKirim = (function () {
       return '<option value="' + esc(x.id) + '">' + esc(x.name) + (x.tier === 'premium' ? ' (premium)' : '') + ' · ruang ' + num(x.size) + '</option>';
     }).join('');
     if (cur && itemOf(cur)) sel.value = cur;
-    $('gkQty').max = S.max;
   }
   function renderNeed() {
     var el = $('gkNeed'); if (!el) return;
-    var c = S.card, it = itemOf($('gkItem').value), q = Math.floor(Number($('gkQty').value) || 0);
+    var j = jenis(), c = S.card, it = itemOf($('gkItem').value), q = qtyNum();
+    if (j !== 'barang') {
+      el.classList.remove('bad');
+      if (!qtyStr() || q < 1) { el.textContent = $('gkQty').value ? 'Jumlah harus angka bulat minimal 1.' : 'Tanpa batas jumlah.'; el.classList.toggle('bad', !!$('gkQty').value); return; }
+      el.textContent = 'Kirim ' + num(q) + ' ' + JN[j] + (c ? ' · saat ini ' + num(j === 'gold' ? c.gold : c.keping) + ' → ' + num(Number(j === 'gold' ? c.gold : c.keping) + q) : '') + '.';
+      return;
+    }
     if (!c || !it || q < 1) { el.textContent = 'Maks ' + S.max + ' per kiriman.'; el.classList.remove('bad'); return; }
     var need = q * Number(it.size || 1), free = Math.max(0, Number(c.free || 0));
     if (q > S.max) { el.textContent = 'Maks ' + S.max + ' per kiriman.'; el.classList.add('bad'); return; }
@@ -52,6 +69,7 @@ var MTGmKirim = (function () {
     el.innerHTML = '<b>' + esc(c.name || c.username) + '</b> (' + esc(c.username) + ') · ' + esc(c.ship || '-') + '<br>' +
       (c.sea ? 'Sedang berlayar (dari ' + esc(c.city || '-') + ')' : 'Merapat di ' + esc(c.city || '-')) +
       (c.gm ? ' · <b>Akun GM (tidak bisa dikirimi)</b>' : '') +
+      '<br>Gold ' + num(c.gold) + ' · Keping ' + num(c.keping) +
       '<br>Palka ' + num(c.used) + ' / ' + num(c.capacity) + ' · sisa <b>' + num(Math.max(0, c.free)) + '</b>' +
       '<div class="gk-bar"><i class="' + (pct >= 100 ? 'full' : '') + '" style="width:' + pct + '%"></i></div>';
     el.hidden = false;
@@ -61,7 +79,7 @@ var MTGmKirim = (function () {
     var el = $('gkLog');
     var rows = (log || []).map(function (x) {
       return '<tr><td>' + esc(when(x.at)) + '</td><td' + (x.ok ? '' : ' class="no"') + '>' +
-        (x.ok ? '✓ ' : '✗ ') + '<b>' + esc(x.u) + '</b> ' + num(x.qty) + ' ' + esc(x.name || x.item) +
+        (x.ok ? '✓ ' : '✗ ') + '<b>' + esc(x.u) + '</b> ' + num(x.qty) + ' ' + esc(x.name || x.item || JN[x.jenis] || '') +
         (x.ok ? '' : ' — gagal: ' + esc(x.reason || '')) + (x.note ? '<br><small>' + esc(x.note) + '</small>' : '') +
         ' <small>oleh ' + esc(x.by) + '</small></td></tr>';
     }).join('');
@@ -87,16 +105,26 @@ var MTGmKirim = (function () {
     }, function (e) { busy(false); msg(String((e && e.message) || e), true); });
   }
   function doKirim() {
-    var c = S.card, it = itemOf($('gkItem').value), q = Math.floor(Number($('gkQty').value) || 0), note = $('gkNote').value.trim();
+    var j = jenis(), c = S.card, it = itemOf($('gkItem').value), qs = qtyStr(), q = qtyNum(), note = $('gkNote').value.trim();
     if (!c || c.username !== user()) { msg('Cek data kapten dulu.', true); return; }
-    if (!it) { msg('Pilih komoditas.', true); return; }
-    if (q < 1 || q > S.max) { msg('Jumlah harus 1 sampai ' + S.max + '.', true); return; }
-    if (!confirm('Kirim ' + q + ' ' + it.name + ' ke palka ' + c.username + ' (' + (c.name || '-') + ')?\n\nLangsung masuk, modal 0, tidak bisa ditarik kembali.')) return;
+    if (c.gm) { msg('Tidak bisa mengirim ke akun GM.', true); return; }
+    var nm, body = { u: c.username, jenis: j, qty: qs, note: note }, ask;
+    if (j === 'barang') {
+      if (!it) { msg('Pilih komoditas.', true); return; }
+      if (!qs || q < 1 || q > S.max) { msg('Jumlah harus 1 sampai ' + S.max + '.', true); return; }
+      nm = it.name; body.item = it.id; body.qty = q;
+      ask = 'Kirim ' + num(q) + ' ' + nm + ' ke palka ' + c.username + ' (' + (c.name || '-') + ')?\n\nLangsung masuk, modal 0, tidak bisa ditarik kembali.';
+    } else {
+      if (!qs || q < 1) { msg('Jumlah harus angka bulat minimal 1.', true); return; }
+      nm = JN[j];
+      ask = 'Kirim ' + num(q) + ' ' + nm + ' ke ' + c.username + ' (' + (c.name || '-') + ')?\n\nLangsung masuk' + (j === 'gold' ? ' ke gold yang dibawa (bukan bank)' : '') + ', tidak bisa ditarik kembali.';
+    }
+    if (!confirm(ask)) return;
     busy(true); msg('Mengirim…');
-    rpc('api_gmKirim', ['kirim', { u: c.username, item: it.id, qty: q, note: note }]).then(function (r) {
+    rpc('api_gmKirim', ['kirim', body]).then(function (r) {
       busy(false);
       S.card = r.card; renderCard();
-      if (r.ok) { msg('Terkirim: ' + q + ' ' + it.name + ' ke ' + c.username + '.'); $('gkNote').value = ''; }
+      if (r.ok) { msg('Terkirim: ' + num(q) + ' ' + nm + ' ke ' + c.username + '.'); $('gkNote').value = ''; }
       else msg(r.reason || 'Gagal.', true);
       renderLog(r.log); $('gkLog').hidden = false;
     }, function (e) { busy(false); msg(String((e && e.message) || e), true); });
@@ -108,15 +136,28 @@ var MTGmKirim = (function () {
       function (e) { busy(false); msg(String((e && e.message) || e), true); });
   }
 
+  function setJenis() {
+    var j = jenis(), b = j === 'barang';
+    $('gkItemL').style.display = b ? '' : 'none';
+    $('gkQtyL').firstChild.textContent = b ? 'Jumlah' : 'Jumlah ' + JN[j];
+    $('gkQty').placeholder = b ? '10' : 'misal: 50.000';
+    $('gkGo').textContent = b ? 'Kirim ke palka' : 'Kirim ' + JN[j];
+    $('gkRow').classList.toggle('gk-one', !b);
+    renderNeed();
+  }
   function mount() {
     var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box || $('gkGm')) return;
     var hint = box.querySelector(':scope > .mtp-hint:last-child');
     var sec = document.createElement('div'); sec.id = 'gkGm'; sec.setAttribute('data-k', 'kirim');
-    sec.innerHTML = '<h4>Kirim barang ke pemain</h4>' +
+    sec.innerHTML = '<h4>Kirim ke pemain</h4>' +
       '<label>Username pemain<input type="text" id="gkU" maxlength="16" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="misal: sansan"></label>' +
       '<div class="mtp-acts"><button type="button" id="gkCek">Cek data &amp; palka</button></div>' +
       '<div class="gk-card" id="gkCard" hidden></div>' +
-      '<div class="mtp-row"><label>Komoditas pasar<select id="gkItem"></select></label><label>Jumlah<input type="number" id="gkQty" min="1" max="500" value="10"></label></div>' +
+      '<div class="gk-jenis" role="radiogroup" aria-label="Jenis kiriman">' +
+        '<label><input type="radio" name="gkJenis" value="barang" checked><span>Barang</span></label>' +
+        '<label><input type="radio" name="gkJenis" value="gold"><span>Gold</span></label>' +
+        '<label><input type="radio" name="gkJenis" value="keping"><span>Keping</span></label></div>' +
+      '<div class="mtp-row" id="gkRow"><label id="gkItemL">Komoditas pasar<select id="gkItem"></select></label><label id="gkQtyL">Jumlah<input type="text" inputmode="numeric" id="gkQty" value="10" autocomplete="off"></label></div>' +
       '<div class="gk-need" id="gkNeed"></div>' +
       '<label>Catatan (opsional, hanya di riwayat GM)<input type="text" id="gkNote" maxlength="120" placeholder="misal: ganti rugi bug Titik Buta"></label>' +
       '<div class="mtp-acts"><button type="button" class="red" id="gkGo">Kirim ke palka</button><button type="button" class="alt" id="gkLogBtn">Riwayat kiriman</button></div>' +
@@ -129,6 +170,7 @@ var MTGmKirim = (function () {
     $('gkU').addEventListener('input', function () { if (S.card) { S.card = null; renderCard(); } });
     $('gkItem').addEventListener('change', renderNeed);
     $('gkQty').addEventListener('input', renderNeed);
+    Array.prototype.forEach.call(sec.querySelectorAll('input[name=gkJenis]'), function (r) { r.addEventListener('change', setJenis); });
     // daftar komoditas dimuat saat panel GM pertama kali dibuka (bukan saat boot)
     var btn = $('mtGmBtn');
     if (btn) btn.addEventListener('click', function () { if (window.MTGM && MTGM.isGm && MTGM.isGm()) init(false); });
