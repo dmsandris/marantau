@@ -85,11 +85,11 @@ $('#loginForm').addEventListener('submit', async e => {
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
 
 // ---------- rute: tab disimpan di URL (#/ekonomi) ----------
-const TABS = ['server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten'];
-const TITLES = { server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten' };
+const TABS = ['server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten', 'audit'];
+const TITLES = { server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten', audit: 'Audit' };
 const loaders = {}; // diisi ekonomi.js
 let tab = 'server';
-function routeTab() { const h = location.hash.replace(/^#\/?/, ''); return TABS.includes(h) ? h : 'server'; }
+function routeTab() { const h = location.hash.replace(/^#\/?/, '').split('?')[0]; return TABS.includes(h) ? h : 'server'; }
 function applyTab() {
   tab = routeTab();
   $$('#tabs .tab').forEach(a => { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
@@ -276,7 +276,7 @@ async function refresh() {
 let timers = [];
 function startTimers() {
   stopTimers(); applyTab();
-  timers.push(setInterval(() => { if (!document.hidden && tab !== 'backup' && tab !== 'debug') refresh(); }, 30000));
+  timers.push(setInterval(() => { if (!document.hidden && tab !== 'backup' && tab !== 'debug' && tab !== 'audit') refresh(); }, 30000));
   timers.push(setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('id-ID'); }, 1000));
 }
 function stopTimers() { timers.forEach(clearInterval); timers = []; }

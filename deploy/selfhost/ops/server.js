@@ -23,8 +23,9 @@ const DEV = ENV.OPS_DEV === '1';
 const BACKUP_REQ = ENV.OPS_BACKUP_REQ || '/backup-req';
 const MCP_TOKEN = ENV.OPS_MCP_TOKEN || '';
 const API_DOMAIN = ENV.OPS_API_DOMAIN || 'api.marantau.web.id';
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 const { Q: EKO, IKN_TARGET_DEFAULT } = require('./eko');
+const { Q: AUD, J: JEJAK } = require('./audit');
 const IKN_TARGET = +(ENV.OPS_IKN_TARGET || IKN_TARGET_DEFAULT);
 
 if (MCP_TOKEN && MCP_TOKEN.length < 32) { console.error('OPS_MCP_TOKEN minimal 32 karakter.'); process.exit(1); }
@@ -278,14 +279,14 @@ const dashPool = new Pool({
   max: 2, idleTimeoutMillis: 30000, connectionTimeoutMillis: 4000, application_name: 'marantau-ops-dash',
 });
 dashPool.on('error', e => console.error('pg dash pool:', e.message));
-async function dashRows(sql) {
+async function dashRows(sql, params) {
   const c = await dashPool.connect();
   let broken = false;
   try {
     await c.query('begin read only');
     await c.query("set local statement_timeout = '15s'");
     await c.query("set local idle_in_transaction_session_timeout = '20s'");
-    return (await c.query(sql)).rows;
+    return (await c.query(sql, params || [])).rows;
   } finally {
     try { await c.query('rollback'); } catch { broken = true; }
     c.release(broken);
@@ -302,10 +303,11 @@ function cached(key, ttlMs, fn, force = false) {
   return pending;
 }
 // Satu potongan gagal tidak boleh mematikan seluruh halaman: tiap potongan membawa errornya sendiri.
-async function parts(map) {
+async function parts(map, params) {
   const out = {}, errors = {};
   await Promise.all(Object.entries(map).map(async ([k, sql]) => {
-    try { out[k] = await dashRows(sql); } catch (e) { out[k] = null; errors[k] = e.message; }
+    const prm = params ? params.slice(0, (sql.match(/\$(\d+)/g) || []).reduce((m, x) => Math.max(m, +x.slice(1)), 0)) : undefined;
+    try { out[k] = await dashRows(sql, prm); } catch (e) { out[k] = null; errors[k] = e.message; }
   }));
   return { out, errors };
 }
@@ -346,6 +348,26 @@ function kapten(force) {
     const { out, errors } = await parts({ pemain: EKO.pemain, questPemain: EKO.questPemain, questRingkas: EKO.questRingkas });
     return { at: now(), errors, ...out };
   }, force);
+}
+
+// ---------- Audit (hanya baca) ----------
+// jam: 24 / 168 / 720 / null (semua catatan). Nilai lain ditolak ke 168.
+const AUDIT_JAM = { '24': 24, '168': 168, '720': 720, semua: null };
+const auditJam = v => (v in AUDIT_JAM ? AUDIT_JAM[v] : 168);
+function auditData(jamKey, force) {
+  const jam = auditJam(jamKey);
+  return cached('audit:' + jam, 60e3, async () => {
+    const { out, errors } = await parts({
+      gudang: AUD.gudang, arusGudang: AUD.arusGudang, transfer: AUD.transfer, bursa: AUD.bursa, bursaOrder: AUD.bursaOrder, daftar: AUD.daftar,
+    }, [jam]);
+    return { at: now(), jam, errors, ...out };
+  }, force);
+}
+async function auditJejak(kapten, jamKey) {
+  const jam = auditJam(jamKey), nama = String(kapten || '').slice(0, 80);
+  if (!nama) return { at: now(), jam, errors: { kapten: 'Pilih kapten.' } };
+  const { out, errors } = await parts({ ringkas: JEJAK.ringkas, pola: JEJAK.pola, transfer: JEJAK.transfer, hakLot: JEJAK.hakLot, log: JEJAK.log }, [jam, nama]);
+  return { at: now(), jam, kapten: nama, errors, ...out };
 }
 
 // ---------- 5xx dari log Caddy (api.) ----------
@@ -863,7 +885,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return sendFile(res, 'index.html', 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/app.js') return sendFile(res, 'app.js', 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/(app|tokens|base)\.css$/.test(p)) return sendFile(res, p.slice(1), 'text/css; charset=utf-8');
-    if (req.method === 'GET' && p === '/ekonomi.js') return sendFile(res, 'ekonomi.js', 'text/javascript; charset=utf-8');
+    if (req.method === 'GET' && (p === '/ekonomi.js' || p === '/audit.js')) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/fonts\/[a-z0-9-]+\.woff2$/.test(p)) return sendFile(res, p.slice(1), 'font/woff2', 'public, max-age=31536000, immutable');
     if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true, v: VERSION });
     if (MCP_TOKEN && p.startsWith('/mcp/')) {
@@ -927,6 +949,8 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === '/api/db') return json(res, 200, await dbStats());
       if (req.method === 'GET' && p === '/api/ekonomi') return json(res, 200, await ekonomi(url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/kapten') return json(res, 200, await kapten(url.searchParams.get('fresh') === '1'));
+      if (req.method === 'GET' && p === '/api/audit') return json(res, 200, await auditData(url.searchParams.get('jam'), url.searchParams.get('fresh') === '1'));
+      if (req.method === 'GET' && p === '/api/audit/jejak') return json(res, 200, await auditJejak(url.searchParams.get('kapten'), url.searchParams.get('jam')));
       if (req.method === 'GET' && p === '/api/http') return json(res, 200, await http5xx(24));
       if (req.method === 'GET' && p === '/api/backup') return json(res, 200, backups());
       if (req.method === 'POST' && p === '/api/backup/run') {
