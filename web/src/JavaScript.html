@@ -705,6 +705,12 @@
 
     var city = state.city;
     var tm = TYPE_META[city && city.Type] || { icon: 'anchor', label: 'Pelabuhan' };
+    // Tide v78: kolam Restorasi tuntas -> IKN bukan lagi "Ibu Kota Runtuh"
+    try {
+      if (city && city.CityId === 'ikn' && state.gotong && state.gotong.ikn && (state.gotong.ikn.stage | 0) >= 5) {
+        tm = { icon: 'crown', label: 'Ibu Kota yang Pulih' };
+      }
+    } catch (e) { }
     if (scene) scene.configure({ mode: 'port', cityId: city ? (city.CityId === 'toogood' && city.Type === 'Freed' ? 'toogood_free' : (city.CityId === 'marie_regal' && state.warwerwor && state.warwerwor.done ? 'marie_regal_free' : city.CityId)) : 'x', cityType: city ? city.Type : 'TradeHub', weather: state.cityEvent ? state.cityEvent.eventType : null, clockFrac: dayFrac_(), ship: shipVisual_(), encounter: false });
     setPhotoMode_(city && city.ImageUrl);
 

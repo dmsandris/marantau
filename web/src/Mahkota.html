@@ -126,6 +126,10 @@ var MK = (function () {
   }
   function dots(i, n) { var h = ''; for (var k = 0; k < n; k++) h += '<i class="' + (k === i ? 'on' : '') + '"></i>'; return '<div class="qt-dots">' + h + '</div>'; }
   function on(w, sel, fn) { var b = w && w.querySelector(sel); if (b) b.onclick = function () { fn(b); }; }
+  function modalTerbuka() {
+    var ov = document.getElementById('modalOverlay');
+    return !!(ov && ov.classList.contains('open'));
+  }
   function insertTop(html) {
     var c = document.getElementById('modalContent'); if (!c) return null;
     var old = c.querySelector('.mk-wrap'); if (old) old.remove();
@@ -967,11 +971,27 @@ var MK = (function () {
     }, 260);
   }
 
+  // Mini game lokal menutup modalnya sendiri. Kalau pemain membatalkan atau kalah,
+  // kembalikan dia ke kartu langkah yang sama supaya tidak terlempar ke layar kota.
+  function kembaliKeLangkah(i, pesan) {
+    var d = S[i];
+    if (pesan) showToast(pesan, 'info');
+    if (modalTerbuka() && document.querySelector('.mk-wrap')) return;
+    if (!d) return;
+    var pn = d.at, lewat = { tiba: 1, heat: 1, setsail: 1, laut: 1, sirkuit: 1, garasi: 1 };
+    if (pn && !lewat[pn] && !d.setor && typeof openPanel === 'function') {
+      setTimeout(function () { try { openPanel(pn); } catch (e) { } }, 220);
+      return;
+    }
+    var w = modalWrap(d.icon, d.title, '');
+    if (w) runStep(w, i);
+  }
+
   function after(i, r) {
     var d = S[i];
     if (d.epilog) { epilog(i, r); return; }
     if (d.win && d.title === 'Final Turnamen Obor') { try { metaBump_('mkobor', 1); } catch (e) { } }
-    var w = document.getElementById('modalContent') ? insertTop('<div></div>') : modalWrap(d.icon, d.title, '');
+    var w = modalTerbuka() ? insertTop('<div></div>') : modalWrap(d.icon, d.title, '');
     if (!w) return;
     var list = (d.a || [{ narr: d.title, icon: d.icon, t: '<p>Selesai.</p>' }]).slice();
     au('success');
@@ -1012,8 +1032,11 @@ var MK = (function () {
           b.disabled = true;
           game(d.g.kind, o, function (res) {
             b.disabled = false;
-            if (!res || res.cancelled) return;
-            if (res.win === false) { showToast(d.g.lose || 'Belum berhasil, Kapten. Coba lagi.', 'info'); return; }
+            if (!res || res.cancelled) { kembaliKeLangkah(i); return; }
+            if (res.win === false) {
+              kembaliKeLangkah(i, d.g.lose || 'Belum berhasil, Kapten. Coba lagi.');
+              return;
+            }
             teruskan(d.g.kind === 'dadu' ? (res.menang ? 'menang' : 'ok') : 'ok');
           });
           return;
