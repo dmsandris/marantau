@@ -3,7 +3,7 @@
 --   Semua efek PRIBADI: hanya pemain dengan game.mh_player.krisis = true (diisi quest Mahkota, batch 3).
 --   Stok pasar bersama tidak pernah diubah. Pemain lain: harga & pertemuan laut identik dengan sebelumnya.
 --
---   * Zona Cukai   : N pulau Mare Nusantara per hari game (jadwal bergaram rahasia; TooGood & IKN tidak pernah).
+--   * Zona Cukai   : N pulau (default 4) Mare Nusantara per hari game (jadwal bergaram rahasia; TooGood & IKN tidak pernah).
 --                    Dipotret saat setSail. Di zona: beli x MhCukaiBeli, jual x MhCukaiJual (lewat eco2_muls).
 --   * Patroli      : pelayaran menuju zona, peluang MhPatroliPct. Urutan: bos quest > Tony > Patroli > bajak laut acak.
 --                    Aksi: Bayar Cukai (barang) · Runding (gagal = bayar) · Tembus Jaring (Trektrek-an, setelah dibuka quest).
@@ -20,7 +20,7 @@
 
 insert into game.config(key, value) values
   ('MhCukaiBeli', '1.5'), ('MhCukaiJual', '0.6'), ('MhPatroliPct', '35'), ('MhCukaiPct', '25'),
-  ('MhZonaN', '3'), ('MhRundingBase', '25'), ('MhCukaiAutoMin', '10'),
+  ('MhZonaN', '4'), ('MhRundingBase', '25'), ('MhCukaiAutoMin', '10'),
   ('MhGelapBonus', '0.15'), ('MhGelapKuota', '10'), ('MhGelapKuotaSmuggler', '5'),
   ('MhGaram', md5(random()::text || clock_timestamp()::text))
 on conflict (key) do nothing;
@@ -62,7 +62,7 @@ language sql stable as $$
     select c.city_id from game.cities c
      where c.city_id in ('sunda_empire', 'skitraw', 'joungjava', 'bjorneo', 'paradiso', 'marie_regal')
      order by md5(coalesce(game.cfg('MhGaram'), 'garam') || ':' || p_day || ':' || c.city_id)
-     limit greatest(0, least(6, game.cfg_num('MhZonaN', 3)::int))), '{}'::text[])
+     limit greatest(0, least(6, game.cfg_num('MhZonaN', 4)::int))), '{}'::text[])
 $$;
 revoke all on function game.mh_zona(int) from public, anon, authenticated;
 

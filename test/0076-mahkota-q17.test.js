@@ -21,6 +21,7 @@ const { D, human, SKILL } = require('./trek-sim');
   await one(`select game.admin_mahkota('q17kapten', 15) s`);
   await taruh(a, 'zentul');
 
+  await H.sql(`insert into game.config(key, value) values ('MkBatasHari', '0') on conflict (key) do update set value = '0'`);   // batas harian diuji di 0094
   const balap = async (n, skill) => {
     const t = (await a.call('api_mahkota', ['balap', n - 1])).trek;
     await H.sql(`update game.trek_runs set created_at = now() - interval '60 seconds' where run_id = $1`, [t.run]);
@@ -65,6 +66,15 @@ const { D, human, SKILL } = require('./trek-sim');
   s = await st(a); assert(s.d.n === 20 && s.d.teka === true, 'langkah 20');
   await taruh(a, 'bjorneo');
   await H.expectError(() => a.call('api_mahkota', ['maju', 19, 'ok']), /Jawab dulu/);
+  // oleh-oleh dulu: tanpa 10 Sutra Nenek Ulin tidak mau bicara
+  await H.expectError(() => a.call('api_mahkota', ['teka', 19, 'baterai']), /oleh-oleh/);
+  await H.expectError(() => a.call('api_mahkota', ['oleh', 19]), /10 Sutra/);
+  await H.sql(`select game.adjust_inventory($1, 'silk', 12)`, [a.id]);
+  const ol = await a.call('api_mahkota', ['oleh', 19]);
+  assert(ol.oleh === true && ol.qty === 10 && (await st(a)).data.olehOk === true, 'oleh-oleh diterima');
+  assert(Number((await one(`select qty from game.inventory where player_id = $1 and item_id = 'silk'`, [a.id])).qty) === 2, '10 Sutra diambil');
+  await a.call('api_mahkota', ['oleh', 19]);   // kedua kali tidak memotong lagi
+  assert(Number((await one(`select qty from game.inventory where player_id = $1 and item_id = 'silk'`, [a.id])).qty) === 2, 'oleh-oleh sekali saja');
   let rt = await a.call('api_mahkota', ['teka', 19, 'batu bata']);
   assert(rt.maju === false && rt.teka === false && rt.tunggu === 20 && /Bukan itu/.test(rt.pesan), 'jawaban salah: ' + JSON.stringify(rt));
   rt = await a.call('api_mahkota', ['teka', 19, 'baterai']);
