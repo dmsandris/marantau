@@ -32,14 +32,22 @@ const { D, human, SKILL } = require('./trek-sim');
   const seen = new Set(); let beda = 0, prev = '';
   for (let d = day; d < day + 30; d++) {
     const z = (await one('select game.mh_zona($1) z', [d])).z;
-    assert(z.length === 3 && new Set(z).size === 3 && z.every(c => boleh.includes(c)), 'zona hari ' + d + ': ' + z);
+    assert(z.length === 4 && new Set(z).size === 4 && z.every(c => boleh.includes(c)), 'zona hari ' + d + ': ' + z);
     assert(JSON.stringify(z) === JSON.stringify((await one('select game.mh_zona($1) z', [d])).z), 'jadwal tetap');
     z.forEach(c => seen.add(c)); if (JSON.stringify(z) !== prev) beda++; prev = JSON.stringify(z);
   }
   assert(seen.size === 6 && beda > 15, 'zona berotasi (' + seen.size + ' pulau, ' + beda + ' pergantian)');
   const tampak = ['sunda_empire', 'skitraw', 'joungjava', 'bjorneo'];   // pemain tes belum membuka Paradiso / Marie Regal
-  const Z = (await one('select game.mh_zona($1) z', [day])).z, zona = Z.find(c => tampak.includes(c)), bukan = tampak.find(c => !Z.includes(c));
-  const asal = tampak.find(c => c !== zona && c !== bukan);
+  // dengan 4 zona dari 6 pulau, ada hari ketika keempat pulau yang tampak semuanya zona: cari garam jadwal yang menyisakan pulau biasa
+  let Z, zona, bukan, asal;
+  for (let k = 0; k < 40; k++) {
+    await H.sql(`update game.config set value = $1 where key = 'MhGaram'`, ['uji-garam-' + k]);
+    Z = (await one('select game.mh_zona($1) z', [day])).z;
+    zona = Z.find(c => tampak.includes(c)); bukan = tampak.find(c => !Z.includes(c));
+    asal = tampak.find(c => c !== zona && c !== bukan);
+    if (zona && bukan && asal) break;
+  }
+  assert(zona && bukan && asal, 'ada jadwal zona dengan pulau biasa yang tampak');
 
   // ---- pemain tanpa Saga 4: identik ----
   const sama = async (u, kota) => (await H.sql(`select count(*)::int n from game.market m,

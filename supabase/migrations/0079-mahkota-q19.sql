@@ -247,9 +247,10 @@ declare
   v_step int; d jsonb; v_city text; v_gold bigint := 0; v_oli int := 0; v_id uuid; h jsonb; t jsonb;
   v_data jsonb; v_jeda numeric; k text; v_qty int; v_bayar bigint := 0; r record; v_sisa int; v_banjir jsonb;
   v_skip int := 0; v_bahan jsonb; b record; v_kurang text := '';
+  v_maks int; v_hari int; v_kb text; v_cn int := 0;
 begin
   if v_act = 'status' then return jsonb_build_object('mahkota', game.mk_state(v_pid)); end if;
-  if v_act not in ('maju', 'balap', 'selesai', 'teka', 'pilih') then raise exception 'Aksi tidak dikenal.'; end if;
+  if v_act not in ('maju', 'balap', 'selesai', 'teka', 'pilih', 'oleh', 'coba') then raise exception 'Aksi tidak dikenal.'; end if;
   if not game.mk_eligible(v_pid) then raise exception 'Tidak ada yang perlu dibicarakan di sini, Kapten.'; end if;
   if game.in_transit(v_pid) then raise exception 'Merapat dulu di pelabuhan, Kapten.'; end if;
 
@@ -298,9 +299,47 @@ begin
     raise exception 'Keputusannya ada di tanganmu, Kapten.';
   end if;
 
+  -- ---------------- batas percobaan per hari game (tempa Yaptob, balapan Pariopelan/KapalMber) ----------------
+  v_maks := greatest(0, game.cfg_num('MkBatasHari', 2))::int;   -- 0 = tanpa batas
+  v_hari := game.game_day();
+  v_kb := 'cb' || v_step;
+  if d ? 'batas' then
+    v_cn := case when (v_data -> v_kb ->> 'h') = v_hari::text then coalesce((v_data -> v_kb ->> 'n')::int, 0) else 0 end;
+  end if;
+
+  -- ---------------- oleh-oleh Nenek Ulin (langkah 20) ----------------
+  if v_act = 'oleh' then
+    if not (d ? 'oleh') then raise exception 'Tidak ada yang perlu diserahkan di sini, Kapten.'; end if;
+    if coalesce((v_data ->> 'olehOk')::boolean, false) then
+      return jsonb_build_object('mahkota', game.mk_state(v_pid), 'oleh', true);
+    end if;
+    v_qty := greatest(1, game.cfg_num('MkOlehSutra', (d ->> 'oleh')::numeric))::int;
+    if game.item_qty(v_pid, 'silk') < v_qty then
+      raise exception 'Nenek Ulin menunggu % Sutra untuk oleh-oleh, Kapten. Palkamu baru punya %.', v_qty, game.item_qty(v_pid, 'silk');
+    end if;
+    perform game.adjust_inventory(v_pid, 'silk', -v_qty);
+    update game.player_quests set data = data || jsonb_build_object('olehOk', true), updated_at = now()
+     where player_id = v_pid and quest_id = 'mahkota';
+    return jsonb_build_object('mahkota', game.mk_state(v_pid), 'oleh', true, 'qty', v_qty);
+  end if;
+
+  -- ---------------- tempa: dua percobaan per hari game ----------------
+  if v_act = 'coba' then
+    if not (d ? 'batas') or d ->> 'g' is distinct from 'tempa' then raise exception 'Tidak ada yang perlu ditempa di sini, Kapten.'; end if;
+    if v_maks > 0 and v_cn >= v_maks then
+      raise exception 'Tungku tempa sudah terlalu panas, kembalilah besok, Kapten. (Hari game berikutnya sekitar % menit lagi.)', game.minutes_to_next_day();
+    end if;
+    update game.player_quests set data = data || jsonb_build_object(v_kb, jsonb_build_object('h', v_hari, 'n', v_cn + 1)), updated_at = now()
+     where player_id = v_pid and quest_id = 'mahkota';
+    return jsonb_build_object('mahkota', game.mk_state(v_pid), 'coba', true, 'sisaHari', case when v_maks > 0 then greatest(0, v_maks - v_cn - 1) end);
+  end if;
+
   -- ---------------- teka-teki ----------------
   if v_act = 'teka' then
     if not coalesce((d ->> 'teka')::boolean, false) then raise exception 'Tidak ada teka-teki di sini, Kapten.'; end if;
+    if d ? 'oleh' and not coalesce((v_data ->> 'olehOk')::boolean, false) then
+      raise exception 'Nenek Ulin belum mau bicara, Kapten. Bawakan dulu oleh-oleh untuknya.';
+    end if;
     v_jeda := greatest(0, game.cfg_num('MkTekaJedaDetik', 20)) * 1000;
     if coalesce((v_data ->> 'tekaAt')::bigint, 0) + v_jeda > game.now_ms() then
       return jsonb_build_object('mahkota', game.mk_state(v_pid), 'maju', false, 'teka', false,
@@ -322,6 +361,9 @@ begin
   -- ---------------- balapan ----------------
   if v_act = 'balap' then
     if not (d ? 'race') then raise exception 'Tidak ada balapan di langkah ini, Kapten.'; end if;
+    if d ? 'batas' and v_maks > 0 and v_cn >= v_maks then
+      raise exception 'Mesin sudah terlalu panas, bisa hancur kalau dipaksa terus. Kembalilah besok, Kapten. (Hari game berikutnya sekitar % menit lagi.)', game.minutes_to_next_day();
+    end if;
     t := game.trek_mulai(v_pid, 'turnamen', d ->> 'race', game.trek_kapal(v_pid));
     return jsonb_build_object('trek', t, 'mahkota', game.mk_state(v_pid),
       'lebar', d ? 'lebarBila' and v_data ->> 'marlya' = (d ->> 'lebarBila'),
@@ -352,8 +394,16 @@ begin
       else
         update game.player_quests set data = data || jsonb_build_object('kalah' || v_step, v_qty), updated_at = now()
          where player_id = v_pid and quest_id = 'mahkota';
+        if d ? 'batas' then
+          v_cn := v_cn + 1;   -- kegagalan ke-n hari ini
+          update game.player_quests set data = data || jsonb_build_object(v_kb, jsonb_build_object('h', v_hari, 'n', v_cn))
+           where player_id = v_pid and quest_id = 'mahkota';
+        end if;
       end if;
       return jsonb_build_object('hasil', h, 'mahkota', game.mk_state(v_pid), 'maju', false, 'kalah', v_qty,
+        'panas', d ? 'batas' and v_maks > 0 and v_cn >= v_maks,
+        'sisaHari', case when d ? 'batas' and v_maks > 0 then greatest(0, v_maks - v_cn) end,
+        'menit', case when d ? 'batas' and v_maks > 0 and v_cn >= v_maks then game.minutes_to_next_day() end,
         'kunci', coalesce((d ->> 'heat')::boolean, false) and v_sisa <= 0,
         'ulangSisa', greatest(0, v_sisa - case when coalesce((d ->> 'heat')::boolean, false) then 1 else 0 end));
     end if;
