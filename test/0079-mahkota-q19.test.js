@@ -31,12 +31,14 @@ const { D, human, SKILL } = require('./trek-sim');
   const berlayarLagi = async () => { await a.call('api_setSail', ['joungjava']); await taruh(a, 'ikn'); };
   const menangkan = async (n, max) => {
     for (let i = 0; i < (max || 60); i++) {
-      let x;
-      try { x = await balap(n, SKILL.jago); } catch (e) {
+      let x, lastR = null;
+      const heat = n >= 37 && n <= 39, cur = heat ? (await st(a)).d.n : n;   // gagal di gerbang mana pun = ulang dari heat 1
+      if (heat && cur > n) return lastR || { maju: true };
+      try { x = await balap(cur, SKILL.jago); } catch (e) {
         if (!/Mundur ke laut lepas/.test(e.message || '')) throw e;
         await berlayarLagi(); continue;
       }
-      if (x.r.maju) return x.r;
+      if (x.r.maju) { if (heat && cur < n) continue; return x.r; }
       if (x.r.kunci) await berlayarLagi();
     }
     return null;
@@ -70,18 +72,16 @@ const { D, human, SKILL } = require('./trek-sim');
   // ---- 37: heat pertama di IKN ----
   s = await st(a); assert(s.d.n === 37 && s.d.race === 'patroli_kuat' && s.d.heat === true, 'langkah 37');
   await taruh(a, 'paradiso');
-  await H.expectError(() => a.call('api_mahkota', ['balap', 36]), /Tidak ada yang perlu/);
-  await taruh(a, 'ikn');
+  // gerbang dimainkan di laut: tidak perlu di IKN, dan kapal tidak boleh sandar di IKN sebelum heat selesai
+  await H.expectError(() => a.call('api_setSail', ['ikn']), /Rantai gerbang IKN/);
   // kalah pertama memakai kesempatan dari genderang
   let x = await balap(37, null);
-  assert(x.r.maju === false && x.r.kunci === false && (await st(a)).ulang === 0, 'kalah pertama memakai kesempatan genderang');
+  assert(x.r.maju === false && x.r.kunci === false && (await st(a)).ulang === 0 && (await st(a)).step === 36, 'kalah pertama memakai kesempatan genderang');
   // kalah kedua mengunci: harus berlayar lagi
   x = await balap(37, null);
   assert(x.r.maju === false && x.r.kunci === true, 'kalah kedua mengunci gerbang');
-  await H.expectError(() => a.call('api_mahkota', ['balap', 36]), /Mundur ke laut lepas/);
-  await a.call('api_setSail', ['joungjava']);
-  await taruh(a, 'ikn');
-  assert(!(await st(a)).data.heatKunci, 'berlayar membuka kunci heat');
+  assert((await st(a)).step === 36, 'kalah mengulang dari heat 1');
+  await H.expectError(() => a.call('api_setSail', ['ikn']), /Rantai gerbang IKN/);
   let r = await menangkan(37);
   assert(r && (await st(a)).step === 37, 'menang heat pertama');
 
@@ -100,11 +100,13 @@ const { D, human, SKILL } = require('./trek-sim');
   await H.sql(`update game.trek_runs set created_at = now() - interval '60 seconds' where run_id = $1`, [mulai.trek.run]);
   const kalah39 = await a.call('api_mahkota', ['selesai', 38, mulai.trek.run, []]);
   assert(kalah39.maju === false && kalah39.kunci === true, 'kalah di Juru Sita juga mengunci gerbang');
-  await berlayarLagi();
+  assert((await st(a)).step === 36, 'kalah di Juru Sita mengulang dari heat 1');
+  await menangkan(37); await menangkan(38);
   r = await menangkan(39);
   assert(r && (await st(a)).step === 39, 'menang lawan cangcimen di gerbang rantai');
 
   console.log('lolos 39');
+  await taruh(a, 'ikn');   // setelah gerbang tertembus kapal boleh sandar di IKN
   // ---- 40: stempel, hadiah, penutup ----
   s = await st(a); assert(s.d.n === 40 && JSON.stringify(s.d.pilih) === '["patahkan","dewan","marlya"]', 'langkah 40');
   await H.expectError(() => a.call('api_mahkota', ['maju', 39, 'ok']), /Keputusannya ada di tanganmu/);

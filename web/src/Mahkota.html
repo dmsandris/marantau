@@ -862,7 +862,7 @@ var MK = (function () {
         '"Angkat sauh ke <b>IKN</b> sekarang. Begitu haluanmu masuk teluk, gerbang pertama langsung menutup di belakangmu &mdash; tidak ada aba-aba lagi."'],
       next: 'Berlayar ke IKN. Heat langsung dimulai saat kau tiba.' },
 
-    /* 37 */ { at: 'heat', c: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Pertama', win: true, heat: true,
+    /* 37 */ { at: 'laut', tuju: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Pertama', win: true, heat: true,
       p: [{ narr: 'Gerbang rantai IKN', icon: 'flag', t: '<p>Kapal pengalih berwajah Juru Sita masuk lebih dulu dan langsung dihujani tembakan. Dua detik. Gerbang membuka.</p>' },
         '"Sekarang, Kapten! Lurus saja &mdash; jangan lihat meriamnya!"'],
       b: btn('go', 'flag', 'Masuk gerbang'),
@@ -871,7 +871,7 @@ var MK = (function () {
         '<i>Suara zafachmie pecah-pecah di corong:</i> "Jangan melambat, Kapten! Gerbang kedua sudah mengisi batunya &mdash; dua detik lagi, sekarang!"'],
       next: 'Heat berikutnya, langsung di tempat.' },
 
-    /* 38 */ { at: 'heat', c: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Kedua', win: true, heat: true,
+    /* 38 */ { at: 'laut', tuju: 'ikn', main: 'rimba', icon: 'flag', title: 'Heat Kedua', win: true, heat: true,
       p: [{ narr: 'Barisan kedua', icon: 'flag', t: '<p>Patroli kedua lebih rapat dan lebih sabar. Mereka tidak mengejar; mereka menunggu di garis.</p>' },
         '"Mereka hafal iramamu sekarang. Ubah titik gigi tiga."'],
       b: btn('go', 'flag', 'Terobos barisan kedua'),
@@ -880,7 +880,7 @@ var MK = (function () {
         '<i>Corong berderak lagi:</i> "Satu gerbang lagi, Kapten. Yang ini tidak dijaga mesin &mdash; yang ini dijaga orang. Haluan lurus, jangan dengarkan apa pun yang dia teriakkan."'],
       next: 'Juru Sita menunggu di gerbang terakhir.' },
 
-    /* 39 */ { at: 'heat', c: 'ikn', main: 'cangcimen', icon: 'trophy', title: 'Juru Sita', win: true, heat: true,
+    /* 39 */ { at: 'laut', tuju: 'ikn', main: 'cangcimen', icon: 'trophy', title: 'Juru Sita', win: true, heat: true,
       p: [{ narr: 'Gerbang terakhir', icon: 'trophy', t: '<p>Juru Sita berdiri melintang di mulut gerbang. cangcimen tidak memakai pita birunya lagi &mdash; pita itu tergeletak di geladak.</p>' },
         '"Guru tua tidak datang?" <i>Ia melihat ke lajur kosong di sebelahmu.</i> "Sayang. Aku ingin dia melihat ini."'],
       b: btn('go', 'trophy', 'Lawan Juru Sita'),
@@ -966,6 +966,11 @@ var MK = (function () {
     var pn = d && d.at, lewatPanel = { tiba: 1, heat: 1, setsail: 1, laut: 1 };
     if (pn === 'laut') {
       segarkan();
+      var nd = S[idx()];
+      if (PENDING_SAIL && d.heat && nd && nd.heat && nd.at === 'laut') {   // gerbang berikutnya, kapal belum boleh jalan
+        var wn = modalWrap(nd.icon, nd.title, 'Gerbang rantai IKN');
+        if (wn) { runStep(wn, idx()); return; }
+      }
       close();
       var f = PENDING_SAIL; PENDING_SAIL = null;
       if (f) setTimeout(f, 220);
@@ -1142,8 +1147,8 @@ var MK = (function () {
         : (r.ulangSisa ? 'Kesempatan dari genderang tersisa: <b>' + r.ulangSisa + '</b>. ' : '') +
           (r.sisaHari != null ? 'Sisa percobaan hari ini: <b>' + r.sisaHari + '</b>.' : 'Boleh diulang sebanyak yang kau mau, Kapten.')) + '</p>',
       actions((kunci || r.panas ? '' : btn('ulang', 'flag', 'Turun lagi ke garis start')) + btn('tutup', null, kunci || r.panas ? 'Tutup' : 'Nanti dulu', false)), d.icon);
-    on(w, '[data-mk=ulang]', function (b) { balap(i, b); });
-    on(w, '[data-mk=tutup]', close);
+    on(w, '[data-mk=ulang]', function (b) { balap(d.heat ? idx() : i, b); });
+    on(w, '[data-mk=tutup]', function () { if (d.heat) PENDING_SAIL = null; close(); });
   }
 
   /* ---------- kartu di panel ---------- */
@@ -1202,10 +1207,10 @@ var MK = (function () {
     window.doSetSail = function (cityId) {
       try {
         var s = st(), i = idx(), d = s ? S[i] : null;
-        if (aktif() && d && d.at === 'laut' && d.tuju === cityId && !gameOpen && !PENDING_SAIL) {
+        if (aktif() && d && d.at === 'laut' && d.tuju === cityId && !gameOpen && !(PENDING_SAIL && modalTerbuka())) {
           var args = arguments, that = this;
           PENDING_SAIL = function () { orig.apply(that, args); };
-          var w = modalWrap(d.icon, d.title, 'Haluan ke ' + (cityNm(cityId) || cityId));
+          var w = modalWrap(d.icon, d.title, d.heat ? 'Gerbang rantai IKN' : 'Haluan ke ' + (cityNm(cityId) || cityId));
           if (w) { runStep(w, i); return; }
           PENDING_SAIL = null;
         }
