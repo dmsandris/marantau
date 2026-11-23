@@ -335,8 +335,16 @@ var PS = (function () {
   /* =====================================================================
    * BABAK 3 — Perpisahan, lalu lonceng Jam Agung saat set sail berikutnya
    * ===================================================================== */
+  // Perpisahan wajib diselesaikan di server (aksi 'pisah'). Jangan ditandai "sudah dilihat" di localStorage
+  // saat dibuka: kalau modal tertutup/reload sebelum memilih, langkah tertahan di 4 selamanya dan pemain
+  // bisa berlayar tanpa pernah memicu pencurian. Cukup redam pembukaan ulang beberapa saat.
+  var PISAH_T = 0;
+  function pisahBuka() {
+    var ov = document.getElementById('modalOverlay');
+    return !!(ov && ov.classList.contains('open') && document.querySelector('#modalContent [data-ps]'));
+  }
   function pisah() {
-    markSeen('pisah');
+    PISAH_T = Date.now();
     var n = N(), w = modalWrap('anchor', 'Dermaga Protokol', "Pulau em pe'er de pe'er");
     pages(w, n.franziska, [
       { narr: 'Merapat', icon: 'anchor', t: '<p>Nyonya Z. turun dari kapalmu, membayar <b>20.000 gold</b> dalam kantong beludru, lalu membungkuk sedikit.</p>' },
@@ -767,7 +775,7 @@ var PS = (function () {
     if (adil() && state.shipVisual && state.shipVisual.kd && Object.keys(state.shipVisual.kd).length) { try { metaMax_('pstetap', 1); } catch (e) { } }
     if (!docked()) return;
     if (k === 1 && c === 'ikn' && !seen('festival')) { festival(); return; }
-    if (k === 4 && c === 'empeer_depeer' && !seen('pisah')) { if (currentPanel) close(); pisah(); return; }
+    if (k === 4 && c === 'empeer_depeer' && !pisahBuka() && Date.now() - PISAH_T > 60000) { if (currentPanel) close(); pisah(); return; }
     if (k === 6) { if (currentPanel) close(); tangga(); return; }
     if (k === 7) { if (currentPanel) close(); benang(false); return; }
     if (k === 8 && c === 'sunda_empire' && !seen('hari1')) { if (currentPanel) close(); hariPertama(); return; }
