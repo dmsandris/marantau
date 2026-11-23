@@ -7,9 +7,11 @@
 -- Aturan baru (hari = tanggal WIB, reset 00:00 WIB):
 --   1. Beli peta maks TreasureBuyPerDay (5) per pemain per hari. Peta dari drop tidak dihitung.
 --   2. Galian per LOKASI: setelah TreasureDigFreePerSite (30) galian hari ini di lokasi itu,
---      galian berikutnya tidak lagi memberi hadiah: pemain justru KEHILANGAN gold (upah penggali,
---      sebesar kisaran "sisa harta sederhana", tidak bisa membuat gold < 0). Tanpa artifact, tanpa
---      kerusakan kapal. Peta tetap habis terpakai. Hasil 'terkuras' tidak menambah tantangan harian 'dig'.
+--      galian berikutnya tidak lagi memberi hadiah: pemain justru didenda acak
+--      TreasureDendaMin..TreasureDendaMax (1.000 - 100.000 gold). Denda diambil dari gold di tangan
+--      dulu, sisanya dari saldo bank; gold maupun bank bisa sampai 0 (tidak pernah negatif).
+--      Tanpa artifact, tanpa kerusakan kapal. Peta tetap habis terpakai.
+--      Hasil 'terkuras' tidak menambah tantangan harian 'dig'.
 --
 -- api_buyTreasureMap & api_digTreasure di sini menggantikan versi 0004 (migrasi diulang berurutan).
 -- Aman diulang. Angka bisa diubah lewat game.config tanpa deploy.
@@ -26,7 +28,9 @@ alter table game.treasure_daily enable row level security;
 
 insert into game.config(key, value) values
   ('TreasureBuyPerDay', '5'),
-  ('TreasureDigFreePerSite', '30')
+  ('TreasureDigFreePerSite', '30'),
+  ('TreasureDendaMin', '1000'),
+  ('TreasureDendaMax', '100000')
 on conflict (key) do nothing;
 
 create or replace function game.treasure_hari() returns date
@@ -89,9 +93,14 @@ declare
   v_roll   double precision;
   v_out    text;
   v_gold   bigint := 0;
+  v_bank   bigint := 0;                       -- potongan dari saldo bank (<= 0)
+  v_denda  bigint := 0;
+  v_dmin   bigint := greatest(0, game.cfg_num('TreasureDendaMin', 1000))::bigint;
+  v_dmax   bigint := greatest(0, game.cfg_num('TreasureDendaMax', 100000))::bigint;
   v_cond   bigint := 0;
   v_grant  boolean := false;
   v_newgold bigint := v_me.gold;
+  v_newbank bigint := v_me.bank_balance;
   v_art    game.item_catalog;
   v_granted jsonb := null;
   v_newcond numeric := null;
@@ -117,9 +126,11 @@ begin
 
   v_mult := s.difficulty;
   if v_n > v_free then
-    -- lokasi terkuras: hadiah jadi minus (upah penggali), tanpa artifact & tanpa kerusakan kapal
+    -- lokasi terkuras: denda acak (efek jera), tanpa artifact & tanpa kerusakan kapal
     v_out := 'terkuras';
-    v_gold := -game.js_round((v_base * v_mult)::double precision * (0.3 + random() * 0.5));
+    v_denda := v_dmin + floor(random() * (greatest(v_dmax, v_dmin) - v_dmin + 1))::bigint;
+    v_gold := -least(v_me.gold, v_denda);                         -- dari gold dulu
+    v_bank := -least(v_me.bank_balance, v_denda + v_gold);       -- sisanya dari bank
   else
     -- rollDigOutcome_: bobot [big_gold, rare_item, small_gold, false_map]
     v_dec := game.book_has_effect(v_pid, s.requires_book_keyword);
@@ -151,8 +162,11 @@ begin
 
   if v_gold <> 0 then
     v_newgold := greatest(0, v_me.gold + v_gold);
-    v_gold := v_newgold - v_me.gold;                     -- potongan nyata (gold tidak bisa < 0)
     update game.players set gold = v_newgold where player_id = v_pid;
+  end if;
+  if v_bank <> 0 then
+    v_newbank := greatest(0, v_me.bank_balance + v_bank);
+    update game.players set bank_balance = v_newbank where player_id = v_pid;
   end if;
 
   if v_grant then
@@ -175,7 +189,9 @@ begin
       else 'Galian di ' || s.name || ' menemukan ' || v_gold || ' gold.' end
     when 'small_gold' then 'Galian di ' || s.name || ' menemukan sisa harta sederhana - ' || v_gold || ' gold.'
     when 'terkuras' then 'Galian di ' || s.name || ' sudah terlalu sering hari ini (lebih dari ' || v_free ||
-      ' kali). Tanahnya tinggal sisa; penggali sewaan menagih ' || (-v_gold) || ' gold dan tidak ada harta ditemukan.'
+      ' kali). Tanahnya tinggal sisa; penggali sewaan menagih denda ' || (-v_gold - v_bank) || ' gold' ||
+      case when v_bank < 0 then ' (' || (-v_bank) || ' diambil dari saldo bank)' else '' end ||
+      ' dan tidak ada harta ditemukan.'
     else 'Peta ternyata jebakan - galian di ' || s.name || ' memicu perangkap tua, kapal sedikit rusak (' ||
       v_cond || ' Condition), tidak ada harta ditemukan.' end;
   perform game.log(v_pid, v_msg);
@@ -185,6 +201,8 @@ begin
     'message', v_msg,
     'goldDelta', v_gold,
     'newGold', v_newgold,
+    'bankDelta', v_bank,
+    'newBank', v_newbank,
     'grantedItem', v_granted,
     'conditionDelta', v_cond,
     'newCondition', coalesce(to_jsonb(v_newcond), game.ship_json(v_pid) -> 'Condition'));

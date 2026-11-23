@@ -54,26 +54,40 @@ const assert = require('assert');
     assert.strictEqual(await gold(D), g0 + r.goldDelta);
     hasil.push(r.outcome);
   }
-  const g30 = await gold(D);
-  const r31 = await D.call('api_digTreasure', ['tm_sunda_reef']);
-  assert.strictEqual(r31.outcome, 'terkuras');
-  assert(r31.goldDelta < 0, 'galian ke-31 minus: ' + r31.goldDelta);
-  assert(r31.goldDelta >= -280 && r31.goldDelta <= -105, 'kisaran upah: ' + r31.goldDelta);   // 350 x 1 x (0.3..0.8)
-  assert.strictEqual(r31.grantedItem, null);
-  assert.strictEqual(r31.conditionDelta, 0);
-  assert.strictEqual(await gold(D), g30 + r31.goldDelta);
-  assert.strictEqual(r31.newGold, g30 + r31.goldDelta);
-  assert(/terlalu sering hari ini/.test(r31.message));
-  assert.strictEqual(await invQty(D, 'tm_sunda_reef'), 40 - 31, 'peta tetap habis terpakai');
-  // gold tidak bisa di bawah 0
-  await H.sql('update game.players set gold = 10 where player_id = $1', [D.id]);
-  const r32 = await D.call('api_digTreasure', ['tm_sunda_reef']);
-  assert.strictEqual(r32.outcome, 'terkuras');
+  const bank = async u => Number((await one('select bank_balance from game.players where player_id = $1', [u.id])).bank_balance);
+  // galian ke-31: denda acak 1.000-100.000, gold dulu lalu bank (bank cukup besar -> total denda utuh)
+  await H.sql('update game.players set gold = 50000, bank_balance = 1000000 where player_id = $1', [D.id]);
+  for (let k = 0; k < 4; k++) {
+    const g0 = await gold(D), b0 = await bank(D);
+    const r = await D.call('api_digTreasure', ['tm_sunda_reef']);
+    assert.strictEqual(r.outcome, 'terkuras');
+    assert.strictEqual(r.grantedItem, null);
+    assert.strictEqual(r.conditionDelta, 0);
+    const denda = -(r.goldDelta + r.bankDelta);
+    assert(denda >= 1000 && denda <= 100000, 'denda 1.000-100.000: ' + denda);
+    assert(r.goldDelta <= 0 && r.bankDelta <= 0);
+    assert.strictEqual(await gold(D), g0 + r.goldDelta);
+    assert.strictEqual(await bank(D), b0 + r.bankDelta);
+    assert.strictEqual(r.newGold, g0 + r.goldDelta);
+    assert.strictEqual(r.newBank, b0 + r.bankDelta);
+    assert.strictEqual(r.goldDelta, 0 - Math.min(g0, denda), 'gold dipotong dulu');
+    assert(/terlalu sering hari ini/.test(r.message));
+  }
+  assert.strictEqual(await invQty(D, 'tm_sunda_reef'), 40 - 30 - 4, 'peta tetap habis terpakai');
+  // gold 0, bank berisi: seluruh denda dari bank
+  await H.sql('update game.players set gold = 0, bank_balance = 500000 where player_id = $1', [D.id]);
+  let r = await D.call('api_digTreasure', ['tm_sunda_reef']);
+  assert.strictEqual(r.goldDelta, 0); assert(r.bankDelta <= -1000 && r.bankDelta >= -100000, 'bank: ' + r.bankDelta);
   assert.strictEqual(await gold(D), 0);
-  assert.strictEqual(r32.goldDelta, -10);
-  const r33 = await D.call('api_digTreasure', ['tm_sunda_reef']);
-  assert.strictEqual(r33.goldDelta, 0);
-  assert.strictEqual(await gold(D), 0);
+  // gold sedikit + bank sedikit: keduanya sampai 0, tidak pernah negatif
+  await H.sql('update game.players set gold = 10, bank_balance = 5 where player_id = $1', [D.id]);
+  r = await D.call('api_digTreasure', ['tm_sunda_reef']);
+  assert.strictEqual(await gold(D), 0); assert.strictEqual(await bank(D), 0);
+  assert.strictEqual(r.goldDelta, -10); assert.strictEqual(r.bankDelta, -5);
+  // gold 0 dan bank 0: tidak ada yang bisa diambil
+  r = await D.call('api_digTreasure', ['tm_sunda_reef']);
+  assert.strictEqual(r.goldDelta, 0); assert.strictEqual(r.bankDelta, 0);
+  assert.strictEqual(await gold(D), 0); assert.strictEqual(await bank(D), 0);
   // lokasi lain dihitung terpisah
   await H.sql(`update game.player_location set city_id = 'joungjava' where player_id = $1`, [D.id]);
   await H.sql(`select game.item_adjust($1, 'tm_joungjava_grove', 1)`, [D.id]);
