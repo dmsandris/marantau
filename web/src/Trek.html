@@ -329,6 +329,28 @@ var MTTrek = (function () {
       r.api_trekDuel.apply(r, args);
     } catch (e) { (fail || function (m) { toast(m, 'error'); })(e.message || 'Gagal.'); }
   }
+  function medaliApi(args, ok, fail) {
+    try {
+      var r = google.script.run.withSuccessHandler(function (res) { ok(res || {}); })
+        .withFailureHandler(function (e) { (fail || function (m) { toast(m, 'error'); })((e && e.message) || String(e || 'Gagal.')); });
+      r.api_medali.apply(r, args);
+    } catch (e) { (fail || function (m) { toast(m, 'error'); })(e.message || 'Gagal.'); }
+  }
+  // Medali Adu: juara adu mendapat 1 medali; tukar di sini.
+  function medaliKotak(a) {
+    var n = a.medali || 0, t = a.tukar || {};
+    function baris(k, nama, ket, perlu) {
+      return '<li><span>' + nama + '<small>' + perlu + ' medali' + (ket ? ' · ' + ket : '') + '</small></span>' +
+        '<button type="button" class="trk-btn mini" data-tukar="' + k + '"' + (n >= perlu && (a.warlord || k === 'oli') ? '' : ' disabled') + '>Tukar</button></li>';
+    }
+    return '<div class="trk-lbl">Medali Adu · kau punya ' + n + '</div>' +
+      '<p class="trk-sub">Juara adu mendapat 1 medali. Tukarkan di sini.</p>' +
+      '<ul class="trk-adu">' +
+      baris('oli', 'Oli Hitam', '', t.oli || 10) +
+      baris('gigi', 'Gigi Jaring', a.warlord ? 'bahan Warlord' : 'baru terbuka di tahap Warlord', t.gigi || 25) +
+      baris('rantai', 'Rantai Biru', a.warlord ? 'bahan Warlord' : 'baru terbuka di tahap Warlord', t.rantai || 35) +
+      '</ul>';
+  }
   function aduStop() { if (ADU.poll) { clearInterval(ADU.poll); ADU.poll = null; } }
   function aduLawanProfil(d) {
     return { name: d.lawan || 'Kapten', ship: d.kapalLawan || d.kapalku, react: 300, rsd: 60, aim: -20, sd: 45, boost: 1 };
@@ -353,11 +375,16 @@ var MTTrek = (function () {
       '<div class="trk-lbl">Kapten di dermaga Zentul</div>' +
       (rows ? '<ul class="trk-adu">' + rows + '</ul>' : '<p class="trk-kosong">Belum ada kapten lain di dermaga. Rayan Bazzy menyeka tangannya: "Sabar. Selat ini tak pernah sepi lama."</p>') +
       (papan ? '<div class="trk-lbl">Papan Adu · tujuh hari terakhir</div><ol class="trk-papan">' + papan + '</ol>' : '') +
+      medaliKotak(a) +
       '<button type="button" class="trk-btn ghost" data-a="segar">Lihat lagi dermaga</button>' +
       '<button type="button" class="trk-btn ghost" data-a="menu">Kembali</button>');
     c.onclick = function (e) {
-      var t = e.target.closest ? e.target.closest('[data-tantang],[data-a]') : null; if (!t || t.disabled) return;
-      if (t.dataset.tantang) {
+      var t = e.target.closest ? e.target.closest('[data-tantang],[data-tukar],[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.tukar) {
+        t.disabled = true; var lbl = t.textContent; t.textContent = '…';
+        medaliApi(['tukar', t.dataset.tukar, 1], function (r) { toast('Ditukar. Sisa medali: ' + r.medali, 'info'); aduSegar(); },
+          function (m) { toast(m, 'error'); t.disabled = false; t.textContent = lbl; });
+      } else if (t.dataset.tantang) {
         t.disabled = true; t.textContent = '…';
         aduApi(['tantang', t.dataset.tantang], function (r) { if (r.duel) aduTunggu(r.duel); else aduSegar(); },
           function (m) { toast(m, 'error'); aduSegar(); });
