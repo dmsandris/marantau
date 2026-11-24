@@ -261,41 +261,93 @@
   });
 
   /* ======================= mk2_credits ======================= */
-  var CRED_SEC = 40;
+  var CRED_SEC = 58;
   MTCine.register('mk2_credits', function (opts) {
     var D = (opts && opts.data) || {}, name = String(D.name || 'Kapten'), lit = C.makeLit(), glit = MTSky.makeGlitter(U.rng(6401)), clouds = MTSky.makeClouds(U.rng(6403), 6);
     var fleet = [V.pearl(), V.me(), V.skitraw(), V.tempa()];
-    var LINES = [['logo', 'MARANTAU'], ['h', 'Saga Keempat — Monopoli & Mahkota'], ['s', 'Lengkap'], ['gap'],
-      ['s', 'Pencipta'], ['b', 'DMSandris'], ['gap'],
-      ['s', 'Bersama'], ['b', 'zafachmie · Ratu Marlya · coco epan'], ['b', 'Hasiolan · Uda Gala · Bang Rimba'], ['b', 'Tassyaaa · Petrik · Ama Kerang · Ipo'],
-      ['b', 'Yaptob · cangcimen · Rayan Bazzy'], ['b', 'Paman Ocid · Teh Euis · Ki Dorus'], ['gap'],
-      ['s', 'Dan yang dikenang'], ['b', 'Andry Ivankov'], ['gap'], ['gap'],
-      ['i', 'Mahkota tidak pernah membuat seseorang menjadi raja;'], ['i', 'keberanian untuk berlayar tanpa rantai itulah yang memerdekakan lautan.'], ['gap'], ['gap'],
-      ['end', 'untukmu ' + name + ', terima kasih telah berlayar . .']];
+    // p = paragraf (dibungkus otomatis) · end = nama kapten (berhenti di tengah layar) · note = catatan penutup di bawahnya
+    var LINES = [['logo', 'MARANTAU'], ['h', 'Saga Keempat — Monopoli & Mahkota'], ['s', 'Lengkap'], ['gap'], ['gap'],
+      ['s', 'PENCIPTA'], ['b', 'DMSANDRIS'], ['gap'],
+      ['p', 'Dari lubuk hati terdalam, saya, DMSandris, mengucapkan terima kasih kepada seluruh jajaran pengembang Anthropic yang telah menciptakan Claude, mesin yang menghidupkan setiap pelabuhan, gelombang, dan kisah dalam game ini.'],
+      ['gap'],
+      ['p', 'Terima kasih kepada Tradewinds, sumber inspirasi yang membuat layar Marantau terkembang.'],
+      ['gap'],
+      ['p', 'Untuk teman-teman yang mendukung sejak hari-hari pertama:'],
+      ['b', 'GALA AP  •  ARIEF CAHARUDIN  •  REZA FACHMI'], ['b', 'DWI PRASETYO  •  TOBIAS YAP'],
+      ['p', 'serta semua sahabat yang tidak dapat disebutkan satu per satu.'],
+      ['gap'],
+      ['p', 'Untuk para kapten yang berlayar bersamaku ke masa lalu dan seluruh penjuru Mare Nusantara:'],
+      ['end', name]];
+    var NOTE = '(Simpan dulu kompasmu baik-baik, Kapten. Perjalanan ini hampir berakhir, sampai jumpa di saga terakhir.)';
+    var FONT = { logo: function (m) { return Math.round(m * 0.1) + 'px ' + (C.TITLE_FONT || 'Georgia'); },
+      h: function (m) { return '700 ' + Math.round(m * 0.04) + 'px ' + (C.SUB_FONT || 'Georgia'); },
+      s: function (m) { return '700 ' + Math.max(12, Math.round(m * 0.027)) + 'px ' + (C.SUB_FONT || 'Georgia'); },
+      b: function (m) { return '700 ' + Math.max(13, Math.round(m * 0.033)) + 'px Georgia, serif'; },
+      p: function (m) { return Math.max(13, Math.round(m * 0.029)) + 'px Georgia, serif'; },
+      end: function (m) { return '700 ' + Math.round(m * 0.05) + 'px ' + (C.SUB_FONT || 'Georgia'); },
+      note: function (m) { return 'italic ' + Math.max(12, Math.round(m * 0.027)) + 'px Georgia, serif'; } };
+    var COL = { logo: '#e8bf55', h: '#fff1d0', s: 'rgba(232,191,85,.95)', b: '#f4ead6', p: '#f4ead6', end: '#ffe6a8', note: '#e8dcc0' };
+    var HK = { logo: 2.4, h: 1.5, s: 1.3, b: 1.15, p: 1.0, end: 1.6, gap: 0.9 };
+    var lay = null, layKey = '';
+    function wrap(ctx, text, maxW) {
+      var w = text.split(' '), rows = [], cur = '';
+      for (var i = 0; i < w.length; i++) { var t = cur ? cur + ' ' + w[i] : w[i]; if (cur && ctx.measureText(t).width > maxW) { rows.push(cur); cur = w[i]; } else cur = t; }
+      if (cur) rows.push(cur); return rows;
+    }
+    function layout(ctx, W, H, m) {
+      var lh = Math.max(22, m * 0.052), rows = [], acc = 0, maxW = Math.min(W * 0.86, m * 1.25);
+      ctx.save();
+      LINES.forEach(function (L) {
+        if (L[0] === 'p') {
+          ctx.font = FONT.p(m);
+          wrap(ctx, L[1], maxW).forEach(function (r) { rows.push({ k: 'p', t: r, y: acc + lh * 0.55 }); acc += lh * 1.1; });
+          return;
+        }
+        // nama-nama di layar sempit: satu nama per baris
+        if (L[0] === 'b' && L[1].indexOf('•') >= 0) {
+          ctx.font = FONT.b(m);
+          if (ctx.measureText(L[1]).width + L[1].length * m * 0.004 > maxW * 0.92) {
+            L[1].split('•').forEach(function (n) { rows.push({ k: 'b', t: n.trim(), y: acc + HK.b * lh / 2 }); acc += HK.b * lh; });
+            return;
+          }
+        }
+        var k = HK[L[0]] || 1;
+        rows.push({ k: L[0], t: L[1], y: acc + k * lh / 2 }); acc += k * lh;
+      });
+      ctx.font = FONT.note(m);
+      var note = wrap(ctx, NOTE, maxW);
+      ctx.restore();
+      return { rows: rows, total: acc, lh: lh, note: note };
+    }
     function draw(ctx, W, H, t, dt) {
       var pal = MTSky.palette(0.05 + (t / CRED_SEC) * 0.1, null), hy = H * 0.62, m = Math.min(W, H);
       lit.set(pal.tint);
       MTSky.paintSky(ctx, W, hy, pal, t, null); MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 0.8);
       MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.6, drift: 16 });
       fleet.forEach(function (o, i) { var s = scaleFor(o, W, H, 0.12 + i * 0.015), x = ((t * W * 0.012 + i * W * 0.28) % (W * 1.3)) - W * 0.15, y = hy + H * (0.06 + i * 0.04); ship(ctx, o, x, y, s, 1, t + i, lit, { lanterns: 0.3 }); });
-      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, W, H);
-      // teks bergulir
-      var lh = Math.max(18, m * 0.052), HK = { logo: 2.4, h: 1.5, s: 1.25, b: 1.05, i: 1.05, end: 1.4, gap: 0.9 }, ys = [], acc = 0;
-      LINES.forEach(function (L) { var k = HK[L[0]] || 1; ys.push(acc + k * lh / 2); acc += k * lh; });
-      var total = acc + H, off = H - (t / (CRED_SEC - 6)) * total * 0.86;
-      ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      LINES.forEach(function (L, i) {
-        var y = Math.max(off + ys[i], L[0] === 'end' ? H * 0.5 : -1e9); if (y < -lh * 2 || y > H + lh * 2) return;
-        var a = U.clamp(Math.min((H - y) / (H * 0.15), (y + lh) / (H * 0.2)), 0, 1); if (L[0] === 'end') a = sm(0, 2, t - (CRED_SEC - 12));
-        ctx.globalAlpha = a; ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 8;
-        if (L[0] === 'logo') { ctx.font = Math.round(m * 0.1) + 'px ' + (C.TITLE_FONT || 'Georgia'); ctx.fillStyle = '#e8bf55'; }
-        else if (L[0] === 'h') { ctx.font = '700 ' + Math.round(m * 0.04) + 'px ' + (C.SUB_FONT || 'Georgia'); ctx.fillStyle = '#fff1d0'; }
-        else if (L[0] === 's') { ctx.font = '700 ' + Math.round(m * 0.026) + 'px ' + (C.SUB_FONT || 'Georgia'); ctx.fillStyle = 'rgba(232,191,85,.95)'; }
-        else if (L[0] === 'b') { ctx.font = Math.round(m * 0.032) + 'px Georgia, serif'; ctx.fillStyle = '#f4ead6'; }
-        else if (L[0] === 'i') { ctx.font = 'italic ' + Math.round(m * 0.03) + 'px Georgia, serif'; ctx.fillStyle = '#f4ead6'; }
-        else if (L[0] === 'end') { ctx.font = 'italic ' + Math.round(m * 0.034) + 'px Georgia, serif'; ctx.fillStyle = '#ffe6a8'; }
-        if (L[1]) ctx.fillText(L[1], W / 2, y);
+      ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fillRect(0, 0, W, H);
+      var key = W + 'x' + H; if (key !== layKey) { layKey = key; lay = layout(ctx, W, H, m); }
+      var lh = lay.lh, endRow = lay.rows[lay.rows.length - 1], scrollEnd = CRED_SEC - 14;
+      // gulir sampai nama kapten tepat di tengah layar, lalu berhenti
+      var off = U.lerp(H + lh, H * 0.46 - endRow.y, Math.min(1, t / scrollEnd));
+      ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowColor = 'rgba(0,0,0,.85)'; ctx.shadowBlur = 8;
+      lay.rows.forEach(function (r) {
+        if (!r.t) return;
+        var y = off + r.y; if (y < -lh * 2 || y > H + lh * 2) return;
+        var a = r.k === 'end' ? 1 : U.clamp(Math.min((H - y) / (H * 0.15), (y + lh) / (H * 0.22)), 0, 1);
+        if (a <= 0.01) return;
+        ctx.globalAlpha = a; ctx.font = FONT[r.k](m); ctx.fillStyle = COL[r.k];
+        try { ctx.letterSpacing = (r.k === 's' || r.k === 'b') ? (m * 0.004).toFixed(1) + 'px' : '0px'; } catch (e) { }
+        ctx.fillText(r.t, W / 2, y);
       });
+      // catatan penutup muncul setelah nama kapten berhenti
+      var na = sm(scrollEnd + 1, scrollEnd + 3.5, t);
+      if (na > 0) {
+        ctx.globalAlpha = na; ctx.font = FONT.note(m); ctx.fillStyle = COL.note;
+        try { ctx.letterSpacing = '0px'; } catch (e) { }
+        var y0 = H * 0.46 + lh * 1.6;
+        lay.note.forEach(function (row, i) { ctx.fillText(row, W / 2, y0 + i * lh * 0.95); });
+      }
       ctx.restore();
       blackIn(ctx, W, H, t, 1.5);
     }

@@ -26,6 +26,7 @@ Konsep: `claude/KONSEP-Saga4-Bagian-II-Takhta-Tanpa-Mahkota.md` v1.5 · Rencana:
   - Sovereign Mahkota 3 fase (Marlya meruntuhkan perisai, Black Pearl menahan salvo, lalu seluruh aliansi menembak).
   - Kalah atau mundur bisa dilanjutkan dari gelombang terakhir. HP kapal induk tersimpan.
 - **Ending sinematik penuh**: pilihan nasib Mahkota Karam, adegan karam, Teluk Dalam berangin, bunga untuk Andry, lalu credit bergulir "Saga Keempat — Lengkap".
+- **Credit Saga Keempat** (±58 detik): Pencipta DMSANDRIS, ucapan terima kasih kepada pengembang Anthropic (Claude) dan Tradewinds, teman-teman pendukung awal (Gala AP, Arief Caharudin, Reza Fachmi, Dwi Prasetyo, Tobias Yap), lalu nama kapten pemain berhenti di tengah layar, disusul catatan *"Simpan dulu kompasmu baik-baik, Kapten. Perjalanan ini hampir berakhir, sampai jumpa di saga terakhir."* Teks panjang dibungkus otomatis; di HP nama pendukung tampil satu per baris.
 - Hadiah:
   - 1,5 jt / 2 jt / 2,5 jt gold.
   - Tanda jasa *Pemecah Blokade*, *Penjaga Janji Rantai Lama*, *Penakluk Sovereign*.
