@@ -4,70 +4,98 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Panel Ops Marantau: kondisi server, layanan, database, backup, ekonomi, kapten, audit, dan iluminaty.">
+<meta name="description" content="Panel Ops Marantau: kondisi server dan game, ekonomi, kapten, audit aliran dana, penjaga anomali, dan pengaturan.">
 <title>Marantau Ops</title>
 <link rel="icon" href="data:,">
-<link rel="preload" href="/fonts/chivo-mono-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/familjen-grotesk-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/ibm-plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<section id="login" class="login hidden">
+<section id="login" class="login hidden" aria-labelledby="h-login">
   <form id="loginForm" class="login-card" autocomplete="off">
-    <h1>Marantau Ops</h1>
-    <p class="lead">Masuk dengan sandi dan kode 2FA.</p>
+    <p class="wordmark">Marantau Ops</p>
+    <h1 id="h-login">Masuk</h1>
+    <p class="lead">Sandi panel dan kode 2FA dari aplikasi autentikator.</p>
     <label class="field" for="pw">Sandi<input id="pw" name="password" type="password" autocomplete="current-password" required></label>
     <label class="field" for="code">Kode 2FA<input id="code" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" required></label>
-    <button type="submit" class="btn btn--primary">Masuk</button>
+    <button type="submit" class="btn btn--primary btn--wide">Masuk</button>
     <p id="loginErr" class="err" role="alert"></p>
   </form>
 </section>
 
-<div id="app" class="hidden">
-  <header class="bar">
-    <div class="bar-in">
-      <a class="brand" href="#/server" aria-label="Marantau Ops, ke Server">Marantau Ops</a>
-      <nav id="tabs" class="menu" aria-label="Menu utama">
-        <a class="tab" href="#/server" data-tab="server">Server</a>
-        <a class="tab" href="#/layanan" data-tab="layanan">Layanan</a>
-        <a class="tab" href="#/db" data-tab="db">Database</a>
-        <a class="tab" href="#/backup" data-tab="backup">Backup</a>
-        <a class="tab" href="#/debug" data-tab="debug">Debug</a>
-        <span class="tab-gap" aria-hidden="true"></span>
-        <a class="tab" href="#/ekonomi" data-tab="ekonomi">Ekonomi</a>
-        <a class="tab" href="#/kapten" data-tab="kapten">Kapten</a>
-        <a class="tab" href="#/audit" data-tab="audit">Audit</a>
-        <a class="tab" href="#/iluminaty" data-tab="iluminaty">Iluminaty</a>
-      </nav>
-      <div class="who"><span id="clock"></span><button id="logout" type="button" class="btn btn--small">Keluar</button></div>
+<div id="app" class="shell hidden">
+  <header class="side">
+    <div class="side-top">
+      <a class="brand" href="#/ringkas" aria-label="Marantau Ops, ke Ringkas">Marantau Ops <span id="ver" class="ver"></span></a>
+      <button id="menuBtn" type="button" class="btn btn--small menu-btn" aria-expanded="false" aria-controls="tabs">Menu</button>
     </div>
+    <nav id="tabs" class="nav" aria-label="Menu utama">
+      <a class="tab" href="#/ringkas" data-tab="ringkas">Ringkas</a>
+      <p class="nav-h">Game</p>
+      <a class="tab" href="#/ekonomi" data-tab="ekonomi">Ekonomi</a>
+      <a class="tab" href="#/kapten" data-tab="kapten">Kapten</a>
+      <a class="tab" href="#/audit" data-tab="audit">Audit</a>
+      <a class="tab" href="#/penjaga" data-tab="penjaga">Penjaga <span class="tab-n" id="navPenjaga"></span></a>
+      <a class="tab" href="#/iluminaty" data-tab="iluminaty">Iluminaty</a>
+      <p class="nav-h">Mesin</p>
+      <a class="tab" href="#/server" data-tab="server">Server <span class="tab-n" id="navServer"></span></a>
+      <a class="tab" href="#/layanan" data-tab="layanan">Layanan</a>
+      <a class="tab" href="#/db" data-tab="db">Database</a>
+      <a class="tab" href="#/backup" data-tab="backup">Backup</a>
+      <a class="tab" href="#/debug" data-tab="debug">Debug</a>
+      <p class="nav-h">Panel</p>
+      <a class="tab" href="#/pengaturan" data-tab="pengaturan">Pengaturan</a>
+    </nav>
+    <div class="who"><span id="clock" class="num"></span><button id="logout" type="button" class="btn btn--small">Keluar</button></div>
   </header>
 
-  <main class="page">
-    <section data-panel="server" aria-labelledby="h-server">
-      <div class="head"><div><h1 id="h-server">Server</h1><p class="sub">Mesin Biznet. Angka diperbarui tiap 30 detik.</p></div></div>
+  <main class="page" id="main">
+    <!-- ================= Ringkas ================= -->
+    <section data-panel="ringkas" aria-labelledby="h-ringkas">
+      <div class="head"><div><h1 id="h-ringkas">Ringkas</h1><p id="rkVerdict" class="sub">Memuat keadaan server dan game.</p></div>
+        <div class="tools"><span id="rkStamp" class="stamp"></span><button id="rkRefresh" type="button" class="btn">Muat ulang</button></div>
+      </div>
+      <div class="block block--first"><h2>Perlu dilihat</h2><div id="rkWatch"></div></div>
+      <div class="block"><h2>Mesin</h2><div id="rkMesin"></div></div>
+      <div class="block"><h2>Game</h2><div id="rkGame"></div></div>
+      <div class="grid2">
+        <div class="block"><h2>Penjaga terakhir</h2><div id="rkPenjaga"></div></div>
+        <div class="block"><h2>Endpoint paling lambat</h2><div id="rkSlow"></div></div>
+      </div>
+    </section>
+
+    <!-- ================= Server ================= -->
+    <section data-panel="server" class="hidden" aria-labelledby="h-server">
+      <div class="head"><div><h1 id="h-server">Server</h1><p class="sub">VM Biznet marantau-vps-01. Angka diperbarui tiap 30 detik.</p></div></div>
       <div id="hostCards"></div>
       <div class="block">
-        <div class="head"><h2 class="visually-hidden">Grafik</h2>
+        <div class="head head--sub"><h2>Grafik</h2>
           <div class="seg" id="range" role="group" aria-label="Rentang grafik">
             <button type="button" data-h="6" aria-pressed="false">6 jam</button><button type="button" data-h="24" aria-pressed="true">24 jam</button><button type="button" data-h="168" aria-pressed="false">7 hari</button>
           </div>
         </div>
         <div id="charts" class="charts"></div>
       </div>
-      <div class="block"><h2>Lalu lintas API, 24 jam</h2><div id="httpBox"></div></div>
-    </section>
-
-    <section data-panel="layanan" class="hidden" aria-labelledby="h-layanan">
-      <div class="head"><div><h1 id="h-layanan">Layanan</h1><p class="sub">Tujuh container yang menjalankan game. Restart Postgres memutus semua pemain 10 sampai 30 detik.</p></div></div>
-      <div id="svcList"></div>
-      <div id="logBox" class="logbox hidden">
-        <div class="head"><h2 id="logTitle">Log</h2><button id="logClose" type="button" class="btn btn--small">Tutup</button></div>
-        <pre id="logText"></pre>
+      <div class="grid2">
+        <div class="block"><h2>Lalu lintas API, 24 jam</h2><div id="httpBox"></div></div>
+        <div class="block"><h2>Sertifikat dan peringatan</h2><div id="certBox"></div></div>
       </div>
     </section>
 
+    <!-- ================= Layanan ================= -->
+    <section data-panel="layanan" class="hidden" aria-labelledby="h-layanan">
+      <div class="head"><div><h1 id="h-layanan">Layanan</h1><p class="sub">Tujuh container yang menjalankan game. Restart Postgres memutus semua pemain 10 sampai 30 detik.</p></div></div>
+      <div id="svcList"></div>
+      <div id="logBox" class="block logbox hidden">
+        <div class="head head--sub"><h2 id="logTitle">Log</h2><div class="tools"><input id="logFilter" class="search search--s" type="search" name="saring-log" placeholder="Saring baris" aria-label="Saring log"><button id="logClose" type="button" class="btn btn--small">Tutup</button></div></div>
+        <pre id="logText" class="code"></pre>
+      </div>
+    </section>
+
+    <!-- ================= Database ================= -->
     <section data-panel="db" class="hidden" aria-labelledby="h-db">
-      <div class="head"><div><h1 id="h-db">Database</h1><p class="sub">Postgres game. Statistik dari pg_stat_statements dan pg_stat_activity.</p></div></div>
+      <div class="head"><div><h1 id="h-db">Database</h1><p class="sub">Postgres game. Statistik dari pg_stat_statements, pg_stat_database, dan pg_stat_activity.</p></div></div>
       <div id="dbCards"></div>
       <div class="block"><h2>Endpoint paling lambat, rata-rata</h2><div id="dbSlow"></div></div>
       <div class="block"><h2>Transaksi lebih dari 10 detik</h2><div id="dbLong"></div></div>
@@ -75,8 +103,10 @@
         <div class="block"><h2>Koneksi</h2><div id="dbConns"></div></div>
         <div class="block"><h2>Tabel terbesar, schema game</h2><div id="dbTables"></div></div>
       </div>
+      <div class="block"><h2>Baris mati dan vacuum</h2><p class="note">Tabel dengan baris mati terbanyak. Autovacuum membersihkannya sendiri; angka yang terus naik berarti perlu dicek.</p><div id="dbVacuum"></div></div>
     </section>
 
+    <!-- ================= Backup ================= -->
     <section data-panel="backup" class="hidden" aria-labelledby="h-backup">
       <div class="head"><div><h1 id="h-backup">Backup</h1><p class="sub">Backup harian 03:47 WIB, tes restore tiap Minggu 04:20. Disimpan 7 hari di server dan 30 hari di Google Drive.</p></div>
         <div class="tools"><button id="bkRun" type="button" class="btn btn--primary">Backup sekarang</button><button id="bkTest" type="button" class="btn">Tes restore</button></div>
@@ -86,13 +116,15 @@
       <div class="block"><h2>Peringatan Telegram</h2><p id="tgState" class="note"></p><button id="tgTest" type="button" class="btn">Kirim pesan tes</button></div>
     </section>
 
+    <!-- ================= Debug ================= -->
     <section data-panel="debug" class="hidden" aria-labelledby="h-debug">
-      <div class="head"><div><h1 id="h-debug">Debug</h1><p class="sub">Laporan berisi kondisi server, layanan, database, sertifikat, backup, dan log bermasalah 24 jam. Sandi, token, dan kunci disamarkan. Salin atau unduh, lalu kirim ke Claude.</p></div>
+      <div class="head"><div><h1 id="h-debug">Debug</h1><p class="sub">Laporan kondisi server, layanan, database, sertifikat, backup, dan log bermasalah 24 jam. Sandi, token, dan kunci disamarkan. Salin atau unduh, lalu kirim ke Claude.</p></div>
         <div class="tools"><button id="dbgMake" type="button" class="btn btn--primary">Buat laporan</button><button id="dbgCopy" type="button" class="btn" disabled>Salin</button><button id="dbgSave" type="button" class="btn" disabled>Unduh .txt</button></div>
       </div>
-      <pre id="dbgText" class="hidden"></pre>
+      <pre id="dbgText" class="code hidden"></pre>
     </section>
 
+    <!-- ================= Ekonomi ================= -->
     <section data-panel="ekonomi" class="hidden" aria-labelledby="h-ekonomi">
       <div class="head"><div><h1 id="h-ekonomi">Ekonomi</h1><p class="sub">Uang beredar, dagang, bunga bank, dan semua saluran gold di game. Hanya baca, di-cache 60 detik.</p></div>
         <div class="tools"><span id="ekoStamp" class="stamp"></span><button id="ekoRefresh" type="button" class="btn">Muat ulang</button></div>
@@ -100,10 +132,10 @@
       <div id="ekoBoard"></div><p id="ekoTake" class="takeaway"></p>
       <div class="grid2">
         <div class="block"><h2>Siapa memegang kekayaan</h2><p class="note">12 kapten terkaya, dipecah saldo bank dan gold di tangan. Angka di ujung adalah pangsa dari seluruh kekayaan server.</p><div id="ekoKaya"></div></div>
-        <div class="block"><h2>Laba dagang harian</h2><p class="note">14 hari terakhir, WIB. Laba adalah hasil jual dikurangi biaya beli semua pemain. Hari ini masih berjalan.</p><div id="ekoDagang"></div></div>
+        <div class="block"><h2>Laba dagang harian</h2><p class="note">14 hari terakhir, WIB. Hasil jual dikurangi biaya beli semua pemain. Hari ini masih berjalan.</p><div id="ekoDagang"></div></div>
       </div>
-      <div class="block"><h2>Arus gold, 24 jam</h2><p class="note">Dari catatan kapten. Setor dan tarik bank hanya memindahkan gold. Bunga bank tidak tercatat di sini.</p><div id="ekoArus"></div></div>
-      <div class="block"><h2>Tren harian</h2><p class="note">Snapshot dicatat tiap jam, nilai terakhir hari itu yang dipakai. Grafik mulai terisi sejak panel ini dipasang.</p><div id="ekoTren"></div></div>
+      <div class="block"><h2>Arus gold, 24 jam</h2><p class="note">Masuk dan keluar per kelompok dari catatan kapten. Setor dan tarik bank tidak dihitung karena hanya memindahkan gold. Rinciannya ada di Audit, bagian Aliran dana.</p><div id="ekoArus"></div></div>
+      <div class="block"><h2>Tren harian</h2><p class="note">Snapshot dicatat tiap jam, nilai terakhir hari itu yang dipakai.</p><div id="ekoTren"></div></div>
       <div class="block"><h2>Restorasi IKN</h2><p class="note">Kolam sumbangan yang membuka tahap berikutnya. Sumbangan dari Kongsi, Gudang Door, dan Rekening J.T. ikut terhitung.</p><div id="ekoIkn"></div></div>
       <div class="grid2">
         <div class="block"><h2>Balai Kongsi</h2><p class="note">Modal dan bayaran per tingkat risiko. Rasio di atas 100% berarti pemain untung dari kongsi.</p><div id="ekoKongsi"></div></div>
@@ -116,28 +148,30 @@
       <div class="block"><h2>Kesehatan stok barang</h2><p class="note">Stok rata-rata di semua kota dibanding stok normal (100%). Di bawah 30% berarti menipis. Barang premium di atas.</p><div id="ekoStok"></div></div>
     </section>
 
+    <!-- ================= Kapten ================= -->
     <section data-panel="kapten" class="hidden" aria-labelledby="h-kapten">
-      <div class="head"><div><h1 id="h-kapten">Kapten</h1><p class="sub">Setiap pemain: kekayaan, aktivitas, dan progres quest. Hanya baca, di-cache 60 detik.</p></div>
+      <div class="head"><div><h1 id="h-kapten">Kapten</h1><p class="sub">Setiap pemain: kekayaan, perubahan 24 jam, aktivitas, temuan Penjaga, dan progres quest. Klik nama untuk membuka jejaknya di Audit.</p></div>
         <div class="tools"><span id="kapStamp" class="stamp"></span><button id="kapRefresh" type="button" class="btn">Muat ulang</button></div>
       </div>
       <div id="kapBoard"></div>
-      <div class="block"><h2>Detail setiap kapten</h2><p class="note">Klik judul kolom untuk mengurutkan. Bunga per hari dihitung dari saldo bank dengan tingkat bunga di konfigurasi. Kolom 24 jam dari catatan jual-beli.</p>
+      <div class="block"><h2>Detail setiap kapten</h2><p class="note">Klik judul kolom untuk mengurutkan. Naik 24 jam dari snapshot kekayaan tiap 30 menit. Bunga per hari dari saldo bank dengan tingkat bunga di konfigurasi.</p>
         <div class="filterbar"><input id="cariKapten" class="search" type="search" name="cari-kapten" placeholder="Cari kapten, arketipe, atau lokasi" aria-label="Cari kapten">
-          <div class="legend"><span><i class="sq" data-level="ok"></i>aktif kurang dari 1 jam</span><span><i class="sq" data-level="warn"></i>aktif hari ini</span><span><i class="sq"></i>lebih dari 24 jam</span></div></div>
+          <p class="legend">Kolom aktif: hijau kurang dari 1 jam, kuning hari ini, abu lebih dari 24 jam.</p></div>
         <div id="kapTabel"></div></div>
       <div class="block"><h2>Sebaran kapten per quest</h2><p class="note">Berapa kapten sudah menamatkan dan sedang menjalani tiap quest, termasuk quest sampingan.</p><div id="kapSebaran"></div></div>
-      <div class="block"><h2>Progres quest tiap kapten</h2><p class="note">Saga 1 Q1 sampai Q4, Saga 2 Q5 sampai Q9, Saga 3 Q10 sampai Q14, Saga 4 Q15 sampai Q19. Belum terpicu berarti quest sebelumnya tamat tetapi pemicu berikutnya belum terjadi.</p>
+      <div class="block"><h2>Progres quest tiap kapten</h2><p class="note">Saga 1 Q1 sampai Q4, Saga 2 Q5 sampai Q9, Saga 3 Q10 sampai Q14, Saga 4 Q15 dan Q16. Belum terpicu berarti quest sebelumnya tamat tetapi pemicu berikutnya belum terjadi.</p>
         <div class="filterbar"><input id="cariQuest" class="search" type="search" name="cari-quest" placeholder="Cari kapten, saga, atau quest" aria-label="Cari progres quest"></div>
         <div id="kapQuest"></div></div>
     </section>
 
+    <!-- ================= Audit ================= -->
     <section data-panel="audit" class="hidden" aria-labelledby="h-audit">
-      <div class="head"><div><h1 id="h-audit">Audit</h1><p class="sub">Isi gudang, transfer gold, jual-beli antar kapten di Bursa, dan jejak satu kapten. Hanya baca, di-cache 60 detik. Klik nama kapten untuk membuka jejaknya.</p></div>
+      <div class="head"><div><h1 id="h-audit">Audit</h1><p class="sub">Aliran dana, isi gudang, transfer gold, jual-beli antar kapten di Bursa, dan jejak satu kapten. Hanya baca, di-cache 60 detik. Klik nama kapten untuk membuka jejaknya.</p></div>
         <div class="tools"><span id="audStamp" class="stamp"></span><button id="audRefresh" type="button" class="btn">Muat ulang</button></div>
       </div>
-      <div class="filterbar">
+      <div class="filterbar filterbar--main">
         <div class="seg" id="audBagian" role="group" aria-label="Bagian audit">
-          <button type="button" data-b="gudang" aria-pressed="true">Gudang</button><button type="button" data-b="transfer" aria-pressed="false">Transfer gold</button><button type="button" data-b="bursa" aria-pressed="false">Bursa</button><button type="button" data-b="jejak" aria-pressed="false">Jejak kapten</button>
+          <button type="button" data-b="aliran" aria-pressed="true">Aliran dana</button><button type="button" data-b="gudang" aria-pressed="false">Gudang</button><button type="button" data-b="transfer" aria-pressed="false">Transfer gold</button><button type="button" data-b="bursa" aria-pressed="false">Bursa</button><button type="button" data-b="jejak" aria-pressed="false">Jejak kapten</button>
         </div>
         <div class="seg" id="audJam" role="group" aria-label="Rentang catatan">
           <button type="button" data-j="24" aria-pressed="false">24 jam</button><button type="button" data-j="168" aria-pressed="true">7 hari</button><button type="button" data-j="720" aria-pressed="false">30 hari</button><button type="button" data-j="semua" aria-pressed="false">Semua</button>
@@ -145,13 +179,24 @@
         <input id="audCari" class="search" type="search" name="cari-audit" placeholder="Cari kapten, pulau, atau barang" aria-label="Cari di audit">
       </div>
 
-      <div data-aud="gudang">
+      <div data-aud="aliran">
+        <div id="audAlBoard"></div><p id="audAlTake" class="takeaway"></p>
+        <div class="grid2">
+          <div class="block"><h2>Dari mana gold datang</h2><div id="audAlMasuk"></div></div>
+          <div class="block"><h2>Ke mana gold pergi</h2><div id="audAlKeluar"></div></div>
+        </div>
+        <div class="block"><h2>Masuk dan keluar per hari</h2><p class="note">Hari WIB dalam rentang yang dipilih, maksimal 30 hari. Batang atas gold masuk, batang bawah gold keluar.</p><div id="audAlHarian"></div></div>
+        <div class="block"><h2>Per kapten</h2><p class="note">Bagian galian dan artefak di atas separuh gold masuk ditandai: itu bukan jalur dagang. Klik baris untuk melihat rinciannya, klik nama untuk membuka jejak.</p><div id="audAlKapten"></div><div id="audAlRinci" class="rinci hidden"></div></div>
+        <div class="block"><h2>Tidak dihitung</h2><p class="note">Setor dan tarik bank hanya memindahkan gold antara tangan dan bank. Terima misi dan pasang order Bursa belum memindahkan gold. Bunga bank tidak tercatat di log kapten.</p><div id="audAlNol"></div></div>
+      </div>
+
+      <div data-aud="gudang" class="hidden">
         <div id="audGudBoard"></div>
         <div class="block"><h2>Per kapten</h2><p class="note">Isi gudang sekarang di semua pulau, urut dari nilai terbesar. Nilai dihitung dari harga dasar barang.</p><div id="audGudKapten"></div></div>
-        <div class="block"><h2>Rincian gudang</h2><p class="note">Satu baris per kapten, pulau, dan barang. Pangsa adalah bagian kapten itu dari semua unit barang yang dipegang pemain, gudang dan palka. Klik judul kolom untuk mengurutkan.</p>
+        <div class="block"><h2>Rincian gudang</h2><p class="note">Satu baris per kapten, pulau, dan barang. Pangsa adalah bagian kapten itu dari semua unit barang yang dipegang pemain, gudang dan palka.</p>
           <div class="filterbar"><label class="chk"><input id="audPalka" type="checkbox" name="ikut-palka"> Ikut isi palka kapal</label></div>
           <div id="audGudRinci"></div></div>
-        <div class="block"><h2>Arus gudang</h2><p class="note">Barang dititip dan diambil dalam rentang yang dipilih, dari catatan kapten. Bersih positif berarti barang menumpuk di gudang.</p><div id="audGudArus"></div></div>
+        <div class="block"><h2>Arus gudang</h2><p class="note">Barang dititip dan diambil dalam rentang yang dipilih. Bersih positif berarti barang menumpuk di gudang.</p><div id="audGudArus"></div></div>
       </div>
 
       <div data-aud="transfer" class="hidden">
@@ -161,12 +206,12 @@
           <div class="block"><h2>Pengirim terbesar</h2><div id="audTrKirim"></div></div>
         </div>
         <div class="block"><h2>Pasangan terbesar</h2><p class="note">Gold dari pengirim ke penerima, dengan arus balik dari penerima ke pengirim. Urut dari arus bersih terbesar.</p><div id="audTrPasang"></div></div>
-        <div class="block"><h2>Semua transfer</h2><p class="note">Transaksi terakhir di atas, maksimal 1.000 baris. Klik judul kolom untuk mengurutkan.</p><div id="audTrDaftar"></div></div>
+        <div class="block"><h2>Semua transfer</h2><p class="note">Transaksi terakhir di atas, maksimal 1.000 baris.</p><div id="audTrDaftar"></div></div>
       </div>
 
       <div data-aud="bursa" class="hidden">
         <div id="audBuBoard"></div>
-        <div class="block"><h2>Pasangan terbesar</h2><p class="note">Pembeli dan penjual yang paling banyak bertransaksi, urut dari nilai terbesar. Selisih harga jauh di bawah atau di atas harga dasar bisa berarti gold dipindahkan lewat Bursa.</p><div id="audBuPasang"></div></div>
+        <div class="block"><h2>Pasangan terbesar</h2><p class="note">Pembeli dan penjual yang paling banyak bertransaksi. Selisih harga jauh dari harga dasar bisa berarti gold dipindahkan lewat Bursa.</p><div id="audBuPasang"></div></div>
         <div class="block"><h2>Semua transaksi Bursa</h2><p class="note">Transaksi terakhir di atas, maksimal 1.000 baris. Selisih dibanding harga dasar barang.</p><div id="audBuDaftar"></div></div>
         <div class="block"><h2>Order terbuka</h2><div id="audBuOrder"></div></div>
       </div>
@@ -174,6 +219,11 @@
       <div data-aud="jejak" class="hidden">
         <div class="filterbar"><label class="field field--inline" for="audKapten">Kapten<select id="audKapten" class="search" name="kapten"></select></label></div>
         <div id="audJeBoard"></div>
+        <div id="audJePenjaga"></div>
+        <div class="grid2">
+          <div class="block"><h2>Kekayaan, 14 hari</h2><p class="note">Gold ditambah bank dikurangi utang, dari snapshot tiap 30 menit.</p><div id="audJeKekayaan"></div></div>
+          <div class="block"><h2>Aliran dana</h2><p class="note">Masuk dan keluar per kategori dalam rentang yang dipilih.</p><div id="audJeAliran"></div></div>
+        </div>
         <div class="grid2">
           <div class="block"><h2>Transfer gold</h2><p class="note">Masuk dan keluar dalam rentang yang dipilih.</p><div id="audJeTransfer"></div></div>
           <div class="block"><h2>Hak Lot, 14 hari</h2><div id="audJeLot"></div></div>
@@ -182,13 +232,45 @@
       </div>
     </section>
 
+    <!-- ================= Penjaga ================= -->
+    <section data-panel="penjaga" class="hidden" aria-labelledby="h-penjaga">
+      <div class="head"><div><h1 id="h-penjaga">Penjaga</h1><p class="sub">Pemindai perilaku janggal: aturan tetap di server, lalu penilaian AI Gemini atas angka yang sudah diringkas. Hanya membaca data game.</p></div>
+        <div class="tools">
+          <label class="field field--inline" for="pjJam">Jendela<select id="pjJam" class="search search--s" name="jendela"><option value="6">6 jam</option><option value="24" selected>24 jam</option><option value="72">3 hari</option><option value="168">7 hari</option></select></label>
+          <button id="pjScan" type="button" class="btn">Pindai sekarang</button><button id="pjScanAi" type="button" class="btn btn--primary">Pindai dan nilai dengan AI</button>
+        </div>
+      </div>
+      <p id="pjStatus" class="statusline"></p>
+      <div id="pjBoard"></div>
+      <div class="block"><h2>Temuan</h2><p class="note">Urut dari skor tertinggi. Skor 6 ke atas tinggi, 3 sampai 5 sedang. Buka baris untuk melihat bukti.</p><div id="pjTemuan"></div></div>
+      <div class="block"><h2>Penilaian AI</h2><div id="pjAi"></div></div>
+      <div class="grid2">
+        <div class="block"><h2>Riwayat pindaian</h2><p class="note">30 pindaian terakhir. Klik waktu untuk membuka hasilnya.</p><div id="pjRiwayat"></div></div>
+        <div class="block"><h2>Ditandai aman</h2><p class="note">Kapten di sini tetap dinilai, tetapi tidak dikirim ke Telegram sampai tanggal berakhir.</p><div id="pjAman"></div></div>
+      </div>
+      <div class="block"><h2>Aturan yang dipakai</h2>
+        <dl class="rules">
+          <div><dt>Ledakan aksi</dt><dd>60 aksi atau lebih dalam satu menit (3 poin), 150 atau lebih (6 poin).</dd></div>
+          <div><dt>Ritme seperti mesin</dt><dd>300 aksi atau lebih dengan jeda median di bawah 1,5 detik (4 poin).</dd></div>
+          <div><dt>Aksi yang sama berulang</dt><dd>Satu pola catatan 300 kali atau lebih dan 60% dari semua aksi (3 poin).</dd></div>
+          <div><dt>Loop peta dan galian</dt><dd>Beli item dan galian 100 kali atau lebih (3 poin), 1.000 atau lebih (6 poin).</dd></div>
+          <div><dt>Gold dari galian dan artefak</dt><dd>1 jt atau lebih dan separuh gold masuk (3 poin).</dd></div>
+          <div><dt>Kekayaan melonjak</dt><dd>Naik 5 jt atau 5 kali median kenaikan server (3 poin).</dd></div>
+          <div><dt>Transfer</dt><dd>Menerima 3 jt atau dari 4 kapten (2 poin); akun di bawah 3 hari menerima 1 jt (3 poin); saling kirim 500 rb (2 poin).</dd></div>
+          <div><dt>Bursa dan duel dadu</dt><dd>Harga Bursa 60% dari harga dasar dengan nilai 100 rb (3 poin); 15 duel dadu sepihak melawan lawan yang sama (2 poin).</dd></div>
+          <div><dt>Aktif hampir tanpa jeda</dt><dd>Aktif di 85% jam dalam jendela 24 jam atau lebih (2 poin).</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ================= Iluminaty ================= -->
     <section data-panel="iluminaty" class="hidden" aria-labelledby="h-ilu">
-      <div class="head"><div><h1 id="h-ilu">Iluminaty</h1><p class="sub">Pesan Pribadi antar kapten, safety net GM. Pesan disimpan game 7 hari. Hanya baca, di-cache 30 detik. Klik percakapan untuk membaca isinya.</p></div>
+      <div class="head"><div><h1 id="h-ilu">Iluminaty</h1><p class="sub">Pesan Pribadi antar kapten, safety net GM. Pesan disimpan game 7 hari. Hanya baca, di-cache 30 detik. Setiap utas yang dibuka tercatat di log panel.</p></div>
         <div class="tools"><span id="iluStamp" class="stamp"></span><button id="iluRefresh" type="button" class="btn">Muat ulang</button></div>
       </div>
       <div id="iluBoard"></div>
-      <div class="filterbar">
-        <input id="iluCari" class="search" type="search" name="cari-pesan" placeholder="Cari kata di isi pesan atau nama kapten, lalu Enter" aria-label="Cari pesan">
+      <div class="filterbar filterbar--main">
+        <input id="iluCari" class="search" type="search" name="cari-pesan" placeholder="Cari kata di isi pesan atau nama kapten" aria-label="Cari pesan">
         <button id="iluCariBtn" type="button" class="btn">Cari</button>
       </div>
       <div id="iluHasilBox" class="block hidden"><h2>Hasil cari <span id="iluHasilQ" class="dim"></span></h2><div id="iluHasil"></div></div>
@@ -198,12 +280,63 @@
         <div id="iluDaftar"></div></div>
       <div class="block"><h2>Pengirim terbanyak</h2><div id="iluPengirim"></div></div>
     </section>
+
+    <!-- ================= Pengaturan ================= -->
+    <section data-panel="pengaturan" class="hidden" aria-labelledby="h-set">
+      <div class="head"><div><h1 id="h-set">Pengaturan</h1><p class="sub">Disimpan di server panel, bukan di browser. Kunci API tidak pernah dikirim balik ke layar.</p></div></div>
+      <div class="sets">
+        <form id="setAi" class="set" autocomplete="off">
+          <h2>AI Gemini untuk Penjaga</h2>
+          <p class="note">Buat kunci di Google AI Studio, menu Get API key, lalu tempel di sini. Yang dikirim ke Google hanya angka ringkasan per kapten. Bila samarkan nama aktif, nama kapten diganti kode K01, K02, dan dikembalikan setelah jawaban datang.</p>
+          <p id="setAiState" class="statusline"></p>
+          <label class="field" for="setKey">Kunci API<input id="setKey" name="gemini-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
+          <label class="field" for="setModel">Model<select id="setModel" name="gemini-model" class="search"><option value="gemini-2.5-flash">gemini-2.5-flash</option><option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option><option value="gemini-2.5-pro">gemini-2.5-pro</option></select></label>
+          <div class="actions"><button type="submit" class="btn btn--primary">Simpan</button><button id="setTes" type="button" class="btn">Tes koneksi</button><button id="setModels" type="button" class="btn">Muat daftar model</button><button id="setHapus" type="button" class="btn btn--danger">Hapus kunci</button></div>
+          <p id="setAiMsg" class="msg" role="status"></p>
+        </form>
+
+        <form id="setPj" class="set">
+          <h2>Penjaga</h2>
+          <label class="chk"><input id="pjAuto" type="checkbox" name="auto"> Pindai otomatis dengan aturan</label>
+          <div class="row2">
+            <label class="field" for="pjInterval">Tiap<select id="pjInterval" name="interval" class="search"><option value="30">30 menit</option><option value="60">1 jam</option><option value="180">3 jam</option><option value="360">6 jam</option></select></label>
+            <label class="field" for="pjJendela">Jendela catatan<select id="pjJendela" name="jendela" class="search"><option value="6">6 jam</option><option value="24">24 jam</option><option value="72">3 hari</option></select></label>
+          </div>
+          <fieldset class="radios"><legend>AI ikut menilai</legend>
+            <label class="chk"><input type="radio" name="ai" value="auto"> Otomatis, bila aturan menemukan tingkat sedang atau tinggi</label>
+            <label class="chk"><input type="radio" name="ai" value="manual"> Hanya saat tombol ditekan</label>
+            <label class="chk"><input type="radio" name="ai" value="off"> Mati</label>
+          </fieldset>
+          <div class="row2">
+            <label class="field" for="pjJeda">Jeda AI otomatis<select id="pjJeda" name="jeda" class="search"><option value="1">1 jam</option><option value="3">3 jam</option><option value="6">6 jam</option><option value="12">12 jam</option><option value="24">24 jam</option></select></label>
+            <label class="field" for="pjAlert">Kirim ke Telegram<select id="pjAlert" name="alert" class="search"><option value="tinggi">Tingkat tinggi</option><option value="sedang">Sedang dan tinggi</option><option value="off">Tidak</option></select></label>
+          </div>
+          <label class="chk"><input id="pjSamar" type="checkbox" name="samarkan"> Samarkan nama kapten sebelum dikirim ke Google</label>
+          <div class="actions"><button type="submit" class="btn btn--primary">Simpan</button></div>
+          <p id="setPjMsg" class="msg" role="status"></p>
+        </form>
+
+        <form id="setTg" class="set">
+          <h2>Telegram</h2>
+          <p id="setTgState" class="statusline"></p>
+          <div class="row2">
+            <label class="field" for="tgSenyap">Senyapkan peringatan<select id="tgSenyap" name="senyap" class="search"><option value="0">Tidak</option><option value="1">1 jam</option><option value="2">2 jam</option><option value="8">8 jam</option><option value="24">24 jam</option></select></label>
+            <label class="field" for="tgJam">Laporan harian<select id="tgJam" name="laporan" class="search"></select></label>
+          </div>
+          <p class="note">Layanan mati tetap dikirim saat senyap. Di Telegram, ketik /menu untuk membuka menu bertombol.</p>
+          <div class="actions"><button type="submit" class="btn btn--primary">Simpan</button><button id="setTgTes" type="button" class="btn">Kirim pesan tes</button></div>
+          <p id="setTgMsg" class="msg" role="status"></p>
+        </form>
+      </div>
+    </section>
   </main>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 </div>
 <script src="/app.js"></script>
+<script src="/ringkas.js"></script>
 <script src="/ekonomi.js"></script>
 <script src="/audit.js"></script>
 <script src="/iluminaty.js"></script>
+<script src="/penjaga.js"></script>
 </body>
 </html>

@@ -135,7 +135,7 @@ tr as (select player_id,
 mu as (select x.player_id, sum(x.qty * c.base) as v from (select player_id, item_id as cid, qty from game.inventory
   union all select player_id, commodity_id, qty from game.warehouse) x join game.commodities c on c.id = x.cid group by x.player_id),
 tot as (select sum(gold + bank_balance) as t from game.players where archetype <> '')
-select p.character_name as pemain, p.archetype as arketipe, coalesce(s.tier, '') as kapal,
+select p.character_name as pemain, p.username, p.archetype as arketipe, coalesce(s.tier, '') as kapal,
   case when l.arrive_at > now() then 'laut ke ' || coalesce(l.destination_city_id, '') else coalesce(l.city_id, '') end as lokasi,
   p.gold::float8 as gold, p.bank_balance::float8 as bank, p.debt_balance::float8 as utang,
   coalesce(mu.v, 0)::float8 as nilai_muatan, (p.gold + p.bank_balance)::float8 as kekayaan,
