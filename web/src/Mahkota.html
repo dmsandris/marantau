@@ -64,7 +64,9 @@ var MK = (function () {
   function step() { var s = st(); return s ? (s.step || 0) : -1; }      // langkah yang sudah selesai
   function aktif() { return !!st(); }
   function def() { var s = st(); return (s && s.d) || null; }
-  function idx() { var s = st(); if (!s) return -1; return s.d ? (s.d.n - 1) : s.step; }
+  // Tanpa langkah aktif dari server (d = null) tidak ada kartu. Penting sejak langkah 41-60 ada di S:
+  // pemain yang tamat langkah 40 tapi belum lolos gerbang Bagian II tidak boleh melihat kartu langkah 41.
+  function idx() { var s = st(); if (!s) return -1; return s.d ? (s.d.n - 1) : (s.step >= 40 ? -1 : s.step); }
   function cid() { try { return state && state.city ? state.city.CityId : ''; } catch (e) { return ''; } }
   function cityNm(id) { try { var c = (state.cities || []).filter(function (x) { return x.CityId === id; })[0]; return c ? c.Name : null; } catch (e) { return null; } }
   function docked() { return !(state && state.voyage && state.voyage.inTransit); }
