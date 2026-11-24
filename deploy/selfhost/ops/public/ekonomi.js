@@ -258,12 +258,14 @@
     $('#kapStamp').textContent = 'Diambil ' + new Date(d.at).toLocaleTimeString('id-ID');
     part($('#kapBoard'), d, 'pemain', rows => {
       const aktif1 = rows.filter(r => r.jam_sejak_aktif < 1).length, aktif24 = rows.filter(r => r.jam_sejak_aktif < 24).length, laut = rows.filter(r => /^laut/.test(r.lokasi)).length;
-      const s4 = (d.questPemain || []).filter(r => r.saga === 'Saga 4').length;
+      const qp = d.questPemain || [], s4 = qp.filter(r => r.saga === 'Saga 4').length;
+      const s4b2 = qp.filter(r => r.quest_no === 16).length, s4tamat = qp.filter(r => r.quest_kini === 'Tamat Saga 4').length;
       $('#kapBoard').innerHTML = board([
         { k: 'Kapten', v: n0(rows.length), s: 'terdaftar dan sudah membuat karakter' }, { k: 'Aktif kurang dari 1 jam', v: n0(aktif1), s: 'sedang atau baru saja main' },
         { k: 'Aktif 24 jam', v: n0(aktif24), s: `${n0(rows.length - aktif24)} lebih lama` }, { k: 'Sedang berlayar', v: n0(laut), s: 'di tengah laut sekarang' },
         { k: 'Sudah di Saga 4', v: n0(s4), s: 'Monopoli dan Mahkota' },
-      ], 5);
+        { k: 'Saga 4 Bagian II', v: n0(s4b2), s: `Takhta Tanpa Mahkota · ${n0(s4tamat)} tamat` },
+      ], 6);
     });
     part($('#kapTabel'), d, 'pemain', () => { renderKapTabel(); });
     part($('#kapSebaran'), d, 'questRingkas', rows => {
