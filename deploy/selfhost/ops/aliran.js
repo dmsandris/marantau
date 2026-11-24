@@ -1,4 +1,5 @@
-// Aliran dana: dari mana gold kapten datang dan ke mana gold itu pergi, dari catatan kapten (game.player_log).
+// Aliran dana: dari mana gold kapten datang dan ke mana gold itu pergi, dari catatan kapten (game.player_log)
+// ditambah ronde Kasino Mutiara (game.kasino_round, Tide v84: kasino tidak menulis player_log per ronde).
 // Hanya SELECT, dijalankan lewat role baca-saja. $1 = jumlah jam ke belakang (null = semua catatan).
 // Setor/tarik bank hanya memindahkan gold antara tangan dan bank, jadi dipisah sebagai "pindah" dan tidak
 // dihitung ke masuk/keluar. Bunga bank tidak dicatat di log, jadi tidak muncul di sini.
@@ -61,7 +62,12 @@ const BASE = `
 x as (select l.player_id, l.message as m, ${GOLD} as g, l.ts from game.player_log l
   where ${SINCE} and l.message like '% gold%'),
 kc as (select player_id, ts, g, ${KAT} as c from x where g is not null),
-k as (select player_id, ts, g, split_part(c, '|', 1) as kat, split_part(c, '|', 2) as kel, split_part(c, '|', 3)::int as arah from kc)`;
+kl as (select player_id, ts, g, split_part(c, '|', 1) as kat, split_part(c, '|', 2) as kel, split_part(c, '|', 3)::int as arah from kc),
+kz as (select r.player_id, r.settled_at as ts, abs(r.net_delta)::float8 as g,
+  case when r.net_delta > 0 then 'Menang kasino' else 'Kalah kasino' end as kat, 'Kasino' as kel, sign(r.net_delta)::int as arah
+  from game.kasino_round r where r.status <> 'active' and r.net_delta <> 0
+   and ($1::int is null or r.settled_at > now() - ($1::int * interval '1 hour'))),
+k as (select * from kl union all select * from kz)`;
 
 const Q = {
   // Total per kategori di seluruh server.
@@ -81,12 +87,13 @@ agg as (select player_id,
   coalesce(sum(g) filter (where arah = 1 and kat in ('Galian harta', 'Jual item dan artefak')), 0) as dari_harta,
   coalesce(sum(g) filter (where arah = 1 and kat = 'Jual barang dagang'), 0) as dari_dagang,
   coalesce(sum(g) filter (where arah = 1 and kat in ('Transfer masuk', 'Jual lewat Bursa', 'Menang duel')), 0) as dari_kapten,
+  coalesce(sum(case when kel = 'Kasino' then g * arah else 0 end), 0) as kasino_bersih,
   count(*) as kejadian from k group by player_id)
 select ${NAMA} as kapten, p.username, a.masuk::float8, a.keluar::float8, (a.masuk - a.keluar)::float8 as bersih,
   a.dari_dagang::float8, a.dari_harta::float8, a.dari_kapten::float8,
   round((100 * a.dari_harta / nullif(a.masuk, 0))::numeric, 1)::float8 as harta_pct,
   ti.kat as sumber_utama, ti.g::float8 as sumber_utama_gold, tt.kat as tujuan_utama, tt.g::float8 as tujuan_utama_gold,
-  a.kejadian::int, (p.gold + p.bank_balance - p.debt_balance)::float8 as kekayaan_kini
+  a.kasino_bersih::float8, a.kejadian::int, (p.gold + p.bank_balance - p.debt_balance)::float8 as kekayaan_kini
 from agg a join game.players p on p.player_id = a.player_id
 left join top_in ti on ti.player_id = a.player_id left join top_out tt on tt.player_id = a.player_id
 where p.archetype <> ''

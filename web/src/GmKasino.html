@@ -1,0 +1,113 @@
+<style>
+  /* ================= Tide v84 · Panel GM: Kasino Mutiara ================= */
+  #mtGmPanel .ksg-sw { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px; margin-top: 8px; }
+  #mtGmPanel .ksg-sw label { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border-radius: 9px; border: 1px solid rgba(79,51,30,.3); background: #fffdf6; font-size: 13px; cursor: pointer; }
+  #mtGmPanel .ksg-sw label.main { grid-column: 1 / -1; font-weight: 700; }
+  #mtGmPanel .ksg-sw input { width: 18px; height: 18px; min-height: 0; margin: 0; }
+  #mtGmPanel .ksg-edge { display: grid; gap: 8px; margin-top: 10px; }
+  #mtGmPanel .ksg-er { display: grid; grid-template-columns: 96px 1fr 72px auto; gap: 8px; align-items: center; padding: 7px 9px; border-radius: 10px; background: #fffdf6; border: 1px solid rgba(79,51,30,.25); font-size: 13px; }
+  #mtGmPanel .ksg-er b { font-family: var(--font-title, Georgia, serif); font-size: 12.5px; }
+  #mtGmPanel .ksg-er input[type=range] { -webkit-appearance: auto; appearance: auto; width: 100%; height: 22px; padding: 0; min-height: 0; border: 0; box-shadow: none; background: transparent; accent-color: #8f6522; }
+  #mtGmPanel .ksg-er input[type=number] { min-height: 32px; padding: 4px 6px; text-align: right; }
+  #mtGmPanel .ksg-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; text-align: center; }
+  #mtGmPanel .ksg-tag.sink { background: #f6dcc9; color: #8a2c14; } #mtGmPanel .ksg-tag.net { background: rgba(79,51,30,.1); color: #4f331e; }
+  #mtGmPanel .ksg-tag.mint { background: #d8eedd; color: #1f5e30; }
+  #mtGmPanel .ksg-tag.cur { background: #372316; color: #fbeabb; }
+  #mtGmPanel .ksg-er.dirty { border-color: #c9922f; box-shadow: 0 0 0 1px #c9922f; }
+  @media (max-width: 520px) { #mtGmPanel .ksg-er { grid-template-columns: 1fr 72px; } #mtGmPanel .ksg-er input[type=range] { grid-column: 1 / -1; order: 3; } #mtGmPanel .ksg-er .ksg-tag { order: 4; grid-column: 1 / -1; } }
+  #mtGmPanel .ksg-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+  #mtGmPanel .ksg-tbl th { text-align: left; font-weight: 700; color: var(--parch-muted, #7b6445); padding: 4px; font-size: 11.5px; }
+  #mtGmPanel .ksg-tbl td { padding: 5px 4px; border-top: 1px solid rgba(79,51,30,.15); vertical-align: top; }
+  #mtGmPanel .ksg-tbl td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #mtGmPanel .ksg-alarm { margin-top: 8px; padding: 8px 10px; border-radius: 9px; background: #f6dcc9; color: #8a2c14; font-size: 13px; font-weight: 700; }
+  #mtGmPanel .ksg-note { font-size: 12px; color: var(--parch-muted, #7b6445); margin-top: 6px; }
+  #mtGmPanel .ksg-h5 { margin: 12px 0 2px; font-family: var(--font-title, Georgia, serif); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--teak-600, #4f331e); }
+</style>
+<script>
+(function () {
+  'use strict';
+  var G = ['dadu', 'roulette', 'blackjack', 'slot'], NM = { dadu: 'Duel Dadu', roulette: 'Roulette', blackjack: 'Blackjack', slot: 'Slot' };
+  var D = null, busy = false;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function f(n) { return Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+  function pc(n) { return (Number(n) > 0 ? '+' : '') + (Math.round(Number(n) * 10) / 10).toString().replace('.', ',') + '%'; }
+  function rpc(args) { return new Promise(function (ok, fail) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r.api_gmKasino.apply(r, args); }); }
+  function msg(t, err) { var m = $('ksgMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('err', !!err); } }
+  function tag(v) { v = Number(v) || 0; return v > 0 ? '<span class="ksg-tag sink">Sink gold</span>' : v < 0 ? '<span class="ksg-tag mint">Pencetak gold</span>' : '<span class="ksg-tag net">Netral</span>'; }
+
+  function paint() {
+    if (!D) return;
+    var sum = $('ksgSum'); if (sum) { sum.textContent = D.open ? 'BUKA' + (Object.keys(D.stats || {}).some(function (k) { return D.stats[k].alarm; }) ? ' · ALARM RTP' : '') : (D.penguji ? 'tutup (penguji: ' + D.penguji + ')' : 'tutup'); sum.classList.toggle('on', !D.open); }
+    var sw = '<label class="main"><input type="checkbox" data-ksg-gate="all"' + (D.open ? ' checked' : '') + '> Kasino Mutiara dibuka untuk semua pemain</label>' +
+      G.map(function (g) { return '<label><input type="checkbox" data-ksg-gate="' + g + '"' + (D.tables[g] ? ' checked' : '') + '> ' + NM[g] + '</label>'; }).join('');
+    $('ksgSw').innerHTML = sw;
+    $('ksgEdge').innerHTML = G.map(function (g) {
+      var v = Number(D.edges[g]) || 0;
+      return '<div class="ksg-er" data-ksg-row="' + g + '"><b>' + NM[g] + '</b><input type="range" min="-10" max="10" step="0.5" value="' + v + '" data-ksg-r="' + g + '" aria-label="Edge ' + NM[g] + '">' +
+        '<input type="number" min="-10" max="10" step="0.1" value="' + v + '" data-ksg-n="' + g + '" aria-label="Edge ' + NM[g] + ' (%)"><span data-ksg-t="' + g + '">' + tag(v) + '</span></div>';
+    }).join('');
+    var S = D.stats || {}, rows = G.map(function (g) {
+      var s = S[g]; if (!s) return '<tr><td>' + NM[g] + '</td><td class="n" colspan="5">belum ada ronde</td></tr>';
+      return '<tr><td>' + NM[g] + (s.alarm ? ' ⚠' : '') + '</td><td class="n">' + f(s.rounds) + '</td><td class="n">' + f(s.turnover) + '</td><td class="n">' + f(s.houseNet) + '</td>' +
+        '<td class="n">' + (Number(s.rtp) * 100).toFixed(1) + '% / ' + (Number(s.rtpTarget) * 100).toFixed(1) + '%</td><td class="n">' + Number(s.z).toFixed(1) + '</td></tr>';
+    }).join('');
+    var alarm = G.filter(function (g) { return S[g] && S[g].alarm; });
+    var T = D.today || {};
+    $('ksgStat').innerHTML = (alarm.length ? '<div class="ksg-alarm">Alarm RTP: ' + alarm.map(function (g) { return NM[g]; }).join(', ') + ' menyimpang lebih dari 4σ dari target Edge. Cek jejak ronde di Panel Ops.</div>' : '') +
+      '<div class="ksg-note">Hari ini (WIB): ' + f(T.rounds) + ' ronde · ' + f(T.players) + ' kapten · putaran ' + f(T.turnover) + ' · bandar ' + (Number(T.houseNet) >= 0 ? '+' : '') + f(T.houseNet) + ' gold</div>' +
+      '<table class="ksg-tbl"><tr><th>Meja</th><th>Ronde</th><th>Putaran</th><th>Bandar</th><th>RTP nyata / target</th><th>z</th></tr>' + rows + '</table>' +
+      '<div class="ksg-note">Bandar + = gold terserap (sink). Target Blackjack mengandaikan basic strategy; pemain biasa wajar di bawah target, alarm hanya bila pemain menang di atas target.</div>' +
+      '<div class="ksg-h5">Menang bersih hari ini (batas ' + f(D.limits.menangHarian) + ')</div>' +
+      ((D.top || []).length ? '<table class="ksg-tbl">' + D.top.map(function (t) { return '<tr><td>' + esc(t.kapten) + (t.penuh ? ' <span class="ksg-tag cur">penuh</span>' : '') + '</td><td class="n">' + f(t.rounds) + ' ronde</td><td class="n">' + (t.net >= 0 ? '+' : '') + f(t.net) + '</td></tr>'; }).join('') + '</table>' : '<div class="ksg-note">Belum ada ronde hari ini.</div>') +
+      '<div class="ksg-h5">Riwayat perubahan Edge</div>' +
+      ((D.audit || []).length ? '<table class="ksg-tbl">' + D.audit.map(function (a) { var d = new Date(Number(a.at)); return '<tr><td>' + ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2) + '</td><td>' + NM[a.game] + '</td><td class="n">' + pc(a.old) + ' → ' + pc(a.new) + '</td><td>' + esc(a.gm) + ': ' + esc(a.note) + '</td></tr>'; }).join('') + '</table>' : '<div class="ksg-note">Belum ada perubahan.</div>');
+    wire();
+  }
+  function wire() {
+    document.querySelectorAll('#ksgSw [data-ksg-gate]').forEach(function (c) {
+      c.onchange = function () {
+        var g = c.getAttribute('data-ksg-gate'), on = c.checked;
+        if (g === 'all' && on && !confirm('Buka Kasino Mutiara untuk SEMUA pemain sekarang?')) { c.checked = false; return; }
+        if (g === 'all' && !on && !confirm('Tutup Kasino Mutiara untuk semua pemain?')) { c.checked = true; return; }
+        msg('Menyimpan…'); rpc(['gate', g, on]).then(function (x) { D = x; paint(); msg((g === 'all' ? 'Kasino' : NM[g]) + (on ? ' dibuka.' : ' ditutup.')); }, function (e) { msg(e.message, true); load(); });
+      };
+    });
+    G.forEach(function (g) {
+      var r = document.querySelector('[data-ksg-r="' + g + '"]'), n = document.querySelector('[data-ksg-n="' + g + '"]'), row = document.querySelector('[data-ksg-row="' + g + '"]');
+      var mark = function (v) { document.querySelector('[data-ksg-t="' + g + '"]').innerHTML = tag(v); row.classList.toggle('dirty', Number(v) !== Number(D.edges[g])); };
+      r.oninput = function () { n.value = r.value; mark(r.value); };
+      n.oninput = function () { var v = Math.max(-10, Math.min(10, Number(n.value) || 0)); r.value = v; mark(v); };
+    });
+  }
+  function saveEdge() {
+    var note = ($('ksgNote').value || '').trim(), ch = G.filter(function (g) { return Number(document.querySelector('[data-ksg-n="' + g + '"]').value) !== Number(D.edges[g]); });
+    if (!ch.length) { msg('Belum ada Edge yang diubah.', true); return; }
+    if (note.length < 3) { msg('Isi Catatan Perubahan dulu (wajib, tercatat di audit).', true); $('ksgNote').focus(); return; }
+    var lines = ch.map(function (g) { var v = Number(document.querySelector('[data-ksg-n="' + g + '"]').value); return NM[g] + ': ' + pc(D.edges[g]) + ' → ' + pc(v) + (v < 0 ? '  (PENCETAK GOLD)' : ''); });
+    if (!confirm('Simpan Edge baru?\n\n' + lines.join('\n') + '\n\nCatatan: ' + note)) return;
+    if (ch.some(function (g) { return Number(document.querySelector('[data-ksg-n="' + g + '"]').value) < 0; }) && !confirm('Edge negatif membuat pemain unggul dan MENCETAK gold. Yakin?')) return;
+    busy = true; msg('Menyimpan Edge…');
+    var p = Promise.resolve();
+    ch.forEach(function (g) { var v = Number(document.querySelector('[data-ksg-n="' + g + '"]').value); p = p.then(function () { return rpc(['edge', g, v, note]); }).then(function (x) { D = x; }); });
+    p.then(function () { busy = false; $('ksgNote').value = ''; paint(); msg('Edge tersimpan & tercatat di audit.'); }, function (e) { busy = false; msg(e.message, true); load(); });
+  }
+  function load() { if (busy) return; rpc(['status']).then(function (x) { D = x; paint(); }, function (e) { msg(e.message, true); }); }
+  function mount() {
+    var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box || $('ksgGm')) return;
+    var hint = box.querySelector(':scope > .mtp-hint:last-child');
+    var sec = document.createElement('div'); sec.id = 'ksgGm'; sec.setAttribute('data-k', 'kasino');
+    sec.innerHTML = '<h4>Kasino Mutiara<span class="mtp-sum" id="ksgSum"></span></h4>' +
+      '<div class="ksg-sw" id="ksgSw"></div>' +
+      '<div class="ksg-h5">Edge per meja (−10% s/d +10%)</div><div class="ksg-note">+ = bandar unggul (sink gold) · − = pemain unggul (cetak gold) · 0 = adil. Tidak pernah tampil di layar pemain.</div>' +
+      '<div class="ksg-edge" id="ksgEdge"></div>' +
+      '<label style="margin-top:8px">Catatan Perubahan (wajib)<input type="text" id="ksgNote" maxlength="300" placeholder="Contoh: sink gold pekan ini, ekonomi terlalu basah"></label>' +
+      '<div class="mtp-acts"><button type="button" id="ksgSave">Simpan Edge</button><button type="button" class="alt" id="ksgRef">Muat ulang</button></div>' +
+      '<div class="mtp-msg" id="ksgMsg" aria-live="polite"></div><div class="ksg-h5">Statistik &amp; alarm RTP</div><div id="ksgStat"></div>';
+    if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
+    $('ksgSave').onclick = saveEdge; $('ksgRef').onclick = load;
+    var btn = $('mtGmBtn'); if (btn) btn.addEventListener('click', function () { load(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+})();
+</script>
