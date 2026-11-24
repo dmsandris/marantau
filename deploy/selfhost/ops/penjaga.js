@@ -48,6 +48,16 @@ select ${NAMA} as pengirim, p.username as pengirim_u, coalesce(nullif(q.characte
 from t join game.players p on p.player_id = t.player_id left join game.players q on q.character_name = t.r[2]
 where t.r is not null group by 1, 2, 3, 4`,
 
+  // Kasino Mutiara (Tide v84): ritme ronde & hasil per kapten di jendela waktu.
+  kasino: `
+with r as (select player_id, created_at, net_delta, bet_amount, capped from game.kasino_round
+  where status <> 'active' and created_at > now() - ($1::int * interval '1 hour')),
+m as (select player_id, max(c)::int as maks_per_menit from (select player_id, count(*) as c from r group by 1, date_trunc('minute', created_at)) z group by 1)
+select ${NAMA} as kapten, p.username, count(*)::int as ronde, sum(r.bet_amount)::float8 as putaran, sum(r.net_delta)::float8 as bersih,
+  (count(*) filter (where r.capped))::int as kena_batas, coalesce(m.maks_per_menit, 0) as maks_per_menit
+from r join game.players p on p.player_id = r.player_id left join m on m.player_id = r.player_id
+group by p.player_id, p.character_name, p.username, m.maks_per_menit`,
+
   dadu: `
 with d as (select l.player_id, l.message as m, regexp_match(l.message, 'duel dadu melawan (.+) \\(([+-])([0-9]+) gold') as r
   from game.player_log l where ${W} and l.message like '% duel dadu melawan %')
@@ -63,6 +73,7 @@ const median = a => { const b = a.filter(x => x != null && Number.isFinite(+x)).
 // Aturan. Setiap aturan menambah poin; poin total menentukan tingkat (≥6 tinggi, ≥3 sedang).
 function nilai(ctx) {
   const { pemain, akt, aliran, transfer, dadu, bursa, kekayaan, jendela } = ctx;
+  const kasino = ctx.kasino || [];
   const byU = new Map();
   const get = (u, nama) => {
     if (!u) return null;
@@ -149,6 +160,13 @@ function nilai(ctx) {
       tandai(d.username, d.kapten, 'dadu', 'Duel dadu sepihak', `${n} duel melawan ${d.lawan}: menang ${d.menang}, kalah ${d.kalah}, bersih ${jt(d.bersih)}`, 2);
   }
 
+  // Kasino Mutiara: ritme seperti skrip, atau menang besar berulang kali sampai batas harian.
+  for (const k of kasino) {
+    const f = get(k.username, k.kapten); Object.assign(f.angka, { kasino_ronde: k.ronde, kasino_bersih: k.bersih, kasino_kena_batas: k.kena_batas });
+    if (k.maks_per_menit >= 40) tandai(k.username, k.kapten, 'kasino_mesin', 'Ritme kasino seperti mesin', `${k.maks_per_menit} ronde kasino dalam satu menit, ${k.ronde} ronde total`, 4);
+    if (k.bersih >= 5e6 || k.kena_batas >= 2) tandai(k.username, k.kapten, 'kasino_menang', 'Menang besar di kasino', `bersih ${jt(k.bersih)} dari ${k.ronde} ronde (putaran ${jt(k.putaran)}), ${k.kena_batas}× menyentuh batas harian`, 2);
+  }
+
   // Gabungkan tanda dengan kode sama (ambil poin terbesar, bukti digabung).
   const temuan = [];
   for (const f of byU.values()) {
@@ -170,7 +188,7 @@ function nilai(ctx) {
 
 // ---------- Gemini ----------
 const AI_SYSTEM = `Kamu analis anti-curang untuk "Marantau", game dagang kapal berbasis browser (gaya Tradewinds) dengan ±35 pemain.
-Ekonomi: kapten membeli barang murah di satu pulau dan menjualnya di pulau lain, menyelesaikan misi gubernur, memancing, Pesanan Harian, Balai Kongsi (investasi), Bursa (jual-beli antar kapten), transfer gold antar kapten, duel dadu, dan menggali harta memakai peta harta (peta dibeli, digali, kadang menghasilkan artefak yang bisa dijual).
+Ekonomi: kapten membeli barang murah di satu pulau dan menjualnya di pulau lain, menyelesaikan misi gubernur, memancing, Pesanan Harian, Balai Kongsi (investasi), Bursa (jual-beli antar kapten), transfer gold antar kapten, duel dadu, Kasino Mutiara di Paradiso (melawan bandar, Edge diatur GM, batas menang bersih 2,5 jt per hari per kapten, tanpa batas kalah), dan menggali harta memakai peta harta (peta dibeli, digali, kadang menghasilkan artefak yang bisa dijual).
 Pemain manusia normal: puluhan sampai beberapa ratus aksi per hari, jarang lebih dari 30 aksi per menit, ada jeda tidur.
 Tanda curang yang pernah terjadi: seorang kapten memakai skrip membeli 12.000+ peta harta dan menggali ribuan kali dengan jeda 0,1 detik untuk mencetak gold dan artefak.
 Tugasmu: nilai setiap kapten di data (yang sudah diringkas server) dan beri tingkat risiko: tinggi, sedang, rendah, atau wajar. Jelaskan alasan dalam Bahasa Indonesia yang singkat dan konkret, berdasarkan angka yang ada. Jangan mengarang angka. Bedakan pemain rajin dari pola otomatis atau eksploit. Sarankan tindakan GM yang proporsional (pantau, cek jejak di Panel Ops, tanya pemain, bekukan, kembalikan gold), tanpa menghukum tanpa bukti.
@@ -234,12 +252,12 @@ function create({ dataDir, dashRows, settings, kekayaanDelta, notify }) {
 
   async function kumpul(jam) {
     const q = async (sql, p) => { try { return { rows: await dashRows(sql, p) }; } catch (e) { return { rows: [], err: e.message }; } };
-    const [pemain, akt, aliran, transfer, dadu, bursa] = await Promise.all([
-      q(Q.pemain), q(Q.aktivitas, [jam]), q(ALIRAN.Q.kapten, [jam]), q(Q.transfer, [jam]), q(Q.dadu, [jam]), q(AUD.bursa, [jam]),
+    const [pemain, akt, aliran, transfer, dadu, bursa, kasino] = await Promise.all([
+      q(Q.pemain), q(Q.aktivitas, [jam]), q(ALIRAN.Q.kapten, [jam]), q(Q.transfer, [jam]), q(Q.dadu, [jam]), q(AUD.bursa, [jam]), q(Q.kasino, [jam]),
     ]);
     const errors = {};
-    for (const [k, v] of Object.entries({ pemain, akt, aliran, transfer, dadu, bursa })) if (v.err) errors[k] = v.err;
-    return { pemain: pemain.rows, akt: akt.rows, aliran: aliran.rows, transfer: transfer.rows, dadu: dadu.rows, bursa: bursa.rows, errors };
+    for (const [k, v] of Object.entries({ pemain, akt, aliran, transfer, dadu, bursa, kasino })) if (v.err) errors[k] = v.err;
+    return { pemain: pemain.rows, akt: akt.rows, aliran: aliran.rows, transfer: transfer.rows, dadu: dadu.rows, bursa: bursa.rows, kasino: kasino.rows, errors };
   }
 
   async function nilaiAi(run, data) {

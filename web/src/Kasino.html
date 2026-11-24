@@ -1,0 +1,977 @@
+<style>
+  /* ================= Tide v84 · Kasino Mutiara (Paradiso) =================
+   * Semua kelas berawalan .ksn- supaya tidak bentrok dengan gaya game.
+   * Hasil ronde selalu dari server (api_kasino); klien hanya menganimasikan. */
+  .ksn { --ks-felt: #18523b; --ks-felt-d: #0b261c; --ks-brass: #d3a342; --ks-brass-l: #f0cf78; --ks-ink: #f4e7c8;
+    --ks-dim: #cdb98f; --ks-good: #46a862; --ks-bad: #cf4b33; --ks-warn: #e0a53c;
+    position: relative; margin: 4px 0 6px; border-radius: 16px; color: var(--ks-ink); overflow: hidden;
+    background: radial-gradient(circle at 50% -10%, rgba(211,163,66,.18), transparent 55%),
+                radial-gradient(circle at 12% 110%, rgba(24,82,59,.35), transparent 50%),
+                linear-gradient(180deg, #0d1714 0%, #120d0a 100%);
+    border: 1.5px solid rgba(211,163,66,.55); box-shadow: inset 0 1px 0 rgba(255,236,179,.12), 0 10px 26px rgba(0,0,0,.35);
+    padding: 14px 14px 16px; font-family: var(--font-body); }
+  .ksn * { box-sizing: border-box; }
+  /* #modalBox h3 milik game (huruf kapital + garis) tidak berlaku di dalam kasino */
+  #modalBox .ksn h2, #modalBox .ksn h3, #modalBox .ksn h4 { display: block; text-transform: none; margin: 0; gap: 0; }
+  #modalBox .ksn h3::after, #modalBox .ksn h4::after { display: none; content: none; }
+  #modalBox .ksn input[type="number"] { font-family: var(--font-mono, monospace); background: #0b1219; color: #fbeabb; border: 1px solid #d3a342; box-shadow: none; }
+  .ksn button { font-family: inherit; }
+  .ksn-btn { font-family: var(--font-title); font-weight: 700; font-size: .82em; letter-spacing: .05em; padding: 9px 15px; border-radius: 8px;
+    border: 1px solid #8f6522; background: linear-gradient(180deg, #4f331e, #24170f); color: #fbeabb; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; transition: filter .15s, transform .1s, opacity .15s; }
+  .ksn-btn .ico { width: 16px; height: 16px; }
+  .ksn-btn:hover:not(:disabled) { filter: brightness(1.14); }
+  .ksn-btn:active:not(:disabled) { transform: translateY(1px); }
+  .ksn-btn:disabled { opacity: .42; cursor: not-allowed; filter: grayscale(.4); }
+  .ksn-btn.gold { background: linear-gradient(180deg, #f5da8b, #c89432); color: #170e09; border-color: #4a320c; text-shadow: 0 1px 0 rgba(255,255,255,.45); }
+  .ksn-btn.green { background: linear-gradient(180deg, #277355, #144431); color: #fff9e6; border-color: #46a862; }
+  .ksn-btn.red { background: linear-gradient(180deg, #a63423, #6c1e13); color: #fff9e6; border-color: #df6955; }
+  .ksn-btn.sm { min-height: 32px; padding: 5px 11px; font-size: .74em; }
+  .ksn-btn.ghost { background: rgba(255,255,255,.05); border-color: rgba(211,163,66,.4); color: var(--ks-ink); }
+
+  /* dompet */
+  .ksn-wallet { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; margin-bottom: 12px;
+    border-radius: 12px; background: linear-gradient(90deg, rgba(211,163,66,.16), rgba(23,77,56,.18)); border: 1px solid rgba(211,163,66,.42); }
+  .ksn-purse { display: flex; align-items: center; gap: 10px; }
+  .ksn-coin { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+    background: radial-gradient(circle at 30% 30%, #f8e094, #b67f22); border: 1.5px solid #fff9e6; box-shadow: 0 2px 8px rgba(0,0,0,.5); color: #372316; }
+  .ksn-coin .ico { width: 18px; height: 18px; }
+  .ksn-purse .l { font-family: var(--font-title); font-size: .66em; letter-spacing: .12em; text-transform: uppercase; color: var(--ks-brass-l); }
+  .ksn-purse .v { font-family: var(--font-mono, monospace); font-size: 1.3em; color: #fff; line-height: 1.1; }
+  .ksn-purse .v.flash-up { color: #9ef0b4; } .ksn-purse .v.flash-down { color: #ffb4a6; }
+  .ksn-vault { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 99px; background: rgba(7,12,18,.55);
+    border: 1px solid rgba(211,163,66,.3); font-size: .8em; color: var(--ks-dim); }
+  .ksn-vault .ico { width: 14px; height: 14px; color: var(--ks-brass-l); }
+  .ksn-vault b { color: #fbeabb; font-family: var(--font-mono, monospace); font-weight: 400; }
+
+  /* host */
+  .ksn-host { display: flex; gap: 11px; align-items: center; margin-bottom: 12px; padding: 9px 12px; border-radius: 12px; background: rgba(0,0,0,.28); border: 1px solid rgba(211,163,66,.22); }
+  .ksn-host .face { width: 46px; height: 46px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 2px solid var(--ks-brass); background: #2a1e12; }
+  .ksn-host .face svg { width: 100%; height: 100%; display: block; }
+  .ksn-host .nm { font-family: var(--font-title); font-size: .76em; letter-spacing: .06em; color: var(--ks-brass-l); }
+  .ksn-host .tx { font-style: italic; font-size: .93em; color: var(--ks-ink); }
+
+  /* lobi */
+  .ksn-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+  .ksn-grid.soon { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 860px) { .ksn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ksn-grid.soon { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .ksn-grid { gap: 8px; } .ksn-grid.soon { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  button.ksn-tcard { font: inherit; }
+  .ksn-tcard { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; padding: 13px 12px 12px; border-radius: 12px;
+    background: radial-gradient(circle at 50% 0%, rgba(24,82,59,.5), transparent 72%), linear-gradient(180deg, #16241f, #120f0d);
+    border: 1px solid rgba(211,163,66,.4); box-shadow: 0 6px 16px rgba(0,0,0,.35); cursor: pointer; text-align: left; color: inherit;
+    transition: transform .18s, border-color .18s, box-shadow .18s; }
+  .ksn-tcard:hover:not(:disabled), .ksn-tcard:focus-visible { transform: translateY(-3px); border-color: var(--ks-brass-l); box-shadow: 0 12px 26px rgba(0,0,0,.55); outline: none; }
+  .ksn-tcard:disabled { cursor: not-allowed; opacity: .55; }
+  .ksn-tcard .ti { width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; margin-bottom: 8px;
+    background: radial-gradient(circle at 30% 30%, rgba(211,163,66,.26), rgba(15,11,8,.6)); border: 1px solid rgba(211,163,66,.5); }
+  .ksn-tcard .ti svg { width: 26px; height: 26px; }
+  #modalBox .ksn-tcard h3 { margin: 0 0 4px; font-family: var(--font-title); font-weight: 700; font-size: 1.02em; color: var(--ks-brass-l); letter-spacing: .03em; }
+  .ksn-tcard p { margin: 0; font-size: .82em; color: var(--ks-dim); line-height: 1.35; }
+  .ksn-tcard .meta { display: flex; justify-content: space-between; gap: 6px; padding-top: 8px; border-top: 1px dashed rgba(211,163,66,.28); font-size: .74em; color: #b9a982; }
+  .ksn-tcard .meta b { color: #fbeabb; font-family: var(--font-mono, monospace); font-weight: 400; }
+  .ksn-tcard .go { position: absolute; top: 12px; right: 12px; font-family: var(--font-title); font-size: .62em; letter-spacing: .1em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 99px; background: rgba(70,168,98,.18); color: #9ef0b4; border: 1px solid rgba(70,168,98,.45); }
+  .ksn-tcard .go.busy { background: rgba(224,165,60,.2); color: #ffd98a; border-color: rgba(224,165,60,.5); }
+  .ksn-tcard .go.shut { background: rgba(207,75,51,.18); color: #ffb4a6; border-color: rgba(207,75,51,.5); }
+  .ksn-tcard.soon { cursor: default; background: linear-gradient(180deg, rgba(22,18,15,.92), rgba(13,10,8,.96)); border-style: dashed; border-color: rgba(211,163,66,.3); }
+  .ksn-tcard.soon:hover { transform: none; box-shadow: 0 6px 16px rgba(0,0,0,.35); border-color: rgba(211,163,66,.3); }
+  #modalBox .ksn-tcard.soon h3 { color: var(--ks-dim); font-size: .92em; }
+  .ksn-tcard.soon .ti { opacity: .6; width: 34px; height: 34px; margin-bottom: 6px; }
+  .ksn-tcard.soon .ti .ico { width: 18px; height: 18px; color: var(--ks-brass); }
+  .ksn-tcard.soon { padding: 11px 10px 10px; gap: 6px; }
+  .ksn-tcard.soon p { font-size: .76em; }
+  .ksn-tcard.soon .go { position: static; display: inline-block; margin-top: 2px; align-self: flex-start; }
+  .ksn-tcard.soon .go { background: rgba(211,163,66,.1); color: var(--ks-brass-l); border-color: rgba(211,163,66,.35); }
+  .ksn-sub { margin: 14px 0 8px; font-family: var(--font-title); font-size: .7em; letter-spacing: .14em; text-transform: uppercase; color: var(--ks-brass-l);
+    display: flex; align-items: center; gap: 8px; }
+  .ksn-sub::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(211,163,66,.4), transparent); }
+
+  /* catatan */
+  .ksn-ledger { margin-top: 14px; padding: 11px 13px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(211,163,66,.24); }
+  .ksn-ledger .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 7px; font-family: var(--font-title);
+    font-size: .74em; letter-spacing: .1em; text-transform: uppercase; color: var(--ks-brass-l); }
+  .ksn-ledger .hd span { font-family: var(--font-body); text-transform: none; letter-spacing: 0; color: var(--ks-dim); font-size: 1.1em; }
+  .ksn-ledger ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: .84em; }
+  .ksn-ledger li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 9px; border-radius: 7px; background: rgba(0,0,0,.28); color: var(--ks-dim); }
+  .ksn-ledger li b { color: var(--ks-ink); font-weight: 600; }
+  .ksn-amt { font-family: var(--font-mono, monospace); white-space: nowrap; }
+  .ksn-amt.pos { color: #8ee8a8; } .ksn-amt.neg { color: #ffa392; } .ksn-amt.zero { color: #fbeabb; }
+
+  /* pintu tertutup */
+  .ksn-closed { text-align: center; padding: 26px 18px; border-radius: 14px;
+    background: radial-gradient(circle at 50% 0%, rgba(207,75,51,.18), transparent 65%), linear-gradient(180deg, #1d1210, #120c0b); border: 1.5px solid rgba(207,75,51,.55); }
+  .ksn-closed.calm { background: radial-gradient(circle at 50% 0%, rgba(211,163,66,.16), transparent 65%), linear-gradient(180deg, #17130e, #0f0c09); border-color: rgba(211,163,66,.45); }
+  .ksn-closed .ico { width: 34px; height: 34px; color: var(--ks-brass-l); }
+  #modalBox .ksn-closed h3 { margin: 6px 0; font-family: var(--font-display); font-weight: 400; font-size: 1.5em; color: var(--ks-brass-l); letter-spacing: .03em; }
+  .ksn-closed p { margin: 0 auto 12px; max-width: 520px; color: var(--ks-dim); }
+
+  /* meja */
+  .ksn-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(211,163,66,.28); }
+  #modalBox .ksn-top h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.5em; color: var(--ks-brass-l); letter-spacing: .03em; display: flex; align-items: center; gap: 8px; }
+  .ksn-top h2 .tic { width: 26px; height: 26px; display: inline-grid; }
+  .ksn-top h2 .tic svg { width: 26px; height: 26px; }
+  .ksn-felt { position: relative; border-radius: 16px; padding: 18px 14px 14px; margin-bottom: 11px;
+    background: radial-gradient(ellipse at 50% 35%, #1e6247 0%, var(--ks-felt-d) 78%, #071912 100%); border: 3px solid #8f6522;
+    box-shadow: inset 0 0 44px rgba(0,0,0,.7), inset 0 0 0 1px rgba(240,207,120,.22), 0 10px 24px rgba(0,0,0,.5); }
+  .ksn-felt::before { content: ''; position: absolute; inset: 8px; border-radius: 11px; border: 1px dashed rgba(240,207,120,.16); pointer-events: none; }
+  .ksn-result { margin-top: 12px; padding: 11px 13px; border-radius: 11px; text-align: center; font-size: .96em; min-height: 44px; display: block; line-height: 1.45;
+    background: rgba(0,0,0,.38); border: 1px solid rgba(255,255,255,.14); color: var(--ks-ink); transition: background .25s, border-color .25s; }
+  .ksn-result.win { background: rgba(70,168,98,.24); border-color: var(--ks-good); color: #c8f7d4; }
+  .ksn-result.lose { background: rgba(207,75,51,.22); border-color: var(--ks-bad); color: #ffd5cd; }
+  .ksn-result.push { background: rgba(224,165,60,.2); border-color: var(--ks-warn); color: #fbeabb; }
+  .ksn-result.big { animation: ksnPulse .9s ease 2; }
+  @keyframes ksnPulse { 50% { box-shadow: 0 0 0 4px rgba(240,207,120,.45), 0 0 26px rgba(240,207,120,.5); } }
+
+  /* dock taruhan */
+  .ksn-dock { border-radius: 12px; padding: 11px 13px; display: grid; gap: 10px; background: linear-gradient(180deg, rgba(22,15,10,.92), rgba(12,8,5,.96)); border: 1px solid rgba(211,163,66,.42); }
+  .ksn-dock .hd { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; }
+  .ksn-dock .hd span { font-family: var(--font-title); font-size: .7em; letter-spacing: .1em; color: var(--ks-brass-l); text-transform: uppercase; }
+  .ksn-dock .cur { font-family: var(--font-mono, monospace); font-size: 1.1em; color: #fff; }
+  .ksn-dock .cur b { color: var(--ks-brass-l); font-weight: 400; }
+  .ksn-chips { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+  .ksn-chip { min-width: 58px; height: 46px; padding: 0 10px; border-radius: 99px; border: 2px dashed rgba(255,255,255,.75); font-family: var(--font-mono, monospace); font-size: .84em; font-weight: 700; color: #fff; cursor: pointer;
+    box-shadow: 0 3px 8px rgba(0,0,0,.48), inset 0 0 0 3px rgba(0,0,0,.24); transition: transform .12s, box-shadow .15s, opacity .15s; }
+  .ksn-chip:hover:not(:disabled) { transform: translateY(-2px); }
+  .ksn-chip.on { box-shadow: 0 0 0 3px var(--ks-brass-l), 0 6px 14px rgba(0,0,0,.65); transform: translateY(-2px) scale(1.05); }
+  .ksn-chip:disabled { opacity: .3; cursor: not-allowed; }
+  .ksn-c100 { background: #365973; } .ksn-c500 { background: #2c6b4f; } .ksn-c1000 { background: #8a3629; } .ksn-c2500 { background: #683b7a; } .ksn-c5000 { background: #9c6f1e; }
+  .ksn-own { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-width: 210px; }
+  .ksn-own input { flex: 1; min-width: 110px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--ks-brass); background: #0b1219; color: #fbeabb; font-family: var(--font-mono, monospace); font-size: .95em; }
+  .ksn-own input:focus { outline: none; border-color: var(--ks-brass-l); box-shadow: 0 0 0 2px rgba(240,207,120,.25); }
+  .ksn-own input.bad { border-color: var(--ks-bad); }
+  .ksn-hint { font-size: .76em; color: #b9a982; }
+
+  /* dadu */
+  .ksn-dice { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; text-align: center; }
+  #modalBox .ksn-dice h4 { margin: 0 0 9px; font-family: var(--font-title); color: var(--ks-brass-l); letter-spacing: .05em; font-size: .86em; }
+  .ksn-dice h4 b { display: inline-block; min-width: 26px; padding: 1px 7px; border-radius: 99px; background: rgba(0,0,0,.35); color: #fff; font-family: var(--font-mono, monospace); font-weight: 400; }
+  .ksn-pair { display: flex; justify-content: center; gap: 10px; }
+  .ksn-die { width: 64px; height: 64px; border-radius: 13px; display: grid; place-items: center; padding: 6px;
+    background: linear-gradient(145deg, #fff, #d8d3c8); border: 2px solid var(--ks-brass); box-shadow: 0 6px 14px rgba(0,0,0,.48), inset 0 2px 3px #fff; }
+  .ksn-die.roll { animation: ksnShake .28s ease infinite; }
+  .ksn-die.win { box-shadow: 0 0 0 3px rgba(158,240,180,.7), 0 6px 14px rgba(0,0,0,.48); }
+  @keyframes ksnShake { 0%,100% { transform: rotate(0) scale(1); } 25% { transform: rotate(-12deg) scale(1.07); } 75% { transform: rotate(12deg) scale(1.07); } }
+  .ksn-vs { font-family: var(--font-display); font-size: 1.5em; color: var(--ks-brass-l); text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+  .ksn-cta { text-align: center; margin-top: 14px; }
+  .ksn-cta .ksn-btn { min-width: 170px; min-height: 46px; font-size: .9em; }
+
+  /* roulette */
+  .ksn-rl { display: grid; grid-template-columns: 236px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 760px) { .ksn-rl { grid-template-columns: 1fr; } }
+  .ksn-wheel { position: relative; width: 228px; height: 228px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 30% 30%, #4b2f1b, #170e09 80%); border: 5px solid var(--ks-brass); box-shadow: 0 14px 32px rgba(0,0,0,.72), inset 0 0 18px rgba(0,0,0,.85), 0 0 0 2px #4a320c; }
+  .ksn-wheel .ptr { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 12; filter: drop-shadow(0 3px 4px rgba(0,0,0,.75)); }
+  .ksn-wheel .ring { position: absolute; inset: 7px; border-radius: 50%; border: 1.5px solid rgba(240,207,120,.35); pointer-events: none; }
+  .ksn-rotor { width: 198px; height: 198px; border-radius: 50%; will-change: transform; }
+  .ksn-rotor svg { display: block; }
+  .ksn-orbit { position: absolute; inset: 0; pointer-events: none; z-index: 9; will-change: transform; }
+  .ksn-ball { position: absolute; left: 50%; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #fff 0%, #f4f1ea 45%, #cbc4b6 82%, #8e8575 100%); box-shadow: 0 3px 6px rgba(0,0,0,.85), 0 0 8px rgba(255,255,255,.75); transform: translateY(-95px); }
+  .ksn-hub { position: absolute; width: 74px; height: 74px; border-radius: 50%; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 35% 30%, #372316, #0e0805); border: 2.5px solid var(--ks-brass-l); box-shadow: 0 4px 14px rgba(0,0,0,.8); font-family: var(--font-mono, monospace); }
+  .ksn-hub b { font-size: 1.45em; line-height: 1; color: #fff; font-weight: 400; }
+  .ksn-hub small { font-size: .6em; letter-spacing: .06em; color: var(--ks-brass-l); margin-top: 3px; text-transform: uppercase; }
+  .ksn-board { display: grid; gap: 6px; }
+  .ksn-nums { display: grid; grid-template-rows: repeat(3, auto); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; }
+  @media (max-width: 520px) { .ksn-nums { grid-template-rows: none; grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .ksn-cell { position: relative; min-height: 34px; padding: 0; border-radius: 6px; border: 1px solid rgba(255,255,255,.22); color: #fff; font-family: var(--font-mono, monospace); font-size: .82em; cursor: pointer;
+    transition: transform .1s, box-shadow .15s, filter .15s; }
+  .ksn-cell:hover:not(:disabled) { filter: brightness(1.2); }
+  .ksn-cell:active:not(:disabled) { transform: scale(.95); }
+  .ksn-cell:disabled { cursor: not-allowed; opacity: .7; }
+  .ksn-cell.r { background: #8e2219; } .ksn-cell.k { background: #15181d; }
+  .ksn-cell.o { background: rgba(0,0,0,.4); font-family: var(--font-title); font-size: .72em; letter-spacing: .03em; min-height: 38px; }
+  .ksn-cell.o.r { background: rgba(142,34,25,.85); } .ksn-cell.o.k { background: rgba(21,24,29,.92); }
+  .ksn-cell.hit { box-shadow: 0 0 0 2px #9ef0b4, 0 0 14px rgba(158,240,180,.6); }
+  .ksn-cell .stk { position: absolute; top: -7px; right: -5px; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 99px; display: grid; place-items: center; z-index: 2;
+    background: radial-gradient(circle at 35% 30%, #f8e094, #b67f22); color: #24170f; font-size: .64rem; font-weight: 700; border: 1.5px dashed #fff; box-shadow: 0 2px 5px rgba(0,0,0,.6); pointer-events: none; }
+  .ksn-outs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+  .ksn-dz { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  @media (max-width: 520px) { .ksn-outs { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .ksn-rlbar { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .ksn-rlbar .tot { font-family: var(--font-mono, monospace); color: #fff; } .ksn-rlbar .tot b { color: var(--ks-brass-l); font-weight: 400; }
+  .ksn-rlbar .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* blackjack */
+  .ksn-bj { display: grid; gap: 14px; }
+  .ksn-hand { text-align: center; }
+  #modalBox .ksn-hand h4 { margin: 0 0 8px; font-family: var(--font-title); font-size: .84em; color: var(--ks-brass-l); letter-spacing: .05em; }
+  .ksn-hand h4 b { display: inline-block; min-width: 26px; padding: 1px 7px; border-radius: 99px; background: rgba(0,0,0,.35); color: #fff; font-family: var(--font-mono, monospace); font-weight: 400; }
+  .ksn-hand h4 b.bust { background: rgba(207,75,51,.7); } .ksn-hand h4 b.bj { background: rgba(211,163,66,.85); color: #170e09; }
+  .ksn-cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; min-height: 90px; }
+  .ksn-card { width: 60px; height: 86px; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; padding: 5px 7px;
+    background: linear-gradient(160deg, #fcf6e6, #e8d6aa); color: #1c1815; border: 1.5px solid #8f6522; box-shadow: 0 4px 10px rgba(0,0,0,.45);
+    font-family: var(--font-mono, monospace); font-weight: 700; font-size: .95em; animation: ksnDeal .28s cubic-bezier(.2,1.2,.4,1) both; }
+  .ksn-card.red { color: #a6261c; }
+  .ksn-card .c { text-align: center; font-size: 1.3em; line-height: 1; }
+  .ksn-card .br { text-align: right; transform: rotate(180deg); }
+  .ksn-card.back { align-items: center; justify-content: center; color: var(--ks-brass-l); border-color: var(--ks-brass-l);
+    background: radial-gradient(circle, rgba(211,163,66,.25), transparent 65%), repeating-linear-gradient(45deg, #2b1a10, #2b1a10 5px, #462a19 5px, #462a19 10px); }
+  .ksn-card.back svg { width: 26px; height: 26px; }
+  @keyframes ksnDeal { from { transform: translateY(-18px) rotate(-6deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  .ksn-bjacts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .ksn-bjacts .ksn-btn { min-width: 112px; min-height: 46px; }
+  .ksn-timer { text-align: center; font-size: .76em; color: #b9a982; min-height: 1.2em; }
+  .ksn-rules { text-align: center; font-size: .74em; color: #b9a982; letter-spacing: .02em; }
+
+  /* slot */
+  .ksn-rig { max-width: 560px; margin: 0 auto; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; }
+  .ksn-cab { flex: 1 1 auto; max-width: 470px; padding: 14px 15px 15px; border-radius: 20px; text-align: center; position: relative; z-index: 2;
+    background: radial-gradient(circle at 50% 0%, rgba(240,207,120,.16), transparent 65%), linear-gradient(180deg, #3c2618, #24160e 52%, #170e09);
+    border: 2.5px solid var(--ks-brass); box-shadow: 0 16px 34px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,236,179,.35), inset 0 0 22px rgba(0,0,0,.55); }
+  .ksn-cab.win { border-color: #f6dc8b; box-shadow: 0 0 28px rgba(211,163,66,.45), 0 16px 34px rgba(0,0,0,.65), inset 0 0 24px rgba(211,163,66,.22); }
+  .ksn-marq { background: linear-gradient(180deg, #1b110b, #2d1c11); border: 1.5px solid var(--ks-brass); border-radius: 13px; padding: 7px 11px 8px; margin-bottom: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,.7); }
+  .ksn-bulbs { display: flex; justify-content: space-between; padding: 0 6px 5px; }
+  .ksn-bulb { width: 7px; height: 7px; border-radius: 50%; background: #6c5124; transition: background .15s, box-shadow .15s, transform .15s; }
+  .ksn-bulb.lit { background: #ffe38f; box-shadow: 0 0 8px #f0cf78, 0 0 14px rgba(240,207,120,.8); transform: scale(1.18); }
+  .ksn-cab.win .ksn-bulb.lit { background: #6ef7b2; box-shadow: 0 0 9px #39d98a, 0 0 16px rgba(57,217,138,.9); }
+  .ksn-marq .t { font-family: var(--font-title); font-size: 1em; font-weight: 700; letter-spacing: .12em; color: var(--ks-brass-l); text-shadow: 0 0 12px rgba(240,207,120,.35); }
+  .ksn-marq .s { margin-top: 3px; font-size: .68em; letter-spacing: .08em; text-transform: uppercase; color: #a8936c; min-height: 1.2em; }
+  .ksn-drum { position: relative; padding: 9px; border-radius: 14px; margin-bottom: 10px; background: linear-gradient(180deg, #120b07, #1e130c 50%, #120b07); border: 2px solid #8f6522; box-shadow: inset 0 4px 12px rgba(0,0,0,.85); }
+  .ksn-reels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .ksn-reel { height: 108px; border-radius: 10px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #b8ab92 0%, #f5eedc 22%, #fffdf7 50%, #f5eedc 78%, #b8ab92 100%); border: 2px solid #b2852e;
+    box-shadow: inset 0 14px 18px -6px rgba(24,15,9,.62), inset 0 -14px 18px -6px rgba(24,15,9,.62); transition: border-color .22s, box-shadow .22s; }
+  .ksn-reel .strip { width: 100%; display: flex; flex-direction: column; align-items: center; will-change: transform; }
+  .ksn-reel .cell { height: 108px; width: 100%; display: grid; place-items: center; flex-shrink: 0; }
+  .ksn-reel.spin .cell svg { filter: blur(1.2px); transform: scaleY(1.08); }
+  .ksn-reel.lock .cell { animation: ksnLock .28s cubic-bezier(.22,1.45,.36,1); }
+  .ksn-reel.hit { border-color: #f6dc8b; box-shadow: inset 0 0 18px rgba(240,207,120,.65), 0 0 16px rgba(240,207,120,.55); }
+  .ksn-reel.hit .cell svg { animation: ksnSym .9s ease-in-out infinite alternate; }
+  @keyframes ksnLock { 0% { transform: translateY(-12px) scaleY(.95); } 65% { transform: translateY(4px) scaleY(1.03); } 100% { transform: none; } }
+  @keyframes ksnSym { to { transform: scale(1.1); filter: drop-shadow(0 0 10px rgba(211,163,66,.9)); } }
+  .ksn-pay { position: absolute; left: 4px; right: 4px; top: 50%; height: 2px; transform: translateY(-50%); z-index: 4; pointer-events: none;
+    background: linear-gradient(90deg, rgba(211,163,66,.95), rgba(240,207,120,.35), rgba(211,163,66,.95)); box-shadow: 0 0 6px rgba(240,207,120,.5); }
+  .ksn-cab.win .ksn-pay { background: linear-gradient(90deg, #39d98a, #ffe38f, #39d98a); box-shadow: 0 0 12px rgba(57,217,138,.9); }
+  .ksn-ux { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 7px 11px; border-radius: 11px; margin-bottom: 9px; background: rgba(12,8,5,.55); border: 1px solid rgba(211,163,66,.28); font-size: .8em; color: var(--ks-dim); text-align: left; }
+  .ksn-key { padding: 3px 10px; border-radius: 6px; font-family: var(--font-ui, system-ui); font-size: .72em; font-weight: 700; letter-spacing: .08em; color: var(--ks-brass-l); cursor: pointer; flex-shrink: 0;
+    background: linear-gradient(180deg, #2c2017, #18110c); border: 1px solid var(--ks-brass); border-bottom-width: 3px; transition: transform .08s, border-bottom-width .08s; }
+  .ksn-key:active, .ksn-key.press { transform: translateY(2px); border-bottom-width: 1px; color: #fff3c4; }
+  .ksn-key:disabled { opacity: .45; cursor: not-allowed; }
+  .ksn-ptab { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; font-size: .7em; color: var(--ks-dim); }
+  .ksn-ptab span { padding: 4px 4px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(211,163,66,.25); white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 3px; transition: all .2s; }
+  .ksn-ptab span svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .ksn-ptab span.hit { background: linear-gradient(180deg, rgba(211,163,66,.35), rgba(154,111,35,.25)); border-color: #ffe38f; color: #fff6d6; font-weight: 700; box-shadow: 0 0 12px rgba(240,207,120,.45); transform: scale(1.04); }
+  @media (max-width: 520px) { .ksn-ptab { grid-template-columns: repeat(2, 1fr); } .ksn-reel, .ksn-reel .cell { height: 92px; } }
+  .ksn-lever { width: 64px; height: 230px; display: flex; align-items: center; position: relative; margin-left: -2px; z-index: 1; cursor: grab; touch-action: none; }
+  .ksn-lever.off { cursor: not-allowed; opacity: .6; }
+  .ksn-lever .mount { width: 24px; height: 92px; border-radius: 0 14px 14px 0; display: flex; align-items: center; justify-content: center; border: 2px solid #4a320b; border-left: none;
+    background: linear-gradient(180deg, #9a6f23, #f0cf78 30%, #b88934 70%, #6b4b14); box-shadow: 4px 8px 16px rgba(0,0,0,.65); }
+  .ksn-lever .slot { width: 8px; height: 62px; border-radius: 99px; background: #140d08; box-shadow: inset 0 2px 5px rgba(0,0,0,.9); }
+  .ksn-lever .pivot { position: absolute; left: 16px; top: 50%; width: 44px; height: 0; z-index: 3; }
+  .ksn-lever .arm { position: absolute; left: 0; bottom: -5px; width: 11px; height: 110px; border-radius: 6px; transform-origin: 50% 100%; transform: rotate(10deg);
+    background: linear-gradient(90deg, #7d6d58, #f4ead5 42%, #9d896c); border: 1.5px solid #3c2b18; transition: transform .24s cubic-bezier(.25,1.5,.4,1); box-shadow: 4px 6px 12px rgba(0,0,0,.55); }
+  .ksn-lever.drag .arm { transition: none; }
+  .ksn-lever .knob { position: absolute; top: -21px; left: 50%; transform: translateX(-50%); width: 34px; height: 34px; border-radius: 50%; border: 2px solid #f0cf78;
+    background: radial-gradient(circle at 32% 28%, #ff9b94, #d93829 38%, #82140c 82%, #4a0905); box-shadow: 0 6px 14px rgba(0,0,0,.65), inset 0 -3px 6px rgba(45,4,2,.7); }
+  .ksn-lever .lbl { position: absolute; bottom: 6px; left: 6px; right: 0; text-align: center; font-size: .62em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ks-brass-l); pointer-events: none; }
+  @media (max-width: 520px) { .ksn-lever { width: 52px; height: 200px; } .ksn-lever .arm { height: 92px; } }
+
+  /* pintu di Bank Paradiso */
+  .ksn-door { margin-top: 14px; border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    background: radial-gradient(circle at 85% 30%, rgba(211,163,66,.24), transparent 55%), linear-gradient(135deg, #0b261c, #170e09); color: #f4e7c8; border: 1.5px solid #d3a342; box-shadow: 0 10px 26px rgba(0,0,0,.35); }
+  #modalBox .ksn-door h3 { margin: 0 0 3px; font-family: var(--font-title); color: #f0cf78; font-size: 1.02em; letter-spacing: .05em; display: flex; align-items: center; gap: 7px; }
+  #modalBox .ksn-door h3 .ico { width: 18px; height: 18px; }
+  .ksn-door p { margin: 0; font-size: .88em; color: #e8d6aa; max-width: 520px; }
+  .ksn-door .lock { margin-top: 8px; padding: 7px 10px; border-radius: 7px; font-size: .84em; background: rgba(207,75,51,.18); border: 1px solid rgba(207,75,51,.65); color: #ffd5cd; display: flex; gap: 6px; align-items: center; }
+  .ksn-door .lock .ico { width: 15px; height: 15px; flex-shrink: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ksn-die.roll, .ksn-card, .ksn-reel.lock .cell, .ksn-reel.hit .cell svg, .ksn-result.big { animation: none !important; }
+    .ksn-tcard, .ksn-chip { transition: none; }
+  }
+</style>
+
+<script>
+var MTKasino = (function () {
+  'use strict';
+  if (typeof openPanel !== 'function') return null;
+
+  var CHIPS = [100, 500, 1000, 2500, 5000];
+  var BKEY = 'mt_ks_bet_v1';
+  var WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+  var RED = { 1: 1, 3: 1, 5: 1, 7: 1, 9: 1, 12: 1, 14: 1, 16: 1, 18: 1, 19: 1, 21: 1, 23: 1, 25: 1, 27: 1, 30: 1, 32: 1, 34: 1, 36: 1 };
+  var REDUCE = false;
+  try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  var GAME = {
+    dadu: { title: 'Duel Dadu Bandar', icon: 'dice' },
+    roulette: { title: 'Roulette Mutiara', icon: 'compass' },
+    blackjack: { title: 'Blackjack', icon: 'spade' },
+    slot: { title: 'Slot Mutiara', icon: 'pearl' }
+  };
+  var SOON = [
+    ['Besar / Kecil', 'Tiga dadu dalam cangkir. Tebak besar atau kecil, seperti di ruang VIP.', 'dice'],
+    ['Hi-Lo', 'Kartu berikutnya lebih tinggi atau lebih rendah? Satu ketukan, satu tebakan.', 'chevron'],
+    ['Adu Gasing', 'Gasing bergores melawan gasing bandar. Siapa paling lama berputar?', 'compass'],
+    ['Baccarat', 'Pemain atau Bandar. Kartu dibagi, tangan terdekat sembilan menang.', 'gem'],
+    ['Undian Kerang', 'Pilih angka di kerang. Bandar mengundi, pengali besar menanti.', 'pearl']
+  ];
+
+  var K = {
+    st: null, view: 'lobby', busy: false, loading: false, err: null,
+    bet: loadBet(), lastResult: null,
+    rl: { bets: [], last: [], wheel: 0, ball: 0 },
+    bj: null, bjTimer: 0, slotSyms: ['pearl', 'anchor', 'pearl'], bulbTimer: 0
+  };
+  function loadBet() { try { var v = Number(localStorage.getItem(BKEY)); return v >= 100 && v <= 100000 ? Math.floor(v) : 1000; } catch (e) { return 1000; } }
+  function saveBet() { try { localStorage.setItem(BKEY, String(K.bet)); } catch (e) { } }
+  function $(id) { return document.getElementById(id); }
+  function fmt(n) { return formatGold(Math.round(Number(n) || 0)); }
+  function kfmt(n) { n = Number(n) || 0; return n >= 1000000 ? (n / 1000000).toString().replace('.', ',') + 'jt' : n >= 1000 ? (n / 1000).toString().replace('.', ',') + 'rb' : String(n); }
+  function signed(n) { return n > 0 ? '+' + fmt(n) : n < 0 ? '−' + fmt(-n) : '0'; }
+  function nonce() { return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
+  function gold() { return state && state.player ? Number(state.player.gold) || 0 : 0; }
+  function minBet() { return (K.st && Number(K.st.minBet)) || 100; }
+  function maxBet() { return (K.st && Number(K.st.maxBet)) || 100000; }
+  function here() { return !!(state && state.city && state.city.CityId === 'paradiso'); }
+  function on() { return !!(state && state.kasino && state.kasino.on); }
+  function atSea() { return !!(state && state.voyage && (state.voyage.inTransit || state.voyage.encounterPending)); }
+  function debt() { return state && state.bank ? Number(state.bank.debtBalance) || 0 : 0; }
+  function sfx(n, o) { try { au_(n, o); } catch (e) { } }
+
+  /* ---------- server ---------- */
+  function call(args, ok, fail, tries) {
+    var r = google.script.run.withSuccessHandler(function (x) {
+      if (x && x.kasino) { x.kasino._at = Date.now(); K.st = x.kasino; }
+      if (x && x.newGold != null && typeof patchGold_ === 'function') patchGold_(Number(x.newGold));
+      if (ok) ok(x || {});
+    }).withFailureHandler(function (e) {
+      var m = (e && e.message) || String(e);
+      // Gangguan jaringan: ulang sekali dengan nonce yang sama (server mengembalikan hasil ronde yang sama)
+      if (!tries && /fetch|network|timeout|jaringan|Failed|terputus/i.test(m)) { setTimeout(function () { call(args, ok, fail, 1); }, 900); return; }
+      if (fail) fail(e); else showToast(m, 'error');
+    });
+    r.api_kasino.apply(r, args);
+  }
+  function refresh(after) {
+    K.loading = true;
+    call(['status'], function () { K.loading = false; K.err = null; adoptBj(); render(); if (after) after(); },
+      function (e) { K.loading = false; K.err = (e && e.message) || 'Gagal memuat meja.'; render(); });
+  }
+  function adoptBj() { if (K.st && K.st.bj && K.st.bj.active) { K.bj = K.st.bj; if (K.view !== 'blackjack') K.view = 'blackjack'; } }
+  function serverNow() { return K.st && K.st.now ? K.st.now + (Date.now() - (K.st._at || Date.now())) : Date.now(); }
+
+  /* ---------- gambar ---------- */
+  function dieSvg(v) {
+    if (!v) return '<svg width="42" height="42" viewBox="0 0 44 44" aria-hidden="true"><text x="22" y="29" text-anchor="middle" font-family="Cinzel,serif" font-size="22" font-weight="700" fill="#4f331e">?</text></svg>';
+    var P = { 1: [[22, 22]], 2: [[12, 12], [32, 32]], 3: [[12, 12], [22, 22], [32, 32]], 4: [[12, 12], [32, 12], [12, 32], [32, 32]], 5: [[12, 12], [32, 12], [22, 22], [12, 32], [32, 32]], 6: [[12, 11], [32, 11], [12, 22], [32, 22], [12, 33], [32, 33]] }[v] || [];
+    var f = v === 1 ? '#a6261c' : '#24170f';
+    return '<svg width="42" height="42" viewBox="0 0 44 44" role="img" aria-label="' + v + '">' + P.map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.8" fill="' + f + '"/>'; }).join('') + '</svg>';
+  }
+  function wheelSvg() {
+    var cx = 99, cy = 99, ro = 97, ri = 45, rt = 82, step = Math.PI * 2 / 37, s = '';
+    for (var i = 0; i < 37; i++) {
+      var n = WHEEL[i], m = -Math.PI / 2 + i * step, a1 = m - step / 2, a2 = m + step / 2;
+      var f = n === 0 ? '#187843' : RED[n] ? '#9e231b' : '#171a1f';
+      s += '<path d="M' + (cx + ro * Math.cos(a1)).toFixed(2) + ' ' + (cy + ro * Math.sin(a1)).toFixed(2) + ' A' + ro + ' ' + ro + ' 0 0 1 ' + (cx + ro * Math.cos(a2)).toFixed(2) + ' ' + (cy + ro * Math.sin(a2)).toFixed(2) +
+        ' L' + (cx + ri * Math.cos(a2)).toFixed(2) + ' ' + (cy + ri * Math.sin(a2)).toFixed(2) + ' A' + ri + ' ' + ri + ' 0 0 0 ' + (cx + ri * Math.cos(a1)).toFixed(2) + ' ' + (cy + ri * Math.sin(a1)).toFixed(2) + ' Z" fill="' + f + '" stroke="#d3a342" stroke-width=".7"/>';
+      var tx = cx + rt * Math.cos(m), ty = cy + rt * Math.sin(m);
+      s += '<text x="' + tx.toFixed(2) + '" y="' + ty.toFixed(2) + '" fill="#fff8e1" font-family="Cinzel,serif" font-size="7.2" font-weight="700" text-anchor="middle" dominant-baseline="central" transform="rotate(' + (i * 360 / 37).toFixed(2) + ' ' + tx.toFixed(2) + ' ' + ty.toFixed(2) + ')">' + (n === 0 ? '◆' : n) + '</text>';
+    }
+    return '<svg width="198" height="198" viewBox="0 0 198 198" aria-hidden="true">' + s + '<circle cx="99" cy="99" r="71" fill="none" stroke="rgba(240,207,120,.45)"/><circle cx="99" cy="99" r="45" fill="none" stroke="#d3a342" stroke-width="1.5"/></svg>';
+  }
+  function symSvg(k, sz) {
+    sz = sz || 50;
+    var S = {
+      pearl: '<path d="M7 30C7 17 15 10 24 10C33 10 41 17 41 30C36 33 30 35 24 35C18 35 12 33 7 30Z" fill="#7c5620" stroke="#4a320c" stroke-width="2"/><path d="M24 10V22M14 13L19 23M34 13L29 23" stroke="#d3a342" stroke-width="1.6"/><circle cx="24" cy="27" r="7.5" fill="#fffdf8" stroke="#b8ab96" stroke-width="1.5"/><circle cx="21.5" cy="24.5" r="2" fill="#fff"/>',
+      anchor: '<circle cx="24" cy="11" r="4" stroke="#243b4a" stroke-width="3" fill="none"/><path d="M24 15v23M16 20h16M11 29c0 7 6 10 13 10s13-3 13-10" stroke="#243b4a" stroke-width="3.2" stroke-linecap="round" fill="none"/><path d="M9 31l2-4 4 2M39 31l-2-4-4 2" stroke="#243b4a" stroke-width="2.6" stroke-linecap="round" fill="none"/>',
+      compass: '<circle cx="24" cy="24" r="16" fill="#f5e6c4" stroke="#8f6522" stroke-width="3"/><polygon points="24,11 28,24 24,37 20,24" fill="#9e231b"/><polygon points="11,24 24,20 37,24 24,28" fill="#243b4a"/><circle cx="24" cy="24" r="2.5" fill="#f0cf78"/>',
+      tankard: '<rect x="12" y="16" width="18" height="22" rx="3" fill="#c88a2e" stroke="#4a320c" stroke-width="2.2"/><path d="M30 20h5a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-5" stroke="#4a320c" stroke-width="2.5" fill="none"/><path d="M11 16c0-4 4-6 10-6s10 2 10 6" fill="#fff8e7" stroke="#b5a48b" stroke-width="1.8"/>',
+      shell: '<path d="M24 38C15 38 10 30 12 21C14 13 20 9 24 9C28 9 34 13 36 21C38 30 33 38 24 38Z" fill="#e6b89c" stroke="#7a442a" stroke-width="2"/><path d="M14 23c6 3 14 3 20 0M15 29c5 2 13 2 18 0M17 17c4 2 10 2 14 0" stroke="#7a442a" stroke-width="1.6" fill="none"/>'
+    };
+    return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 48 48" fill="none" aria-hidden="true">' + (S[k] || S.pearl) + '</svg>';
+  }
+  var SYM_NAME = { pearl: 'Mutiara', anchor: 'Jangkar', compass: 'Kompas', tankard: 'Bir', shell: 'Kerang' };
+  function cardHtml(c) {
+    var r = c % 13, s = Math.floor(c / 13) % 4, R = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'][r], S = ['♠', '♥', '♦', '♣'][s];
+    return '<div class="ksn-card' + (s === 1 || s === 2 ? ' red' : '') + '" role="img" aria-label="' + R + ' ' + S + '"><span>' + R + '</span><span class="c">' + S + '</span><span class="br">' + R + '</span></div>';
+  }
+  function backHtml() { return '<div class="ksn-card back" role="img" aria-label="kartu tertutup"><svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><polygon points="12,5 14,12 12,19 10,12" fill="#f0cf78"/></svg></div>'; }
+  function hostHtml(text) {
+    var ap = null; try { ap = MTFace.npc('paradiso|bandar', 'lapau'); } catch (e) { }
+    var face = ap ? MTFace.svg(ap, { bgColors: ['#3a2a18', '#120c08'] }) : '';
+    return '<div class="ksn-host"><div class="face">' + face + '</div><div><div class="nm">Bandar Kasino Mutiara</div><div class="tx">' + text + '</div></div></div>';
+  }
+  function hostLine() {
+    var L = ['"Dadu kami jujur, Kapten. Tangan saya yang kadang lupa."', '"Gold di tangan saja yang berlaku di meja ini. Brankasmu biar tidur nyenyak."',
+      '"Laut mengajarkan sabar. Meja ini mengajarkan kapan berhenti."', '"Silakan duduk. Mutiara tak pernah menunggu dua kali."',
+      '"Yang menang malam ini, traktir penari. Yang kalah, traktir saya."'];
+    return pickLine_(L, 'ksn-host');
+  }
+
+  /* ---------- kerangka panel ---------- */
+  function shell(inner) {
+    var bank = state && state.bank ? state.bank.bankBalance : 0;
+    return panelHeader_('dice', 'Kasino Mutiara', 'Pelabuhan Paradiso &middot; hanya gold di tangan yang berlaku di meja',
+      '<button class="btn btn-sm" id="ksnToBank">' + ic('bank') + ' Bank</button>') +
+      '<div class="ksn" id="ksnRoot">' +
+        '<div class="ksn-wallet"><div class="ksn-purse"><div class="ksn-coin">' + ic('coin') + '</div><div><div class="l">Gold di tangan</div><div class="v" id="ksnGold">' + fmt(gold()) + '</div></div></div>' +
+        '<div class="ksn-vault">' + ic('lock') + '<span>Brankas aman: <b>' + fmt(bank) + '</b></span></div></div>' +
+        inner + '</div>';
+  }
+  function wireShell() {
+    var b = $('ksnToBank'); if (b) b.onclick = function () { if (K.busy) return; openPanel('bank'); };
+  }
+  function paintGold() { var g = $('ksnGold'); if (g) g.textContent = fmt(gold()); }
+
+  function render() {
+    if (currentPanel !== 'kasino') return;
+    stopBjTimer();
+    if (!K.st) {
+      setModal_(shell(K.err ? '<div class="ksn-closed calm">' + ic('alert') + '<h3>Pintu belum terbuka</h3><p>' + esc_(K.err) + '</p><button class="ksn-btn gold" id="ksnRetry">Coba lagi</button></div>'
+        : '<div class="ksn-closed calm"><p>Pelayan membuka tirai beludru&hellip;</p></div>'));
+      wireShell(); var rt = $('ksnRetry'); if (rt) rt.onclick = function () { K.err = null; render(); refresh(); };
+      return;
+    }
+    if (!K.st.open) { renderClosed(); return; }
+    if (K.view === 'lobby' || !GAME[K.view] || !K.st.tables[K.view]) { K.view = 'lobby'; renderLobby(); return; }
+    renderTable();
+  }
+  function renderClosed() {
+    var why = K.st.why, t, p, cls = '';
+    if (why === 'penuh') { t = 'Meja Ditutup Untuk Malam Ini'; p = 'Bandar telah menutup seluruh meja bagi Kapten untuk sisa hari ini. Lampu kristal diredupkan, kursi dinaikkan ke meja. Silakan kembali berlabuh besok.'; cls = ' calm'; }
+    else if (why === 'utang') { t = 'Pintu Dijaga Juru Buku'; p = 'Juru buku membuka buku besarnya, lalu menggeleng. Masih ada cicilan Moneylender atas namamu. Lunasi dulu seluruhnya di Bank, Kapten.'; }
+    else if (why === 'laut') { t = 'Kapal Belum Merapat'; p = 'PelicanSystem sedang offline, Kapten. Kasino hanya melayani saat kapal merapat.'; cls = ' calm'; }
+    else { t = 'Pintu Masih Tertutup'; p = esc_(K.st.msg || 'Kasino Mutiara belum menerima tamu.'); cls = ' calm'; }
+    setModal_(shell('<div class="ksn-closed' + cls + '">' + ic(why === 'utang' ? 'skull' : 'lock') + '<h3>' + t + '</h3><p>' + p + '</p>' +
+      '<button class="ksn-btn gold" id="ksnBank2">' + ic('bank') + ' Kembali ke Bank</button></div>' + ledgerHtml()));
+    wireShell(); $('ksnBank2').onclick = function () { openPanel('bank'); };
+  }
+
+  /* ---------- lobi ---------- */
+  var TDESC = {
+    dadu: ['Kapten dan bandar masing-masing melempar dua dadu. Angka tertinggi menang, seri taruhan kembali.', 'Bayaran', '1 : 1'],
+    roulette: ['Roda 36 angka dan satu kantong mutiara milik bandar. Sebar chip di papan sesukamu.', 'Maks', '35 : 1'],
+    blackjack: ['Susun kartu mendekati 21 tanpa lewat. Hit, Stand, atau Double di dua kartu pertama.', 'Blackjack', '3 : 2'],
+    slot: ['Tiga gulungan bahari. Tarik tuas, sejajarkan simbol di garis tengah.', 'Jackpot', '50×']
+  };
+  var TICON = {
+    dadu: '<svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="#f0cf78"/><circle cx="15.5" cy="8.5" r="1.3" fill="#f0cf78"/><circle cx="12" cy="12" r="1.3" fill="#f0cf78"/><circle cx="8.5" cy="15.5" r="1.3" fill="#f0cf78"/><circle cx="15.5" cy="15.5" r="1.3" fill="#f0cf78"/></svg>',
+    roulette: '<svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v5M12 16v5M3 12h5M16 12h5M5.6 5.6l3.5 3.5M14.9 14.9l3.5 3.5M18.4 5.6l-3.5 3.5M9.1 14.9l-3.5 3.5"/></svg>',
+    blackjack: '<svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.8"><rect x="4" y="4" width="11" height="16" rx="2"/><path d="M15 7h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1"/><path d="M9.5 10l-2 2.5 2 2.5 2-2.5-2-2.5z" fill="#f0cf78"/></svg>',
+    slot: '<svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.8"><rect x="3" y="5" width="15" height="14" rx="2.5"/><path d="M8 5v14M13 5v14"/><path d="M18 10h2.5v-3"/><circle cx="20.5" cy="6" r="1.5" fill="#f0cf78"/></svg>'
+  };
+  function renderLobby() {
+    var T = K.st.tables || {}, bjOn = !!(K.st.bj && K.st.bj.active), html = hostHtml(hostLine()) + '<div class="ksn-grid">';
+    Object.keys(GAME).forEach(function (g) {
+      var open = !!T[g], d = TDESC[g], tag = !open ? '<span class="go shut">Ditutup</span>' : (g === 'blackjack' && bjOn) ? '<span class="go busy">Ronde berjalan</span>' : '<span class="go">Buka</span>';
+      html += '<button type="button" class="ksn-tcard" data-ksn-g="' + g + '"' + (open ? '' : ' disabled') + ' aria-label="Duduk di meja ' + GAME[g].title + '">' + tag +
+        '<div><div class="ti">' + TICON[g] + '</div><h3>' + GAME[g].title + '</h3><p>' + d[0] + '</p></div>' +
+        '<div class="meta"><span>Taruhan <b>' + kfmt(minBet()) + '–' + kfmt(maxBet()) + '</b></span><span>' + d[1] + ' <b>' + d[2] + '</b></span></div></button>';
+    });
+    html += '</div><div class="ksn-sub">Meja baru &middot; segera hadir</div><div class="ksn-grid soon">';
+    SOON.forEach(function (s) {
+      html += '<div class="ksn-tcard soon" aria-disabled="true"><div><div class="ti">' + ic(s[2]) + '</div><h3>' + s[0] + '</h3><p>' + s[1] + '</p></div><span class="go">Segera hadir</span></div>';
+    });
+    html += '</div>' + ledgerHtml();
+    setModal_(shell(html)); wireShell();
+    document.querySelectorAll('#ksnRoot [data-ksn-g]').forEach(function (b) {
+      b.onclick = function () { sfx('click'); K.view = b.getAttribute('data-ksn-g'); K.lastResult = null; render(); };
+    });
+  }
+  function ledgerHtml() {
+    var L = (K.st && K.st.catatan) || [], T = (K.st && K.st.total) || {};
+    var rows = L.length ? L.slice(0, 8).map(function (r) {
+      var c = r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : 'zero';
+      return '<li><span><b>' + (GAME[r.game] ? GAME[r.game].title : r.game) + '</b> &middot; taruhan ' + fmt(r.bet) + '</span><span class="ksn-amt ' + c + '">' + (r.net === 0 ? 'seri' : signed(r.net)) + '</span></li>';
+    }).join('') : '<li><span>Belum ada ronde. Meja menunggumu, Kapten.</span><span class="ksn-amt zero">–</span></li>';
+    var tot = Number(T.rounds) ? '<span>' + fmt(T.rounds) + ' ronde &middot; selisih <span class="ksn-amt ' + (T.net > 0 ? 'pos' : T.net < 0 ? 'neg' : 'zero') + '">' + signed(Number(T.net)) + '</span></span>' : '<span>riwayat ronde</span>';
+    return '<div class="ksn-ledger"><div class="hd">Catatan Kasino ' + tot + '</div><ul id="ksnLedger">' + rows + '</ul></div>';
+  }
+  function paintLedger() { var u = $('ksnLedger'); if (!u) return; var box = u.parentNode; var tmp = document.createElement('div'); tmp.innerHTML = ledgerHtml(); box.parentNode.replaceChild(tmp.firstChild, box); }
+
+  /* ---------- meja ---------- */
+  function renderTable() {
+    var g = K.view, stage = g === 'dadu' ? daduHtml() : g === 'roulette' ? rlHtml() : g === 'blackjack' ? bjHtml() : slotHtml();
+    var html = '<div class="ksn-top"><h2><span class="tic">' + TICON[g] + '</span>' + GAME[g].title + '</h2><button class="ksn-btn sm ghost" id="ksnLobby">' + ic('left') + ' Lobi</button></div>' +
+      '<div class="ksn-felt">' + stage + '<div class="ksn-result" id="ksnRes" aria-live="polite">' + esc_(introLine(g)) + '</div></div>' + dockHtml(g) + ledgerHtml();
+    setModal_(shell(html)); wireShell();
+    $('ksnLobby').onclick = function () {
+      if (K.busy) return;
+      if (K.bj && K.bj.active) { result('push', 'Selesaikan dulu ronde Blackjack yang sedang berjalan, Kapten.'); return; }
+      K.view = 'lobby'; stopBulbs(); render();
+    };
+    wireDock(g);
+    if (g === 'dadu') wireDadu(); else if (g === 'roulette') wireRl(); else if (g === 'blackjack') wireBj(); else wireSlot();
+    if (K.lastResult) result(K.lastResult[0], K.lastResult[1]);
+    lock(K.busy);
+  }
+  function introLine(g) {
+    return g === 'dadu' ? 'Pilih chip, lalu lempar dadu.' : g === 'roulette' ? 'Pilih nilai chip, ketuk papan untuk menaruhnya, lalu putar roda.' :
+      g === 'blackjack' ? 'Pilih chip, lalu minta bandar membagikan kartu.' : 'Tarik tuas di kanan atau tekan Spasi.';
+  }
+  function result(kind, html, big) {
+    var b = $('ksnRes'); if (!b) return;
+    b.className = 'ksn-result' + (kind && kind !== 'neutral' ? ' ' + kind : '') + (big ? ' big' : '');
+    b.innerHTML = html;
+    K.lastResult = [kind, html];
+  }
+  function dockHtml(g) {
+    var lbl = g === 'roulette' ? 'Nilai chip' : 'Taruhan';
+    var chips = CHIPS.map(function (c) { return '<button type="button" class="ksn-chip ksn-c' + c + (K.bet === c ? ' on' : '') + '" data-ksn-chip="' + c + '" aria-label="Chip ' + fmt(c) + '">' + (c >= 1000 ? (c / 1000) + 'rb' : c) + '</button>'; }).join('');
+    return '<div class="ksn-dock" id="ksnDock"><div class="hd"><span>' + lbl + ' &middot; ' + fmt(minBet()) + ' – ' + fmt(maxBet()) + '</span><div class="cur">' + lbl + ': <b id="ksnBet">' + fmt(K.bet) + '</b> gold</div></div>' +
+      '<div class="ksn-chips">' + chips + '<div class="ksn-own"><input type="number" inputmode="numeric" id="ksnOwn" min="' + minBet() + '" max="' + maxBet() + '" step="100" placeholder="Isi sendiri (maks ' + fmt(maxBet()) + ')" aria-label="Isi taruhan sendiri">' +
+      '<button type="button" class="ksn-btn sm ghost" data-ksn-q="half">½</button><button type="button" class="ksn-btn sm ghost" data-ksn-q="dbl">2×</button><button type="button" class="ksn-btn sm ghost" data-ksn-q="max">Max</button></div></div>' +
+      '<div class="ksn-hint" id="ksnHint">Simpanan bank tidak bisa dipakai di meja.</div></div>';
+  }
+  function setBet(v, fromInput) {
+    v = Math.floor(Number(v) || 0);
+    var mn = minBet(), mx = maxBet();
+    var h = $('ksnHint'), inp = $('ksnOwn');
+    if (v < mn || v > mx) {
+      if (inp) inp.classList.add('bad');
+      if (h) h.textContent = 'Taruhan harus antara ' + fmt(mn) + ' dan ' + fmt(mx) + ' gold.';
+      if (!fromInput) return;
+      return;
+    }
+    if (inp) inp.classList.remove('bad');
+    K.bet = v; saveBet();
+    if (h) h.textContent = v > gold() ? 'Gold di tangan belum cukup untuk taruhan ini.' : 'Simpanan bank tidak bisa dipakai di meja.';
+    var b = $('ksnBet'); if (b) b.textContent = fmt(v);
+    document.querySelectorAll('#ksnRoot [data-ksn-chip]').forEach(function (c) { c.classList.toggle('on', Number(c.getAttribute('data-ksn-chip')) === v); });
+  }
+  function wireDock() {
+    document.querySelectorAll('#ksnRoot [data-ksn-chip]').forEach(function (c) {
+      c.onclick = function () { if (K.busy) return; sfx('click'); var i = $('ksnOwn'); if (i) i.value = ''; setBet(Number(c.getAttribute('data-ksn-chip'))); };
+    });
+    var inp = $('ksnOwn');
+    if (inp) {
+      inp.oninput = function () { if (inp.value === '') { inp.classList.remove('bad'); return; } setBet(inp.value, true); };
+      inp.onblur = function () { if (inp.value !== '' && inp.classList.contains('bad')) { var v = Math.max(minBet(), Math.min(maxBet(), Math.floor(Number(inp.value) || 0))); inp.value = v; setBet(v); } };
+      inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } };
+    }
+    document.querySelectorAll('#ksnRoot [data-ksn-q]').forEach(function (b) {
+      b.onclick = function () {
+        if (K.busy) return; sfx('click');
+        var q = b.getAttribute('data-ksn-q'), v = q === 'half' ? Math.floor(K.bet / 2) : q === 'dbl' ? K.bet * 2 : Math.min(maxBet(), gold());
+        v = Math.max(minBet(), Math.min(maxBet(), Math.floor(v / 100) * 100 || minBet()));
+        if (inp) inp.value = CHIPS.indexOf(v) >= 0 ? '' : v;
+        setBet(v);
+      };
+    });
+  }
+  function lock(b) {
+    K.busy = !!b;
+    var bjLive = K.view === 'blackjack' && K.bj && K.bj.active;
+    document.querySelectorAll('#ksnDock button, #ksnDock input').forEach(function (el) { el.disabled = K.busy || bjLive; });
+    var lb = $('ksnLobby'); if (lb) lb.disabled = K.busy;
+    var tb = $('ksnToBank'); if (tb) tb.disabled = K.busy || bjLive;
+    document.querySelectorAll('#ksnRoot [data-ksn-play]').forEach(function (el) { el.disabled = K.busy; });
+    var lv = $('ksnLever'); if (lv) lv.classList.toggle('off', K.busy);
+  }
+  function canBet(v) {
+    if (v < minBet() || v > maxBet()) { result('lose', 'Taruhan harus antara ' + fmt(minBet()) + ' dan ' + fmt(maxBet()) + ' gold.'); return false; }
+    if (v > gold()) { result('lose', 'Gold di tangan tidak cukup, Kapten. Simpanan bank tidak bisa dipakai di meja.'); sfx('error'); return false; }
+    return true;
+  }
+  function failRound(e) {
+    lock(false);
+    var m = (e && e.message) || 'Meja menolak taruhan.';
+    result('lose', esc_(m)); sfx('error');
+    // Status bisa berubah (kuota penuh, utang, meja ditutup): muat ulang
+    refresh(function () { if (K.st && !K.st.open) render(); });
+  }
+  function settled(r) {
+    paintGold(); paintLedger();
+    var g = $('ksnGold');
+    if (g && r) { g.classList.remove('flash-up', 'flash-down'); void g.offsetWidth; if (r.net) g.classList.add(r.net > 0 ? 'flash-up' : 'flash-down'); }
+    if (r && r.capped) setTimeout(function () { result('push', 'Bandar menghitung kas mejanya, lalu menutup buku. <b>Meja ditutup untukmu malam ini.</b>'); }, 2200);
+    if (K.st && !K.st.open) setTimeout(function () { if (currentPanel === 'kasino') render(); }, 3600);
+  }
+  function outcome(r, winText, loseText, pushText) {
+    if (r.net > 0) { result('win', winText + ' <b>+' + fmt(r.net) + ' gold</b>', r.net >= r.bet * 5); sfx(r.net >= r.bet * 5 ? 'achieve' : 'coin', { n: Math.min(8, 2 + Math.round(r.net / Math.max(1, r.bet))) }); }
+    else if (r.net < 0) { result('lose', loseText + ' <b>−' + fmt(-r.net) + ' gold</b>'); sfx('page'); }
+    else { result('push', pushText || 'Seri. Taruhan dikembalikan utuh.'); sfx('click'); }
+  }
+
+  /* ---------- Duel Dadu Bandar ---------- */
+  function daduHtml() {
+    return '<div class="ksn-dice"><div><h4>Dadu Kapten <b id="ksnPS">–</b></h4><div class="ksn-pair"><div class="ksn-die" id="ksnP1">' + dieSvg() + '</div><div class="ksn-die" id="ksnP2">' + dieSvg() + '</div></div></div>' +
+      '<div class="ksn-vs">VS</div><div><h4>Dadu Bandar <b id="ksnDS">–</b></h4><div class="ksn-pair"><div class="ksn-die" id="ksnD1">' + dieSvg() + '</div><div class="ksn-die" id="ksnD2">' + dieSvg() + '</div></div></div></div>' +
+      '<div class="ksn-cta"><button class="ksn-btn gold" data-ksn-play id="ksnRoll">' + ic('dice') + ' Lempar Dadu</button></div>';
+  }
+  function wireDadu() { $('ksnRoll').onclick = playDadu; }
+  function playDadu() {
+    if (K.busy || !canBet(K.bet)) return;
+    lock(true); sfx('click');
+    var ids = ['ksnP1', 'ksnP2', 'ksnD1', 'ksnD2'], els = ids.map($), t0 = Date.now();
+    els.forEach(function (e) { e.classList.remove('win'); e.classList.add('roll'); });
+    var tum = setInterval(function () { els.forEach(function (e) { e.innerHTML = dieSvg(1 + Math.floor(Math.random() * 6)); }); }, 90);
+    result('neutral', 'Dadu bergemuruh di dalam cangkir&hellip;');
+    call(['dadu', K.bet, nonce()], function (x) {
+      var r = x.round;
+      setTimeout(function () {
+        clearInterval(tum); els.forEach(function (e) { e.classList.remove('roll'); });
+        if (currentPanel !== 'kasino' || K.view !== 'dadu') { lock(false); return; }
+        var p = r.result.p, d = r.result.d, ps = p[0] + p[1], ds = d[0] + d[1];
+        $('ksnP1').innerHTML = dieSvg(p[0]); $('ksnP2').innerHTML = dieSvg(p[1]); $('ksnD1').innerHTML = dieSvg(d[0]); $('ksnD2').innerHTML = dieSvg(d[1]);
+        $('ksnPS').textContent = ps; $('ksnDS').textContent = ds;
+        (ps > ds ? ['ksnP1', 'ksnP2'] : ps < ds ? ['ksnD1', 'ksnD2'] : []).forEach(function (id) { $(id).classList.add('win'); });
+        outcome(r, 'Kapten unggul ' + ps + ' lawan ' + ds + '!', 'Bandar unggul ' + ds + ' lawan ' + ps + '.', 'Seri ' + ps + ' – ' + ds + '. Taruhan dikembalikan utuh.');
+        lock(false); settled(r);
+      }, Math.max(0, (REDUCE ? 150 : 700) - (Date.now() - t0)));
+    }, function (e) { clearInterval(tum); els.forEach(function (x) { x.classList.remove('roll'); x.innerHTML = dieSvg(); }); failRound(e); });
+  }
+
+  /* ---------- Roulette Mutiara ---------- */
+  var RL_OUT = [['low', '1 – 18', ''], ['even', 'Genap', ''], ['red', 'Merah', 'r'], ['black', 'Hitam', 'k'], ['odd', 'Ganjil', ''], ['high', '19 – 36', '']];
+  var RL_DZ = [['d1', '1 – 12'], ['d2', '13 – 24'], ['d3', '25 – 36']];
+  function rlKey(b) { return b.t === 'num' ? 'n' + b.n : b.t; }
+  function rlTotal() { return K.rl.bets.reduce(function (s, b) { return s + b.a; }, 0); }
+  function rlHtml() {
+    var nums = '';
+    // Layar lebar: 12 kolom (1-2-3 menurun per kolom). Ponsel: 3 kolom (1 2 3 / 4 5 6 / ...).
+    for (var n = 1; n <= 36; n++) nums += '<button type="button" class="ksn-cell ' + (RED[n] ? 'r' : 'k') + '" data-ksn-rl="num" data-n="' + n + '" aria-label="Angka ' + n + '">' + n + '</button>';
+    return '<div class="ksn-rl"><div><div class="ksn-wheel"><svg class="ptr" width="22" height="22" viewBox="0 0 24 24"><polygon points="12,22 3,4 21,4" fill="#f5da8b" stroke="#4a320c" stroke-width="2"/></svg>' +
+      '<div class="ring"></div><div class="ksn-rotor" id="ksnRotor" style="transform:rotate(' + K.rl.wheel.toFixed(2) + 'deg)">' + wheelSvg() + '</div>' +
+      '<div class="ksn-orbit" id="ksnOrbit" style="transform:rotate(' + K.rl.ball.toFixed(2) + 'deg)"><div class="ksn-ball" id="ksnBall"></div></div>' +
+      '<div class="ksn-hub"><b id="ksnHubN">–</b><small id="ksnHubC">Siap</small></div></div></div>' +
+      '<div class="ksn-board"><div class="ksn-nums">' + nums + '</div>' +
+      '<div class="ksn-dz">' + RL_DZ.map(function (d) { return '<button type="button" class="ksn-cell o" data-ksn-rl="' + d[0] + '">' + d[1] + ' <small>(2:1)</small></button>'; }).join('') + '</div>' +
+      '<div class="ksn-outs">' + RL_OUT.map(function (o) { return '<button type="button" class="ksn-cell o ' + o[2] + '" data-ksn-rl="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="ksn-rlbar"><div class="tot">Total: <b id="ksnRlTot">0</b> gold</div><div class="acts">' +
+      '<button type="button" class="ksn-btn sm ghost" data-ksn-play id="ksnRlUndo">' + ic('left') + ' Batal</button><button type="button" class="ksn-btn sm ghost" data-ksn-play id="ksnRlClr">' + ic('x') + ' Kosongkan</button>' +
+      '<button type="button" class="ksn-btn sm ghost" data-ksn-play id="ksnRlRep">Ulangi</button></div></div>' +
+      '<div class="ksn-cta" style="margin-top:4px"><button class="ksn-btn gold" data-ksn-play id="ksnSpin">' + ic('compass') + ' Putar Roda</button></div>' +
+      '<div class="ksn-rules">Angka 35:1 &middot; lusin 2:1 &middot; warna, ganjil/genap, kecil/besar 1:1 &middot; kantong &#9670; milik bandar</div></div></div>';
+  }
+  function rlPaint() {
+    var m = {}; K.rl.bets.forEach(function (b) { var k = rlKey(b); m[k] = (m[k] || 0) + b.a; });
+    document.querySelectorAll('#ksnRoot [data-ksn-rl]').forEach(function (c) {
+      var t = c.getAttribute('data-ksn-rl'), k = t === 'num' ? 'n' + c.getAttribute('data-n') : t, s = c.querySelector('.stk');
+      if (m[k]) { if (!s) { s = document.createElement('span'); s.className = 'stk'; c.appendChild(s); } s.textContent = m[k] >= 1000 ? (Math.round(m[k] / 100) / 10) + 'rb' : m[k]; }
+      else if (s) s.remove();
+    });
+    var t = $('ksnRlTot'); if (t) t.textContent = fmt(rlTotal());
+    var sp = $('ksnSpin'); if (sp && !K.busy) sp.disabled = !K.rl.bets.length;
+    var rp = $('ksnRlRep'); if (rp && !K.busy) rp.disabled = !K.rl.last.length || K.rl.bets.length > 0;
+  }
+  function wireRl() {
+    document.querySelectorAll('#ksnRoot [data-ksn-rl]').forEach(function (c) {
+      c.onclick = function () {
+        if (K.busy) return;
+        var t = c.getAttribute('data-ksn-rl'), b = { t: t, a: K.bet };
+        if (t === 'num') b.n = Number(c.getAttribute('data-n'));
+        if (rlTotal() + K.bet > maxBet()) { result('lose', 'Total taruhan satu putaran maksimal ' + fmt(maxBet()) + ' gold.'); sfx('error'); return; }
+        if (rlTotal() + K.bet > gold()) { result('lose', 'Gold di tangan tidak cukup untuk chip ini.'); sfx('error'); return; }
+        // gabungkan dengan taruhan yang sama supaya tidak melewati 16 taruhan
+        var same = null; K.rl.bets.forEach(function (x) { if (rlKey(x) === rlKey(b)) same = x; });
+        if (same) same.a += K.bet; else { if (K.rl.bets.length >= 16) { result('lose', 'Paling banyak 16 tempat taruhan dalam satu putaran.'); return; } K.rl.bets.push(b); }
+        K.rl.hist = (K.rl.hist || []).concat([{ k: rlKey(b), a: K.bet }]);
+        sfx('click'); rlClearHits(); rlPaint();
+      };
+    });
+    $('ksnRlUndo').onclick = function () {
+      var h = K.rl.hist || []; if (!h.length) return; var u = h.pop();
+      K.rl.bets.forEach(function (x) { if (rlKey(x) === u.k) x.a -= u.a; }); K.rl.bets = K.rl.bets.filter(function (x) { return x.a > 0; }); rlPaint();
+    };
+    $('ksnRlClr').onclick = function () { K.rl.bets = []; K.rl.hist = []; rlPaint(); };
+    $('ksnRlRep').onclick = function () {
+      var tot = K.rl.last.reduce(function (s, b) { return s + b.a; }, 0);
+      if (tot > gold()) { result('lose', 'Gold di tangan tidak cukup untuk mengulang taruhan tadi.'); return; }
+      K.rl.bets = K.rl.last.map(function (b) { return Object.assign({}, b); }); K.rl.hist = []; rlClearHits(); rlPaint();
+    };
+    $('ksnSpin').onclick = playRl;
+    rlPaint();
+  }
+  function rlClearHits() { document.querySelectorAll('#ksnRoot .ksn-cell.hit').forEach(function (c) { c.classList.remove('hit'); }); }
+  function playRl() {
+    var tot = rlTotal();
+    if (K.busy || !tot || !canBet(tot)) return;
+    lock(true); sfx('whoosh'); rlClearHits();
+    var bets = K.rl.bets.map(function (b) { return Object.assign({}, b); });
+    $('ksnHubN').textContent = '··'; $('ksnHubC').textContent = 'Berputar';
+    result('neutral', 'Roda berputar, bola mutiara melompat-lompat&hellip;');
+    // Roda mulai berputar segera; bola diarahkan ke angka hasil server saat jawaban tiba
+    var rotor = $('ksnRotor'), orbit = $('ksnOrbit'), ball = $('ksnBall'), t0 = performance.now(), target = null, spinStart = K.rl.wheel;
+    var idle = function (now) {
+      if (target !== null || !rotor.isConnected) return;
+      var w = spinStart + (now - t0) * 0.5; rotor.style.transform = 'rotate(' + w.toFixed(2) + 'deg)';
+      orbit.style.transform = 'rotate(' + (K.rl.ball - (now - t0) * 0.9).toFixed(2) + 'deg)';
+      requestAnimationFrame(idle);
+    };
+    requestAnimationFrame(idle);
+    call(['roulette', bets, nonce()], function (x) {
+      var r = x.round, n = r.result.n;
+      target = n;
+      var now = performance.now(), w0 = spinStart + (now - t0) * 0.5, b0 = K.rl.ball - (now - t0) * 0.9;
+      rlLand(rotor, orbit, ball, w0, b0, n, function () {
+        K.rl.last = bets; K.rl.bets = []; K.rl.hist = [];
+        var col = n === 0 ? 'Mutiara' : RED[n] ? 'Merah' : 'Hitam';
+        var hub = $('ksnHubN'); if (hub) { hub.textContent = n === 0 ? '◆' : n; $('ksnHubC').textContent = col; }
+        document.querySelectorAll('#ksnRoot [data-ksn-rl]').forEach(function (c) {
+          var t = c.getAttribute('data-ksn-rl'), hit = n > 0 && (t === 'num' ? Number(c.getAttribute('data-n')) === n : t === 'red' ? !!RED[n] : t === 'black' ? !RED[n] : t === 'even' ? n % 2 === 0 : t === 'odd' ? n % 2 === 1 :
+            t === 'low' ? n <= 18 : t === 'high' ? n >= 19 : t === 'd1' ? n <= 12 : t === 'd2' ? n >= 13 && n <= 24 : n >= 25);
+          c.classList.toggle('hit', hit);
+        });
+        var where = 'Bola mutiara berhenti di <b>' + (n === 0 ? '&#9670; kantong mutiara' : n + ' ' + col.toLowerCase()) + '</b>.' +
+          (r.payout > 0 && r.net !== 0 ? ' Bandar membayar ' + fmt(r.payout) + '.' : '');
+        outcome(r, where, where + (n === 0 ? ' Kantong milik bandar.' : ''), where + ' Taruhan kembali utuh.');
+        lock(false); rlPaint(); settled(r);
+      });
+    }, function (e) { target = -1; rotor.style.transform = 'rotate(' + K.rl.wheel.toFixed(2) + 'deg)'; $('ksnHubN').textContent = '–'; $('ksnHubC').textContent = 'Siap'; failRound(e); rlPaint(); });
+  }
+  function rlLand(rotor, orbit, ball, w0, b0, n, done) {
+    var D = REDUCE ? 600 : 4200, t0 = performance.now(), step = 360 / 37, idx = WHEEL.indexOf(n);
+    var wEnd = w0 + 360 * (REDUCE ? 1 : 5) + Math.random() * 360;
+    var pocketEnd = ((idx * step + wEnd) % 360 + 360) % 360, bStart = ((b0 % 360) + 360) % 360, dl = pocketEnd - bStart;
+    if (dl > 0) dl -= 360;
+    var sweep = dl - 360 * (REDUCE ? 1 : 8), rOut = 95, rIn = 62;
+    function eq(t) { return 1 - Math.pow(1 - t, 4); } function ec(t) { return 1 - Math.pow(1 - t, 3); }
+    function f(now) {
+      if (!rotor.isConnected) { done(); return; }
+      var t = Math.min(1, (now - t0) / D), w = w0 + (wEnd - w0) * eq(t), b, rad = rOut;
+      rotor.style.transform = 'rotate(' + w.toFixed(2) + 'deg)';
+      var drop = bStart + sweep * 0.92;
+      if (t < 0.72) b = bStart + (drop - bStart) * ec(t / 0.72);
+      else if (t < 0.88) {
+        var d = (t - 0.72) / 0.16, de = 1 - Math.pow(1 - d, 2), lockA = idx * step + w;
+        rad = rOut - (rOut - rIn) * de - Math.sin(d * Math.PI) * 5;
+        b = drop + (((lockA - drop) % 360 + 540) % 360 - 180) * de;
+      } else { rad = rIn; b = idx * step + w; }
+      orbit.style.transform = 'rotate(' + b.toFixed(2) + 'deg)';
+      ball.style.transform = 'translateY(-' + rad.toFixed(1) + 'px)';
+      if (t < 1) requestAnimationFrame(f);
+      else { K.rl.wheel = wEnd % 360; K.rl.ball = (idx * step + wEnd) % 360; done(); }
+    }
+    requestAnimationFrame(f);
+  }
+
+  /* ---------- Blackjack ---------- */
+  function bjHtml() {
+    return '<div class="ksn-bj"><div class="ksn-hand"><h4>Kartu Bandar <b id="ksnBjD">–</b></h4><div class="ksn-cards" id="ksnBjDc"></div></div>' +
+      '<div class="ksn-hand"><h4>Kartu Kapten <b id="ksnBjP">–</b></h4><div class="ksn-cards" id="ksnBjPc"></div></div>' +
+      '<div class="ksn-bjacts" id="ksnBjActs"></div><div class="ksn-timer" id="ksnBjT"></div>' +
+      '<div class="ksn-rules">6 dek dikocok ulang tiap ronde &middot; bandar berhenti di 17 &middot; Blackjack 3:2 &middot; Double di dua kartu pertama</div></div>';
+  }
+  var CARD_ICO = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="11" height="16" rx="2"/><path d="M15 7h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1"/><path d="M9.5 10l-2 2.5 2 2.5 2-2.5-2-2.5z" fill="currentColor"/></svg>';
+  function wireBj() { bjPaint(false); }
+  function bjPaint(anim) {
+    var r = K.bj, dc = $('ksnBjDc'), pc = $('ksnBjPc'), acts = $('ksnBjActs'); if (!dc) return;
+    if (!r) {
+      dc.innerHTML = backHtml() + backHtml(); pc.innerHTML = '';
+      $('ksnBjD').textContent = '–'; $('ksnBjP').textContent = '–'; $('ksnBjP').className = '';
+      acts.innerHTML = '<button class="ksn-btn gold" data-ksn-play id="ksnDeal">' + CARD_ICO + ' Bagikan Kartu</button>';
+      $('ksnDeal').onclick = bjDeal; $('ksnBjT').textContent = ''; lock(K.busy); return;
+    }
+    var prevP = pc.children.length, prevD = dc.querySelectorAll('.ksn-card:not(.back)').length;
+    pc.innerHTML = r.p.map(cardHtml).join('');
+    dc.innerHTML = r.d.map(cardHtml).join('') + (r.active ? backHtml() : '');
+    if (!anim) { [].forEach.call(pc.children, function (c) { c.style.animation = 'none'; }); [].forEach.call(dc.children, function (c) { c.style.animation = 'none'; }); }
+    else {
+      [].forEach.call(pc.children, function (c, i) { if (i < prevP) c.style.animation = 'none'; else c.style.animationDelay = ((i - prevP) * 0.12) + 's'; });
+      [].forEach.call(dc.querySelectorAll('.ksn-card:not(.back)'), function (c, i) { if (i < prevD) c.style.animation = 'none'; else c.style.animationDelay = (0.1 + (i - prevD) * 0.22) + 's'; });
+    }
+    var ps = $('ksnBjP'); ps.textContent = r.ps; ps.className = r.ps > 21 ? 'bust' : (r.p.length === 2 && r.ps === 21) ? 'bj' : '';
+    $('ksnBjD').textContent = r.active ? r.ds + ' + ?' : r.ds;
+    if (r.active) {
+      acts.innerHTML = '<button class="ksn-btn green" data-ksn-play id="ksnHit">' + ic('plus') + ' Hit</button><button class="ksn-btn red" data-ksn-play id="ksnStand">' + ic('check') + ' Stand</button>' +
+        (r.canDouble ? '<button class="ksn-btn" data-ksn-play id="ksnDbl"' + (gold() < r.bet ? ' disabled title="Gold di tangan tidak cukup"' : '') + '>2× Double</button>' : '');
+      $('ksnHit').onclick = function () { bjAct('hit'); }; $('ksnStand').onclick = function () { bjAct('stand'); };
+      if ($('ksnDbl')) $('ksnDbl').onclick = function () { if (gold() >= r.bet) bjAct('double'); };
+      startBjTimer();
+    } else {
+      stopBjTimer(); $('ksnBjT').textContent = '';
+      acts.innerHTML = '<button class="ksn-btn gold" data-ksn-play id="ksnDeal">' + CARD_ICO + ' Bagikan Lagi</button>';
+      $('ksnDeal').onclick = bjDeal;
+    }
+    lock(K.busy);
+    if (r.active && !K.busy) { var dd = $('ksnDbl'); if (dd && gold() < r.bet) dd.disabled = true; }
+  }
+  function bjMsg(r) {
+    var h = r.hasil, sc = ' (' + r.ps + ' lawan ' + r.ds + ')';
+    if (h === 'blackjack') return ['win', '<b>BLACKJACK!</b> Bandar membayar 3 : 2. <b>+' + fmt(r.net) + ' gold</b>'];
+    if (h === 'bust') return ['lose', 'Kartu Kapten lewat 21 (' + r.ps + '). <b>−' + fmt(-r.net) + ' gold</b>'];
+    if (h === 'menang') return ['win', (r.ds > 21 ? 'Bandar lewat 21!' : 'Kapten menang' + sc + '.') + ' <b>+' + fmt(r.net) + ' gold</b>'];
+    if (h === 'seri') return ['push', 'Seri' + sc + '. Taruhan kembali.'];
+    return ['lose', (r.ds === 21 && r.d.length === 2 ? 'Bandar membuka Blackjack.' : 'Bandar menang' + sc + '.') + ' <b>−' + fmt(-r.net) + ' gold</b>'];
+  }
+  function bjDone(r) {
+    var m = bjMsg(r); result(m[0], m[1], r.hasil === 'blackjack');
+    sfx(r.net > 0 ? (r.hasil === 'blackjack' ? 'achieve' : 'coin') : r.net < 0 ? 'page' : 'click', { n: 4 });
+    settled(r);
+  }
+  function bjDeal() {
+    if (K.busy || !canBet(K.bet)) return;
+    lock(true); sfx('page'); K.bj = null;
+    call(['bj', K.bet, nonce()], function (x) {
+      K.bj = x.round; lock(false); if (currentPanel !== 'kasino' || K.view !== 'blackjack') return;
+      bjPaint(true);
+      if (!K.bj.active) setTimeout(function () { bjDone(K.bj); }, REDUCE ? 0 : 500);
+      else { result('neutral', 'Pilih <b>Hit</b> untuk tambah kartu, <b>Stand</b> untuk menahan, atau <b>Double</b>.'); paintGold(); }
+    }, function (e) { failRound(e); bjPaint(false); });
+  }
+  function bjAct(a) {
+    if (K.busy || !K.bj || !K.bj.active) return;
+    lock(true); sfx('click');
+    call(['bjact', K.bj.id, a, nonce()], function (x) {
+      K.bj = x.round; lock(false); if (currentPanel !== 'kasino' || K.view !== 'blackjack') return;
+      bjPaint(true);
+      if (!K.bj.active) setTimeout(function () { bjDone(K.bj); }, REDUCE ? 0 : 450); else paintGold();
+    }, function (e) { lock(false); result('lose', esc_((e && e.message) || 'Bandar menolak.')); refresh(function () { K.bj = K.st && K.st.bj; render(); }); });
+  }
+  function startBjTimer() {
+    stopBjTimer();
+    var tick = function () {
+      var el = $('ksnBjT'); if (!el || !K.bj || !K.bj.active || !K.bj.expiresMs) { stopBjTimer(); return; }
+      var s = Math.max(0, Math.round((K.bj.expiresMs - serverNow()) / 1000));
+      el.textContent = s > 0 ? 'Bandar menunggu keputusanmu · ' + Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2) : 'Waktu habis. Bandar menahan kartumu (stand).';
+      if (s <= 0) { stopBjTimer(); setTimeout(function () { refresh(function () { K.bj = null; render(); }); }, 1500); }
+    };
+    tick(); K.bjTimer = setInterval(tick, 1000);
+  }
+  function stopBjTimer() { if (K.bjTimer) { clearInterval(K.bjTimer); K.bjTimer = 0; } }
+
+  /* ---------- Slot Mutiara ---------- */
+  var PAY = [['pearl', 3, '50×'], ['anchor', 3, '30×'], ['compass', 3, '20×'], ['tankard', 3, '12×'], ['shell', 3, '6×'], ['pearl', 2, '3×'], ['pearl', 1, '1×']];
+  var SYMS = ['pearl', 'anchor', 'compass', 'tankard', 'shell'];
+  function slotHtml() {
+    var bulbs = ''; for (var i = 0; i < 9; i++) bulbs += '<span class="ksn-bulb' + (i % 2 ? '' : ' lit') + '"></span>';
+    var reels = [0, 1, 2].map(function (i) { return '<div class="ksn-reel" id="ksnR' + i + '"><div class="strip" id="ksnS' + i + '"><div class="cell">' + symSvg(K.slotSyms[i]) + '</div></div></div>'; }).join('');
+    var pt = PAY.map(function (p, i) {
+      var ico = ''; for (var j = 0; j < p[1]; j++) ico += symSvg(p[0], 15);
+      return '<span data-ksn-pay="' + i + '" title="' + p[1] + '× ' + SYM_NAME[p[0]] + '">' + ico + ' ' + p[2] + '</span>';
+    }).join('') + '<span title="Taruhan maksimal satu putaran">maks ' + fmt(maxBet()) + '</span>';
+    return '<div class="ksn-rig"><div class="ksn-cab" id="ksnCab"><div class="ksn-marq"><div class="ksn-bulbs" id="ksnBulbs">' + bulbs + '</div>' +
+      '<div class="t">&#9670; SLOT MUTIARA &#9670;</div><div class="s" id="ksnBanner">Sejajarkan simbol di garis tengah</div></div>' +
+      '<div class="ksn-drum"><div class="ksn-pay" aria-hidden="true"></div><div class="ksn-reels">' + reels + '</div></div>' +
+      '<div class="ksn-ux"><span>Tarik tuas di kanan, atau tekan</span><button type="button" class="ksn-key" data-ksn-play id="ksnKey" title="Putar (Spasi)">SPASI</button></div>' +
+      '<div class="ksn-ptab" id="ksnPtab">' + pt + '</div></div>' +
+      '<div class="ksn-lever" id="ksnLever" role="button" tabindex="0" aria-label="Tarik tuas mesin slot"><div class="mount"><div class="slot"></div></div>' +
+      '<div class="pivot"><div class="arm" id="ksnArm"><div class="knob"></div></div></div><div class="lbl">Tarik &darr;</div></div></div>';
+  }
+  function armPull(r) {
+    var a = $('ksnArm'); if (!a) return; r = Math.max(0, Math.min(1, r));
+    if (r <= 0.5) a.style.transform = 'rotate(' + (10 - r * 8) + 'deg) scaleY(' + Math.max(0.22, 1 - r * 1.45) + ')';
+    else { var d = (r - 0.5) * 2; a.style.transform = 'rotate(' + (6 - d * 14) + 'deg) scaleY(' + -(0.25 + d * 0.65) + ')'; }
+  }
+  function pull(fromKey) {
+    if (K.view !== 'slot' || currentPanel !== 'kasino') return;
+    if (fromKey) { var k = $('ksnKey'); if (k) { k.classList.add('press'); setTimeout(function () { k.classList.remove('press'); }, 170); } }
+    if (K.busy) return;
+    armPull(1); setTimeout(function () { armPull(0); }, 280);
+    playSlot();
+  }
+  function wireSlot() {
+    var lv = $('ksnLever'), drag = false, y0 = 0, fired = false;
+    $('ksnKey').onclick = function () { pull(false); };
+    lv.addEventListener('pointerdown', function (e) { if (K.busy) return; drag = true; fired = false; y0 = e.clientY; lv.classList.add('drag'); try { lv.setPointerCapture(e.pointerId); } catch (x) { } });
+    lv.addEventListener('pointermove', function (e) {
+      if (!drag) return; var r = Math.max(0, Math.min(1, (e.clientY - y0) / 88)); armPull(r);
+      if (r >= 0.72 && !fired) { fired = true; drag = false; lv.classList.remove('drag'); setTimeout(function () { armPull(0); }, 220); playSlot(); }
+    });
+    lv.addEventListener('pointerup', function (e) { if (!drag) return; drag = false; lv.classList.remove('drag'); if (!fired && Math.abs(e.clientY - y0) < 14) pull(false); else armPull(0); });
+    lv.addEventListener('pointercancel', function () { drag = false; lv.classList.remove('drag'); armPull(0); });
+    lv.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) pull(e.key === ' '); } });
+  }
+  function bulbs(fast) {
+    stopBulbs(); var B = [].slice.call(document.querySelectorAll('#ksnBulbs .ksn-bulb')), s = 0;
+    K.bulbTimer = setInterval(function () { if (!B[0] || !B[0].isConnected) { stopBulbs(); return; } s++; B.forEach(function (b, i) { b.classList.toggle('lit', (i + s) % 2 === 0); }); }, fast ? 95 : 420);
+  }
+  function stopBulbs() { if (K.bulbTimer) { clearInterval(K.bulbTimer); K.bulbTimer = 0; } }
+  function setReel(i, sym) { K.slotSyms[i] = sym; var s = $('ksnS' + i); if (!s) return; s.style.transition = 'none'; s.style.transform = 'none'; s.innerHTML = '<div class="cell">' + symSvg(sym) + '</div>'; }
+  function playSlot() {
+    if (K.busy || !canBet(K.bet)) return;
+    lock(true); sfx('whoosh');
+    var cab = $('ksnCab'); cab.classList.remove('win');
+    [0, 1, 2].forEach(function (i) { $('ksnR' + i).classList.remove('hit', 'lock'); $('ksnR' + i).classList.add('spin'); });
+    document.querySelectorAll('#ksnPtab span').forEach(function (s) { s.classList.remove('hit'); });
+    $('ksnBanner').textContent = 'Gulungan berputar…'; bulbs(true);
+    result('neutral', 'Gulungan berputar&hellip;');
+    var res = null, ticks = 0, stopAt = [-1, -1, -1], minT = REDUCE ? 2 : 10;
+    var tm = setInterval(function () {
+      ticks++;
+      if (res && stopAt[0] < 0) { var b = Math.max(ticks, minT); stopAt = [b, b + (REDUCE ? 1 : 5), b + (REDUCE ? 2 : 10)]; }
+      [0, 1, 2].forEach(function (i) {
+        var s = $('ksnS' + i), r = $('ksnR' + i); if (!s) return;
+        if (stopAt[i] < 0 || ticks < stopAt[i]) {
+          s.style.transition = 'none'; s.style.transform = 'translateY(-34px)';
+          s.innerHTML = '<div class="cell">' + symSvg(SYMS[(ticks + i) % 5]) + '</div><div class="cell">' + symSvg(SYMS[Math.floor(Math.random() * 5)]) + '</div>';
+          requestAnimationFrame(function () { if (!r.classList.contains('spin')) return; s.style.transition = 'transform 52ms linear'; s.style.transform = 'translateY(34px)'; });
+        } else if (ticks === stopAt[i]) {
+          r.classList.remove('spin'); setReel(i, res.result.reels[i]); void r.offsetWidth; r.classList.add('lock'); sfx('click');
+        }
+      });
+      if (res && ticks >= stopAt[2]) { clearInterval(tm); slotDone(res); }
+      if (!$('ksnS0')) { clearInterval(tm); lock(false); }
+    }, 58);
+    call(['slot', K.bet, nonce()], function (x) { res = x.round; },
+      function (e) { clearInterval(tm); stopBulbs(); [0, 1, 2].forEach(function (i) { var r = $('ksnR' + i); if (r) r.classList.remove('spin'); setReel(i, K.slotSyms[i]); }); var bn = $('ksnBanner'); if (bn) bn.textContent = 'Tarik tuas atau tekan Spasi'; failRound(e); });
+  }
+  function slotDone(r) {
+    stopBulbs();
+    var m = r.result.mult, rs = r.result.reels, cab = $('ksnCab'), bn = $('ksnBanner');
+    if (m > 0) {
+      var three = rs[0] === rs[1] && rs[1] === rs[2], np = rs.filter(function (s) { return s === 'pearl'; }).length;
+      var pi = three ? ['pearl', 'anchor', 'compass', 'tankard', 'shell'].indexOf(rs[0]) : np === 2 ? 5 : 6;
+      cab.classList.add('win');
+      rs.forEach(function (s, i) { if (three || s === 'pearl') $('ksnR' + i).classList.add('hit'); });
+      var ps = document.querySelector('#ksnPtab [data-ksn-pay="' + pi + '"]'); if (ps) ps.classList.add('hit');
+      document.querySelectorAll('#ksnBulbs .ksn-bulb').forEach(function (b) { b.classList.add('lit'); });
+      bn.textContent = m >= 50 ? 'JACKPOT MUTIARA 50×!' : m === 1 ? 'Mutiara mengembalikan taruhan' : 'Kombinasi menang ' + m + '×!';
+      if (m === 1) { result('push', 'Satu mutiara di garis tengah. Taruhan kembali utuh.'); sfx('click'); }
+      else outcome(r, three ? 'Tiga ' + SYM_NAME[rs[0]].toLowerCase() + ' sejajar (' + m + '×)!' : 'Dua mutiara (' + m + '×)!', '', '');
+    } else {
+      bn.textContent = 'Tarik tuas atau tekan Spasi';
+      result('lose', 'Belum sejajar di garis tengah. <b>−' + fmt(r.bet) + ' gold</b>'); sfx('page');
+    }
+    lock(false); settled(r);
+  }
+  // Spasi hanya memutar slot bila panel kasino terbuka di meja slot dan tidak sedang mengetik
+  document.addEventListener('keydown', function (e) {
+    if ((e.code !== 'Space' && e.key !== ' ') || currentPanel !== 'kasino' || K.view !== 'slot') return;
+    var ov = document.getElementById('modalOverlay'); if (!ov || !ov.classList.contains('open')) return;
+    var a = document.activeElement, t = (a && a.tagName) || '';
+    if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
+    if (t === 'BUTTON' && !(a.closest && a.closest('#ksnRoot'))) return;   // tombol di luar meja tetap normal
+    e.preventDefault(); if (!e.repeat) pull(true);
+  });
+
+  /* ---------- kaitan ke game ---------- */
+  if (typeof PANEL_SIZE !== 'undefined') PANEL_SIZE.kasino = 'wide';
+  var origOpen = window.openPanel;
+  window.openPanel = function (panel) {
+    if (panel === 'kasino') {
+      if (!on() || !here()) { showToast('Kasino Mutiara hanya ada di Paradiso, Kapten.', 'info'); return; }
+      if (atSea()) { showToast('PelicanSystem sedang offline, Kapten. Kasino hanya melayani saat kapal merapat.', 'error'); return; }
+      var was = currentPanel === 'kasino';
+      var r = origOpen.apply(this, arguments);
+      if (!was) { K.view = 'lobby'; K.lastResult = null; K.bj = null; }
+      render(); refresh();
+      return r;
+    }
+    if (currentPanel === 'kasino') { stopBjTimer(); stopBulbs(); }
+    return origOpen.apply(this, arguments);
+  };
+  wrap_('closeModal', null, function () { if (currentPanel === 'kasino') { stopBjTimer(); stopBulbs(); K.busy = false; } });
+  // Pintu kasino di kartu Bank Paradiso (di bawah brankas, kartu VIP quest tetap di atas)
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'bank' || !on() || !here()) return;
+    var c = document.getElementById('modalContent'), v = c && c.querySelector('.vault'); if (!v || c.querySelector('.ksn-door')) return;
+    var d = debt(), sea = atSea(), dis = d > 0 || sea;
+    var anchor = c.querySelector('.bk-bankcard') || v;
+    anchor.insertAdjacentHTML('afterend', '<div class="ksn-door"><div><h3>' + ic('dice') + ' Lantai Kasino Mutiara</h3>' +
+      '<p>Duel Dadu Bandar, Roulette Mutiara, Blackjack, dan Slot Mutiara. Taruhan hanya dari gold di tangan; brankasmu tak tersentuh.</p>' +
+      (d > 0 ? '<div class="lock">' + ic('lock') + '<span><b>Pintu dijaga juru buku.</b> Lunasi seluruh cicilan Moneylender dulu sebelum masuk.</span></div>' : '') +
+      '</div><button class="btn btn-gold" id="ksnEnter"' + (dis ? ' disabled' : '') + '>' + ic('dice') + ' Masuk Kasino</button></div>');
+    var b = document.getElementById('ksnEnter'); if (b) b.onclick = function () { au_('open'); openPanel('kasino'); };
+  });
+  wrap_('applyFreshState_', function () {
+    if (currentPanel !== 'kasino') return;
+    if (!on() || !here() || atSea()) { if (!K.busy && !(K.bj && K.bj.active)) { K.st = null; openPanel('bank'); } return; }
+    paintGold();
+  });
+  // Lapau Paradiso: gosip kasino
+  wrap_('setModal_', function () {
+    if (currentPanel !== 'tavern' || !on() || !here()) return;
+    var el = document.getElementById('rumorList'); if (!el || el.querySelector('.ksn-rumor')) return;
+    var d = document.createElement('div'); d.className = 'card rumor ksn-rumor';
+    d.innerHTML = ic('chat') + '<span>' + pickLine_(['Lampu kristal Kasino Mutiara menyala sampai fajar. Ada kapten yang keluar sambil bersiul, ada yang keluar tanpa sepatu.',
+      'Bandar kasino itu tak pernah tersenyum, kecuali saat dadu berhenti berputar.', 'Kata orang, mesin slot di pojok kasino suka mutiara. Kata Chasong, mesin itu suka gold-mu.'], 'ksnrum') + '</span>';
+    el.insertBefore(d, el.firstChild);
+  });
+
+  return { open: function () { openPanel('kasino'); }, state: function () { return K; } };
+})();
+</script>

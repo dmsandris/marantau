@@ -399,6 +399,9 @@ create or replace function game.th_sail_guard(p_pid uuid) returns void
 language plpgsql as $$ begin null; end $$;
 create or replace function game.th_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;
+-- [Tide v84 · Kasino Mutiara / 0104] key 'kasino' di getGameState (null = tertutup)
+create or replace function game.ks_state(p_pid uuid) returns jsonb
+language plpgsql as $$ begin return null; end $$;
 -- [Tide v41 · Pasir / 0039] status lapisan zaman (null = tertutup; key tidak dikirim ke klien)
 create or replace function game.pasir_state(p_pid uuid) returns jsonb
 language plpgsql as $$ begin return null; end $$;

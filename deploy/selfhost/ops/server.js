@@ -28,6 +28,7 @@ const VERSION = '2.0.1';
 const { Q: EKO, IKN_TARGET_DEFAULT } = require('./eko');
 const { Q: AUD, J: JEJAK } = require('./audit');
 const ILU = require('./iluminaty');
+const KAS = require('./kasino');
 const ALIRAN = require('./aliran');
 const SETTINGS = require('./settings');
 const PENJAGA = require('./penjaga');
@@ -405,6 +406,23 @@ async function iluCari(q) {
   if (q.length < 2) return { at: now(), q, errors: { cari: 'Minimal 2 huruf.' } };
   const { out, errors } = await parts({ cari: ILU.Q.cari }, [ILU.likePat(q)]);
   return { at: now(), q, errors, ...out };
+}
+
+// ---------- Kasino Mutiara: jejak ronde & money trace (hanya baca) ----------
+function kasinoData(jamKey, force) {
+  const jam = auditJam(jamKey);
+  return cached('kasino:' + jam, 20e3, async () => {
+    const { out, errors } = await parts({ ringkas: KAS.Q.ringkas, meja: KAS.Q.meja, harian: KAS.Q.harian, kapten: KAS.Q.kapten, audit: KAS.Q.audit }, [jam]);
+    return { at: now(), jam, errors, ...out, ringkas: out.ringkas ? out.ringkas[0] : null };
+  }, force);
+}
+async function kasinoFeed(jamKey, kapten, game, status) {
+  const jam = auditJam(jamKey);
+  game = KAS.GAMES.includes(String(game || '')) ? String(game || '') : '';
+  status = KAS.STATUS.includes(String(status || '')) ? String(status || '') : '';
+  const k = String(kapten || '').trim(), pat = k ? KAS.likePat(k) : '';
+  const { out, errors } = await parts({ feed: KAS.Q.feed }, [jam, pat, game, status]);
+  return { at: now(), jam, errors, ...out };
 }
 
 // ---------- Kekayaan per kapten (snapshot tiap 30 menit, simpan 14 hari) ----------
@@ -902,7 +920,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return sendFile(res, 'index.html', 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/app.js') return sendFile(res, 'app.js', 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/(app|tokens|base)\.css$/.test(p)) return sendFile(res, p.slice(1), 'text/css; charset=utf-8');
-    if (req.method === 'GET' && /^\/(ekonomi|audit|iluminaty|penjaga|ringkas)\.js$/.test(p)) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
+    if (req.method === 'GET' && /^\/(ekonomi|audit|iluminaty|penjaga|ringkas|kasino)\.js$/.test(p)) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/fonts\/[a-z0-9-]+\.woff2$/.test(p)) return sendFile(res, p.slice(1), 'font/woff2', 'public, max-age=31536000, immutable');
     if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true, v: VERSION });
     if (MCP_TOKEN && p.startsWith('/mcp/')) {
@@ -970,6 +988,8 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === '/api/kapten') return json(res, 200, await kapten(url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/audit') return json(res, 200, await auditData(url.searchParams.get('jam'), url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/audit/jejak') return json(res, 200, await auditJejak(url.searchParams.get('kapten'), url.searchParams.get('jam')));
+      if (req.method === 'GET' && p === '/api/kasino') return json(res, 200, await kasinoData(url.searchParams.get('jam'), url.searchParams.get('fresh') === '1'));
+      if (req.method === 'GET' && p === '/api/kasino/feed') return json(res, 200, await kasinoFeed(url.searchParams.get('jam'), url.searchParams.get('kapten'), url.searchParams.get('meja'), url.searchParams.get('status')));
       if (req.method === 'GET' && p === '/api/iluminaty') return json(res, 200, await iluData(url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/iluminaty/utas') { audit(ip, 'iluminaty buka utas'); return json(res, 200, await iluUtas(url.searchParams.get('pair'))); }
       if (req.method === 'GET' && p === '/api/iluminaty/cari') { audit(ip, 'iluminaty cari'); return json(res, 200, await iluCari(url.searchParams.get('q'))); }

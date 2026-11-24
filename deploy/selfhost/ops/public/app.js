@@ -88,8 +88,8 @@ $('#loginForm').addEventListener('submit', async e => {
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
 
 // ---------- rute: tab disimpan di URL (#/ekonomi) ----------
-const TABS = ['ringkas', 'server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten', 'audit', 'penjaga', 'iluminaty', 'pengaturan'];
-const TITLES = { ringkas: 'Ringkas', server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten', audit: 'Audit', penjaga: 'Penjaga', iluminaty: 'Iluminaty', pengaturan: 'Pengaturan' };
+const TABS = ['ringkas', 'server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten', 'audit', 'penjaga', 'kasino', 'iluminaty', 'pengaturan'];
+const TITLES = { ringkas: 'Ringkas', server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten', audit: 'Audit', penjaga: 'Penjaga', kasino: 'Kasino', iluminaty: 'Iluminaty', pengaturan: 'Pengaturan' };
 const loaders = {}; // diisi ringkas.js, ekonomi.js, audit.js, iluminaty.js, penjaga.js
 let tab = 'ringkas';
 function routeTab() { const h = location.hash.replace(/^#\/?/, '').split('?')[0]; return TABS.includes(h) ? h : 'ringkas'; }
