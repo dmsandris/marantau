@@ -4,7 +4,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
-COPY server.js eko.js audit.js ./
+COPY server.js eko.js audit.js iluminaty.js ./
 COPY public ./public
 # Root diperlukan untuk membaca docker.sock (milik grup docker di host). Tetap read-only rootfs di compose.
 EXPOSE 8080

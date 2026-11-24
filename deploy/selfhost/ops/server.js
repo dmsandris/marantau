@@ -23,9 +23,10 @@ const DEV = ENV.OPS_DEV === '1';
 const BACKUP_REQ = ENV.OPS_BACKUP_REQ || '/backup-req';
 const MCP_TOKEN = ENV.OPS_MCP_TOKEN || '';
 const API_DOMAIN = ENV.OPS_API_DOMAIN || 'api.marantau.web.id';
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 const { Q: EKO, IKN_TARGET_DEFAULT } = require('./eko');
 const { Q: AUD, J: JEJAK } = require('./audit');
+const ILU = require('./iluminaty');
 const IKN_TARGET = +(ENV.OPS_IKN_TARGET || IKN_TARGET_DEFAULT);
 
 if (MCP_TOKEN && MCP_TOKEN.length < 32) { console.error('OPS_MCP_TOKEN minimal 32 karakter.'); process.exit(1); }
@@ -368,6 +369,26 @@ async function auditJejak(kapten, jamKey) {
   if (!nama) return { at: now(), jam, errors: { kapten: 'Pilih kapten.' } };
   const { out, errors } = await parts({ ringkas: JEJAK.ringkas, pola: JEJAK.pola, transfer: JEJAK.transfer, hakLot: JEJAK.hakLot, log: JEJAK.log }, [jam, nama]);
   return { at: now(), jam, kapten: nama, errors, ...out };
+}
+
+// ---------- Iluminaty: Pesan Pribadi antar kapten (hanya baca) ----------
+function iluData(force) {
+  return cached('iluminaty', 30e3, async () => {
+    const { out, errors } = await parts({ ringkas: ILU.Q.ringkas, percakapan: ILU.Q.percakapan, pengirim: ILU.Q.pengirim });
+    return { at: now(), errors, ...out, ringkas: out.ringkas ? out.ringkas[0] : null };
+  }, force);
+}
+async function iluUtas(pair) {
+  pair = String(pair || '');
+  if (!ILU.PAIR_RE.test(pair)) return { at: now(), errors: { utas: 'Percakapan tidak dikenal.' } };
+  const { out, errors } = await parts({ utas: ILU.Q.utas }, [pair]);
+  return { at: now(), pair, errors, ...out };
+}
+async function iluCari(q) {
+  q = String(q || '').trim();
+  if (q.length < 2) return { at: now(), q, errors: { cari: 'Minimal 2 huruf.' } };
+  const { out, errors } = await parts({ cari: ILU.Q.cari }, [ILU.likePat(q)]);
+  return { at: now(), q, errors, ...out };
 }
 
 // ---------- 5xx dari log Caddy (api.) ----------
@@ -885,7 +906,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return sendFile(res, 'index.html', 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/app.js') return sendFile(res, 'app.js', 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/(app|tokens|base)\.css$/.test(p)) return sendFile(res, p.slice(1), 'text/css; charset=utf-8');
-    if (req.method === 'GET' && (p === '/ekonomi.js' || p === '/audit.js')) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
+    if (req.method === 'GET' && (p === '/ekonomi.js' || p === '/audit.js' || p === '/iluminaty.js')) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/fonts\/[a-z0-9-]+\.woff2$/.test(p)) return sendFile(res, p.slice(1), 'font/woff2', 'public, max-age=31536000, immutable');
     if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true, v: VERSION });
     if (MCP_TOKEN && p.startsWith('/mcp/')) {
@@ -951,6 +972,9 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === '/api/kapten') return json(res, 200, await kapten(url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/audit') return json(res, 200, await auditData(url.searchParams.get('jam'), url.searchParams.get('fresh') === '1'));
       if (req.method === 'GET' && p === '/api/audit/jejak') return json(res, 200, await auditJejak(url.searchParams.get('kapten'), url.searchParams.get('jam')));
+      if (req.method === 'GET' && p === '/api/iluminaty') return json(res, 200, await iluData(url.searchParams.get('fresh') === '1'));
+      if (req.method === 'GET' && p === '/api/iluminaty/utas') { audit(ip, 'iluminaty buka utas'); return json(res, 200, await iluUtas(url.searchParams.get('pair'))); }
+      if (req.method === 'GET' && p === '/api/iluminaty/cari') { audit(ip, 'iluminaty cari'); return json(res, 200, await iluCari(url.searchParams.get('q'))); }
       if (req.method === 'GET' && p === '/api/http') return json(res, 200, await http5xx(24));
       if (req.method === 'GET' && p === '/api/backup') return json(res, 200, backups());
       if (req.method === 'POST' && p === '/api/backup/run') {
