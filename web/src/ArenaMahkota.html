@@ -1,0 +1,624 @@
+<style>
+/* ===== Saga 4 Bagian II · Duel Armada Teluk Dalam (langkah 60): 4 kapal aliansi melawan Sovereign Mahkota + 3 Navy ===== */
+#maOverlay { --ma-ink: #f2e6c9; --ma-dim: #b9ad91; --ma-brass: #d9a84e; --ma-blood: #d04a33; --ma-teal: #6fc2b4; --ma-navy: #8fb0e8;
+  --ma-panel: rgba(9, 18, 27, 0.86); --ma-line: rgba(217, 168, 78, 0.28);
+  position: fixed; inset: 0; z-index: 906; display: none; background: #06121a; color: var(--ma-ink); font-family: var(--font-body, 'EB Garamond', Georgia, serif);
+  user-select: none; -webkit-user-select: none; touch-action: none; overflow: hidden; }
+#maOverlay.open { display: block; }
+#maOverlay > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ma-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.ma-team { background: var(--ma-panel); border: 1px solid var(--ma-line); border-radius: 10px; padding: 6px 9px; display: grid; gap: 4px; width: 214px; }
+.ma-team.foe { border-color: rgba(143,176,232,.35); }
+.ma-th { font-family: var(--font-title, 'Cinzel', Georgia, serif); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ma-brass); }
+.ma-team.foe .ma-th { color: var(--ma-navy); }
+.ma-row { display: grid; gap: 2px; }
+.ma-rn { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; line-height: 1.1; }
+.ma-rn b { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ma-rn small { color: var(--ma-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ma-bar { height: 5px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; }
+.ma-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3d8f74, #8fd8b0); transition: width .25s; }
+.ma-team.foe .ma-bar i { background: linear-gradient(90deg, #8e2416, #e2774f); }
+.ma-row.me .ma-rn b { color: #ffe2a0; }
+.ma-row.out { opacity: .4; }
+.ma-row.sov .ma-bar { height: 8px; }
+.ma-mid { background: var(--ma-panel); border: 1px solid var(--ma-line); border-radius: 10px; padding: 5px 12px; text-align: center; min-width: 130px; }
+.ma-ph { font-family: var(--font-title, 'Cinzel', Georgia, serif); font-weight: 800; font-size: 11px; letter-spacing: .14em; color: var(--ma-brass); text-transform: uppercase; }
+.ma-tm { font-family: var(--font-title, 'Cinzel', Georgia, serif); font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ma-sub { font-size: 11px; color: var(--ma-dim); }
+.ma-say { position: absolute; left: 50%; transform: translateX(-50%); top: calc(118px + env(safe-area-inset-top, 0px)); width: min(560px, calc(100vw - 28px)); display: grid; gap: 6px; pointer-events: none; }
+.ma-say div { background: rgba(7,16,24,.9); border: 1px solid var(--ma-line); border-radius: 10px; padding: 7px 12px; font-size: 14px; line-height: 1.35; animation: maIn .3s ease both; }
+.ma-say div b { color: var(--ma-brass); }
+.ma-say div.foe { border-color: rgba(143,176,232,.45); } .ma-say div.foe b { color: var(--ma-navy); }
+@keyframes maIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.ma-banner { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.96); text-align: center; pointer-events: none; opacity: 0; transition: opacity .35s, transform .35s; width: min(92vw, 700px); }
+.ma-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.ma-banner h2 { margin: 0; font-family: var(--font-title, 'Cinzel', Georgia, serif); font-weight: 800; font-size: clamp(22px, 5.2vw, 44px); letter-spacing: .06em; text-shadow: 0 3px 0 rgba(0,0,0,.45), 0 0 24px rgba(0,0,0,.6); }
+.ma-banner p { margin: 6px 0 0; font-size: clamp(13px, 2.4vw, 17px); color: var(--ma-brass); text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+.ma-banner.red h2 { color: #ffd9c9; } .ma-banner.red p { color: #ff9a7c; }
+.ma-deck { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg, rgba(6,14,20,0), rgba(6,14,20,.9) 30%); display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.ma-grp { display: flex; gap: 8px; align-items: flex-end; }
+.ma-k { position: relative; min-width: 64px; min-height: 60px; padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06);
+  color: var(--ma-ink); font: inherit; cursor: pointer; display: grid; place-items: center; line-height: 1.05; overflow: hidden; touch-action: none; }
+.ma-k b { font-size: 20px; font-weight: 800; } .ma-k small { font-size: 10.5px; color: var(--ma-dim); letter-spacing: .04em; }
+.ma-k.on { background: rgba(217,168,78,.22); border-color: var(--ma-brass); }
+.ma-k.fire { min-width: 86px; border-color: rgba(208,74,51,.6); background: rgba(208,74,51,.16); }
+.ma-k.fire i { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--ma-brass); transition: width .1s linear; }
+.ma-k.fire.ready { background: rgba(208,74,51,.34); box-shadow: 0 0 14px rgba(255,120,70,.35); }
+.ma-k.fire.aim { border-color: #ffd38a; }
+.ma-k:focus-visible { outline: 2px solid var(--ma-brass); outline-offset: 2px; }
+.ma-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--ma-deck, 96px) + 6px); background: rgba(7,16,24,.85); border: 1px solid var(--ma-line); border-radius: 99px;
+  padding: 4px 14px; font-size: 12.5px; white-space: nowrap; max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis; pointer-events: none; color: var(--ma-dim); }
+.ma-hint b { color: var(--ma-brass); }
+.ma-quit { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(var(--ma-deck, 96px) + 6px); background: rgba(9,18,27,.86); border: 1px solid rgba(255,255,255,.18); color: var(--ma-dim);
+  border-radius: 99px; padding: 5px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+.ma-quit.armed { color: #ffb39c; border-color: var(--ma-blood); }
+.ma-end { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 40%, rgba(11,30,44,.82), rgba(4,10,15,.95)); z-index: 5; padding: 16px; }
+.ma-end[hidden] { display: none !important; }
+.ma-end .box { width: min(520px, 100%); text-align: center; }
+.ma-end h2 { margin: 0; font-family: var(--font-title, 'Cinzel', Georgia, serif); font-size: clamp(24px, 6vw, 40px); letter-spacing: .06em; }
+.ma-end p { color: var(--ma-dim); margin: 6px 0 14px; line-height: 1.45; }
+.ma-end .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 16px; }
+.ma-end .tiles div { padding: 8px 6px; border: 1px solid var(--ma-line); border-radius: 10px; background: rgba(255,255,255,.04); }
+.ma-end .tiles b { display: block; font-family: var(--font-title, 'Cinzel', Georgia, serif); font-size: 1.3em; }
+.ma-end .tiles small { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ma-dim); }
+.ma-go { min-width: 220px; min-height: 50px; border-radius: 10px; border: 1px solid var(--ma-brass); background: linear-gradient(180deg, #e2b45c, #b98a35); color: #24170a;
+  font-family: var(--font-title, 'Cinzel', Georgia, serif); font-weight: 800; letter-spacing: .08em; font-size: 15px; cursor: pointer; }
+@media (max-width: 640px) {
+  .ma-team { width: 46vw; padding: 4px 6px; gap: 3px; } .ma-rn { font-size: 10.5px; } .ma-rn small { display: none; } .ma-th { font-size: 9px; }
+  .ma-mid { position: absolute; left: 50%; transform: translateX(-50%); top: calc(150px + env(safe-area-inset-top, 0px)); min-width: 0; padding: 3px 10px; }
+  .ma-tm { font-size: 16px; }
+  .ma-say { top: calc(196px + env(safe-area-inset-top, 0px)); } .ma-say div { font-size: 12.5px; padding: 6px 10px; }
+  .ma-k { min-width: 56px; min-height: 56px; padding: 3px 6px; } .ma-k.fire { min-width: 70px; } .ma-k b { font-size: 18px; }
+  .ma-hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ma-banner { transition: none; } .ma-say div { animation: none; } }
+</style>
+
+<script>
+/* =====================================================================
+ * ArenaMahkota.html — Duel Armada Teluk Dalam (Saga 4 Bagian II, langkah 60, Tide v83)
+ *   Realtime, tanpa batas waktu, last man standing: kapal pemain + Black Pearl (zafachmie) + Armada Skitraw
+ *   (Hasiolan) + Ratu Marlya (Lempeng Segel) melawan Sovereign Mahkota (Kumis Hitam) + 3 kapal Navy.
+ *   Angka (HP, damage) dari server (api_mahkota 'arena'); hasil dilaporkan lewat 'arenaHasil'
+ *   (server memagari waktu minimum & id duel). Fisika layar memakai rumus Serbuan Bersama.
+ *   Kalah = kapal pemain jebol. Sekutu yang lambungnya habis mundur dari barisan (tidak tenggelam).
+ *   MTARENA.open(cfg, done(hasil)) · close() · isOpen() · _sim (inti tanpa DOM, dipakai tes keseimbangan)
+ * ===================================================================== */
+(function () {
+  'use strict';
+  var TAU = Math.PI * 2, AW = 3400, AH = 2300, RANGE = 600, ARC = 0.95;
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function ang(a) { return a - TAU * Math.floor((a + Math.PI) / TAU); }
+  function bearing(a, b) { return Math.atan2(b.x - a.x, -(b.y - a.y)); }
+  function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+  function rng(seed) { var a = (seed >>> 0) || 1; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+  /* ================= INTI SIMULASI (tanpa DOM) ================= */
+  function wf(h, w) { var a = Math.abs(ang(h - (w + Math.PI))); if (a < 0.62) return 0.12 + a * 0.12; if (a < 1.75) return 0.25 + 0.75 * Math.sin((a - 0.62) / (1.75 - 0.62) * Math.PI / 2); return 1.0 - (a - 1.75) / (Math.PI - 1.75) * 0.22; }
+  function arcQ(f, t, side) { var rel = ang(bearing(f, t) - f.h), off = Math.abs(ang(rel - side * Math.PI / 2)); return off > ARC ? 0 : 1 - off / ARC * 0.5; }
+
+  var LOOK = {
+    me: { hull: '#7a4a26', deck: '#c49a62', sail: '#f2e6c9', flag: '#d9a84e' },
+    pearl: { hull: '#16161a', deck: '#3a3036', sail: '#2a2830', flag: '#0c0c0c' },
+    skitraw: { hull: '#6a2a1c', deck: '#b8875a', sail: '#f2e2c4', flag: '#b02a20' },
+    marlya: { hull: '#4a2a5a', deck: '#9a7aa8', sail: '#ece0f4', flag: '#8a5ac0' },
+    navy: { hull: '#1c2438', deck: '#56627a', sail: '#34476e', flag: '#14203a' },
+    sov: { hull: '#141018', deck: '#3a3026', sail: '#1e1a26', flag: '#e0b84a', gold: true }
+  };
+
+  function makeSim(cfg, seed) {
+    cfg = cfg || {};
+    var R = rng(seed || 1), dm = cfg.dmgMusuh || 1;
+    var W = { w: R() * TAU, t: 0, ships: [], balls: [], ev: [], phase: 1, shield: true, pengacau: 0, over: null, stats: { tembak: 0, kena: 0, tenggelam: 0 } };
+    function add(o) {
+      var s = { id: o.id, team: o.team, name: o.name, x: o.x, y: o.y, h: o.h, v: 30, hp: o.hp, max: o.hp, dmg: o.dmg, rl: o.rl, cd: [0.8 + R(), 0.8 + R()],
+        sp: o.sp || 1, tm: o.tm || 1, size: o.size || 1, look: o.look, me: !!o.me, ai: !o.me, alive: true, out: 0, flash: 0, def: 1, rud: 0, sails: 1,
+        pref: o.pref || null, keep: o.keep || 380, wake: [] };
+      W.ships.push(s); return s;
+    }
+    var y0 = AH / 2;
+    add({ id: 'me', team: 0, name: 'Kapalmu', me: true, x: 520, y: y0, h: Math.PI / 2, hp: cfg.hpKu || 2000, dmg: cfg.dmgKu || 64, rl: 2.6, look: LOOK.me, sp: 1.08 });
+    add({ id: 'pearl', team: 0, name: 'Black Pearl', x: 420, y: y0 - 300, h: Math.PI / 2, hp: (cfg.hpSekutu || 1700) * 1.15, dmg: 60, rl: 3.3, look: LOOK.pearl, sp: 1.1, keep: 340 });
+    add({ id: 'skitraw', team: 0, name: 'Armada Skitraw', x: 420, y: y0 + 300, h: Math.PI / 2, hp: cfg.hpSekutu || 1700, dmg: 52, rl: 3.4, look: LOOK.skitraw, keep: 400 });
+    add({ id: 'marlya', team: 0, name: 'Ratu Marlya', x: 300, y: y0, h: Math.PI / 2, hp: (cfg.hpSekutu || 1700) * 0.9, dmg: 44, rl: 3.6, look: LOOK.marlya, pref: 'sov', keep: 480 });
+    add({ id: 'sov', team: 1, name: 'Sovereign Mahkota', x: AW - 520, y: y0, h: -Math.PI / 2, hp: cfg.hpSov || 2600, dmg: 72 * dm, rl: 3.2, look: LOOK.sov, size: 1.4, sp: 0.86, tm: 0.85, keep: 420 });
+    add({ id: 'n1', team: 1, name: 'KPD Tembok Mahkota', x: AW - 420, y: y0 - 330, h: -Math.PI / 2, hp: cfg.hpNavy || 950, dmg: 46 * dm, rl: 3.6, look: LOOK.navy, pref: 'me' });
+    add({ id: 'n2', team: 1, name: 'KPD Tinta Besi', x: AW - 420, y: y0 + 330, h: -Math.PI / 2, hp: cfg.hpNavy || 950, dmg: 46 * dm, rl: 3.6, look: LOOK.navy });
+    add({ id: 'n3', team: 1, name: 'KPD Stempel Biru', x: AW - 300, y: y0 - 20, h: -Math.PI / 2, hp: cfg.hpNavy || 950, dmg: 46 * dm, rl: 3.6, look: LOOK.navy });
+    W.R = R;
+    W.byId = function (id) { for (var i = 0; i < W.ships.length; i++) if (W.ships[i].id === id) return W.ships[i]; return null; };
+    return W;
+  }
+  function live(W, team) { return W.ships.filter(function (s) { return s.alive && (team == null || s.team === team); }); }
+  function moveShip(s, dt, w) {
+    var tr = 0.62 * (s.sails === 1 ? 1 : 0.85) * (0.6 + 0.4 * Math.min(1, s.v / 40)) * s.tm;
+    s.h = ang(s.h + s.rud * tr * dt);
+    var ts = 92 * (0.5 + 0.5 * wf(s.h, w)) * (s.sails === 1 ? 1 : 0.55) * (0.55 + 0.45 * s.hp / s.max) * s.sp;
+    s.v = s.v + (ts - s.v) * (1 - Math.exp(-dt * 0.9));
+    s.x += Math.sin(s.h) * s.v * dt; s.y -= Math.cos(s.h) * s.v * dt;
+    var m = 70; if (s.x < m) { s.x = m; s.v *= 0.5; } if (s.x > AW - m) { s.x = AW - m; s.v *= 0.5; } if (s.y < m) { s.y = m; s.v *= 0.5; } if (s.y > AH - m) { s.y = AH - m; s.v *= 0.5; }
+  }
+  function pickTarget(W, s) {
+    var foes = live(W, 1 - s.team); if (!foes.length) return null;
+    if (s.pref) { var p = W.byId(s.pref); if (p && p.alive) return p; }
+    var best = null, bd = 1e9;
+    foes.forEach(function (f) { var d = dist(s, f) * (f.me ? 0.82 : 1) * (f.id === 'sov' && s.team === 0 ? 1.15 : 1); if (d < bd) { bd = d; best = f; } });
+    return best;
+  }
+  function steer(W, s) {
+    var t = s.tgt; if (!t) { s.rud = 0; return; }
+    var d = dist(s, t), b = bearing(s, t), want;
+    var side = ang(b - s.h) > 0 ? 1 : -1;      // musuh di kanan -> sisi kanan menghadap musuh
+    if (d > s.keep + 220) want = b - side * 0.35;
+    else if (d < s.keep - 140) want = b - side * 2.0;
+    else want = b - side * Math.PI / 2;
+    // jauhi tepi arena
+    var mg = 300, cx = AW / 2, cy = AH / 2;
+    if (s.x < mg || s.x > AW - mg || s.y < mg || s.y > AH - mg) want = bearing(s, { x: cx, y: cy });
+    // jaga jarak dengan kapal sendiri yang terlalu dekat
+    W.ships.forEach(function (o) { if (o !== s && o.alive && dist(s, o) < 110) want = bearing(o, s); });
+    var e = ang(want - s.h); s.rud = Math.abs(e) < 0.06 ? 0 : (e > 0 ? 1 : -1);
+  }
+  function fire(W, s, side, quiet) {
+    if (!s.alive || s.cd[side > 0 ? 1 : 0] > 0) return false;
+    var foes = live(W, 1 - s.team), best = null, bq = 0;
+    foes.forEach(function (f) { var d = dist(s, f); if (d > RANGE) return; var q = arcQ(s, f, side) * (1 - d / RANGE * 0.55); if (q > bq) { bq = q; best = f; } });
+    if (!best && !s.me) return false;
+    s.cd[side > 0 ? 1 : 0] = s.rl;
+    var pk = W.R(), hit = !!best && pk < 0.32 + 0.6 * bq;
+    var dmg = 0;
+    if (best) {
+      dmg = Math.round(s.dmg * (0.85 + W.R() * 0.3) * best.def * (s.team === 0 && W.phase === 3 ? 1.25 : 1));
+    }
+    var px = s.x + Math.cos(s.h) * side * 30, py = s.y + Math.sin(s.h) * side * 30;
+    var tx, ty;
+    if (best) { tx = best.x + (hit ? 0 : (W.R() - 0.5) * 120); ty = best.y + (hit ? 0 : (W.R() - 0.5) * 120); }
+    else { var ab = s.h + side * Math.PI / 2; tx = s.x + Math.sin(ab) * RANGE * 0.8; ty = s.y - Math.cos(ab) * RANGE * 0.8; }
+    var fl = 0.45 + Math.hypot(tx - px, ty - py) / 1100;
+    W.balls.push({ x0: px, y0: py, x1: tx, y1: ty, t: 0, dur: fl, hit: hit, dmg: dmg, tgt: best, from: s });
+    if (s.me) W.stats.tembak++;
+    W.ev.push({ k: 'fire', s: s, side: side, quiet: quiet });
+    return true;
+  }
+  function land(W, b) {
+    if (!b.hit || !b.tgt || !b.tgt.alive) { W.ev.push({ k: 'splash', x: b.x1, y: b.y1 }); return; }
+    var t = b.tgt; t.hp = Math.max(0, t.hp - b.dmg); t.flash = 0.25;
+    if (b.from.me) W.stats.kena++;
+    W.ev.push({ k: 'hit', x: b.x1, y: b.y1, s: t, dmg: b.dmg, from: b.from });
+    if (t.hp <= 0) {
+      t.alive = false; t.out = 0.001;
+      if (t.team === 1) W.stats.tenggelam++;
+      W.ev.push({ k: 'down', s: t });
+    }
+  }
+  function phaseLogic(W, dt) {
+    var sov = W.byId('sov'), mar = W.byId('marlya'), pearl = W.byId('pearl');
+    if (!sov || !sov.alive) return;
+    if (W.shield) {
+      sov.def = 0.5;
+      if (mar && mar.alive && dist(mar, sov) < 680) W.pengacau += dt;
+      if (W.pengacau >= 8 || sov.hp < sov.max * 0.62) { W.shield = false; sov.def = 1; W.ev.push({ k: 'shield', by: mar && mar.alive && W.pengacau >= 8 ? 'marlya' : 'lemah' }); }
+    }
+    if (W.phase === 1 && sov.hp < sov.max * 0.6) { W.phase = 2; sov.rl = 2.3; W.ev.push({ k: 'phase', p: 2 }); }
+    if (W.phase === 2 && sov.hp < sov.max * 0.3) {
+      W.phase = 3; sov.sp *= 0.55; sov.rl = 2.8;
+      W.ev.push({ k: 'phase', p: 3, pearl: !!(pearl && pearl.alive) });
+    }
+  }
+  function step(W, dt) {
+    if (W.over) return;
+    W.t += dt; W.w = ang(W.w + Math.sin(W.t * 0.05) * 0.0006);
+    W.ships.forEach(function (s) {
+      if (!s.alive) { if (s.out > 0) s.out = Math.min(1, s.out + dt * 0.3); return; }
+      s.cd[0] = Math.max(0, s.cd[0] - dt); s.cd[1] = Math.max(0, s.cd[1] - dt); if (s.flash > 0) s.flash -= dt;
+      if (s.ai) {
+        s.think = (s.think || 0) - dt;
+        if (s.think <= 0 || !s.tgt || !s.tgt.alive) { s.think = 0.6 + W.R() * 0.5; s.tgt = pickTarget(W, s); }
+        steer(W, s);
+        if (s.tgt) { if (!fire(W, s, 1, true)) fire(W, s, -1, true); }
+      }
+      moveShip(s, dt, W.w);
+    });
+    // tabrakan ringan: dorong terpisah
+    for (var i = 0; i < W.ships.length; i++) for (var j = i + 1; j < W.ships.length; j++) {
+      var a = W.ships[i], b = W.ships[j]; if (!a.alive || !b.alive) continue;
+      var d = dist(a, b), md = 54 * (a.size + b.size) / 2;
+      if (d < md && d > 0.01) { var k = (md - d) / 2 / d, dx = (b.x - a.x) * k, dy = (b.y - a.y) * k; a.x -= dx; a.y -= dy; b.x += dx; b.y += dy; a.v *= 0.97; b.v *= 0.97; }
+    }
+    for (var n = W.balls.length - 1; n >= 0; n--) { var bl = W.balls[n]; bl.t += dt; if (bl.t >= bl.dur) { land(W, bl); W.balls.splice(n, 1); } }
+    phaseLogic(W, dt);
+    var me = W.byId('me');
+    if (!me.alive) W.over = 'kalah';
+    else if (!live(W, 1).length) W.over = 'menang';
+  }
+
+  /* ================= TAMPILAN ================= */
+  var S = { open: false, built: false, W: null, cfg: null, done: null, raf: 0, last: 0, t0: 0, cam: { x: AW / 2, y: AH / 2, s: 0.5 }, inp: { l: false, r: false },
+    fx: [], smoke: [], shake: 0, said: {}, ended: false, waves: null };
+  var cv, cx, DPR = 1, CW = 0, CH = 0;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function sfx(n, o) { try { if (window.MTAudio && MTAudio.sfx) MTAudio.sfx(n, o); } catch (e) { } }
+
+  function build() {
+    if (S.built) return;
+    var ov = document.createElement('div'); ov.id = 'maOverlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Duel Armada Teluk Dalam');
+    ov.innerHTML = '<canvas id="maCv"></canvas>' +
+      '<div class="ma-top"><div class="ma-team" id="maKita"></div>' +
+        '<div class="ma-mid"><div class="ma-ph" id="maPh">Duel Armada</div><div class="ma-tm" id="maTm">0:00</div><div class="ma-sub" id="maSub">Yang terakhir mengapung menang</div></div>' +
+        '<div class="ma-team foe" id="maMusuh"></div></div>' +
+      '<div class="ma-say" id="maSay" aria-live="polite"></div>' +
+      '<div class="ma-banner" id="maBan"><h2 id="maBt"></h2><p id="maBs"></p></div>' +
+      '<div class="ma-hint" id="maHint"><b>A / D</b> kemudi &middot; <b>Q / E</b> tembak kiri / kanan &middot; <b>W</b> layar &middot; arahkan lambung ke musuh</div>' +
+      '<button class="ma-quit" id="maQuit" type="button">Mundur</button>' +
+      '<div class="ma-deck" id="maDeck">' +
+        '<div class="ma-grp"><button class="ma-k" id="maL" type="button" aria-label="Kemudi kiri"><b>&#8634;</b><small>Kiri</small></button>' +
+          '<button class="ma-k" id="maR" type="button" aria-label="Kemudi kanan"><b>&#8635;</b><small>Kanan</small></button>' +
+          '<button class="ma-k on" id="maS" type="button" aria-label="Layar"><b>&#9973;</b><small>Layar penuh</small></button></div>' +
+        '<div class="ma-grp"><button class="ma-k fire" id="maFL" type="button" aria-label="Tembak lambung kiri"><b>&#8592;</b><small>Tembak kiri</small><i></i></button>' +
+          '<button class="ma-k fire" id="maFR" type="button" aria-label="Tembak lambung kanan"><b>&#8594;</b><small>Tembak kanan</small><i></i></button></div>' +
+      '</div>' +
+      '<div class="ma-end" id="maEnd" hidden><div class="box" id="maEndBox"></div></div>';
+    document.body.appendChild(ov);
+    hold($('maL'), 'l'); hold($('maR'), 'r');
+    $('maS').addEventListener('click', toggleSail);
+    $('maFL').addEventListener('pointerdown', function (e) { e.preventDefault(); shoot(-1); });
+    $('maFR').addEventListener('pointerdown', function (e) { e.preventDefault(); shoot(1); });
+    $('maQuit').addEventListener('click', quit);
+    window.addEventListener('resize', resize);
+    S.built = true;
+  }
+  function hold(el, key) {
+    var on = function (e) { e.preventDefault(); S.inp[key] = true; el.classList.add('on'); };
+    var off = function () { S.inp[key] = false; el.classList.remove('on'); };
+    el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
+  }
+  function toggleSail() { var me = S.W && S.W.byId('me'); if (!me) return; me.sails = me.sails ? 0 : 1; $('maS').classList.toggle('on', !!me.sails); $('maS').querySelector('small').textContent = me.sails ? 'Layar penuh' : 'Layar setengah'; sfx('click'); }
+  function shoot(side) { if (!S.W || S.W.over) return; var me = S.W.byId('me'); if (fire(S.W, me, side)) { sfx('cannon'); S.shake = Math.max(S.shake, 4); } }
+  var quitT = 0;
+  function quit() {
+    var b = $('maQuit');
+    if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Yakin mundur? Klik lagi'; clearTimeout(quitT); quitT = setTimeout(function () { b.classList.remove('armed'); b.textContent = 'Mundur'; }, 3000); return; }
+    if (S.W && !S.W.over) { S.W.over = 'kalah'; S.mundur = true; }
+  }
+  function onKey(e) {
+    if (!S.open) return;
+    var k = e.key.toLowerCase(), down = e.type === 'keydown';
+    if (k === 'a' || k === 'arrowleft') { S.inp.l = down; e.preventDefault(); }
+    else if (k === 'd' || k === 'arrowright') { S.inp.r = down; e.preventDefault(); }
+    else if (down && !e.repeat && (k === 'q' || k === 'j')) { shoot(-1); e.preventDefault(); }
+    else if (down && !e.repeat && (k === 'e' || k === 'l')) { shoot(1); e.preventDefault(); }
+    else if (down && !e.repeat && (k === 'w' || k === 'arrowup' || k === 's' || k === 'arrowdown')) { toggleSail(); e.preventDefault(); }
+    else if (down && k === 'enter' && S.ended) { var g = document.querySelector('#maEnd .ma-go'); if (g) g.click(); }
+  }
+
+  function open(cfg, done) {
+    build();
+    S.cfg = cfg || {}; S.done = done; S.ended = false; S.mundur = false; S.said = {}; S.fx = []; S.smoke = []; S.shake = 0; S.inp = { l: false, r: false };
+    S.W = makeSim(S.cfg, Number(S.cfg.seed) || 1);
+    S.waves = []; var r = rng(77); for (var i = 0; i < 220; i++) S.waves.push({ x: r() * AW, y: r() * AH, s: 0.6 + r() * 0.8, p: r() * TAU });
+    $('maEnd').hidden = true; $('maQuit').classList.remove('armed'); $('maQuit').textContent = 'Mundur';
+    $('maS').classList.add('on'); $('maS').querySelector('small').textContent = 'Layar penuh';
+    $('maOverlay').classList.add('open'); S.open = true;
+    document.addEventListener('keydown', onKey); document.addEventListener('keyup', onKey);
+    resize(); var me = S.W.byId('me'); S.cam.x = me.x + 300; S.cam.y = me.y;
+    S.t0 = Date.now(); S.last = 0; cancelAnimationFrame(S.raf); S.raf = requestAnimationFrame(frame);
+    sfx('horn'); sfx('drum');
+    banner('Medan Tempur Teluk Dalam', 'Empat lawan empat. Yang terakhir mengapung, dialah yang menang.');
+    setTimeout(function () { say('Kumis Hitam', '"Empat kapal melawan Mahkota? Hitungan yang buruk, Kapten."', true); }, 1800);
+    setTimeout(function () { say('zafachmie', '"Hadapkan lambungmu ke mereka, Kapten! Black Pearl di sisimu!"'); }, 4600);
+    setTimeout(function () { say('Ratu Marlya', '"Dekatkan aku ke kapal induk itu. Pengacau Frekuensi butuh waktu untuk meruntuhkan perisainya."'); }, 7800);
+  }
+  function close() {
+    S.open = false; cancelAnimationFrame(S.raf);
+    document.removeEventListener('keydown', onKey); document.removeEventListener('keyup', onKey);
+    var ov = $('maOverlay'); if (ov) ov.classList.remove('open');
+  }
+  var banT = 0;
+  function banner(t, s, red) { $('maBt').textContent = t; $('maBs').textContent = s || ''; var b = $('maBan'); b.classList.toggle('red', !!red); b.classList.add('show'); clearTimeout(banT); banT = setTimeout(function () { b.classList.remove('show'); }, 3200); }
+  function say(who, text, foe) {
+    var box = $('maSay'); if (!box) return;
+    var d = document.createElement('div'); if (foe) d.className = 'foe';
+    d.innerHTML = '<b>' + esc(who) + ':</b> ' + esc(text);
+    box.appendChild(d); while (box.children.length > 3) box.removeChild(box.firstChild);
+    setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 5200);
+  }
+  function once(k, fn) { if (S.said[k]) return; S.said[k] = 1; fn(); }
+
+  function events() {
+    var W = S.W, ev = W.ev; W.ev = [];
+    ev.forEach(function (e) {
+      if (e.k === 'fire') {
+        var s = e.s, ab = s.h + e.side * Math.PI / 2;
+        for (var i = 0; i < 4; i++) S.smoke.push({ x: s.x + Math.sin(ab) * 26 + (Math.random() - 0.5) * 30, y: s.y - Math.cos(ab) * 26 + (Math.random() - 0.5) * 30, r: 10, a: 0.7, vx: Math.sin(ab) * 14, vy: -Math.cos(ab) * 14 });
+        if (e.quiet && Math.random() < 0.35 && dist(s, W.byId('me')) < 900) sfx('cannon', { vol: 0.35 });
+      } else if (e.k === 'splash') { S.fx.push({ k: 'splash', x: e.x, y: e.y, t: 0 }); }
+      else if (e.k === 'hit') {
+        S.fx.push({ k: 'hit', x: e.x, y: e.y, t: 0 }); S.fx.push({ k: 'num', x: e.x, y: e.y - 30, t: 0, n: e.dmg, foe: e.s.team === 1 });
+        if (e.s.me) { S.shake = Math.max(S.shake, 9); sfx('hit'); }
+        else if (e.from.me) sfx('clang', { vol: 0.5 });
+      } else if (e.k === 'down') {
+        var s2 = e.s;
+        if (s2.team === 1) {
+          sfx('splash');
+          if (s2.id === 'sov') banner('Sovereign Mahkota karam', 'Mahkota Karam retak di kepala Kumis Hitam');
+          else say('zafachmie', '"' + s2.name + ' tenggelam! ' + (live(W, 1).length ? 'Sisa ' + live(W, 1).length + ' lagi!' : '') + '"');
+        } else if (!s2.me) {
+          say(s2.id === 'pearl' ? 'zafachmie' : s2.id === 'skitraw' ? 'Hasiolan' : 'Ratu Marlya',
+            s2.id === 'pearl' ? '"Lambung Black Pearl bocor, aku mundur dari barisan! Jangan berhenti menembak, Kapten!"'
+              : s2.id === 'skitraw' ? '"Armada Skitraw tertahan, ambo mundur dulu! Tahan mereka, Kapten!"'
+              : '"Lempeng Segelku retak. Aku mundur, tapi lautnya masih milikmu, Kapten."');
+        }
+      } else if (e.k === 'shield') {
+        if (e.by === 'marlya') say('Ratu Marlya', '"Aku yang membuatkan mesinnya. Biar aku yang mematikannya." Perisai Arus Kuno runtuh!');
+        else say('Hasiolan', '"Pusaran pelindungnya melemah! Hajar sekarang!"');
+        banner('Perisai Arus Kuno runtuh', 'Meriam kini menembus lambung Sovereign Mahkota penuh');
+        sfx('clang');
+      } else if (e.k === 'phase') {
+        if (e.p === 2) { say('Kumis Hitam', '"Murka Stempel Mutlak! Semua meriam, tembak!"', true); banner('Murka Stempel Mutlak', 'Salvo Sovereign Mahkota makin cepat', true); }
+        else { say('zafachmie', e.pearl ? '"Untuk Andry!" Meriam rantai Black Pearl melumpuhkan kemudi Sovereign Mahkota!' : '"Kemudinya patah! Sekarang, semua tembak bersama!"');
+          banner('Tembakan Penghabisan Bersama', 'Kemudi Sovereign Mahkota lumpuh, meriam aliansi makin keras'); }
+      }
+    });
+  }
+
+  function frame(ts) {
+    if (!S.open) return;
+    S.raf = requestAnimationFrame(frame);
+    var dt = S.last ? Math.min(0.05, (ts - S.last) / 1000) : 0.016; S.last = ts;
+    var W = S.W, me = W.byId('me');
+    if (!S.ended) {
+      me.rud = (S.inp.l ? -1 : 0) + (S.inp.r ? 1 : 0);
+      step(W, dt);
+      events();
+      if (W.over) finish();
+    }
+    // efek
+    S.fx = S.fx.filter(function (f) { f.t += dt; return f.t < (f.k === 'num' ? 1.1 : 0.7); });
+    S.smoke = S.smoke.filter(function (m) { m.x += m.vx * dt; m.y += m.vy * dt; m.r += dt * 14; m.a -= dt * 0.45; return m.a > 0; });
+    W.ships.forEach(function (s) {
+      if (s.alive && Math.random() < dt * 8) { s.wake.push({ x: s.x - Math.sin(s.h) * 40 * s.size, y: s.y + Math.cos(s.h) * 40 * s.size, a: 0.6, w: 8 }); if (s.wake.length > 26) s.wake.shift(); }
+      s.wake.forEach(function (k) { k.a -= dt * 0.25; k.w += dt * 7; });
+      if (s.alive && s.hp < s.max * 0.45 && Math.random() < dt * 6) S.smoke.push({ x: s.x + (Math.random() - 0.5) * 20, y: s.y + (Math.random() - 0.5) * 20, r: 8, a: 0.5, vx: 6, vy: -10 });
+    });
+    if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 22);
+    camera(dt);
+    draw();
+    hud();
+  }
+  function camera(dt) {
+    var W = S.W, me = W.byId('me'), foes = live(W, 1);
+    var mob = CW < 700, view = mob ? 760 : 1500;
+    var fx = me.x, fy = me.y;
+    if (foes.length) {   // condongkan kamera ke musuh terdekat supaya arah serangan terlihat
+      var n = foes.reduce(function (a, b) { return dist(me, a) < dist(me, b) ? a : b; });
+      var d = dist(me, n); if (d < 1400) { fx = me.x + (n.x - me.x) * 0.35; fy = me.y + (n.y - me.y) * 0.35; }
+    }
+    var ts = Math.min(CW, CH * 1.6) / view;
+    S.cam.s += (ts - S.cam.s) * Math.min(1, dt * 2);
+    S.cam.x += (fx - S.cam.x) * Math.min(1, dt * 2.4); S.cam.y += (fy - S.cam.y) * Math.min(1, dt * 2.4);
+  }
+  function resize() { cv = $('maCv'); if (!cv) return; cx = cv.getContext('2d'); DPR = Math.min(2, window.devicePixelRatio || 1); CW = cv.clientWidth || window.innerWidth; CH = cv.clientHeight || window.innerHeight; cv.width = CW * DPR; cv.height = CH * DPR; var d = $('maDeck'); if (d) $('maOverlay').style.setProperty('--ma-deck', d.offsetHeight + 'px'); }
+
+  function hullPath(c, Lh, B) { c.beginPath(); c.moveTo(0, -Lh); c.bezierCurveTo(B, -Lh * 0.5, B, Lh * 0.55, B * 0.7, Lh); c.lineTo(-B * 0.7, Lh); c.bezierCurveTo(-B, Lh * 0.55, -B, -Lh * 0.5, 0, -Lh); c.closePath(); }
+  function drawShip(c, s, t) {
+    var L = s.look, k = s.size, Lh = 46 * k, B = 15 * k, sc = S.cam.s;
+    c.save(); c.translate(s.x, s.y); c.rotate(s.h);
+    if (!s.alive) {
+      if (s.team === 1) { c.globalAlpha = Math.max(0, 1 - s.out * 1.1); c.rotate(s.out * 0.6); c.scale(1 - s.out * 0.3, 1 - s.out * 0.3); }
+      else c.globalAlpha = Math.max(0.12, 0.5 - s.out * 0.5);
+    }
+    c.fillStyle = 'rgba(0,0,0,.28)'; c.save(); c.translate(5, 6); hullPath(c, Lh, B); c.fill(); c.restore();
+    c.fillStyle = s.flash > 0 ? '#e2774f' : L.hull; hullPath(c, Lh, B); c.fill();
+    c.strokeStyle = s.me ? 'rgba(255,214,140,.95)' : L.gold ? 'rgba(224,184,74,.9)' : 'rgba(0,0,0,.5)'; c.lineWidth = s.me ? 2.6 : 1.6; c.stroke();
+    c.fillStyle = L.deck; c.save(); c.scale(0.82, 0.86); hullPath(c, Lh, B); c.fill(); c.restore();
+    c.fillStyle = '#1a1612'; for (var g = -2; g <= 2; g++) { c.fillRect(-B - 2, g * 9 * k - 1.5, 5, 3); c.fillRect(B - 3, g * 9 * k - 1.5, 5, 3); }
+    var rel = ang(S.W.w - s.h), swing = clamp(Math.sin(rel) * 0.55, -0.55, 0.55);
+    [-16 * k, 2 * k, 18 * k].forEach(function (m, i) {
+      c.save(); c.translate(0, m); c.rotate(swing);
+      var ww = (s.sails ? 34 : 24) * k * (i === 1 ? 1.12 : 0.92), belly = (s.sails ? 10 : 7) * k;
+      c.fillStyle = L.sail; c.beginPath(); c.moveTo(-ww / 2, 0); c.quadraticCurveTo(0, -belly * 2, ww / 2, 0); c.quadraticCurveTo(0, 3, -ww / 2, 0); c.fill();
+      c.strokeStyle = L.gold ? 'rgba(224,184,74,.7)' : 'rgba(80,60,40,.5)'; c.lineWidth = 1; c.stroke();
+      c.fillStyle = '#3b2a1a'; c.beginPath(); c.arc(0, 0, 2.4 * k, 0, TAU); c.fill(); c.restore();
+    });
+    var fl = Math.sin(t * 6 + s.x) * 2; c.fillStyle = L.flag; c.beginPath(); c.moveTo(0, Lh - 6); c.lineTo(-7 + fl, Lh + 7); c.lineTo(4 + fl, Lh + 9); c.closePath(); c.fill();
+    if (s.id === 'marlya' && s.alive) { c.strokeStyle = 'rgba(120,180,255,' + (0.35 + 0.25 * Math.sin(t * 5)) + ')'; c.lineWidth = 3; c.beginPath(); c.arc(0, 0, 30, 0, TAU); c.stroke(); }
+    if (s.id === 'sov' && s.alive) {   // mahkota di anjungan
+      c.fillStyle = '#e0b84a'; c.beginPath(); c.moveTo(-7, 30); c.lineTo(-7, 24); c.lineTo(-3, 27); c.lineTo(0, 22); c.lineTo(3, 27); c.lineTo(7, 24); c.lineTo(7, 30); c.closePath(); c.fill();
+    }
+    c.restore();
+    if (s.id === 'sov' && s.alive && S.W.shield) {
+      c.save(); c.strokeStyle = 'rgba(230,190,90,' + (0.3 + 0.2 * Math.sin(t * 3)) + ')'; c.lineWidth = 5 / Math.max(0.5, sc);
+      c.beginPath(); c.arc(s.x, s.y, 90, t * 1.4, t * 1.4 + 4.6); c.stroke(); c.restore();
+    }
+    if (s.alive || s.out < 0.6) {
+      var y = s.y - (62 * k + 10);
+      label(c, s.me ? 'Kapalmu' : s.name, s.x, y, s.me ? 'rgba(255,226,160,.95)' : s.team === 1 ? 'rgba(190,210,255,.92)' : 'rgba(205,240,225,.9)');
+      if (s.alive) {
+        var bw = 70 * k, bh = 6 / Math.max(0.6, sc);
+        c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(s.x - bw / 2, y + 6, bw, bh);
+        c.fillStyle = s.team === 1 ? '#e2774f' : '#8fd8b0'; c.fillRect(s.x - bw / 2, y + 6, bw * s.hp / s.max, bh);
+      }
+    }
+  }
+  function label(c, text, x, y, col) { var s = S.cam.s; c.save(); c.font = '700 ' + (14 / s) + 'px "EB Garamond", Georgia, serif'; c.textAlign = 'center'; c.lineWidth = 3 / s; c.strokeStyle = 'rgba(6,16,20,.75)'; c.strokeText(text, x, y); c.fillStyle = col; c.fillText(text, x, y); c.restore(); }
+  function arcs(c, s) {
+    [-1, 1].forEach(function (side) {
+      var rdy = s.cd[side > 0 ? 1 : 0] <= 0, a0 = s.h + side * Math.PI / 2 - Math.PI / 2;
+      c.save(); c.translate(s.x, s.y);
+      c.fillStyle = rdy ? 'rgba(255,190,110,.09)' : 'rgba(255,255,255,.03)';
+      c.strokeStyle = rdy ? 'rgba(255,200,120,.35)' : 'rgba(255,255,255,.08)'; c.lineWidth = 1.5 / S.cam.s;
+      c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, RANGE, a0 - ARC, a0 + ARC); c.closePath(); c.fill(); c.stroke();
+      c.restore();
+    });
+  }
+  function draw() {
+    var c = cx; if (!c) return; c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var W = S.W, t = W.t, s = S.cam.s;
+    if (S.shake > 0.3) c.translate((Math.random() - 0.5) * S.shake, (Math.random() - 0.5) * S.shake);
+    var gr = c.createRadialGradient(CW / 2, CH * 0.45, 40, CW / 2, CH * 0.45, Math.max(CW, CH) * 0.8);
+    gr.addColorStop(0, W.phase === 3 ? '#2a2a3c' : '#163644'); gr.addColorStop(1, '#06121a');
+    c.fillStyle = gr; c.fillRect(-20, -20, CW + 40, CH + 40);
+    c.save(); c.translate(CW / 2 - S.cam.x * s, CH / 2 - S.cam.y * s); c.scale(s, s);
+    c.lineCap = 'round';
+    var wdx = Math.sin(W.w), wdy = -Math.cos(W.w);
+    S.waves.forEach(function (q) {
+      var a = (Math.sin(t * 1.1 * q.s + q.p) + 1) / 2, ox = (t * 18 * q.s) % 160, x = q.x + wdx * ox, y = q.y + wdy * ox;
+      c.strokeStyle = 'rgba(160,220,214,' + (0.04 + a * 0.1) + ')'; c.lineWidth = 2.2 / Math.max(0.5, s);
+      c.beginPath(); c.moveTo(x - wdy * 14, y + wdx * 14); c.quadraticCurveTo(x + wdx * 4, y + wdy * 4, x + wdy * 14, y - wdx * 14); c.stroke();
+    });
+    // altar segel di tengah palung
+    var ax = AW / 2, ay = AH / 2, g2 = c.createRadialGradient(ax, ay, 10, ax, ay, 520);
+    g2.addColorStop(0, 'rgba(255,200,90,' + (0.18 + 0.05 * Math.sin(t * 2)) + ')'); g2.addColorStop(1, 'rgba(255,200,90,0)');
+    c.fillStyle = g2; c.fillRect(ax - 520, ay - 520, 1040, 1040);
+    c.strokeStyle = 'rgba(230,190,90,.16)'; c.lineWidth = 3 / Math.max(0.5, s);
+    for (var r = 0; r < 5; r++) { c.beginPath(); c.arc(ax, ay, 90 + r * 80, t * (0.4 - r * 0.05), t * (0.4 - r * 0.05) + 4.2); c.stroke(); }
+    // batas arena: rantai pelampung
+    c.strokeStyle = 'rgba(214,190,130,.22)'; c.lineWidth = 36; c.strokeRect(18, 18, AW - 36, AH - 36);
+    c.fillStyle = 'rgba(200,60,40,.7)'; for (var bx = 120; bx < AW; bx += 320) { c.beginPath(); c.arc(bx, 30, 9, 0, TAU); c.arc(bx, AH - 30, 9, 0, TAU); c.fill(); }
+    W.ships.forEach(function (sp) { sp.wake.forEach(function (k) { if (k.a <= 0) return; c.fillStyle = 'rgba(220,240,240,' + k.a * 0.16 + ')'; c.beginPath(); c.ellipse(k.x, k.y, k.w, k.w * 0.6, 0, 0, TAU); c.fill(); }); });
+    var me = W.byId('me');
+    if (me.alive) arcs(c, me);
+    W.ships.forEach(function (sp) { if (!sp.alive) drawShip(c, sp, t); });
+    W.ships.forEach(function (sp) { if (sp.alive) drawShip(c, sp, t); });
+    W.balls.forEach(function (b) {
+      var k = b.t / b.dur, x = b.x0 + (b.x1 - b.x0) * k, y = b.y0 + (b.y1 - b.y0) * k, hgt = Math.sin(k * Math.PI) * 26;
+      c.fillStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.arc(x, y, 3.5, 0, TAU); c.fill();
+      c.fillStyle = '#1a1410'; c.beginPath(); c.arc(x, y - hgt, 4.2, 0, TAU); c.fill();
+    });
+    S.fx.forEach(function (f) {
+      var k = f.t / 0.7;
+      if (f.k === 'splash') { c.strokeStyle = 'rgba(220,240,250,' + (1 - k) + ')'; c.lineWidth = 3 / Math.max(0.5, s); c.beginPath(); c.arc(f.x, f.y, 6 + k * 26, 0, TAU); c.stroke(); }
+      else if (f.k === 'hit') { c.fillStyle = 'rgba(255,' + Math.round(180 - k * 120) + ',60,' + (1 - k) + ')'; c.beginPath(); c.arc(f.x, f.y, 10 + k * 30, 0, TAU); c.fill(); }
+      else { var kk = f.t / 1.1; c.save(); c.globalAlpha = 1 - kk; c.font = '800 ' + (18 / s) + 'px Cinzel, Georgia, serif'; c.textAlign = 'center'; c.fillStyle = f.foe ? '#ffb08a' : '#ff8a8a'; c.fillText('-' + f.n, f.x, f.y - kk * 40); c.restore(); }
+    });
+    S.smoke.forEach(function (m) { c.fillStyle = 'rgba(225,220,205,' + m.a * 0.5 + ')'; c.beginPath(); c.arc(m.x, m.y, m.r, 0, TAU); c.fill(); });
+    c.restore();
+    // panah penunjuk musuh di luar layar
+    live(W, 1).forEach(function (f) {
+      var sx = (f.x - S.cam.x) * s + CW / 2, sy = (f.y - S.cam.y) * s + CH / 2;
+      if (sx > 20 && sx < CW - 20 && sy > 120 && sy < CH - 120) return;
+      var a = Math.atan2(sy - CH / 2, sx - CW / 2), ex = CW / 2 + Math.cos(a) * (CW / 2 - 28), ey = CH / 2 + Math.sin(a) * (CH / 2 - 130);
+      ex = clamp(ex, 24, CW - 24); ey = clamp(ey, 130, CH - 130);
+      c.save(); c.translate(ex, ey); c.rotate(a); c.fillStyle = f.id === 'sov' ? 'rgba(224,184,74,.9)' : 'rgba(150,180,240,.85)';
+      c.beginPath(); c.moveTo(14, 0); c.lineTo(-8, -9); c.lineTo(-8, 9); c.closePath(); c.fill(); c.restore();
+    });
+    // kompas angin
+    c.save(); c.translate(CW - 46, CH - (parseFloat(getComputedStyle($('maOverlay')).getPropertyValue('--ma-deck')) || 96) - 70);
+    c.fillStyle = 'rgba(9,18,27,.75)'; c.beginPath(); c.arc(0, 0, 24, 0, TAU); c.fill();
+    c.rotate(W.w + Math.PI); c.fillStyle = '#d9a84e'; c.beginPath(); c.moveTo(0, -18); c.lineTo(6, 6); c.lineTo(-6, 6); c.closePath(); c.fill(); c.restore();
+  }
+  var hudT = 0;
+  function hud() {
+    if (Date.now() - hudT < 150) return; hudT = Date.now();
+    var W = S.W;
+    function rows(team) {
+      return W.ships.filter(function (s) { return s.team === team; }).map(function (s) {
+        return '<div class="ma-row' + (s.me ? ' me' : '') + (s.id === 'sov' ? ' sov' : '') + (s.alive ? '' : ' out') + '"><div class="ma-rn"><b>' + esc(s.me ? 'Kapalmu' : s.name) + '</b><small>' +
+          (s.alive ? Math.ceil(s.hp) + ' / ' + Math.round(s.max) : (team === 1 ? 'tenggelam' : 'mundur')) + '</small></div><div class="ma-bar"><i style="width:' + Math.round(s.hp / s.max * 100) + '%"></i></div></div>';
+      }).join('');
+    }
+    $('maKita').innerHTML = '<div class="ma-th">Armada Aliansi</div>' + rows(0);
+    $('maMusuh').innerHTML = '<div class="ma-th">Armada Kumis Hitam</div>' + rows(1);
+    var sec = Math.floor(W.t), m = Math.floor(sec / 60);
+    $('maTm').textContent = m + ':' + ('0' + (sec % 60)).slice(-2);
+    $('maPh').textContent = W.phase === 1 ? (W.shield ? 'Perisai Arus Kuno' : 'Perisai runtuh') : W.phase === 2 ? 'Murka Stempel Mutlak' : 'Tembakan Penghabisan';
+    $('maSub').textContent = live(W, 1).length + ' kapal musuh tersisa';
+    var me = W.byId('me');
+    [['maFL', 0, -1], ['maFR', 1, 1]].forEach(function (q) {
+      var b = $(q[0]), cd = me.cd[q[1]], rdy = cd <= 0;
+      b.classList.toggle('ready', rdy);
+      var aim = live(W, 1).some(function (f) { return dist(me, f) <= RANGE && arcQ(me, f, q[2]) > 0; });
+      b.classList.toggle('aim', rdy && aim);
+      b.querySelector('i').style.width = Math.round((1 - cd / me.rl) * 100) + '%';
+    });
+  }
+  function finish() {
+    if (S.ended) return; S.ended = true;
+    var W = S.W, win = W.over === 'menang', ms = Math.round(W.t * 1000);
+    var minMs = ((S.cfg && S.cfg.minDetik) || 30) * 1000 + 1500, wall = Date.now() - S.t0;
+    sfx(win ? 'horn' : 'drum');
+    if (!win) banner(S.mundur ? 'Mundur dari barisan' : 'Lambungmu jebol', 'Black Pearl menarikmu keluar dari kepungan', true);
+    setTimeout(function () {
+      var box = $('maEndBox');
+      box.innerHTML = '<h2>' + (win ? 'Sovereign Mahkota Karam!' : S.mundur ? 'Kau mundur dari barisan' : 'Kapalmu tumbang') + '</h2>' +
+        '<p>' + (win ? 'Hujan tembakan seluruh aliansi menghantam anjungan. Mahkota Karam di kepala Kumis Hitam retak terbelah, dan Sovereign Mahkota miring pelan ke Palung Arus Mati.'
+          : 'Armada aliansi menambal lambung di bawah bayang-bayang Sovereign Mahkota. Tidak ada batas waktu: kumpulkan napas, lalu serbu lagi.') + '</p>' +
+        '<div class="tiles"><div><b>' + Math.floor(W.t / 60) + ':' + ('0' + (Math.floor(W.t) % 60)).slice(-2) + '</b><small>Lama duel</small></div>' +
+        '<div><b>' + W.stats.kena + ' / ' + W.stats.tembak + '</b><small>Salvo kena</small></div><div><b>' + W.stats.tenggelam + ' / 4</b><small>Musuh tenggelam</small></div></div>' +
+        '<button class="ma-go" type="button">' + (win ? 'Lanjutkan' : 'Kembali ke armada') + '</button>';
+      $('maEnd').hidden = false;
+      var go = box.querySelector('.ma-go'), sent = false;
+      go.onclick = function () {
+        if (sent) return; sent = true; go.disabled = true;
+        var tunggu = win ? Math.max(0, minMs - (Date.now() - S.t0)) : 0;
+        setTimeout(function () { close(); if (S.done) S.done({ win: win, ms: ms, kena: W.stats.kena, tembak: W.stats.tembak, tenggelam: W.stats.tenggelam }); }, tunggu);
+      };
+      setTimeout(function () { go.focus(); }, 40);
+    }, win ? 2600 : 2200);
+  }
+
+  window.MTARENA = { open: open, close: close, isOpen: function () { return S.open; }, _S: S,
+    _sim: { make: makeSim, step: step, fire: fire, live: live, AW: AW, AH: AH, RANGE: RANGE } };
+})();
+</script>
+
+<script>
+/* =====================================================================
+ * Medan Tempur Teluk Dalam: scene titik laut, panel tertutup, pintu ke kartu langkah 60
+ * ===================================================================== */
+(function () {
+  try { if (typeof TYPE_META !== 'undefined') TYPE_META.TelukDalam = { icon: 'crown', label: 'Medan Tempur' }; } catch (e) { }
+  function cid() { return window.state && state.city ? state.city.CityId : ''; }
+  if (typeof window.openPanel === 'function') {
+    var origOpen = window.openPanel;
+    window.openPanel = function (panel) {
+      if (cid() === 'teluk_dalam' && panel !== 'setsail' && panel !== 'combat' && panel !== 'log' && panel !== 'profile') {
+        if (panel === 'sovereign' || panel === 'ship' || panel === 'tasks') { if (window.MK && MK.teluk && MK.teluk()) return; }
+        showToast('Tak ada dermaga di Medan Tempur Teluk Dalam. Hanya Sovereign Mahkota yang menunggu.', 'info'); return;
+      }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  if (!window.MTCities || !MTCities.register || !MTCities.H) return;
+  var H = MTCities.H;
+  function glow(ctx, x, y, r, col, a) { if (a <= 0.004) return; var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + col + ',' + a.toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+  function hullSide(ctx, x, y, u, k, hull, sail, gold) {
+    ctx.fillStyle = hull; ctx.beginPath(); ctx.moveTo(x - u * 2.2 * k, y - u * 0.5 * k); ctx.lineTo(x + u * 2.6 * k, y - u * 0.5 * k); ctx.lineTo(x + u * 1.9 * k, y + u * 0.25 * k); ctx.lineTo(x - u * 1.7 * k, y + u * 0.25 * k); ctx.closePath(); ctx.fill();
+    if (gold) { ctx.strokeStyle = '#e0b84a'; ctx.lineWidth = u * 0.07; ctx.stroke(); }
+    ctx.fillStyle = sail;
+    [-1.1, 0.2, 1.4].forEach(function (m, i) { var h = u * (i === 1 ? 2.6 : 2.1) * k; ctx.fillRect(x + m * u * k - u * 0.05, y - u * 0.5 * k - h, u * 0.1, h); ctx.beginPath(); ctx.moveTo(x + m * u * k, y - u * 0.6 * k - h * 0.95); ctx.quadraticCurveTo(x + m * u * k + u * 0.9 * k, y - u * 0.5 * k - h * 0.5, x + m * u * k, y - u * 0.7 * k); ctx.closePath(); ctx.fill(); });
+  }
+  function drawTeluk(inst, ctx, p, t, dt, d) {
+    var u = d.u, W = d.W, bl = 0.5 + 0.5 * Math.sin(t * 2);
+    glow(ctx, d.ax, d.ay, u * 6, '255,200,90', 0.18 + 0.12 * bl);
+    ctx.save(); ctx.strokeStyle = 'rgba(230,190,90,' + (0.18 + 0.1 * bl).toFixed(3) + ')'; ctx.lineWidth = u * 0.06;
+    for (var r = 0; r < 4; r++) { ctx.beginPath(); ctx.ellipse(d.ax, d.ay, u * (1.6 + r * 1.2), u * (0.35 + r * 0.25), 0, t * (0.6 - r * 0.1), t * (0.6 - r * 0.1) + 4.4); ctx.stroke(); }
+    ctx.restore();
+    for (var i = 0; i < d.fog.length; i++) {
+      var f = d.fog[i]; if (!inst.reduced) f.x += f.v * dt / 1000; if (f.x > W + f.r) f.x = -f.r; if (f.x < -f.r) f.x = W + f.r;
+      var g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r); g.addColorStop(0, 'rgba(120,128,150,' + f.a + ')'); g.addColorStop(1, 'rgba(120,128,150,0)');
+      ctx.fillStyle = g; ctx.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+    }
+    var bob = Math.sin(t * 1.3) * u * 0.08;
+    hullSide(ctx, d.ax, d.ay - u * 0.2 + bob, u, 1.25, '#141018', '#1e1a26', true);
+    glow(ctx, d.ax + u * 0.3, d.ay - u * 3.6 + bob, u * 0.8, '255,210,120', 0.5 + 0.2 * bl);
+  }
+  function teluk(B) {
+    var u = B.u, ctx = B.ctx, base = B.shoreY || B.qTop, W = B.W || u * 30;
+    B.hillY = function () { return base; };
+    var ax = u * 15, ay = base + u * 0.4;
+    // tiga siluet Navy pengawal di cakrawala
+    ctx.save(); ctx.globalAlpha = 0.45;
+    [[u * 8.5, 0.7], [u * 21, 0.75], [u * 24.5, 0.6]].forEach(function (q) { hullSide(ctx, q[0], base - u * 0.6, u, q[1], '#1c2438', '#34476e', false); });
+    ctx.restore();
+    H.hot(B, 'sovereign', 'Hadapi Kumis Hitam', 'crown', ax - u * 3, ay - u * 4.5, u * 6.5, u * 5);
+    var fog = []; for (var i = 0; i < 14; i++) fog.push({ x: Math.random() * W, y: base - u * (Math.random() * 5 - 0.5), r: u * (3 + Math.random() * 4), v: (Math.random() - 0.5) * u * 0.7, a: 0.07 + Math.random() * 0.1 });
+    B.dyn.push({ type: 'fn', fn: drawTeluk, u: u, W: W, ax: ax, ay: ay, fog: fog });
+    B.noLamps = true; B.noPosters = true; B.walk = null; B.roamers = [];
+  }
+  MTCities.register('teluk_dalam', teluk, 'gloom');
+})();
+</script>

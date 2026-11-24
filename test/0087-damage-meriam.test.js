@@ -141,7 +141,8 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   // ---------------- 3. jalur kode: hanya tempur laut biasa + pencegatan Tony ----------------
   const pakai = (await H.sql(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('game', 'public') and p.prosrc ~ 'CannonDmgMul|meriam_dmg_kali' order by 1`)).map(r => r.proname);
-  assert(JSON.stringify(pakai) === JSON.stringify(['ship_json', 'tony_act', 'voy_resolve_round']),
+  // mk2_laut_enc (0103): Navy Tier 4 di tengah laut memakai jalur bos, pengali Meriam Warlord ditumpangkan manual (keputusan K2)
+  assert(JSON.stringify(pakai) === JSON.stringify(['mk2_laut_enc', 'ship_json', 'tony_act', 'voy_resolve_round']),
     'pengali meriam hanya dipakai mesin ronde & tony_act (bukan raid/duel/serbuan): ' + pakai);
   const ronde = (await H.sql(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('game', 'public') and p.prosrc ~ 'voy_resolve_round' order by 1`)).map(r => r.proname);

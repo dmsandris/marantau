@@ -129,42 +129,11 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert((await one('select game.item_qty($1, $2) q', [a.id, 'beras'])).q === 20, 'kelebihan beras tetap di palka');
   assert(Number((await one('select gold from game.players where player_id = $1', [a.id])).gold) === g0 + 2000000, 'gold Q21 masuk');
 
-  // ---- Battle Akhir Bersama ----
-  await one(`select game.admin_mahkota2('mk2kapten', 57) s`);
-  await taruh(a, 'rantai_lama');
-  await H.sql(`update game.config set value = '0.2' where key = 'Mk2BossDmgKali'`);
-  await H.expectError(() => a.call('api_mahkota', ['serang', 57]), /Tembus dulu zona bidik/);
-  await H.expectError(() => a.call('api_mahkota', ['maju', 57, 'ok']), /Armada musuh masih berdiri/);
-  await H.sql(`update game.player_quests set data = data || '{"kilat":true}' where player_id = $1 and quest_id = 'mahkota2'`, [a.id]);
-  let mundur = 0, menang = false, langkah = [];
-  for (let n = 0; n < 6 && !menang; n++) {
-    s = await st(a);
-    const idx = s.d.n - 1;
-    r = await a.call('api_mahkota', ['serang', idx]);
-    assert(r.encounter && r.encounter.mk2b, 'serang membuat pertempuran');
-    for (let i = 0; i < 1500; i++) {
-      const enc = (await one('select pending_encounter e from game.player_location where player_id = $1', [a.id])).e;
-      if (!enc) break;
-      if (n === 0 && i === 3 && enc.w === 0) { fr = await a.call('api_resolveCombat', ['flee']); mundur++; break; }
-      await kuat(a);
-      fr = await a.call('api_resolveCombat', [enc.ammoRemaining > 0 ? 'fire' : 'reload']);
-      if (fr.chained) langkah.push(fr.encounter.w);
-      if (!fr.ongoing) break;
-      if (i % 6 === 5) await kuat(a);
-    }
-    if (fr.result === 'won' && !fr.ongoing) menang = true;
-    await kuat(a);
-  }
-  s = await st(a);
-  assert(mundur === 1, 'sempat mundur sekali (retreatOk)');
-  assert(menang && s.mk2.menang && s.step === 59 && s.d.n === 60, 'Sovereign Mahkota karam -> langkah 60 menunggu pilihan: ' + JSON.stringify([menang, s.step, s.mk2 && s.mk2.ba]));
-  assert(langkah.join(',') === '1,2,3,4,5,6,7', 'urutan gelombang 1..7 -> ' + langkah.join(','));
-  // HP flagship tersimpan saat kalah
+  // ---- Battle Akhir Bersama: sejak 0103 dimainkan di laut + duel armada (lihat test/0103-mahkota2-laut.test.js) ----
   await one(`select game.admin_mahkota2('mk2kapten', 59) s`);
-  await H.sql(`update game.player_quests set data = data || '{"ba":6,"baHp":3000}' where player_id = $1 and quest_id = 'mahkota2'`, [a.id]);
-  r = await a.call('api_mahkota', ['serang', 59]);
-  assert(r.encounter.w === 6 && r.encounter.enemyHp === 3000 && r.encounter.phase === 2, 'lanjut fase 2 dengan HP tersimpan');
-  await H.sql(`update game.player_location set destination_city_id = null, pending_encounter = null, depart_at = null, arrive_at = null where player_id = $1`, [a.id]);
+  await taruh(a, 'teluk_dalam');
+  await H.expectError(() => a.call('api_mahkota', ['serang', 59]), /Galangan Rantai Lama/);
+  await H.expectError(() => a.call('api_mahkota', ['pilih', 59, 'hancurkan']), /masih berdiri/);
   await H.sql(`update game.player_quests set data = data || '{"ba":8,"menang":true}' where player_id = $1 and quest_id = 'mahkota2'`, [a.id]);
   await H.expectError(() => a.call('api_mahkota', ['pilih', 59, 'tenggelamkan']), /tidak dikenali/);
   const g1 = Number((await one('select gold from game.players where player_id = $1', [a.id])).gold);
