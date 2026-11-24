@@ -54,9 +54,12 @@ function setVars(root) {
   root.querySelectorAll('[data-w]').forEach(e => e.style.setProperty('--w', e.dataset.w));
   root.querySelectorAll('[data-p]').forEach(e => e.style.setProperty('--p', e.dataset.p));
 }
+// Keadaan selalu ditulis sebagai kata, bukan titik warna.
+const LEVEL_WORD = { ok: 'aman', warn: 'waspada', bad: 'bahaya' };
+const st = (level, word) => `<span class="st" data-level="${esc(level || '')}">${esc(word || LEVEL_WORD[level] || '')}</span>`;
 function board(cells, n) {
   return `<div class="board" data-n="${n || cells.length}">${cells.map(c => `<div class="cell"${c.level ? ` data-level="${c.level}"` : ''}>
-    <div class="k">${c.level ? `<i class="sq" data-level="${c.level}"></i>` : ''}<span>${esc(c.k)}</span></div><div class="v">${esc(c.v)}</div><div class="s">${esc(c.s || '')}</div></div>`).join('')}</div>`;
+    <div class="k"><span>${esc(c.k)}</span>${c.level ? `<em>${esc(c.word || LEVEL_WORD[c.level] || '')}</em>` : ''}</div><div class="v">${esc(c.v)}</div><div class="s">${esc(c.s || '')}</div></div>`).join('')}</div>`;
 }
 // cols: { h, k, num, q, cls: (row)=>string, f: (row)=>text, sort }
 function table(cols, rows, { rowLevel, tall, id } = {}) {
@@ -85,18 +88,29 @@ $('#loginForm').addEventListener('submit', async e => {
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
 
 // ---------- rute: tab disimpan di URL (#/ekonomi) ----------
-const TABS = ['server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten', 'audit', 'iluminaty'];
-const TITLES = { server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten', audit: 'Audit', iluminaty: 'Iluminaty' };
-const loaders = {}; // diisi ekonomi.js
-let tab = 'server';
-function routeTab() { const h = location.hash.replace(/^#\/?/, '').split('?')[0]; return TABS.includes(h) ? h : 'server'; }
+const TABS = ['ringkas', 'server', 'layanan', 'db', 'backup', 'debug', 'ekonomi', 'kapten', 'audit', 'penjaga', 'iluminaty', 'pengaturan'];
+const TITLES = { ringkas: 'Ringkas', server: 'Server', layanan: 'Layanan', db: 'Database', backup: 'Backup', debug: 'Debug', ekonomi: 'Ekonomi', kapten: 'Kapten', audit: 'Audit', penjaga: 'Penjaga', iluminaty: 'Iluminaty', pengaturan: 'Pengaturan' };
+const loaders = {}; // diisi ringkas.js, ekonomi.js, audit.js, iluminaty.js, penjaga.js
+let tab = 'ringkas';
+function routeTab() { const h = location.hash.replace(/^#\/?/, '').split('?')[0]; return TABS.includes(h) ? h : 'ringkas'; }
+function setMenu(open) { $('.side').dataset.open = String(open); $('#menuBtn').setAttribute('aria-expanded', String(open)); }
+$('#menuBtn').addEventListener('click', () => setMenu($('.side').dataset.open !== 'true'));
+$('#tabs').addEventListener('click', e => { if (e.target.closest('a.tab')) setMenu(false); });
 function applyTab() {
   tab = routeTab();
   $$('#tabs .tab').forEach(a => { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   $$('main section[data-panel]').forEach(s => s.classList.toggle('hidden', s.dataset.panel !== tab));
   document.title = `${TITLES[tab]} - Marantau Ops`;
-  const cur = $(`#tabs .tab[data-tab="${tab}"]`); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  $('#menuBtn').textContent = 'Menu: ' + TITLES[tab];
   refresh();
+}
+// Angka kecil di menu samping: temuan Penjaga dan peringatan server aktif.
+function navBadge(id, text, level) { const e = $(id); if (!e) return; e.textContent = text || ''; e.dataset.level = level || ''; }
+async function refreshNav() {
+  try {
+    const p = await api('/api/penjaga?ringkas=1'); const r = p.runs && p.runs[0];
+    navBadge('#navPenjaga', r ? (r.tinggi ? r.tinggi + ' tinggi' : r.sedang ? r.sedang + ' sedang' : '') : '', r && r.tinggi ? 'bad' : r && r.sedang ? 'warn' : '');
+  } catch {}
 }
 window.addEventListener('hashchange', () => { if (!$('#app').classList.contains('hidden')) applyTab(); });
 
@@ -108,6 +122,14 @@ $$('#range button').forEach(b => b.addEventListener('click', () => {
 async function loadServer() {
   const o = await api('/api/overview');
   const h = o.host;
+  if (o.v) $('#ver').textContent = 'v' + o.v;
+  navBadge('#navServer', o.alerts && o.alerts.length ? o.alerts.length + ' peringatan' : '', o.alerts && o.alerts.length ? 'bad' : '');
+  const c = o.cert || {};
+  if ($('#certBox')) $('#certBox').innerHTML = board([
+    { k: 'Sertifikat HTTPS', v: c.error ? 'tidak terbaca' : `${n0(c.daysLeft)} hari`, s: c.error ? c.error : `berlaku sampai ${c.validTo}, ${c.issuer}`, level: c.error ? 'bad' : c.daysLeft > 20 ? 'ok' : c.daysLeft > 7 ? 'warn' : 'bad' },
+    { k: 'Peringatan aktif', v: n0((o.alerts || []).length), s: (o.alerts || []).join(', ') || 'tidak ada', level: (o.alerts || []).length ? 'bad' : 'ok' },
+    { k: 'Puncak 24 jam', v: o.peak24 && o.peak24.cpu != null ? r1(o.peak24.cpu) + '% CPU' : '-', s: o.peak24 ? `RAM ${r1(o.peak24.mem) ?? '-'}%, IOwait ${r1(o.peak24.iow) ?? '-'}%, load ${r1(o.peak24.load) ?? '-'}` : '' },
+  ], 3);
   const memPct = h.memTotal ? 100 * h.memUsed / h.memTotal : null, diskPct = h.diskTotal ? 100 * h.diskUsed / h.diskTotal : null;
   $('#hostCards').innerHTML = board([
     { k: 'CPU', v: h.cpu == null ? '...' : r1(h.cpu) + '%', s: `${h.cores} core, load ${r1(h.load) ?? '-'}`, level: lvl(h.cpu, 70, 90) },
@@ -117,7 +139,7 @@ async function loadServer() {
     { k: 'Disk', v: diskPct == null ? '-' : Math.round(diskPct) + '%', s: `${gb(h.diskUsed)} dari ${gb(h.diskTotal)}`, level: lvl(diskPct, 70, 80) },
     { k: 'Uptime', v: dur(h.uptimeSec), s: o.telegram ? 'Telegram aktif' : 'Telegram belum diatur' },
   ], 6);
-  renderServices(o.services, o.stats);
+  renderServices(o.services, o.stats, o.info);
 }
 function chart(title, pts, key, { max, unit = '', limit } = {}) {
   const W = 400, H = 140, P = 4;
@@ -162,14 +184,16 @@ async function loadHttp() {
 }
 
 // ---------- Layanan ----------
-function renderServices(sv, stats = {}) {
+function renderServices(sv, stats = {}, info = {}) {
   if (sv.error) { $('#svcList').innerHTML = `<div class="errbox" role="alert"><span>Docker tidak terbaca: ${esc(sv.error)}</span></div>`; return; }
   $('#svcList').innerHTML = `<div class="rows">${sv.items.map(s => {
-    const st = s.state === 'running' ? (s.health === 'unhealthy' ? 'bad' : s.health === 'starting' ? 'warn' : 'ok') : 'bad';
-    const word = st === 'ok' ? 'sehat' : st === 'warn' ? 'memulai' : (s.state === 'running' ? 'tidak sehat' : esc(s.state));
+    const lv = s.state === 'running' ? (s.health === 'unhealthy' ? 'bad' : s.health === 'starting' ? 'warn' : 'ok') : 'bad';
+    const word = lv === 'ok' ? 'sehat' : lv === 'warn' ? 'memulai' : (s.state === 'running' ? 'tidak sehat' : s.state);
     const mem = stats[s.name] ? `RAM ${stats[s.name].memMb} MB` : '';
-    return `<div class="svc"><i class="sq" data-level="${st}" aria-hidden="true"></i><span class="name">${esc(s.label)} <span class="muted">${word}</span></span>
-      <span class="meta">${esc(s.status || s.state)}${mem ? ', ' + esc(mem) : ''}<br>${esc(s.image || '')}</span>
+    const inf = info[s.name] || {};
+    const extra = [inf.started ? 'jalan sejak ' + fmtTime(inf.started) : '', inf.restarts ? `<b>restart ${n0(inf.restarts)} kali</b>` : '', inf.oom ? '<b>pernah kehabisan RAM</b>' : ''].filter(Boolean).join(', ');
+    return `<div class="svc"><span class="name">${esc(s.label)} ${st(lv, word)}</span>
+      <span class="meta">${esc(s.status || s.state)}${mem ? ', ' + esc(mem) : ''}${extra ? '<br>' + extra : ''}<br>${esc(s.image || '')}</span>
       <span class="acts"><button type="button" class="btn btn--small" data-log="${esc(s.name)}">Log</button>
       <button type="button" class="btn btn--small ${s.risky ? 'btn--danger' : ''}" data-restart="${esc(s.name)}" data-label="${esc(s.label)}" data-risky="${s.risky ? 1 : ''}">Restart</button></span></div>`;
   }).join('')}</div>`;
@@ -178,8 +202,9 @@ $('#svcList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.log) {
     $('#logBox').classList.remove('hidden'); $('#logTitle').textContent = 'Log ' + b.dataset.log; $('#logText').textContent = 'Memuat...';
-    try { const r = await api('/api/logs?name=' + encodeURIComponent(b.dataset.log)); $('#logText').textContent = r.text || '(kosong)'; $('#logText').scrollTop = 1e9; }
+    try { const r = await api('/api/logs?name=' + encodeURIComponent(b.dataset.log)); logRaw = r.text || '(kosong)'; showLog(); $('#logText').scrollTop = 1e9; }
     catch (err) { $('#logText').textContent = err.message; }
+    $('#logBox').scrollIntoView({ block: 'start' });
   }
   if (b.dataset.restart) {
     const warn = b.dataset.risky ? '\n\nPERHATIAN: Postgres restart = semua pemain terputus ±10–30 detik.' : '';
@@ -190,6 +215,9 @@ $('#svcList').addEventListener('click', async e => {
     b.disabled = false; setTimeout(refresh, 2000);
   }
 });
+let logRaw = '';
+function showLog() { const f = $('#logFilter').value.trim().toLowerCase(); $('#logText').textContent = f ? logRaw.split('\n').filter(l => l.toLowerCase().includes(f)).join('\n') || '(tidak ada baris yang cocok)' : logRaw; }
+$('#logFilter').addEventListener('input', showLog);
 $('#logClose').addEventListener('click', () => $('#logBox').classList.add('hidden'));
 
 // ---------- Database ----------
@@ -201,11 +229,15 @@ async function loadDb() {
     { k: 'Koneksi', v: `${total} / ${d.maxConn ?? '?'}`, s: 'semua role', level: lvl(total / (d.maxConn || 60) * 100, 60, 85) },
     { k: 'Kunci menunggu', v: n0(d.waitingLocks), s: 'pg_locks', level: d.waitingLocks > 5 ? 'bad' : d.waitingLocks > 0 ? 'warn' : 'ok' },
     { k: 'Ukuran database', v: d.size ?? '-', s: 'postgres' },
-  ], 4) + (d.errors ? `<div class="errbox" role="alert"><span>${esc(Object.entries(d.errors).map(([k, v]) => k + ': ' + v).join(', '))}</span></div>` : '');
+    { k: 'Cache hit', v: d.stat && d.stat.cache_hit != null ? NF1.format(d.stat.cache_hit) + '%' : '-', s: 'blok dibaca dari memori', level: d.stat && d.stat.cache_hit != null ? (d.stat.cache_hit >= 99 ? 'ok' : d.stat.cache_hit >= 95 ? 'warn' : 'bad') : '' },
+    { k: 'Deadlock dan rollback', v: d.stat ? `${n0(d.stat.deadlocks)} / ${n0(d.stat.rollback)}` : '-', s: d.stat ? `sejak ${d.stat.sejak || 'statistik dibuat'}, ${n0(d.stat.commit)} commit` : '', level: d.stat && d.stat.deadlocks ? 'warn' : '' },
+  ], 6) + (d.errors ? `<div class="errbox" role="alert"><span>${esc(Object.entries(d.errors).map(([k, v]) => k + ': ' + v).join(', '))}</span></div>` : '');
   $('#dbSlow').innerHTML = table([{ h: 'Endpoint atau query', k: 'q', q: 1 }, { h: 'Panggilan', k: 'calls', num: 1, f: r => n0(r.calls) }, { h: 'Rata-rata ms', k: 'mean_ms', num: 1, f: r => n0(r.mean_ms) }, { h: 'Maks ms', k: 'max_ms', num: 1, f: r => n0(r.max_ms) }, { h: 'Total detik', k: 'total_s', num: 1, f: r => n0(r.total_s) }], d.slow, { rowLevel: r => r.mean_ms > 1000 ? 'bad' : '' });
   $('#dbLong').innerHTML = (d.longTx || []).length ? table([{ h: 'PID', k: 'pid', num: 1 }, { h: 'Role', k: 'role' }, { h: 'State', k: 'state' }, { h: 'Detik', k: 'sec', num: 1 }, { h: 'Query', k: 'query', q: 1 }], d.longTx) : '<div class="empty"><b>Tidak ada.</b> Tidak ada transaksi yang berjalan lebih dari 10 detik.</div>';
   $('#dbConns').innerHTML = table([{ h: 'Role', k: 'role' }, { h: 'State', k: 'state' }, { h: 'Jumlah', k: 'n', num: 1 }], d.conns);
   $('#dbTables').innerHTML = table([{ h: 'Tabel', k: 'name' }, { h: 'Ukuran', k: 'size', num: 1 }, { h: 'Baris (perkiraan)', k: 'rows_est', num: 1, f: r => n0(r.rows_est) }], d.tables);
+  $('#dbVacuum').innerHTML = table([{ h: 'Tabel', k: 'name' }, { h: 'Baris mati', k: 'mati', num: 1, f: r => n0(r.mati), cls: r => r.mati > Math.max(10000, r.hidup * 0.2) ? 'warn' : '' }, { h: 'Baris hidup', k: 'hidup', num: 1, f: r => n0(r.hidup) },
+    { h: 'Vacuum terakhir', k: 'vacuum', f: r => r.vacuum || 'belum', cls: r => r.vacuum ? '' : 'dim' }, { h: 'Analyze terakhir', k: 'analyze', f: r => r.analyze || 'belum', cls: r => r.analyze ? '' : 'dim' }], d.vacuum || []);
 }
 
 // ---------- Backup ----------
@@ -265,9 +297,9 @@ $('#dbgSave').addEventListener('click', () => {
 async function refresh() {
   try {
     if (tab === 'server') await Promise.all([
-      load(['#hostCards'], loadServer), load(['#charts'], loadCharts), load(['#httpBox'], loadHttp)]);
+      load(['#hostCards', '#certBox'], loadServer), load(['#charts'], loadCharts), load(['#httpBox'], loadHttp)]);
     if (tab === 'layanan') await load(['#svcList'], loadServer);
-    if (tab === 'db') await load(['#dbCards', '#dbSlow', '#dbLong', '#dbConns', '#dbTables'], loadDb);
+    if (tab === 'db') await load(['#dbCards', '#dbSlow', '#dbLong', '#dbConns', '#dbTables', '#dbVacuum'], loadDb);
     if (tab === 'backup') await load(['#bkStatus', '#bkFiles'], loadBackup);
     if (loaders[tab]) await loaders[tab]();
     // tab debug: laporan hanya dibuat saat tombol ditekan
@@ -276,10 +308,12 @@ async function refresh() {
 let timers = [];
 function startTimers() {
   stopTimers(); applyTab();
-  timers.push(setInterval(() => { if (!document.hidden && tab !== 'backup' && tab !== 'debug' && tab !== 'audit' && tab !== 'iluminaty') refresh(); }, 30000));
+  const AUTO = new Set(['ringkas', 'server', 'layanan', 'db', 'ekonomi', 'kapten']);
+  timers.push(setInterval(() => { if (!document.hidden && AUTO.has(tab)) refresh(); }, 30000));
+  timers.push(setInterval(() => { if (!document.hidden) refreshNav(); }, 60000)); refreshNav();
   timers.push(setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('id-ID'); }, 1000));
 }
 function stopTimers() { timers.forEach(clearInterval); timers = []; }
 
-window.OPS = { $, $$, esc, n0, idr, signed, r1, api, toast, board, table, load, skel, empty, showErr, setVars, loaders, lvl, refresh, NF1 };
+window.OPS = { $, $$, esc, n0, idr, signed, r1, api, toast, board, table, load, skel, empty, showErr, setVars, loaders, lvl, refresh, NF1, NF, st, ago, fmtTime, dur, chart, navBadge, refreshNav, gb, mb };
 api('/api/me').then(r => r.authed ? showApp() : showLogin()).catch(showLogin);

@@ -1,7 +1,7 @@
 'use strict';
 // Tab Ekonomi dan Kapten. Memakai helper dari app.js lewat window.OPS.
 (() => {
-  const { $, $$, esc, n0, idr, signed, api, toast, board, table, load, empty, showErr, setVars, loaders, NF1 } = window.OPS;
+  const { $, $$, esc, n0, idr, signed, api, toast, board, table, load, empty, showErr, setVars, loaders, NF1, st } = window.OPS;
   const pct1 = v => v == null || isNaN(+v) ? '-' : NF1.format(+v) + '%';
   const part = (el, d, key, fn) => {
     if (d[key] == null) { showErr(el, (d.errors && d.errors[key]) || 'tidak ada data', () => window.OPS.refresh()); return; }
@@ -56,7 +56,7 @@
   let pemainCache = null;
   async function loadEko(force) {
     const q = force ? '?fresh=1' : '';
-    const [d, k] = await Promise.all([api('/api/ekonomi' + q), api('/api/kapten' + q).catch(() => null)]);
+    const [d, k, al] = await Promise.all([api('/api/ekonomi' + q), api('/api/kapten' + q).catch(() => null), api('/api/aliran?jam=24' + (force ? '&fresh=1' : '')).catch(e => ({ errors: { kategori: e.message } }))]);
     pemainCache = k;
     $('#ekoStamp').textContent = 'Diambil ' + new Date(d.at).toLocaleTimeString('id-ID');
 
@@ -79,7 +79,7 @@
     if (!k || k.pemain == null) showErr(kaya, (k && k.errors && k.errors.pemain) || 'data kapten tidak terbaca', () => window.OPS.refresh());
     else {
       const top = k.pemain.slice().sort((a, b) => b.kekayaan - a.kekayaan).slice(0, 12), mx = top[0] ? top[0].kekayaan : 1;
-      kaya.innerHTML = `<div class="legend"><span><i class="sq sq-bank"></i>saldo bank</span><span><i class="sq sq-gold"></i>gold di tangan</span></div>` + hbars(top.map(r => ({
+      kaya.innerHTML = `<p class="legend legend--keys"><span><i class="key-bank"></i>saldo bank</span><span><i class="key-gold"></i>gold di tangan</span></p>` + hbars(top.map(r => ({
         label: r.pemain, sub: `bunga ${n0(r.bunga_per_hari)} per hari`,
         segs: [{ w: 100 * r.bank / mx, cls: 'seg-bank' }, { w: 100 * r.gold / mx, cls: 'seg-gold' }],
         value: pct1(r.pangsa_pct), hot: r.pangsa_pct >= 20, title: `${r.pemain}: bank ${n0(r.bank)}, gold ${n0(r.gold)}` })));
@@ -91,11 +91,17 @@
       el.innerHTML = vbars(rows, { key: 'laba', fmt: signed, dateKey: 'hari' });
     });
 
-    part($('#ekoArus'), d, 'arus', rows => {
-      const el = $('#ekoArus'), mx = Math.max(1, ...rows.map(r => Math.abs(r.gold)));
-      if (!rows.length) { empty(el, '<b>Belum ada catatan.</b> Tidak ada kejadian bergold dalam 24 jam terakhir.'); return; }
-      el.innerHTML = hbars(rows.map(r => ({ label: r.arus, sub: `${n0(r.kejadian)} kejadian, ${n0(r.pemain)} kapten`,
-        segs: [{ w: 100 * Math.abs(r.gold) / mx, cls: /bank/i.test(r.arus) ? 'seg-gold' : 'seg-bank' }], value: idr(r.gold) })));
+    // arus gold: kelompok dari Aliran dana (masuk vs keluar)
+    part($('#ekoArus'), al, 'kategori', rows => {
+      const el = $('#ekoArus');
+      const by = {};
+      for (const r of rows) { if (!r.arah) continue; const o = by[r.kel] || (by[r.kel] = { kel: r.kel, masuk: 0, keluar: 0, n: 0 }); if (r.arah > 0) o.masuk += r.gold; else o.keluar += r.gold; o.n += r.kejadian; }
+      const list = Object.values(by).sort((a, b) => (b.masuk + b.keluar) - (a.masuk + a.keluar));
+      if (!list.length) { empty(el, '<b>Belum ada catatan.</b> Tidak ada kejadian bergold dalam 24 jam terakhir.'); return; }
+      const mx = Math.max(1, ...list.map(r => Math.max(r.masuk, r.keluar)));
+      const tm = list.reduce((a, r) => a + r.masuk, 0), tk = list.reduce((a, r) => a + r.keluar, 0);
+      el.innerHTML = `<p class="legend legend--keys"><span><i class="key-in"></i>gold masuk</span><span><i class="key-out"></i>gold keluar</span><span>total masuk ${esc(idr(tm))}, keluar ${esc(idr(tk))}, bersih ${esc(signed(tm - tk))}</span></p>` +
+        hbars(list.map(r => ({ label: r.kel, sub: `${n0(r.n)} kejadian, masuk ${idr(r.masuk)}, keluar ${idr(r.keluar)}`, segs: [{ w: 50 * r.masuk / mx, cls: 'seg-in' }, { w: 50 * r.keluar / mx, cls: 'seg-out' }], value: signed(r.masuk - r.keluar), hot: r.kel === 'Item dan harta' && r.masuk > r.keluar * 1.2 && r.masuk > 1e6 })));
       setVars(el);
     });
 
@@ -223,14 +229,17 @@
     if (!rows.length) { empty(el, `<b>Tidak ada kapten</b> yang cocok dengan "${esc(P.q)}".`); return; }
     const col = (h, k, o = {}) => ({ h, k, sort: 1, aria: P.s === k ? (P.d === 'asc' ? 'ascending' : 'descending') : undefined, ...o });
     el.innerHTML = table([
-      col('Kapten', 'pemain', { cls: () => 'name' }), col('Arketipe', 'arketipe'), col('Kapal', 'kapal'), col('Lokasi', 'lokasi'),
+      col('Kapten', 'pemain', { html: 1, f: r => `<a class="lnk" href="#/audit?b=jejak&k=${encodeURIComponent(r.pemain)}">${esc(r.pemain)}</a>`, cls: () => 'name' }),
+      col('Penjaga', 'pj_skor', { html: 1, f: r => r.pj ? st(r.pj === 'tinggi' ? 'bad' : r.pj === 'sedang' ? 'warn' : '', r.pj) : '', num: 0 }),
+      col('Arketipe', 'arketipe'), col('Kapal', 'kapal'), col('Lokasi', 'lokasi'),
       col('Gold', 'gold', { num: 1, f: r => n0(r.gold), cls: r => r.gold === 0 ? 'dim' : '' }), col('Bank', 'bank', { num: 1, f: r => n0(r.bank), cls: r => r.bank === 0 ? 'dim' : '' }),
-      col('Kekayaan', 'kekayaan', { num: 1, f: r => n0(r.kekayaan) }), col('Pangsa %', 'pangsa_pct', { num: 1, f: r => NF1.format(r.pangsa_pct), cls: r => r.pangsa_pct >= 20 ? 'hot' : '' }),
+      col('Kekayaan', 'kekayaan', { num: 1, f: r => n0(r.kekayaan) }),
+      col('Naik 24 jam', 'naik_24j', { num: 1, f: r => r.naik_24j == null ? '-' : signed(r.naik_24j), cls: r => r.naik_24j == null ? 'dim' : r.naik_24j >= 5e6 ? 'hot' : r.naik_24j < 0 ? 'neg' : '' }), col('Pangsa %', 'pangsa_pct', { num: 1, f: r => NF1.format(r.pangsa_pct), cls: r => r.pangsa_pct >= 20 ? 'hot' : '' }),
       col('Bunga/hari', 'bunga_per_hari', { num: 1, f: r => n0(r.bunga_per_hari), cls: r => r.bunga_per_hari === 0 ? 'dim' : '' }),
       col('Laba dagang 24j', 'selisih_dagang_24j', { num: 1, f: r => signed(r.selisih_dagang_24j), cls: r => r.selisih_dagang_24j < 0 ? 'neg' : r.selisih_dagang_24j > 0 ? 'pos' : 'dim' }),
       col('Layar 24j', 'layar_24j', { num: 1, f: r => n0(r.layar_24j) }), col('Nilai muatan', 'nilai_muatan', { num: 1, f: r => n0(r.nilai_muatan) }),
       col('Buku', 'buku', { num: 1, f: r => n0(r.buku) }), col('Utang', 'utang', { num: 1, f: r => n0(r.utang), cls: r => r.utang === 0 ? 'dim' : '' }),
-      col('Aktif (jam lalu)', 'jam_sejak_aktif', { num: 1, html: 1, f: r => `<i class="sq" data-level="${levelOf(r.jam_sejak_aktif)}"></i> ${NF1.format(r.jam_sejak_aktif)}` }), col('Bergabung', 'bergabung'),
+      col('Aktif (jam lalu)', 'jam_sejak_aktif', { num: 1, html: 1, f: r => st(levelOf(r.jam_sejak_aktif), NF1.format(r.jam_sejak_aktif)) }), col('Bergabung', 'bergabung'),
     ], rows, { tall: true });
   }
   function renderQuestTabel() {
@@ -247,13 +256,15 @@
       { h: 'Daftar tamat', k: 'quest_tamat', cls: () => 'wrap dim' }, { h: 'Sampingan', k: 'sampingan', cls: () => 'wrap' },
       { h: 'Jejak Perantau', k: 'jejak_perantau', num: 1, f: r => r.jejak_perantau == null ? '' : n0(r.jejak_perantau), cls: () => 'dim' },
       { h: 'Gerak terakhir', k: 'gerak_terakhir' },
-      { h: 'Aktif (jam lalu)', k: 'jam_sejak_aktif', num: 1, html: 1, f: r => `<i class="sq" data-level="${levelOf(r.jam_sejak_aktif)}"></i> ${NF1.format(r.jam_sejak_aktif)}` },
+      { h: 'Aktif (jam lalu)', k: 'jam_sejak_aktif', num: 1, html: 1, f: r => st(levelOf(r.jam_sejak_aktif), NF1.format(r.jam_sejak_aktif)) },
     ], rows, { tall: true });
     setVars(el);
   }
 
   async function loadKap(force) {
-    const d = await api('/api/kapten' + (force ? '?fresh=1' : ''));
+    const [d, pj] = await Promise.all([api('/api/kapten' + (force ? '?fresh=1' : '')), api('/api/penjaga').catch(() => null)]);
+    const pm = new Map(((pj && pj.run && pj.run.temuan) || []).filter(f => !f.aman).map(f => [f.username, f]));
+    for (const r of d.pemain || []) { const f = pm.get(r.username); r.pj = f ? f.tingkat : ''; r.pj_skor = f ? f.skor : 0; }
     kapData = d;
     $('#kapStamp').textContent = 'Diambil ' + new Date(d.at).toLocaleTimeString('id-ID');
     part($('#kapBoard'), d, 'pemain', rows => {
@@ -270,7 +281,7 @@
     part($('#kapTabel'), d, 'pemain', () => { renderKapTabel(); });
     part($('#kapSebaran'), d, 'questRingkas', rows => {
       const el = $('#kapSebaran'), mx = Math.max(1, ...rows.map(r => r.tamat + r.berjalan));
-      el.innerHTML = `<div class="legend"><span><i class="sq sq-bank"></i>tamat</span><span><i class="sq sq-gold"></i>sedang berjalan</span></div>` + hbars(rows.map(r => ({
+      el.innerHTML = `<p class="legend legend--keys"><span><i class="key-bank"></i>tamat</span><span><i class="key-gold"></i>sedang berjalan</span></p>` + hbars(rows.map(r => ({
         label: r.quest, sub: r.saga, segs: [{ w: 100 * r.tamat / mx, cls: 'seg-bank' }, { w: 100 * r.berjalan / mx, cls: 'seg-gold' }],
         value: r.berjalan ? `${r.tamat} + ${r.berjalan}` : String(r.tamat) })));
       setVars(el);

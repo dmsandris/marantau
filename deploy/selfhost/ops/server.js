@@ -19,14 +19,19 @@ const TOTP_SECRET = (ENV.OPS_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase(
 const SESSION_KEY = ENV.OPS_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const TG_TOKEN = ENV.OPS_TELEGRAM_TOKEN || '';
 const TG_CHAT = ENV.OPS_TELEGRAM_CHAT_ID || '';
+const TG_BASE = ENV.OPS_TELEGRAM_API || 'https://api.telegram.org'; // hanya untuk uji lokal
 const DEV = ENV.OPS_DEV === '1';
 const BACKUP_REQ = ENV.OPS_BACKUP_REQ || '/backup-req';
 const MCP_TOKEN = ENV.OPS_MCP_TOKEN || '';
 const API_DOMAIN = ENV.OPS_API_DOMAIN || 'api.marantau.web.id';
-const VERSION = '1.9.1';
+const VERSION = '2.0.0';
 const { Q: EKO, IKN_TARGET_DEFAULT } = require('./eko');
 const { Q: AUD, J: JEJAK } = require('./audit');
 const ILU = require('./iluminaty');
+const ALIRAN = require('./aliran');
+const SETTINGS = require('./settings');
+const PENJAGA = require('./penjaga');
+const BOT = require('./bot');
 const IKN_TARGET = +(ENV.OPS_IKN_TARGET || IKN_TARGET_DEFAULT);
 
 if (MCP_TOKEN && MCP_TOKEN.length < 32) { console.error('OPS_MCP_TOKEN minimal 32 karakter.'); process.exit(1); }
@@ -266,6 +271,14 @@ async function dbStats() {
                from pg_class c join pg_namespace n on n.oid = c.relnamespace
                where n.nspname = 'game' and c.relkind = 'r' order by pg_total_relation_size(c.oid) desc limit 12`),
     online: q(`select count(*)::int as n from game.mp_presence where ts > now() - interval '2 minutes'`).then(r => r[0].n),
+    stat: q(`select round((100.0 * blks_hit / nullif(blks_hit + blks_read, 0))::numeric, 2)::float8 as cache_hit, deadlocks::int,
+               xact_commit::float8 as commit, xact_rollback::float8 as rollback, temp_bytes::float8, conflicts::int,
+               to_char(stats_reset at time zone 'Asia/Jakarta', 'YYYY-MM-DD HH24:MI') as sejak
+             from pg_stat_database where datname = 'postgres'`).then(r => r[0]),
+    vacuum: q(`select relname as name, n_dead_tup::int as mati, n_live_tup::int as hidup,
+               to_char(greatest(last_autovacuum, last_vacuum) at time zone 'Asia/Jakarta', 'YYYY-MM-DD HH24:MI') as vacuum,
+               to_char(greatest(last_autoanalyze, last_analyze) at time zone 'Asia/Jakarta', 'YYYY-MM-DD HH24:MI') as analyze
+             from pg_stat_user_tables where schemaname = 'game' order by n_dead_tup desc limit 8`),
   };
   const out = {};
   await Promise.all(Object.entries(tasks).map(async ([k, p]) => { try { out[k] = await p; } catch (e) { out[k] = null; (out.errors ||= {})[k] = e.message; } }));
@@ -347,7 +360,10 @@ function ekonomi(force) {
 function kapten(force) {
   return cached('kapten', 60e3, async () => {
     const { out, errors } = await parts({ pemain: EKO.pemain, questPemain: EKO.questPemain, questRingkas: EKO.questRingkas });
-    return { at: now(), errors, ...out };
+    if (out.pemain) petaNama(out.pemain.map(r => ({ kapten: r.pemain, username: r.username })));
+    const kd = kekayaanDelta(24);
+    for (const r of out.pemain || []) { const d = kd.get(r.username); r.naik_24j = d ? d.delta : null; }
+    return { at: now(), errors, kekayaanJam: kd.size ? [...kd.values()][0].jam : null, ...out };
   }, force);
 }
 
@@ -391,6 +407,63 @@ async function iluCari(q) {
   return { at: now(), q, errors, ...out };
 }
 
+// ---------- Kekayaan per kapten (snapshot tiap 30 menit, simpan 14 hari) ----------
+// Dipakai kolom "naik 24 jam" di Kapten, Penjaga (lonjakan kekayaan), dan bot.
+const KEK_FILE = path.join(DATA, 'kekayaan.json');
+let kek = { snaps: [] };
+try { kek = JSON.parse(fs.readFileSync(KEK_FILE, 'utf8')); if (!Array.isArray(kek.snaps)) kek = { snaps: [] }; } catch {}
+let nama2user = new Map(), user2nama = new Map();
+function petaNama(rows) { nama2user = new Map(rows.map(r => [r.kapten, r.username])); user2nama = new Map(rows.map(r => [r.username, r.kapten])); }
+async function snapKekayaan() {
+  const rows = await dashRows(`select username, coalesce(nullif(character_name, ''), username) as kapten, gold::float8 as gold, bank_balance::float8 as bank, debt_balance::float8 as utang
+    from game.players where archetype <> ''`);
+  petaNama(rows);
+  const w = {}; for (const r of rows) w[r.username] = [r.kapten, r.gold, r.bank, r.utang];
+  kek.snaps.push({ t: now(), w });
+  const cut = now() - 14 * 86400e3; kek.snaps = kek.snaps.filter(x => x.t >= cut);
+  try { fs.writeFileSync(KEK_FILE + '.tmp', JSON.stringify(kek)); fs.renameSync(KEK_FILE + '.tmp', KEK_FILE); } catch (e) { console.error('simpan kekayaan:', e.message); }
+}
+setTimeout(() => snapKekayaan().catch(e => console.error('snapshot kekayaan:', e.message)), 15e3);
+setInterval(() => snapKekayaan().catch(e => console.error('snapshot kekayaan:', e.message)), 30 * 60e3);
+const namaKeUser = () => nama2user;
+const userKeNama = u => user2nama.get(u) || null;
+// Selisih kekayaan (gold + bank - utang) antara snapshot terbaru dan snapshot ±jam yang lalu.
+function kekayaanDelta(jam = 24) {
+  const out = new Map(); const S = kek.snaps; if (S.length < 2) return out;
+  const last = S[S.length - 1], target = last.t - jam * 3600e3;
+  let base = S.find(x => x.t >= target) || S[0]; if (base === last) base = S[S.length - 2];
+  const span = (last.t - base.t) / 3600e3; if (span < 0.9) return out;
+  const v = a => a ? a[1] + a[2] - a[3] : null;
+  for (const [u, a] of Object.entries(last.w)) {
+    const kini = v(a), dulu = v(base.w[u]);
+    out.set(u, { kapten: a[0], kini, dulu, delta: dulu == null ? null : kini - dulu, jam: Math.round(span) });
+  }
+  return out;
+}
+function kekayaanSeri(username) {
+  return kek.snaps.filter(x => x.w[username]).map(x => { const a = x.w[username]; return { t: x.t, kekayaan: a[1] + a[2] - a[3], gold: a[1], bank: a[2] }; });
+}
+
+// ---------- Aliran dana ----------
+function aliranData(jamKey, force) {
+  const jam = auditJam(jamKey);
+  return cached('aliran:' + jam, 60e3, async () => {
+    const { out, errors } = await parts({ kategori: ALIRAN.Q.kategori, kapten: ALIRAN.Q.kapten, matriks: ALIRAN.Q.matriks, harian: ALIRAN.Q.harian }, [jam]);
+    return { at: now(), jam, errors, ...out };
+  }, force);
+}
+
+// ---------- Pengaturan & Penjaga ----------
+const settings = SETTINGS.create(DATA);
+const penjaga = PENJAGA.create({
+  dataDir: DATA, dashRows, settings, kekayaanDelta,
+  notify: (run, baru) => bot && bot.alertPenjaga(run, baru),
+});
+setInterval(() => { try { penjaga.tick(); } catch (e) { console.error('penjaga tick:', e.message); } }, 60e3);
+const runRingkas = r => r && ({ id: r.id, at: r.at, sumber: r.sumber, jendelaJam: r.jendelaJam, ms: r.ms,
+  tinggi: r.temuan.filter(f => !f.aman && f.tingkat === 'tinggi').length, sedang: r.temuan.filter(f => !f.aman && f.tingkat === 'sedang').length,
+  rendah: r.temuan.filter(f => !f.aman && f.tingkat === 'rendah').length, ai: r.ai ? (r.ai.error ? 'gagal' : r.ai.model) : null });
+
 // ---------- 5xx dari log Caddy (api.) ----------
 async function http5xx(hours = 24) {
   try {
@@ -427,23 +500,18 @@ function requestBackup(kind) {
 }
 
 // ---------- Peringatan Telegram ----------
+// Pesan dikirim lewat bot (bot.js) supaya membawa tombol. `kritis` tetap terkirim saat mode senyap.
 const alertState = new Map(); // key -> {active, last}
-async function tg(text) {
-  if (!TG_TOKEN || !TG_CHAT) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, disable_web_page_preview: true }),
-      signal: AbortSignal.timeout(10000),
-    });
-  } catch (e) { console.error('telegram:', e.message); }
-}
-function alertCheck(key, bad, msg) {
+let bot = null; // diisi di bagian Bot Telegram
+function tg(text, opt) { if (bot) return bot.alert(hEscBasic(text), opt); }
+function hEscBasic(t) { return String(t ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function alertCheck(key, bad, msg, kind) {
   const s = alertState.get(key) || { active: false, last: 0 };
-  if (bad && (!s.active || now() - s.last > 6 * 3600e3)) { tg(`⚠️ Marantau: ${msg}`); s.active = true; s.last = now(); }
-  else if (!bad && s.active) { tg(`✅ Marantau pulih: ${key}`); s.active = false; }
+  if (bad && (!s.active || now() - s.last > 6 * 3600e3)) { tg(`⚠️ Marantau: ${msg}`, { kind }); s.active = true; s.last = now(); }
+  else if (!bad && s.active) { tg(`✅ Marantau pulih: ${key}`, { kind }); s.active = false; }
   alertState.set(key, s);
 }
+const activeAlerts = () => [...alertState.entries()].filter(([, v]) => v.active).map(([k]) => k);
 let badStreak = {};
 async function runAlerts() {
   const c = current();
@@ -455,7 +523,7 @@ async function runAlerts() {
   const sv = await services();
   for (const s of sv.items || []) {
     const down = s.state !== 'running' || s.health === 'unhealthy';
-    alertCheck(`Layanan ${s.label}`, streak('svc:' + s.name, down) >= 2, `${s.label} ${s.state}${s.health ? ' / ' + s.health : ''}`);
+    alertCheck(`Layanan ${s.label}`, streak('svc:' + s.name, down) >= 2, `${s.label} ${s.state}${s.health ? ' / ' + s.health : ''}`, 'kritis');
   }
   const b = backups();
   if (b.status && b.status.lastOk) alertCheck('Backup', now() - Date.parse(b.status.lastOk) > 30 * 3600e3, `backup terakhir berhasil ${b.status.lastOk}`);
@@ -468,7 +536,7 @@ async function run5xxAlert() {
   lastErrCount = r.err;
 }
 if (TG_TOKEN && TG_CHAT) {
-  setTimeout(() => tg('ℹ️ Panel Ops Marantau menyala. Ketik /bantuan untuk daftar perintah.'), 5000);
+  setTimeout(() => tg('ℹ️ Panel Ops Marantau v' + VERSION + ' menyala. Ketik /menu untuk membuka menu.', { keyboard: [[{ text: 'Buka menu', callback_data: 'm' }]] }), 5000);
   setInterval(() => runAlerts().catch(e => console.error('alert:', e.message)), 60e3);
   setInterval(() => run5xxAlert().catch(() => {}), 10 * 60e3);
 }
@@ -614,6 +682,8 @@ const MCP_TOOLS = [
   { name: 'logs_tail', description: 'Baris log terakhir satu layanan (rahasia disamarkan).', inputSchema: { type: 'object', properties: { service: { type: 'string', enum: SERVICES.map(s => s.name) }, lines: { type: 'integer', minimum: 1, maximum: 500, default: 150 }, filter: { type: 'string', description: 'Opsional: hanya baris yang mengandung teks ini (tidak peka huruf besar/kecil)' } }, required: ['service'] } },
   { name: 'backup_list', description: 'Status backup VM (terakhir berhasil, ukuran, tes restore) dan daftar file backup lokal.', inputSchema: { type: 'object', properties: {} } },
   { name: 'debug_report', description: 'Laporan debug lengkap (sama dengan menu Debug di Panel Ops): host, sertifikat, layanan, database, 5xx, backup, peringatan, log bermasalah 24 jam.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'penjaga_temuan', description: 'Hasil pindaian Penjaga anomali terakhir (aturan + penilaian AI bila ada) dan daftar pindaian sebelumnya. Hanya membaca hasil yang tersimpan, tidak memicu pindaian baru.', inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Opsional: id pindaian tertentu' } } } },
+  { name: 'aliran_dana', description: 'Aliran dana gold: total per kategori sumber/tujuan dan per kapten (masuk, keluar, bersih, sumber utama).', inputSchema: { type: 'object', properties: { jam: { type: 'string', enum: ['24', '168', '720', 'semua'], default: '24' } } } },
 ];
 async function mcpCall(name, args = {}) {
   switch (name) {
@@ -632,6 +702,8 @@ async function mcpCall(name, args = {}) {
     }
     case 'backup_list': return backups();
     case 'debug_report': return debugReport();
+    case 'penjaga_temuan': return { runs: penjaga.runs().map(runRingkas), run: args.id ? penjaga.get(String(args.id)) : penjaga.last() };
+    case 'aliran_dana': { const d = await aliranData(String(args.jam || '24'), false); return { jam: d.jam, errors: d.errors, kategori: d.kategori, kapten: d.kapten }; }
     default: throw new Error('Alat tidak dikenal: ' + name);
   }
 }
@@ -682,36 +754,15 @@ async function handleMcp(req, res) {
 }
 
 
-// ---------- Bot Telegram (perintah) ----------
-// Hanya menjawab chat pemilik (OPS_TELEGRAM_CHAT_ID). Tidak ada perintah restart/ubah data.
+// ---------- Bot Telegram ----------
+// Menu bertombol ada di bot.js. Di sini: keadaan bot, sampel pemain online, dan teks laporan yang dipakai bersama.
 const TG_STATE_FILE = path.join(DATA, 'tg-state.json');
 let tgState = { offset: 0, lastDaily: '', onlinePeak: {} };
 try { tgState = { ...tgState, ...JSON.parse(fs.readFileSync(TG_STATE_FILE, 'utf8')) }; } catch {}
 function saveTgState() { try { fs.writeFileSync(TG_STATE_FILE, JSON.stringify(tgState)); } catch (e) { console.error('tg-state:', e.message); } }
-const hEsc = t => String(t ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const hEsc = hEscBasic;
 const wibDate = (t = now()) => new Date(t + 7 * 3600e3).toISOString().slice(0, 10);
 const wibTime = (t = now()) => new Date(t + 7 * 3600e3).toISOString().slice(11, 16);
-async function tgApi(method, body, timeoutMs = 15000) {
-  const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/${method}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
-  });
-  const j = await r.json();
-  if (!j.ok) throw new Error(`telegram ${method}: ${j.description}`);
-  return j.result;
-}
-async function tgHtml(html) {
-  for (let i = 0; i < html.length; i += 3900) {
-    await tgApi('sendMessage', { chat_id: TG_CHAT, text: html.slice(i, i + 3900), parse_mode: 'HTML', disable_web_page_preview: true });
-  }
-}
-async function tgDoc(filename, text, caption) {
-  const fd = new FormData();
-  fd.append('chat_id', TG_CHAT);
-  if (caption) fd.append('caption', caption);
-  fd.append('document', new Blob([text], { type: 'text/plain' }), filename);
-  const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendDocument`, { method: 'POST', body: fd, signal: AbortSignal.timeout(30000) });
-  const j = await r.json(); if (!j.ok) throw new Error('sendDocument: ' + j.description);
-}
 
 // Puncak pemain online per hari (WIB), sampel tiap 5 menit.
 async function sampleOnline() {
@@ -796,6 +847,12 @@ async function textDaily() {
     h5.error ? '⚠️ log tidak terbaca' : `${dot(h5.err === 0, h5.err < 20)} ${h5.total.toLocaleString('id-ID')} permintaan · ${h5.err} error 5xx`,
     cert.error ? `🔴 Sertifikat: ${hEsc(cert.error)}` : `${dot(cert.daysLeft > 20, cert.daysLeft > 7)} Sertifikat HTTPS ${cert.daysLeft} hari lagi`,
     '', textBackup()];
+  try {
+    const e = await ekonomi(false); const r = (e.ringkasan || [])[0];
+    if (r) L.push('', '<b>Ekonomi</b>', `💰 Kekayaan ${(r.total_kekayaan / 1e6).toFixed(1).replace('.', ',')} jt · laba dagang 24 jam ${Math.round(r.laba_dagang_24j).toLocaleString('id-ID')} · ${r.aktif_24j} kapten aktif`);
+  } catch {}
+  const pr = penjaga.last();
+  if (pr) { const t = pr.temuan.filter(f => !f.aman && f.tingkat !== 'rendah'); L.push('', '<b>Penjaga</b>', t.length ? t.slice(0, 4).map(f => `${f.tingkat === 'tinggi' ? '🔴' : '🟡'} ${hEsc(f.kapten)}: ${hEsc(f.tanda[0].judul)}`).join('\n') : '🟢 Tidak ada pola janggal'); }
   const act = [...alertState.entries()].filter(([, v]) => v.active).map(([k]) => k);
   if (act.length) L.push('', '⚠️ Peringatan aktif: ' + hEsc(act.join(', ')));
   return L.filter(x => x !== '').join('\n').replace(/\n<b>/g, '\n\n<b>');
@@ -812,77 +869,16 @@ async function textErrors(hours = 1) {
   return L.join('\n');
 }
 const LOG_ALIAS = { db: 'supabase-db', postgres: 'supabase-db', rest: 'supabase-rest', api: 'supabase-rest', auth: 'supabase-auth', realtime: 'realtime-dev.supabase-realtime', rt: 'realtime-dev.supabase-realtime', envoy: 'supabase-envoy', gateway: 'supabase-envoy', caddy: 'marantau-caddy', https: 'marantau-caddy', ops: 'marantau-ops', panel: 'marantau-ops' };
-const TG_COMMANDS = [
-  ['status', 'Kondisi server & layanan'],
-  ['db', 'Pemain online, koneksi, endpoint terlambat'],
-  ['backup', 'Status backup VM'],
-  ['harian', 'Laporan harian sekarang'],
-  ['error', 'Log bermasalah 1 jam (/error 6 = 6 jam)'],
-  ['log', 'Log layanan: /log rest 30 (db, rest, auth, realtime, envoy, caddy, ops)'],
-  ['debug', 'Laporan debug lengkap (.txt) untuk Claude'],
-  ['backup_sekarang', 'Jalankan backup sekarang'],
-  ['tes_restore', 'Backup + tes restore'],
-  ['bantuan', 'Daftar perintah'],
-];
-async function tgCommand(text) {
-  const [raw, ...args] = text.trim().split(/\s+/);
-  const cmd = raw.replace(/^\//, '').replace(/@.*$/, '').toLowerCase();
-  switch (cmd) {
-    case 'start': case 'bantuan': case 'help':
-      return tgHtml('<b>Marantau Ops</b>\n' + TG_COMMANDS.map(([c, d]) => `/${c} - ${hEsc(d)}`).join('\n') + `\n\nLaporan harian otomatis jam 07:00 WIB. Restart layanan hanya lewat Panel Ops.`);
-    case 'status': return tgHtml(await textStatus());
-    case 'db': return tgHtml(await textDb());
-    case 'backup': return tgHtml(textBackup());
-    case 'harian': case 'laporan': return tgHtml(await textDaily());
-    case 'error': case 'errors': return tgHtml(await textErrors(Math.min(24, Math.max(1, +args[0] || 1))));
-    case 'log': {
-      const name = LOG_ALIAS[(args[0] || '').toLowerCase()] || args[0];
-      if (!SERVICE_NAMES.has(name)) return tgHtml('Pakai: /log &lt;layanan&gt; [baris]\nLayanan: db, rest, auth, realtime, envoy, caddy, ops');
-      const n = Math.min(80, Math.max(5, +args[1] || 30));
-      const lines = (await logLines(name, n)).map(l => redact(l).slice(0, 300));
-      return tgHtml(`<b>Log ${hEsc(name)}</b> (${lines.length} baris)\n<pre>${hEsc(lines.join('\n')).slice(0, 3700)}</pre>`);
-    }
-    case 'debug': {
-      await tgHtml('⏳ Menyusun laporan debug…');
-      const t = await debugReport();
-      return tgDoc(`marantau-debug-${wibDate()}-${wibTime().replace(':', '')}.txt`, t, 'Laporan debug - kirim ke Claude bila ada masalah.');
-    }
-    case 'backup_sekarang': requestBackup('backup'); return tgHtml('📦 Backup dimulai. Hasilnya: /backup (±1-5 menit).');
-    case 'tes_restore': requestBackup('restore-test'); return tgHtml('🧪 Backup + tes restore dimulai (±3-10 menit). Hasilnya: /backup');
-    default: return tgHtml('Perintah tidak dikenal. /bantuan');
-  }
-}
-async function tgPoll() {
-  try { await tgApi('setMyCommands', { commands: TG_COMMANDS.map(([command, description]) => ({ command, description: description.slice(0, 250) })) }); }
-  catch (e) { console.error('setMyCommands:', e.message); }
-  for (;;) {
-    try {
-      const ups = await tgApi('getUpdates', { offset: tgState.offset, timeout: 50, allowed_updates: ['message'] }, 65000);
-      for (const u of ups) {
-        tgState.offset = u.update_id + 1; saveTgState();
-        const m = u.message; if (!m || !m.text) continue;
-        if (String(m.chat.id) !== String(TG_CHAT)) { console.log(`[tg] abaikan chat ${m.chat.id}`); continue; }
-        if (!m.text.startsWith('/')) { await tgHtml('Ketik /bantuan untuk daftar perintah.'); continue; }
-        console.log(`[tg] ${m.text.slice(0, 60)}`);
-        try { await tgCommand(m.text); } catch (e) { await tgHtml('⚠️ Error: ' + hEsc(redact(e.message))).catch(() => {}); }
-      }
-    } catch (e) {
-      console.error('tg poll:', e.message);
-      await sleep(/409|Conflict/.test(e.message) ? 60000 : 10000);
-    }
-  }
-}
-async function dailyTick() {
-  const t = now() + 7 * 3600e3, hh = new Date(t).getUTCHours(), today = wibDate();
-  if (hh >= 7 && tgState.lastDaily !== today) {
-    tgState.lastDaily = today; saveTgState();
-    try { await tgHtml(await textDaily()); } catch (e) { console.error('laporan harian:', e.message); }
-  }
-}
+
+bot = BOT.create({
+  TG_TOKEN, TG_CHAT, TG_BASE, state: tgState, saveState: saveTgState, settings, penjaga,
+  current, services, serviceStats, dbStats, activeAlerts, logLines, redact, debugReport, requestBackup, LOG_ALIAS, SERVICE_NAMES,
+  textStatus, textDb, textBackup, textDaily, textErrors,
+  ekonomi: () => ekonomi(false), kapten: () => kapten(false), audit: jam => auditData(String(jam), false), aliran: jam => aliranData(String(jam), false),
+  iluminaty: () => iluData(false), kekayaanDelta, namaKeUser, userKeNama,
+});
 if (TG_TOKEN && TG_CHAT) {
-  if (!tgState.lastDaily) { tgState.lastDaily = wibDate(); saveTgState(); } // jangan kirim laporan saat pertama dipasang
-  tgPoll();
-  setInterval(() => dailyTick().catch(() => {}), 60e3);
+  bot.start();
   setInterval(() => sampleOnline(), 5 * 60e3); setTimeout(sampleOnline, 20000);
 }
 
@@ -906,7 +902,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return sendFile(res, 'index.html', 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/app.js') return sendFile(res, 'app.js', 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/(app|tokens|base)\.css$/.test(p)) return sendFile(res, p.slice(1), 'text/css; charset=utf-8');
-    if (req.method === 'GET' && (p === '/ekonomi.js' || p === '/audit.js' || p === '/iluminaty.js')) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
+    if (req.method === 'GET' && /^\/(ekonomi|audit|iluminaty|penjaga|ringkas)\.js$/.test(p)) return sendFile(res, p.slice(1), 'text/javascript; charset=utf-8');
     if (req.method === 'GET' && /^\/fonts\/[a-z0-9-]+\.woff2$/.test(p)) return sendFile(res, p.slice(1), 'font/woff2', 'public, max-age=31536000, immutable');
     if (req.method === 'GET' && p === '/healthz') return json(res, 200, { ok: true, v: VERSION });
     if (MCP_TOKEN && p.startsWith('/mcp/')) {
@@ -936,8 +932,10 @@ const server = http.createServer(async (req, res) => {
       if (!authed(req)) return json(res, 401, { error: 'Belum login.' });
 
       if (req.method === 'GET' && p === '/api/overview') {
-        const [sv, stats] = await Promise.all([services(), serviceStats()]);
-        return json(res, 200, { now: now(), host: current(), services: sv, stats, telegram: !!(TG_TOKEN && TG_CHAT) });
+        const [sv, stats, cert] = await Promise.all([services(), serviceStats(), cached('cert', 3600e3, () => certInfo(API_DOMAIN))]);
+        const info = {}; await Promise.all((sv.items || []).map(async s => { info[s.name] = await containerInfo(s.name); }));
+        const pk = h => { const cut = now() - h * 3600e3, pts = ring.filter(x => x.t >= cut); const mx = k => { const v = pts.map(x => x[k]).filter(x => x != null); return v.length ? Math.max(...v) : null; }; return { cpu: mx('cpu'), iow: mx('iow'), mem: mx('mem'), swapMb: mx('swapMb'), load: mx('load') }; };
+        return json(res, 200, { now: now(), v: VERSION, host: current(), peak24: pk(24), services: sv, stats, info, cert, alerts: activeAlerts(), telegram: !!(TG_TOKEN && TG_CHAT) });
       }
       if (req.method === 'GET' && p === '/api/metrics') {
         const hours = Math.min(168, Math.max(1, +url.searchParams.get('hours') || 24));
@@ -976,6 +974,38 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && p === '/api/iluminaty/utas') { audit(ip, 'iluminaty buka utas'); return json(res, 200, await iluUtas(url.searchParams.get('pair'))); }
       if (req.method === 'GET' && p === '/api/iluminaty/cari') { audit(ip, 'iluminaty cari'); return json(res, 200, await iluCari(url.searchParams.get('q'))); }
       if (req.method === 'GET' && p === '/api/http') return json(res, 200, await http5xx(24));
+      if (req.method === 'GET' && p === '/api/aliran') return json(res, 200, await aliranData(url.searchParams.get('jam'), url.searchParams.get('fresh') === '1'));
+      if (req.method === 'GET' && p === '/api/kekayaan') return json(res, 200, { username: url.searchParams.get('u'), seri: kekayaanSeri(String(url.searchParams.get('u') || '')) });
+      if (req.method === 'GET' && p === '/api/ringkas') {
+        const [sv, db, bk, h5] = await Promise.all([services(), dbStats().catch(e => ({ errors: { db: e.message } })), Promise.resolve(backups()), http5xx(24).catch(e => ({ error: e.message }))]);
+        const eko = await ekonomi(false).catch(e => ({ errors: { ringkasan: e.message } }));
+        return json(res, 200, { now: now(), v: VERSION, host: current(), services: sv, db: { online: db.online, size: db.size, waitingLocks: db.waitingLocks, slow: (db.slow || []).slice(0, 3) },
+          backup: bk.status || null, http: h5, ekonomi: (eko.ringkasan || [])[0] || null, ikn: (eko.ikn || [])[0] || null, iknTarget: eko.iknTarget,
+          alerts: activeAlerts(), telegram: !!(TG_TOKEN && TG_CHAT), penjaga: penjaga.last() ? { ...runRingkas(penjaga.last()), temuan: penjaga.last().temuan.filter(f => !f.aman).slice(0, 5) } : null,
+          pengaturan: settings.publik() });
+      }
+      if (req.method === 'GET' && p === '/api/penjaga') {
+        const id = url.searchParams.get('id');
+        if (url.searchParams.get('ringkas') === '1') return json(res, 200, { runs: penjaga.runs().slice(0, 1).map(runRingkas) });
+        return json(res, 200, { status: penjaga.status(), runs: penjaga.runs().map(runRingkas), run: id ? penjaga.get(id) : penjaga.last(), pengaturan: settings.publik(), adaKunci: !!settings.get().gemini.key });
+      }
+      if (req.method === 'POST' && p === '/api/penjaga/scan') {
+        const b = await readBody(req); audit(ip, 'penjaga pindai' + (b.ai ? ' + AI' : ''));
+        const run = await penjaga.scan({ sumber: 'panel', ai: !!b.ai, jam: b.jam });
+        return json(res, 200, { run, runs: penjaga.runs().map(runRingkas) });
+      }
+      if (req.method === 'POST' && p === '/api/penjaga/aman') {
+        const b = await readBody(req); audit(ip, `penjaga aman ${b.username} ${b.hari}`);
+        return json(res, 200, { aman: penjaga.tandaiAman(b.username, b.hari, b.catatan) });
+      }
+      if (req.method === 'GET' && p === '/api/pengaturan') return json(res, 200, settings.publik());
+      if (req.method === 'POST' && p === '/api/pengaturan') {
+        const b = await readBody(req, 8192);
+        audit(ip, 'ubah pengaturan' + (b.gemini && (b.gemini.key || b.gemini.hapus) ? ' (kunci Gemini)' : ''));
+        return json(res, 200, settings.ubah(b));
+      }
+      if (req.method === 'POST' && p === '/api/pengaturan/tes-ai') return json(res, 200, await penjaga.tesAi());
+      if (req.method === 'GET' && p === '/api/pengaturan/model') return json(res, 200, { models: await penjaga.models() });
       if (req.method === 'GET' && p === '/api/backup') return json(res, 200, backups());
       if (req.method === 'POST' && p === '/api/backup/run') {
         const b = await readBody(req);
@@ -988,7 +1018,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'POST' && p === '/api/telegram-test') {
         if (!TG_TOKEN || !TG_CHAT) return json(res, 400, { error: 'OPS_TELEGRAM_TOKEN / OPS_TELEGRAM_CHAT_ID belum diisi di .env.' });
-        await tg('🔔 Tes peringatan dari Panel Ops Marantau.');
+        await tg('🔔 Tes peringatan dari Panel Ops Marantau.', { kind: 'kritis' });
         return json(res, 200, { ok: true });
       }
       return json(res, 404, { error: 'Tidak ada.' });
