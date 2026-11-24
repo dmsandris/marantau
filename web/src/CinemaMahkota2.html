@@ -2,6 +2,8 @@
 /* =====================================================================
  * Saga 4 Bagian II "Takhta Tanpa Mahkota" — sinematik (MTCine).
  *   mk2_teluk    Langkah 47: rantai raksasa Teluk Dalam, lentera Ki Dorus
+ *   mk2_blokade  Langkah 55: blokade jebol di tengah laut, Rantai Lama muncul dari kabut
+ *   mk2_medan    Langkah 60: Medan Tempur Teluk Dalam, Sovereign Mahkota + 3 Navy vs armada aliansi
  *   mk2_armada   Langkah 54: armada aliansi berangkat dari TooGood saat fajar
  *   mk2_gerbang  Langkah 56: rantai turun, Sovereign Mahkota menyelinap masuk
  *   mk2_mahkota  Langkah 57: Kumis Hitam mengenakan Mahkota Karam, arus berbalik
@@ -108,6 +110,78 @@
       C.vignette(ctx, W, H, 0.6); blackIn(ctx, W, H, t, 1.2);
     }
     return { draw: draw, intro: 6.5 };
+  });
+
+  /* ======================= mk2_blokade (langkah 55: sesudah blokade jebol di tengah laut) ======================= */
+  MTCine.register('mk2_blokade', function () {
+    var lit = C.makeLit(), clouds = MTSky.makeClouds(U.rng(5501), 5), glit = MTSky.makeGlitter(U.rng(5503)), me = V.me(), nv = V.navy(), P = new C.Particles(), fog = null;
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.7 + sm(0, 8, t) * 0.06, null, 'gloom'), hy = H * 0.55, m = Math.min(W, H);
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null); stars(ctx, W, hy, 50, 5505, sm(1, 6, t) * 0.7);
+      MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 0.8);
+      // Rantai Lama muncul dari kabut di kiri
+      var show = sm(2.5, 6, t);
+      ctx.save(); ctx.globalAlpha = show;
+      ctx.fillStyle = lit('#1e2228'); ctx.beginPath(); ctx.moveTo(0, hy + 2); ctx.lineTo(0, hy - H * 0.15); ctx.quadraticCurveTo(W * 0.14, hy - H * 0.19, W * 0.3, hy - H * 0.02); ctx.lineTo(W * 0.33, hy + 2); ctx.fill();
+      bellTower(ctx, W * 0.13, hy - H * 0.03, H * 0.22, lit, show);
+      dock(ctx, W * 0.02, W * 0.3, hy + H * 0.05, lit);
+      ctx.restore();
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.9, drift: 14 });
+      // dua kapal Navy terseret arus, miring dan berasap
+      [[0.78, 0.07, 0.15, -0.22], [0.9, 0.12, 0.13, 0.18]].forEach(function (q, k) {
+        var s = scaleFor(nv, W, H, q[2]), x = W * q[0] + t * W * 0.006, y = hy + H * q[1];
+        ctx.save(); ctx.translate(x, y + sm(0, 9, t) * s * 10); ctx.rotate(q[3] * (0.6 + 0.4 * sm(0, 6, t)));
+        ship(ctx, nv, 0, 0, s, -1, t + k, lit, { damage: 0.85, lanterns: 0.1, furl: 0.7 }); ctx.restore();
+        if (Math.random() < 0.5) P.add({ x: x + (Math.random() - 0.5) * s * 60, y: y - s * 40, vx: m * 0.0006, vy: -m * 0.0012, drag: 0.99, r: m * 0.008, grow: m * 0.0004, life: 2.4, col: 'rgba(40,40,46,A)', a: 0.45 });
+      });
+      // kapal pemain melaju ke kiri, menuju dermaga
+      var s = scaleFor(me, W, H, 0.3), e = C.ease(sm(0.3, 8, t)), x = U.lerp(W * 0.86, W * 0.42, e), y = hy + H * 0.21;
+      ship(ctx, me, x, y, s, -1, t, lit, { lanterns: 0.7, roll: Math.sin(t * 1.2) * 0.012, damage: 0.25 });
+      foam(ctx, x, y, s, -1, t, 0.8);
+      if (!fog) fog = C.puffSprite(5507, 380, 110, { sx: 0.6, sy: 1, th: 0.22, soft: 0.36, a: 0.55, dark: [40, 44, 60], lite: [110, 120, 150], lx: 0, ly: -4 });
+      ctx.globalAlpha = 0.6 * (1 - show * 0.6); ctx.drawImage(fog, -W * 0.1 - t * W * 0.01, hy - H * 0.12, W * 0.7, H * 0.22); ctx.globalAlpha = 1;
+      P.run(ctx, dt);
+      caption(ctx, W, H, 'BLOKADE TERTEMBUS', sm(0.5, 2, t) * (1 - sm(7.5, 8.5, t)));
+      C.vignette(ctx, W, H, 0.55); blackIn(ctx, W, H, t, 1);
+    }
+    return { draw: draw, intro: 6.5 };
+  });
+
+  /* ======================= mk2_medan (langkah 60: tiba di Medan Tempur Teluk Dalam) ======================= */
+  MTCine.register('mk2_medan', function () {
+    var lit = C.makeLit(), sov = V.sov(), nv = V.navy(), P = new C.Particles();
+    var kami = [{ o: V.pearl(), y: 0.16, k: 0.22 }, { o: V.me(), y: 0.27, k: 0.24 }, { o: V.skitraw(), y: 0.06, k: 0.15 }, { o: V.tempa(), y: 0.1, k: 0.13 }];
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.88, 'storm'), hy = H * 0.5, m = Math.min(W, H), cx = W * 0.68, cy = hy + H * 0.15;
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null);
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { rough: 1.4, drift: 30 });
+      // pusaran di atas altar yang menyala
+      C.glow(ctx, cx, cy + H * 0.06, m * 0.32, '255,200,90', 0.32 + 0.08 * Math.sin(t * 2));
+      ctx.save(); ctx.strokeStyle = 'rgba(230,190,90,.3)'; ctx.lineWidth = Math.max(1, m * 0.0028);
+      for (var r = 0; r < 6; r++) { ctx.beginPath(); for (var a = 0; a < 6.3; a += 0.14) { var rr = m * (0.05 + r * 0.045) * (1 + a * 0.04); var px = cx + Math.cos(a + t * (1.2 - r * 0.1)) * rr * 1.8, py = cy + Math.sin(a + t * (1.2 - r * 0.1)) * rr * 0.3; if (a) ctx.lineTo(px, py); else ctx.moveTo(px, py); } ctx.stroke(); }
+      ctx.restore();
+      var s = scaleFor(sov, W, H, 0.4);
+      ship(ctx, sov, cx, cy, s, -1, t, lit, { lanterns: 1, roll: Math.sin(t * 1.6) * 0.015 });
+      // tiga kapal Navy keluar dari kabut di belakang kapal induk
+      [[0.86, 0.02], [0.52, 0.0], [0.95, 0.09]].forEach(function (q, k) {
+        var ap = sm(2.2 + k * 0.6, 4.5 + k * 0.6, t), sn = scaleFor(nv, W, H, 0.15);
+        ctx.save(); ctx.globalAlpha = ap; ship(ctx, nv, W * q[0], hy + H * q[1], sn, -1, t + k, lit, { lanterns: 0.6 }); ctx.restore();
+      });
+      // armada aliansi di kiri
+      kami.forEach(function (f, i) {
+        var sk = scaleFor(f.o, W, H, f.k), e = C.ease(sm(0.6 + i * 0.4, 5.5 + i * 0.4, t)), x = U.lerp(-W * 0.2, W * (0.16 + i * 0.07), e), y = hy + H * f.y;
+        ship(ctx, f.o, x, y, sk, 1, t + i, lit, { lanterns: 0.5, roll: Math.sin(t + i) * 0.014 });
+        foam(ctx, x, y, sk, 1, t, 0.7 * e);
+      });
+      if (Math.random() < 0.4) P.add({ x: cx + (Math.random() - 0.5) * m * 0.2, y: cy, vx: 0, vy: -m * 0.0016, drag: 0.98, r: Math.max(0.8, m * 0.002), life: 1.4, col: 'rgba(255,215,130,A)', add: true });
+      P.run(ctx, dt);
+      if (t > 5.2 && t < 5.36) { ctx.fillStyle = 'rgba(240,240,255,.5)'; ctx.fillRect(0, 0, W, H); }
+      caption(ctx, W, H, 'MEDAN TEMPUR TELUK DALAM', sm(0.5, 2, t) * (1 - sm(7.5, 8.5, t)));
+      C.vignette(ctx, W, H, 0.65); blackIn(ctx, W, H, t, 1);
+    }
+    return { draw: draw, intro: 7 };
   });
 
   /* ======================= mk2_armada ======================= */

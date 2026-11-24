@@ -202,7 +202,7 @@ var MK = (function () {
     show();
   }
 
-  function call(args, ok, b) {
+  function call(args, ok, b, fail) {
     if (b) b.disabled = true;
     google.script.run.withSuccessHandler(function (r) {
       r = r || {};
@@ -214,6 +214,7 @@ var MK = (function () {
     }).withFailureHandler(function (e) {
       if (b) b.disabled = false;
       var m = (e && e.message) || String(e);
+      if (fail) { try { fail(m); } catch (e2) { } return; }
       if (/terlalu panas/.test(m) && args && (args[0] === 'balap' || args[0] === 'coba')) { panasKartu(args[1], m); return; }
       if (/masih kurang|belum membawa ransum/.test(m) && args && args[0] === 'setor') { kurangKartu(args[1], m); return; }
       showToast(m, 'error');
@@ -1092,13 +1093,18 @@ var MK = (function () {
         { n: 'rimba', t: '"Ratusan awak butuh makan, Kapten. <b>300 Beras</b> dari Joungjava, <b>300 Ikan Asin</b> dari Skitraw, <b>150 Tuak</b> dari Bjorneo atau Paradiso. Boleh dicicil &mdash; setor sebanyak yang muat di palkamu, tiap kali kau merapat di sini."' },
         '"Darah Buccaneer tidak berperang dengan perut kosong." <i>zafachmie meninju lambung Black Pearl dengan pelan.</i> "Dan tidak berperang tanpa nama Andry di mulutnya."'],
       b: btn('go', 'crate', 'Setor Ransum Perang'),
-      a: [{ narr: 'Hadiah Q21', icon: 'coin', t: '<p>Logistik armada aliansi lengkap.</p>' },
-        '<i>zafachmie mengepalkan tangan di haluan Black Pearl.</i> "Ransum penuh dan seluruh sekutu sudah bergerak!"',
-        '"Angkat sauh menuju <b>Pelabuhan Rantai Lama</b> sekarang. Kita tembus blokade terluar Kumis Hitam!"'],
+      // jembatan Q21 -> Q22: kartu zafachmie dulu, lalu Hadiah Q21; OK = kapal otomatis berlayar ke Rantai Lama
+      a: [{ n: 'zafa', t: '<i>zafachmie berdiri di haluan Black Pearl.</i> "Ransum penuh, seluruh sekutu bergerak! Angkat sauh ke <b>Pelabuhan Rantai Lama</b>, kita tembus blokade terluar Kumis Hitam!"' },
+        { narr: 'Hadiah Q21', icon: 'coin', t: '<p>Logistik armada aliansi lengkap. Begitu kau menekan OK, sauh diangkat menuju Pelabuhan Rantai Lama.</p>' }],
+      okLabel: 'OK', autoSail: 'rantai_lama',
       next: 'Berlayar ke Pelabuhan Rantai Lama.' },
 
-    /* 55 */ { at: 'tiba', c: 'rantai_lama', main: 'zafa', icon: 'flag', title: 'Blokade Luar Rantai', mk2: true,
-      p: [{ narr: 'Perairan Rantai Lama', icon: 'flag', t: '<p>Asap meriam masih menggantung di atas air. Dua kapal Gugus Tugas "Tembok Mahkota" terseret arus, bendera birunya separuh tenggelam.</p>' }],
+    /* 55 */ { at: 'tiba', c: 'rantai_lama', main: 'zafa', icon: 'flag', title: 'Blokade Luar Rantai', mk2: true, laut55: true,
+      tibaCine: { kind: 'mk2_blokade', slides: ['Asap meriam masih menggantung di belakang buritan. Dua kapal Gugus Tugas "Tembok Mahkota" terseret arus, bendera birunya separuh tenggelam.',
+        'Di depan haluan, menara lonceng Pelabuhan Rantai Lama muncul dari balik kabut.'] },
+      p: [{ narr: 'Perairan Rantai Lama', icon: 'flag', t: '<p>Blokade terluar Kumis Hitam sudah jebol di tengah laut. Dermaga Rantai Lama terbentang di depan haluan.</p>' }],
+      pBelum: [{ narr: 'Blokade Luar Rantai', icon: 'flag', t: '<p>Gugus Tugas "Tembok Mahkota" masih menutup perairan Rantai Lama.</p>' },
+        '"Angkat sauh ke <b>Pelabuhan Rantai Lama</b> dari mana pun kau berada, Kapten. Mereka akan mencegat kita di tengah laut. Tembus, lalu merapat!"'],
       b: btn('go', 'anchor', 'Merapat ke dermaga'),
       a: ['<i>Suara zafachmie dari corong laut:</i> "Garis depan mereka jebol!"',
         '"Merapatlah ke <b>Dermaga Pelabuhan Rantai Lama</b> sekarang dan buka gerbang teluknya dengan kunci dari Teh Euis!"'],
@@ -1129,35 +1135,41 @@ var MK = (function () {
       },
       b: btn('go', 'users', 'Mulai Operasi Takhta Tanpa Mahkota'),
       a: ['"Kau lihat sendiri, Kapten. Ia sudah memakainya."',
-        '"Tidak ada jalan mundur. Kembali ke kapalmu dan tekan <b>Pimpin barisan depan</b>. Kita hancurkan barikade selat ini bersama-sama!"'],
-      next: 'Dermaga Rantai Lama: pimpin barisan depan.' },
+        '"Tidak ada jalan mundur. Kembali ke kapalmu, tekan <b>Pimpin Barisan Depan</b>! Kita semua menunggumu di <b>Galangan</b>!"'],
+      next: 'Galangan Rantai Lama: pimpin barisan depan.' },
 
-    /* 58 */ { at: 'ship', c: 'rantai_lama', main: 'cangcimen', icon: 'flag', title: 'Gelombang 1: Terobosan Selat', mk2: true, perang: true, race: true, win: true,
-      p: [{ narr: 'Mulut Teluk Dalam', icon: 'flag', t: '<p>Barikade meriam apung berjajar di mulut teluk, dan di belakangnya dua kapal tempur berat Gugus Tugas "Tembok Mahkota".</p>' },
-        '"Zona bidik meriam mereka lebar, Kapten. Ikuti garis api perahuku &mdash; lurus, jangan ragu. Setelah kita lewat, kau hajar Tembok Utara dan Tembok Selatan!"'],
-      pKilat: ['"Zona bidik sudah tertembus! Sekarang giliran meriammu, Kapten. <b>Tembok Utara</b> lebih dulu, lalu <b>Tembok Selatan</b>."'],
-      b: btn('go', 'flag', 'Pimpin barisan depan!'),
-      bSerang: btn('serang', 'flag', 'Serbu barikade!'),
-      kalahLine: 'Salvo barikade memaksa perahu-perahu Barisan Pacu memutar. Coba lagi, Kapten.',
-      next: 'Battle Akhir Bersama: Gelombang 1.' },
+    /* 58 */ { at: 'ship', c: 'rantai_lama', main: 'cangcimen', icon: 'flag', title: 'Gelombang 1: Terobosan Selat', mk2: true, perang: true, laut: 'g1', tuju: 'teluk_dalam',
+      p: [{ narr: 'Galangan Rantai Lama', icon: 'flag', t: '<p>Seluruh armada aliansi sudah berbaris di luar galangan. Di peta, sebuah titik baru menyala di utara, di sebelah kiri Zentul dan di atas Gading Island: <b>Medan Tempur Teluk Dalam</b>.</p>' },
+        '"Barikade mulut teluk menunggu di tengah jalan, Kapten. <b>KPD Tembok Utara</b> dulu. Lalu ikuti garis api perahuku menembus zona bidik meriam (<b>Trektrek-an Kilat</b>). Setelah itu hajar <b>KPD Tembok Selatan</b>."',
+        { n: 'zafa', t: '"Kalau ada yang patah di tengah jalan, kita mundur ke Rantai Lama dan mulai lagi dari sini. Tidak ada yang tertinggal di laut itu."' }],
+      b: btn('layar', 'flag', 'Pimpin Barisan Depan!'),
+      next: 'Galangan Rantai Lama: pimpin barisan depan.' },
 
-    /* 59 */ { at: 'ship', c: 'rantai_lama', main: 'gaul', icon: 'flag', title: 'Gelombang 2: Benturan Dua Armada', mk2: true, perang: true,
-      p: [{ narr: 'Tengah pusaran Teluk Dalam', icon: 'flag', t: '<p>Tiga kapal elit Armada Pemburu "Algojo" menunggu di tengah palung. Dari kabut timur, armada Skitraw muncul; dari selatan, meriam Armada Bebas dan Sayap Tempa.</p>' },
-        '"Kami tahan sayap kiri dan kanan. Kau tumbangkan kapal komandonya, Kapten!"'],
-      bSerang: btn('serang', 'flag', 'Serbu jantung armada!'),
-      next: 'Battle Akhir Bersama: Gelombang 2.' },
+    /* 59 */ { at: 'ship', c: 'rantai_lama', main: 'gaul', icon: 'flag', title: 'Gelombang 2: Benturan Dua Armada', mk2: true, perang: true, laut: 'g2', tuju: 'teluk_dalam',
+      p: [{ narr: 'Galangan Rantai Lama', icon: 'flag', t: '<p>Barikade selat sudah bersih. Armada Skitraw, Armada Bebas, dan Sayap Tempa menunggu aba-aba untuk kembali ke tengah palung.</p>' },
+        '"Tiga kapal Algojo menghadang di tengah jalan ke Medan Tempur. Kami tahan sayap kiri dan kanan. Kau tumbangkan kapal komandonya, Kapten!"'],
+      b: btn('layar', 'flag', 'Kembali ke Barisan!'),
+      next: 'Galangan Rantai Lama: kembali ke barisan.' },
 
-    /* 60 */ { at: 'ship', c: 'rantai_lama', main: 'hitam', icon: 'crown', title: 'Gelombang 3: Sovereign Mahkota', mk2: true, perang: true, tamat2: true,
-      p: [{ narr: 'Anjungan Sovereign Mahkota', icon: 'crown', t: '<p>Kapal induk hitam berpinggir emas berdiri di atas altar yang menyala. Di anjungannya, Kumis Hitam mengenakan Mahkota Karam.</p>' },
+    /* 60 */ { at: 'tiba', c: 'teluk_dalam', galangan: 'rantai_lama', main: 'hitam', icon: 'crown', title: 'Gelombang 3: Sovereign Mahkota', mk2: true, perang: true, arena: true, tamat2: true, tuju: 'teluk_dalam',
+      tibaCine: { kind: 'mk2_medan', slides: ['Arus palung berputar di atas altar segel yang menyala. Di tengahnya, sendirian, Sovereign Mahkota menunggu.',
+        'Tiga kapal Navy pengawal keluar dari kabut dan merapat ke sisinya. Empat lawan empat.'] },
+      p: [{ narr: 'Medan Tempur Teluk Dalam', icon: 'crown', t: '<p>Kapal induk hitam berpinggir emas berdiri di atas altar yang menyala. Di anjungannya, Kumis Hitam mengenakan Mahkota Karam. Tiga kapal Navy pengawal membentuk dinding di sisinya.</p>' },
         '"Kau pikir cukai dan rantai pelabuhan itu tujuan akhirku, Kapten? Itu hanyalah uji saring! Aku butuh mengukur batas kecepatan pemberontak dan melacak resonansi terakhir M.A.R.I.E. untuk membuka segel di bawah kaki kita ini."',
-        '"Terima kasih sudah membukakan jalannya."'],
+        '"Terima kasih sudah membukakan jalannya."',
+        { n: 'zafa', t: '"Black Pearl di sisi kirimu, armada Skitraw di kanan, Ratu Marlya dengan Lempeng Segel di belakang. Empat lawan empat, Kapten. Yang terakhir mengapung, dialah yang menang!"' }],
+      pUlang: [{ narr: 'Armada berkumpul lagi', icon: 'crown', t: '<p>Black Pearl menarikmu keluar dari kepungan. Armada aliansi menambal lambung di bawah bayang-bayang Sovereign Mahkota.</p>' },
+        { n: 'zafa', t: '"Belum selesai, Kapten. Kumpulkan napas, lalu kita serbu lagi. Ia tidak ke mana-mana."' }],
+      pGalangan: [{ narr: 'Galangan Rantai Lama', icon: 'crown', t: '<p>Jalan ke Medan Tempur Teluk Dalam sudah terbuka. Sovereign Mahkota masih menunggu di sana.</p>' },
+        { n: 'zafa', t: '"Angkat sauh, Kapten. Seluruh armada menunggumu di Medan Tempur Teluk Dalam."' }],
+      bArena: btn('arena', 'crown', 'Hadapi Kumis Hitam!'),
+      bLayar: btn('layar', 'anchor', 'Berlayar ke Medan Tempur Teluk Dalam'),
       pMenang: [{ narr: 'Geladak yang tenggelam', icon: 'crown', t: '<p>Sovereign Mahkota miring ke Palung Arus Mati. Armada aliansi menarik Kumis Hitam ke geladak Black Pearl. Di papan geladak itu, kepingan inti <b>Mahkota Karam</b> berguling dan berhenti di dekat kakimu.</p>' },
         { n: 'marlya', t: '"Mahkota itu masih bisa menyimpan arus, Kapten. Sedikit. Cukup untuk orang yang salah." <i>Ia menoleh kepadamu.</i> "Keputusannya milikmu."' }],
-      bSerang: btn('serang', 'crown', 'Hadapi Kumis Hitam!'),
       bPilih: '<button class="btn btn-gold" data-mk="hancurkan">' + ic('hammer') + '&nbsp; Hancurkan di Palung Rantai Lama</button>' +
          '<button class="btn" data-mk="ocid">' + ic('scroll') + '&nbsp; Serahkan ke Arsip Dewan (Paman Ocid)</button>',
       pilih: { hancurkan: 'hancurkan', ocid: 'ocid' },
-      next: 'Battle Akhir Bersama: Gelombang 3.' },
+      next: 'Medan Tempur Teluk Dalam: hadapi Kumis Hitam.' },
 
     null
   ].filter(function (x) { return !!x; });
@@ -1245,13 +1257,161 @@ var MK = (function () {
       }, d);
       return;
     }
-    var butuhKilat = !!(d.race && !m.kilat);
-    pages(w, d.main || 'lapau', (d.race && m.kilat && d.pKilat) ? d.pKilat : d.p, butuhKilat ? d.b : d.bSerang, function (w2) {
-      on(w2, '[data-mk=go]', function (b) { balap(i, b); });
-      on(w2, '[data-mk=serang]', function (b) { serang(i, b); });
-    }, d);
+    // Gelombang 1 & 2: berangkat dari Galangan, pertempurannya terjadi di tengah laut
+    if (d.laut) {
+      pages(w, d.main || 'lapau', d.p, d.b, function (w2) { on(w2, '[data-mk=layar]', function () { layarKe(d.tuju); }); }, d);
+      return;
+    }
+    // Gelombang 3: duel armada di Medan Tempur Teluk Dalam
+    if (d.arena) {
+      if (cid() !== d.c) {
+        pages(w, 'zafa', d.pGalangan, d.bLayar, function (w2) { on(w2, '[data-mk=layar]', function () { layarKe(d.tuju); }); }, d);
+        return;
+      }
+      pages(w, d.main || 'lapau', (m.arenaKalah && d.pUlang) ? d.pUlang.concat(d.p.slice(1)) : d.p, d.bArena, function (w2) {
+        on(w2, '[data-mk=arena]', function (b) { arena(i, b); });
+      }, d);
+      return;
+    }
   }
-  function serang(i, b) {
+  /* ---------- angkat sauh otomatis (Hadiah Q21, Galangan Rantai Lama) ---------- */
+  var LAUT_DUE = 0, lautPoll = 0, lautTry = 0;
+  function layarKe(dest) {
+    close();
+    setTimeout(function () {
+      if (typeof window.doSetSail !== 'function' || !state || !state.city) { showToast('Kapal belum siap berlayar, Kapten. Coba lagi.', 'error'); return; }
+      if (state.city.CityId === dest) return;
+      var s0 = st(), dd = s0 && S[idx()];
+      window.doSetSail(dest);
+      if (dd && (dd.laut || dd.laut55) && state.voyage && state.voyage.inTransit) {
+        LAUT_DUE = Date.now() + (dest === 'rantai_lama' ? 3000 : 5000) + 350; lautTry = 0;
+      }
+    }, 380);
+  }
+  // waktu pencegatan tiba: tanya server, buka layar tempur di tengah laut
+  function lautTick() {
+    var v = state && state.voyage; if (!v || !v.inTransit || v.encounterPending || v._optimistic || !aktif()) return;
+    var m = (st() && st().mk2) || {}, now = Date.now(), due = LAUT_DUE;
+    if (m.laut && m.laut.dalam != null && !m.laut.hold) { if (!m._due) m._due = now + m.laut.dalam + 350; due = due ? Math.min(due, m._due) : m._due; }
+    if (!due || now < due || now - lautPoll < 1500 || lautTry > 8) return;
+    if (gameOpen || cineOn || document.hidden) return;
+    lautPoll = now; lautTry++;
+    google.script.run.withSuccessHandler(function (res) {
+      var nv = res && res.voyage; if (!nv) return;
+      if (nv.encounterPending) { LAUT_DUE = 0; if (st() && st().mk2) st().mk2._due = 0; au('cannon'); if (typeof openPendingCombat_ === 'function') openPendingCombat_(nv); }
+      else if (!nv.inTransit) { LAUT_DUE = 0; if (typeof loadState === 'function') loadState(); }
+    }).withFailureHandler(function () { }).api_pollVoyage();
+  }
+  // Trektrek-an Kilat di tengah laut (setelah KPD Tembok Utara tumbang)
+  var kilatKartuAt = 0;
+  function combatBuka() { var c = document.getElementById('combatOverlay'); return !!(c && c.classList.contains('open')); }
+  function lautKartu() {
+    var v = state && state.voyage, s0 = st(); if (!v || !v.inTransit || v.encounterPending || !s0 || !s0.mk2) return false;
+    var m = s0.mk2, i = idx(), d = S[i];
+    if (gameOpen || cineOn || combatBuka() || modalTerbuka() || (window.MTGames8 && MTGames8.isOpen && MTGames8.isOpen())) return false;
+    if (m.laut && m.laut.w === 'kilat' && d && d.laut === 'g1') {
+      if (Date.now() - kilatKartuAt < 4000) return false;
+      kilatKartuAt = Date.now();
+      var w = modalWrap('flag', 'Trektrek-an Kilat', 'mulut Teluk Dalam'); if (!w) return false;
+      au('page');
+      w.innerHTML = speech(who('cangcimen'), '<p>"Tembok Utara tumbang! Tapi zona bidik meriam Tembok Selatan masih lebar. Ikuti garis api perahuku, lurus, jangan ragu. Kalau kita tertahan, kita mundur ke Rantai Lama dan mulai lagi dari Galangan."</p>',
+        actions(btn('kilat', 'flag', 'Ikuti garis api cangcimen!') + btn('mundur', null, 'Mundur ke Rantai Lama', false)));
+      on(w, '[data-mk=kilat]', function (b) { balapLaut(i, b); });
+      on(w, '[data-mk=mundur]', function (b) {
+        call(['mundur', i], function (r) { pulangKartu(d, r, 'Barisan Pacu ikut memutar haluan.'); }, b);
+      });
+      return true;
+    }
+    // dialog Hasiolan setelah Algojo tumbang (sekali, tercatat di Buku Adegan)
+    if (m.hasiolan && d && d.arena && v.destinationCityId === d.c && !cineSudah('mk2_hasiolan')) {
+      cineTandai('mk2_hasiolan');
+      var w2 = modalWrap('flag', 'Gelombang 2: Benturan Dua Armada', 'tengah palung'); if (!w2) return false;
+      au('success');
+      w2.innerHTML = speech(who('gaul'), '<p>"Sayap mereka runtuh! Di depanmu kapal induk <b>Sovereign Mahkota</b>. Kumis Hitam sudah mengenakan Mahkota Karam!"</p>',
+        actions(btn('ok', null, 'Lanjut berlayar', false)));
+      on(w2, '[data-mk=ok]', close);
+      return true;
+    }
+    return false;
+  }
+  function pulangKartu(d, r, line) {
+    var w = modalTerbuka() ? insertTop('<div></div>') : modalWrap(d.icon || 'flag', d.title || 'Mundur', 'Pelabuhan Rantai Lama'); if (!w) return;
+    au('bad');
+    w.innerHTML = narr('Kembali ke Rantai Lama', '<p>' + (line || 'Barisan Pacu tertahan di zona bidik.') + ' Kapalmu kembali ke <b>Pelabuhan Rantai Lama</b>.</p>' +
+      '<p class="muted small">' + ic('anchor') + ' Pimpin lagi barisan dari <b>Galangan</b> untuk mengulang Gelombang 1.</p>', actions(btn('ok', null, 'Tutup', false)), 'flag');
+    on(w, '[data-mk=ok]', function () { close(); if (typeof loadState === 'function') loadState(); });
+  }
+  function balapLaut(i, b) {
+    var d = S[i];
+    if (!window.MTGames8 || !window.MTTrekSim) { showToast('Garis start belum siap, Kapten.', 'error'); return; }
+    call(['kilat', i], function (r) {
+      var t = r.trek, G = null, kirimkan = false;
+      close(); gameOpen = true;
+      G = MTGames8.open({ onClose: function () { G = null; gameOpen = false; if (!kirimkan) refresh(); } });
+      G.race({ ship: t.ship, rival: t.rival, seed: t.seed, hint: true }, function (res) {
+        if (!res || res.cancelled || !G) return;
+        kirimkan = true;
+        var c = G.card('<div class="trk-res"><div class="trk-k" style="text-align:center">Trektrek-an Kilat</div>' +
+          '<h2 class="' + (res.win ? 'win' : 'lose') + '">' + (res.win ? 'Tembus!' : 'Tertahan') + '</h2>' +
+          '<p class="trk-srv">cangcimen memeriksa garis api&hellip;</p></div>' +
+          '<button type="button" class="trk-btn" data-utama disabled>LANJUT</button>', true);
+        var srv = c.querySelector('.trk-srv'), btn2 = c.querySelector('.trk-btn'), out = null;
+        function teruskan() {
+          if (!out) return; var g = G; G = null; gameOpen = false; if (g) g.close();
+          setTimeout(function () {
+            if (out.kilat) { au('cannon'); if (typeof openPendingCombat_ === 'function') openPendingCombat_(out.voyage); }
+            else pulangKartu(d, out, 'Salvo barikade memaksa perahu-perahu Barisan Pacu memutar.');
+          }, 420);
+        }
+        btn2.onclick = teruskan;
+        call(['kilatSelesai', i, t.run, res.log], function (rr) {
+          out = rr;
+          if (c.isConnected) { srv.textContent = rr.kilat ? 'Zona bidik tertembus! KPD Tembok Selatan di depan haluan.' : 'Barisan Pacu tertahan di zona bidik.'; btn2.disabled = false; }
+          else teruskan();
+        }, null, function (m) {
+          // server menolak catatan (koneksi / basi): tutup balapan, kartu Kilat muncul lagi untuk dicoba ulang
+          showToast(m, 'error'); var g = G; G = null; gameOpen = false; if (g) g.close(); kilatKartuAt = 0;
+        });
+      });
+    }, b);
+  }
+  // Gelombang 1 lolos: jam +5 dtk menuju Algojo dimulai saat ringkasan tempur ditutup (bukan saat menang)
+  var lautRingkas = null;
+  if (typeof wrap_ === 'function') {
+    wrap_('renderBattleSummary_', function (args) { var r = args && args[0]; lautRingkas = r && r.midSea ? r.questEvent : null; });
+    wrap_('finishBattleSummary_', function () {
+      if (lautRingkas !== 'mk2laut_jalan') return;
+      lautRingkas = null;
+      google.script.run.withSuccessHandler(function (r) {
+        if (r && r.mahkota && state) state.mahkota = r.mahkota;
+        var m = r && r.mahkota && r.mahkota.mk2;
+        if (m && m.laut && m.laut.dalam != null) { LAUT_DUE = Date.now() + m.laut.dalam + 350; lautTry = 0; }
+      }).withFailureHandler(function () { }).api_mahkota('lautMulai', idx());
+    });
+  }
+  /* ---------- duel armada 4 lawan 4 (ArenaMahkota.html) ---------- */
+  function arena(i, b) {
+    if (!window.MTARENA) { showToast('Medan tempur belum siap, Kapten. Muat ulang halaman.', 'error'); return; }
+    call(['arena', i], function (r) {
+      close(); gameOpen = true;
+      MTARENA.open(r.arena, function (hasil) {
+        var kirimHasil = function (n) {
+          call(['arenaHasil', i, r.arena.id, hasil], function (rr) {
+            gameOpen = false;
+            var w = modalWrap('crown', 'Gelombang 3: Sovereign Mahkota', 'Medan Tempur Teluk Dalam'); if (!w) return;
+            if (rr.menang) { try { metaBump_('mkpenakluk', 1); } catch (e) { } mk2Run(w, i); }
+            else runStep(w, i);
+          }, null, function (m) {
+            if (n < 3 && !/tidak wajar|tidak tercatat|sudah karam/.test(m)) { setTimeout(function () { kirimHasil(n + 1); }, 1500); return; }
+            gameOpen = false; showToast(m, 'error');
+            var w = modalWrap('crown', 'Gelombang 3: Sovereign Mahkota', 'Medan Tempur Teluk Dalam'); if (w) runStep(w, i);
+          });
+        };
+        kirimHasil(0);
+      });
+    }, b);
+  }
+  function serangLama(i, b) {
     call(['serang', i], function (r) {
       au('cannon'); close();
       if (typeof openPendingCombat_ === 'function') openPendingCombat_(r && r.voyage);
@@ -1323,6 +1483,7 @@ var MK = (function () {
   }
   function lanjutKe(d) {
     var pn = d && d.at, lewatPanel = { tiba: 1, heat: 1, setsail: 1, laut: 1 };
+    if (d && d.autoSail) { perluSegar = false; layarKe(d.autoSail); return; }
     if (pn === 'laut') {
       segarkan();
       var nd = S[idx()];
@@ -1377,7 +1538,7 @@ var MK = (function () {
     if (!w) return;
     var list = ((typeof d.a === 'function' ? d.a(st()) : d.a) || [{ narr: d.title, icon: d.icon, t: '<p>Selesai.</p>' }]).slice();
     au('success');
-    var lanjutLabel = (d.at === 'tiba' || d.at === 'heat' || d.at === 'setsail' || d.setor) ? 'Tutup' : 'Lanjut';
+    var lanjutLabel = d.okLabel || ((d.at === 'tiba' || d.at === 'heat' || d.at === 'setsail' || d.setor) ? 'Tutup' : 'Lanjut');
     pages(w, d.main || 'lapau', list, btn('ok', null, lanjutLabel, false), function (w2) {
       var box = w2.querySelector('.qg-text, .cb-narr');
       if (box) box.insertAdjacentHTML('beforeend', reward(r));
@@ -1392,6 +1553,7 @@ var MK = (function () {
   function runStep(w, i) {
     var d = S[i];
     if (d.mk2 && (d.perang || d.cicil)) { mk2Run(w, i); return; }
+    if (d.laut55 && !((st() && st().mk2) || {}).blokadeOk) { pages(w, d.main || 'lapau', d.pBelum, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-mk=ok]', close); }, d); return; }
     var P = typeof d.p === 'function' ? d.p(st()) : d.p;
     var bahanOk = !!(d.bahan && (((st() && st().mk2 && st().mk2.data) || {})['bahan' + (i + 1)]));
     if (d.info) { pages(w, d.main || 'lapau', d.p, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-mk=ok]', close); }, d); return; }
@@ -1548,6 +1710,8 @@ var MK = (function () {
         return;
       }
       if (!siap || at !== 'market' || kota !== cid()) return;
+    } else if (d.galangan && at === 'ship' && cid() === d.galangan && d.c !== cid()) {
+      var wg = insertTop('<div></div>'); if (wg) runStep(wg, i); return;
     } else if ((d.at === 'balaikongsi' && !(state && state.kongsi) ? 'tavern' : d.at) !== at) return;
     if (d.c && d.c !== cid()) return;
     // agen Bang Rimba hanya di pasar kota tempat jaring ditembus: di pasar lain, beri tahu di mana ia menunggu
@@ -1667,12 +1831,21 @@ var MK = (function () {
   }
   setInterval(function () {
     try { var s0 = st(); if (s0 && s0.mk2 && typeof metaMax_ === 'function') metaMax_('mkblokade', s0.mk2.navyMenang || 0); } catch (e) { }
-    try { if (aktif() && !gameOpen && !cineOn) { if (tibaCine()) return; tiba(true); } } catch (e) { }
+    try { if (aktif() && !gameOpen && !cineOn) { if (lautKartu()) return; if (tibaCine()) return; tiba(true); } } catch (e) { }
   }, 2500);
   setInterval(function () { try { tibaCinePra(); } catch (e) { } }, 250);
+  setInterval(function () { try { lautTick(); } catch (e) { } }, 400);
 
   return {
     S: S, step: step, aktif: aktif, def: def,
+    // dipanggil scene Medan Tempur Teluk Dalam (ArenaMahkota.html)
+    teluk: function () {
+      var s = st(); if (!s || !docked()) return false;
+      var i = idx(), d = S[i];
+      if (!d || !d.arena || d.c !== cid()) return false;
+      var w = modalWrap(d.icon, d.title, 'Medan Tempur Teluk Dalam'); if (!w) return false;
+      runStep(w, i); return true;
+    },
     // dipanggil CitiesSaga4 dari bangunan Zentul
     buka: function (at) {
       var s = st(); if (!s) return false;
