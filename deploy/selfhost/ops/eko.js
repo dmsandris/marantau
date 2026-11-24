@@ -162,7 +162,7 @@ cat(qid, no, saga, nama, akhir) as (values
  ('gala',1,'Saga 1','Harta Uda Gala',6),('toogood',2,'Saga 1','Pembebasan TooGood',10),('warwerwor',3,'Saga 1','Warwerwor',12),('barsati',4,'Saga 1','Tiga Tanda Silang',16),
  ('kompas',5,'Saga 2','Kompas yang Berputar',8),('cocoepan',6,'Saga 2','Bunga yang Tak Pernah Layu',11),('tigasilang',7,'Saga 2','Malam Tiga Tanda Silang',12),('limatangan',8,'Saga 2','Lima Tangan',10),('duatangan',9,'Saga 2','Serbuan Bersama',5),
  ('ps10',10,'Saga 3','Penumpang Bergaun Putih',11),('ps11',11,'Saga 3','Kapal yang Tak Pernah Terdampar',10),('ps12',12,'Saga 3','Kota yang Lampunya Sampai ke Laut',7),('ps13',13,'Saga 3','Laksamana yang Tak Pernah Tenggelam',7),('ps14',14,'Saga 3','Pasir Terakhir',6),
- ('mahkota',15,'Saga 4','Monopoli dan Mahkota',game.mk_last())),
+ ('mahkota',15,'Saga 4','Monopoli dan Mahkota',game.mk_last()),('mahkota2',16,'Saga 4','Takhta Tanpa Mahkota',game.mk2_ada())),
 sidecat(qid, no, nama, pendek, akhir) as (values
  ('peregrin',90,'Mesin yang Hanyut (Lorang Peregrin)','Lorang Peregrin',game.pg_last()),
  ('duneks',91,'Knock-knock Gudang Door','Gudang Door',game.dn_last()),
@@ -178,10 +178,11 @@ side as (select q.player_id, string_agg(s.pendek || ' ' || case when q.done_at i
   from game.player_quests q join sidecat s on s.qid = q.quest_id group by q.player_id),
 per as (select player_id, step, (data->>'eligible')::boolean as el from game.player_quests where quest_id = 'perantau')
 select p.character_name as pemain,
- case when a.player_id is not null then a.saga when s.maxno is null then 'Belum mulai' when s.maxno = 15 then 'Saga 4' when s.maxno = 14 then 'Saga 3' else (select saga from cat where no = s.maxno + 1) end as saga,
+ case when a.player_id is not null then a.saga when s.maxno is null then 'Belum mulai' when s.maxno >= 15 then 'Saga 4' when s.maxno = 14 then 'Saga 3' else (select saga from cat where no = s.maxno + 1) end as saga,
  case when a.player_id is not null then a.nama
       when s.maxno is null then 'Mengumpulkan Tanda Jasa'
-      when s.maxno = 15 then 'Tamat Saga 4'
+      when s.maxno = 16 then 'Tamat Saga 4'
+      when s.maxno = 15 then 'Tamat Bagian I · menunggu Takhta Tanpa Mahkota'
       when s.maxno = 14 then 'Tamat Saga 3'
       else 'Belum terpicu: ' || (select nama from cat where no = s.maxno + 1) end as quest_kini,
  case when a.player_id is not null then a.no end as quest_no,
