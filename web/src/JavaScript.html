@@ -1153,7 +1153,8 @@
       html += '<div class="row-list">' + warehouseItems.map(function (w) {
         return '<div class="card row-item">' + goodIcon_(w.commodityId, true) + '<div class="grow"><b>' + esc_(w.name) + '</b><div class="muted small">&times;' + w.qty + '</div></div>' +
           '<input type="number" min="1" max="' + w.qty + '" value="' + w.qty + '" id="wh_take_' + w.commodityId + '">' +
-          '<button class="btn btn-sm wh-action" onclick="doWarehouseWithdraw(\'' + w.commodityId + '\')">Ambil</button></div>';
+          '<div class="wh-btns"><button class="btn btn-sm wh-action" onclick="doWarehouseWithdraw(\'' + w.commodityId + '\')">Ambil</button>' +
+          '<button class="wh-max wh-action" title="Ambil semua ' + esc_(w.name) + ' dari gudang" onclick="doWarehouseWithdraw(\'' + w.commodityId + '\', true)">Max Ambil</button></div></div>';
       }).join('') + '</div>';
     }
     html += '</div><div><div class="bar-label-row" style="margin-bottom:6px;"><span>Titip dari palka</span></div>';
@@ -1163,19 +1164,21 @@
       html += '<div class="row-list">' + cargo.map(function (c) {
         return '<div class="card row-item">' + goodIcon_(c.commodityId, true) + '<div class="grow"><b>' + esc_(c.name) + '</b><div class="muted small">&times;' + c.qty + ' di palka</div></div>' +
           '<input type="number" min="1" max="' + c.qty + '" value="1" id="wh_store_' + c.commodityId + '">' +
-          '<button class="btn btn-sm wh-action" onclick="doWarehouseStore(\'' + c.commodityId + '\')">Titip</button></div>';
+          '<div class="wh-btns"><button class="btn btn-sm wh-action" onclick="doWarehouseStore(\'' + c.commodityId + '\')">Titip</button>' +
+          '<button class="wh-max wh-action" title="Titip semua ' + esc_(c.name) + ' dari palka" onclick="doWarehouseStore(\'' + c.commodityId + '\', true)">Max Titip</button></div></div>';
       }).join('') + '</div>';
     }
     html += '</div></div><p id="warehouseMsg" class="msg-err"></p>';
     el.innerHTML = html;
   }
 
-  function doWarehouseStore(commodityId) {
+  function doWarehouseStore(commodityId, max) {
     if (!canAct_()) return;
     if (txPending) return;
     txPending = true;
     document.querySelectorAll('.wh-action').forEach(function (b) { b.disabled = true; });
-    var qty = document.getElementById('wh_store_' + commodityId).value;
+    var qtyEl = document.getElementById('wh_store_' + commodityId);
+    var qty = max ? qtyEl.max : qtyEl.value;   // Max = semua yang ada di palka
     google.script.run
       .withSuccessHandler(function (result) {
         txPending = false;
@@ -1193,12 +1196,13 @@
       .api_warehouseStore(state.city.CityId, commodityId, qty);
   }
 
-  function doWarehouseWithdraw(commodityId) {
+  function doWarehouseWithdraw(commodityId, max) {
     if (!canAct_()) return;
     if (txPending) return;
     txPending = true;
     document.querySelectorAll('.wh-action').forEach(function (b) { b.disabled = true; });
-    var qty = document.getElementById('wh_take_' + commodityId).value;
+    var qtyEl = document.getElementById('wh_take_' + commodityId);
+    var qty = max ? qtyEl.max : qtyEl.value;   // Max = semua yang ada di gudang
     google.script.run
       .withSuccessHandler(function () {
         txPending = false;
