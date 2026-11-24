@@ -100,10 +100,10 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   await one(`select game.admin_mahkota2('mk2kapten', 48) s`);
   await taruh(a, 'karang_garam');
   s = await st(a);
-  assert(s.d.n === 49 && s.d.bahan.beras === 10, 'langkah 49 minta 10 Beras');
+  assert(s.d.n === 49 && s.d.bahan.beras === 100, 'langkah 49 minta 100 Beras');
   await H.expectError(() => a.call('api_mahkota', ['maju', 48, 'ok']), /Serahkan dulu barangnya/);
-  await H.expectError(() => a.call('api_mahkota', ['setor', 48]), /masih kurang, Kapten: 10 Beras/);
-  await beri(a, 'beras', 10);
+  await H.expectError(() => a.call('api_mahkota', ['setor', 48]), /masih kurang, Kapten: 100 Beras/);
+  await beri(a, 'beras', 100);
   r = await a.call('api_mahkota', ['setor', 48]);
   assert(r.setor && r.lengkap && r.mahkota.step === 48, 'beras diserahkan, mini game menyusul');
   assert((await one('select game.item_qty($1, $2) q', [a.id, 'beras'])).q === 0, 'beras diambil');
@@ -111,9 +111,9 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   assert(r.mahkota.step === 49, 'selam selesai -> langkah 49 tuntas');
   // langkah 50 tanpa mini game: setor langsung menutup langkah
   await taruh(a, 'freeyork');
-  await beri(a, 'besi', 20); await beri(a, 'mesiu', 15);
+  await beri(a, 'besi', 30); await beri(a, 'mesiu', 35);
   r = await a.call('api_mahkota', ['setor', 49]);
-  assert(r.maju && r.mahkota.step === 50, 'setor 20 Besi + 15 Mesiu -> langkah 50 tuntas');
+  assert(r.maju && r.mahkota.step === 50, 'setor 30 Besi + 35 Mesiu -> langkah 50 tuntas');
 
   // ---- cicilan ransum (langkah 54) ----
   await one(`select game.admin_mahkota2('mk2kapten', 53) s`);
