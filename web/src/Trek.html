@@ -202,6 +202,7 @@ var MTTrek = (function () {
           : 'Babak ' + p.babak + ' dari ' + p.akhir + ' &middot; lawan <b>' + esc(lw ? lw.name : '-') + '</b>';
     var c = G.card(
       '<div class="trk-k">Zentul &middot; Sirkuit Selat Lurus</div><h1>Selat Lurus</h1><div class="trk-orn"></div>' +
+      selatTab('balap') +
       '<p class="trk-sub">Lintasan ini milik para kapten. Yang mau mengukur diri dengan kapten lain, turun ke Adu Kapten; yang mau melawan nama-nama besar selat, tunggu obor gugur Yaptob tiap pekan.</p>' +
       '<div class="trk-pilih">' +
       '<button type="button" class="trk-pick" data-a="adu"><b>Adu Kapten</b><small>balapan lawan pemain lain yang merapat di Zentul &middot; tanpa taruhan</small></button>' +
@@ -212,7 +213,8 @@ var MTTrek = (function () {
       '<button type="button" class="trk-btn ghost" data-a="tutup">Kembali ke pelabuhan</button>');
     c.onclick = function (e) {
       var t = e.target.closest ? e.target.closest('[data-a]') : null; if (!t) return;
-      if (t.dataset.a === 'adu') aduSegar();
+      if (t.dataset.a === 'tab-medali') medaliTab();
+      else if (t.dataset.a === 'adu') aduSegar();
       else if (t.dataset.a === 'pacu') pacuPapan();
       else if (t.dataset.a === 'tutup') G.close();
     };
@@ -336,20 +338,44 @@ var MTTrek = (function () {
       r.api_medali.apply(r, args);
     } catch (e) { (fail || function (m) { toast(m, 'error'); })(e.message || 'Gagal.'); }
   }
-  // Medali Adu: juara adu mendapat 1 medali; tukar di sini.
-  function medaliKotak(a) {
+  // Medali Adu: tab sendiri di kartu Selat Lurus (bukan di tempat lain).
+  function selatTab(aktif) {
+    return '<div class="trk-tabs"><button type="button" class="' + (aktif === 'balap' ? 'on' : '') + '" data-a="tab-balap">Balapan</button>' +
+      '<button type="button" class="' + (aktif === 'medali' ? 'on' : '') + '" data-a="tab-medali">Medali</button></div>';
+  }
+  function medaliTab() {
+    if (!G) return;
+    aduStop();
+    aduApi(['lobi'], function (r) { medaliTampil(r.adu); }, function (m) { toast(m, 'error'); lobiUtama(); });
+  }
+  function medaliTampil(a) {
+    if (!G) return;
+    if (!a) { lobiUtama(); return; }
     var n = a.medali || 0, t = a.tukar || {};
     function baris(k, nama, ket, perlu) {
-      return '<li><span>' + nama + '<small>' + perlu + ' medali' + (ket ? ' · ' + ket : '') + '</small></span>' +
+      return '<li><span>' + nama + '<small>' + perlu + ' medali' + (ket ? ' &middot; ' + ket : '') + '</small></span>' +
         '<button type="button" class="trk-btn mini" data-tukar="' + k + '"' + (n >= perlu && (a.warlord || k === 'oli') ? '' : ' disabled') + '>Tukar</button></li>';
     }
-    return '<div class="trk-lbl">Medali Adu · kau punya ' + n + '</div>' +
-      '<p class="trk-sub">Juara adu mendapat 1 medali. Tukarkan di sini.</p>' +
+    var c = G.card(
+      '<div class="trk-k">Zentul &middot; Sirkuit Selat Lurus</div><h1>Selat Lurus</h1><div class="trk-orn"></div>' +
+      selatTab('medali') +
+      '<p class="trk-sub">Juara Adu Kapten mendapat 1 medali. Tukarkan di sini.</p>' +
+      '<div class="trk-lbl">Medalimu: ' + n + '</div>' +
       '<ul class="trk-adu">' +
       baris('oli', 'Oli Hitam', '', t.oli || 10) +
       baris('gigi', 'Gigi Jaring', a.warlord ? 'bahan Warlord' : 'baru terbuka di tahap Warlord', t.gigi || 25) +
       baris('rantai', 'Rantai Biru', a.warlord ? 'bahan Warlord' : 'baru terbuka di tahap Warlord', t.rantai || 35) +
-      '</ul>';
+      '</ul>' +
+      '<button type="button" class="trk-btn ghost" data-a="tutup">Kembali ke pelabuhan</button>');
+    c.onclick = function (e) {
+      var t = e.target.closest ? e.target.closest('[data-tukar],[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.tukar) {
+        t.disabled = true; var lbl = t.textContent; t.textContent = '…';
+        medaliApi(['tukar', t.dataset.tukar, 1], function (r) { toast('Ditukar. Sisa medali: ' + r.medali, 'info'); medaliTab(); },
+          function (m) { toast(m, 'error'); t.disabled = false; t.textContent = lbl; });
+      } else if (t.dataset.a === 'tab-balap') lobiUtama();
+      else if (t.dataset.a === 'tutup') G.close();
+    };
   }
   function aduStop() { if (ADU.poll) { clearInterval(ADU.poll); ADU.poll = null; } }
   function aduLawanProfil(d) {
@@ -375,16 +401,11 @@ var MTTrek = (function () {
       '<div class="trk-lbl">Kapten di dermaga Zentul</div>' +
       (rows ? '<ul class="trk-adu">' + rows + '</ul>' : '<p class="trk-kosong">Belum ada kapten lain di dermaga. Rayan Bazzy menyeka tangannya: "Sabar. Selat ini tak pernah sepi lama."</p>') +
       (papan ? '<div class="trk-lbl">Papan Adu · tujuh hari terakhir</div><ol class="trk-papan">' + papan + '</ol>' : '') +
-      medaliKotak(a) +
       '<button type="button" class="trk-btn ghost" data-a="segar">Lihat lagi dermaga</button>' +
       '<button type="button" class="trk-btn ghost" data-a="menu">Kembali</button>');
     c.onclick = function (e) {
-      var t = e.target.closest ? e.target.closest('[data-tantang],[data-tukar],[data-a]') : null; if (!t || t.disabled) return;
-      if (t.dataset.tukar) {
-        t.disabled = true; var lbl = t.textContent; t.textContent = '…';
-        medaliApi(['tukar', t.dataset.tukar, 1], function (r) { toast('Ditukar. Sisa medali: ' + r.medali, 'info'); aduSegar(); },
-          function (m) { toast(m, 'error'); t.disabled = false; t.textContent = lbl; });
-      } else if (t.dataset.tantang) {
+      var t = e.target.closest ? e.target.closest('[data-tantang],[data-a]') : null; if (!t || t.disabled) return;
+      if (t.dataset.tantang) {
         t.disabled = true; t.textContent = '…';
         aduApi(['tantang', t.dataset.tantang], function (r) { if (r.duel) aduTunggu(r.duel); else aduSegar(); },
           function (m) { toast(m, 'error'); aduSegar(); });
