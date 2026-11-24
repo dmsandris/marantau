@@ -4764,7 +4764,7 @@
     try { if (chatOpen_()) toggleChat_(false); hideInvite_(); } catch (e) {}
     var cc = document.getElementById('ccOverlay'); if (cc) cc.classList.remove('open');
     state = null; stateFresh = false; meta_ = null;
-    MPc.chat = { g: [], c: [] }; MPc.since = { g: 0, c: 0, ib: Date.now() - 60000 }; MPc.here = []; MPc.seen = {}; MPc.unread = 0; MPc.mePub = ''; MPc._rk = ''; MPc.primed = { g: false, c: false };
+    MPc.chat = { g: [], c: [] }; MPc.since = { g: 0, c: 0, ib: Date.now() - 60000, pm: 0 }; MPc.pm = pmFresh_(); MPc.here = []; MPc.seen = {}; MPc.unread = 0; MPc.mePub = ''; MPc._rk = ''; MPc.primed = { g: false, c: false };
     CHR.k = ''; CHR.d = null; try { updUnread_(); } catch (e) {}
     if (scene && scene.setOthers) scene.setOthers([]);
   }
@@ -4867,7 +4867,9 @@
   }
 
   /* ---------- 2. Multiplayer inti: pulse, kehadiran, chat, kotak masuk ---------- */
-  var MPc = { on: false, timer: 0, busy: false, again: false, since: { g: 0, c: 0, ib: Date.now() - 60000 }, here: [], online: 0, onlineList: [], mePub: '', chat: { g: [], c: [] }, tab: 'c', unread: 0, seen: {}, invite: null, duelId: null, lastCity: '', primed: { g: false, c: false } };
+  var MPc = { on: false, timer: 0, busy: false, again: false, since: { g: 0, c: 0, ib: Date.now() - 60000, pm: 0 }, here: [], online: 0, onlineList: [], mePub: '', chat: { g: [], c: [] }, tab: 'c', unread: 0, seen: {}, invite: null, duelId: null, lastCity: '', primed: { g: false, c: false }, pm: pmFresh_() };
+  // Tide v82: Pesan Pribadi (0101-pesan-pribadi). ok=false untuk akun GM (pulse tanpa 'pm').
+  function pmFresh_() { return { ok: false, primed: false, unread: 0, list: null, open: null, who: null, msgs: [], more: false, busy: false }; }
 
   /* ---- tanda "sudah dibaca" per kanal (disimpan di perangkat, per akun & per pelabuhan) ----
    * Badge = jumlah pesan orang lain yang id-nya > id terakhir yang sudah dibaca.
@@ -5013,6 +5015,7 @@
       if (it.ts > MPc.since.ib) MPc.since.ib = it.ts;
       handleInbox_(it);
     });
+    pmPulse_(r.pm);
     // duel aktif yang belum dibuka (mis. setelah muat ulang)
     if (r.duel && (r.duel.status === 'active' || (r.duel.status === 'invited' && r.duel.challenger)) && !duelOpen_()) openDuel_(r.duel);
   }
@@ -5046,7 +5049,7 @@
         '<button class="mp-btn" id="mpChatBtn" title="Obrolan (Enter)">' + ic('chat') + '<i id="mpUnread"></i></button>' +
       '</div>' +
       '<div id="mpChat" class="scene-layer">' +
-        '<div class="mpc-head"><button data-t="c" class="on">Pelabuhan</button><button data-t="g">Dunia</button><button data-t="o">Kapten</button><button class="mpc-x" title="Tutup">' + ic('x') + '</button></div>' +
+        '<div class="mpc-head"><button data-t="c" class="on">Pelabuhan</button><button data-t="g">Dunia</button><button data-t="o">Kapten</button><button data-t="p">Pesan</button><button class="mpc-x" title="Tutup">' + ic('x') + '</button></div>' +
         '<div id="mpcList"></div>' +
         '<div class="mpc-quick">' + ['Salam, Kapten!', 'Ada yang mau dagang?', 'Siap duel?', 'Harga bagus di sini!', 'Hati-hati bajak laut!', 'Terima kasih!'].map(function (q) { return '<button>' + q + '</button>'; }).join('') + '</div>' +
         '<form id="mpcForm" onsubmit="return false;"><input id="mpcInput" maxlength="140" placeholder="Tulis pesan&hellip;" autocomplete="off"><button type="submit" title="Kirim">' + ic('send') + '</button></form>' +
@@ -5054,7 +5057,7 @@
     document.getElementById('mpChatBtn').addEventListener('click', function () { toggleChat_(); });
     document.getElementById('mpOnlineBtn').addEventListener('click', function () { toggleChat_(true, 'o'); });
     document.querySelector('#mpChat .mpc-x').addEventListener('click', function () { toggleChat_(false); });
-    document.querySelectorAll('#mpChat .mpc-head button[data-t]').forEach(function (b) { b.addEventListener('click', function () { MPc.tab = b.getAttribute('data-t'); if (chatOpen_()) markRead_(MPc.tab); renderChat_(); updUnread_(); }); });
+    document.querySelectorAll('#mpChat .mpc-head button[data-t]').forEach(function (b) { b.addEventListener('click', function () { var t = b.getAttribute('data-t'); if (t === 'p' && MPc.tab === 'p' && MPc.pm.open) { MPc.pm.open = null; MPc.pm.list = null; } MPc.tab = t; if (chatOpen_()) markRead_(MPc.tab); if (t === 'p' && !MPc.pm.open) MPc.pm.list = null; renderChat_(); updUnread_(); }); });
     document.querySelectorAll('#mpChat .mpc-quick button').forEach(function (b) { b.addEventListener('click', function () { sendChat_(b.textContent); }); });
     document.getElementById('mpcForm').addEventListener('submit', function () { var i = document.getElementById('mpcInput'); sendChat_(i.value); i.value = ''; });
   }
@@ -5068,12 +5071,12 @@
     au_(want ? 'open' : 'close');
   }
   function updUnread_() {
-    var uc = unreadOf_('c'), ug = unreadOf_('g');
-    MPc.unread = uc + ug;
+    var uc = unreadOf_('c'), ug = unreadOf_('g'), up = (MPc.pm && MPc.pm.unread) || 0;
+    MPc.unread = uc + ug + up;
     var u = document.getElementById('mpUnread');
     if (u) { u.textContent = MPc.unread > 9 ? '9+' : (MPc.unread || ''); u.style.display = MPc.unread ? '' : 'none'; }
     // angka kecil di tab Pelabuhan / Dunia
-    [['c', uc], ['g', ug]].forEach(function (x) {
+    [['c', uc], ['g', ug], ['p', up]].forEach(function (x) {
       var b = document.querySelector('#mpChat .mpc-head button[data-t="' + x[0] + '"]'); if (!b) return;
       var dot = b.querySelector('.mpc-ub');
       if (x[1] > 0) { if (!dot) { dot = document.createElement('i'); dot.className = 'mpc-ub'; b.appendChild(dot); } dot.textContent = x[1] > 9 ? '9+' : x[1]; }
@@ -5082,6 +5085,9 @@
   }
   function renderChat_() {
     var list = document.getElementById('mpcList'); if (!list) return;
+    var inp0 = document.getElementById('mpcInput');
+    if (MPc.tab === 'p') { MPc._rk = ''; document.querySelectorAll('#mpChat .mpc-head button[data-t]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-t') === 'p'); }); renderPm_(); return; }
+    if (inp0 && inp0.getAttribute('data-pm')) { inp0.removeAttribute('data-pm'); inp0.placeholder = 'Tulis pesan\u2026'; }
     var arr0 = MPc.chat[MPc.tab] || [], rk = MPc.tab + '|' + (MPc.tab === 'o' ? MPc.onlineList.map(function (o) { return o.id + (o.sea ? 's' : o.c); }).join(',') : arr0.length + ':' + (arr0.length ? arr0[arr0.length - 1].id : 0));
     if (rk === MPc._rk && list.childElementCount) return;
     MPc._rk = rk;
@@ -5109,11 +5115,121 @@
   }
   function sendChat_(text) {
     text = String(text || '').trim(); if (!text) return;
+    if (MPc.tab === 'p') { pmSend_(MPc.pm.open, text); return; }
     var ch = MPc.tab === 'g' ? 'global' : 'city';
     google.script.run.withSuccessHandler(function (r) {
       if (r && r.msg) { var k = ch === 'global' ? 'g' : 'c'; if (r.msg.id > MPc.since[k]) { MPc.since[k] = r.msg.id; MPc.chat[k].push(r.msg); } markRead_(k); renderChat_(); updUnread_(); metaBump_('chat'); }
     }).withFailureHandler(function (e) { showToast(e.message, 'error'); }).api_mpChat(ch, text);
     au_('click');
+  }
+
+  /* ---- Tide v82: Pesan Pribadi (tab Pesan + kartu kapten) ---- */
+  function pmTime_(ts) {
+    var t = new Date(ts), n = new Date(), hm = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
+    return t.toDateString() === n.toDateString() ? hm : ('0' + t.getDate()).slice(-2) + '/' + ('0' + (t.getMonth() + 1)).slice(-2) + ' ' + hm;
+  }
+  function pmReading_() { return chatOpen_() && MPc.tab === 'p' && !document.hidden; }
+  function pmPulse_(pm) {
+    var P = MPc.pm;
+    if (!pm) { P.ok = false; P.off = true; return; }
+    P.ok = true;
+    if (!P.primed) {
+      P.primed = true; MPc.since.pm = pm.top || 0; P.unread = pm.unread || 0;
+      if (P.unread > 0) { showToast('Ada ' + P.unread + ' pesan baru, Kapten. Buka obrolan → Pesan.', ''); pmToastLink_(null); }
+      updUnread_(); return;
+    }
+    if (pm.top > MPc.since.pm) MPc.since.pm = pm.top;
+    P.unread = pm.unread || 0;
+    var fresh = false;
+    (pm.baru || []).forEach(function (m) {
+      if (P.open && m.from && m.from.id === P.open) {
+        if (!P.msgs.some(function (x) { return x.id === m.id; })) P.msgs.push(m);
+        if (pmReading_()) { fresh = true; return; }
+      }
+      if (P.list) P.list = null;                       // daftar dimuat ulang saat dibuka
+      if (!(pmReading_() && P.open === (m.from && m.from.id))) {
+        showToast('Pesan dari ' + ((m.from && m.from.n) || 'kapten') + ': ' + m.tx, '');
+        pmToastLink_(m.from);
+        au_('bell');
+      }
+    });
+    if (fresh && P.open) {
+      google.script.run.withSuccessHandler(function (r) { P.unread = r.unread || 0; updUnread_(); }).withFailureHandler(function () { }).api_mpPm('baca', P.open);
+    }
+    if (MPc.tab === 'p' && chatOpen_()) renderPm_();
+    updUnread_();
+  }
+  function pmToastLink_(who) {
+    var c = document.getElementById('toastContainer'), t = c && c.lastChild; if (!t) return;
+    t.style.cursor = 'pointer'; t.style.pointerEvents = 'auto';
+    t.addEventListener('click', function () { if (who && who.id) pmOpenThread_(who.id, who); else { toggleChat_(true, 'p'); MPc.pm.open = null; MPc.pm.list = null; renderChat_(); } t.remove(); });
+  }
+  function pmOpenThread_(pub, who) {
+    var P = MPc.pm; P.open = pub; P.who = who || P.who; P.msgs = []; P.more = false; P.loaded = false;
+    MPc.tab = 'p';
+    if (!chatOpen_()) toggleChat_(true, 'p'); else renderChat_();
+    google.script.run.withSuccessHandler(function (r) {
+      if (P.open !== pub) return;
+      P.who = r.who; P.msgs = r.msgs || []; P.more = !!r.more; P.unread = r.unread || 0; P.loaded = true;
+      renderChat_(); updUnread_();
+      setTimeout(function () { var i = document.getElementById('mpcInput'); if (i && window.innerWidth > 780) i.focus(); }, 60);
+    }).withFailureHandler(function (e) { P.loaded = true; showToast(e.message, 'error'); renderChat_(); }).api_mpPm('utas', pub);
+  }
+  function pmSend_(pub, text, done) {
+    var P = MPc.pm;
+    if (!pub) { if (done) done(false); return; }
+    google.script.run.withSuccessHandler(function (r) {
+      if (P.open === pub && r && r.msg) { P.msgs.push(r.msg); if (P.msgs.length > 120) P.msgs.shift(); if (r.who && !P.who) P.who = r.who; }
+      P.list = null;
+      if (MPc.tab === 'p') renderChat_();
+      metaBump_('chat'); au_('click');
+      if (done) done(true);
+    }).withFailureHandler(function (e) { showToast(e.message, 'error'); if (done) done(false); }).api_mpPm('kirim', pub, text);
+  }
+  function renderPm_() {
+    var list = document.getElementById('mpcList'), P = MPc.pm; if (!list) return;
+    var form = document.getElementById('mpcForm'), quick = document.querySelector('#mpChat .mpc-quick'), inp = document.getElementById('mpcInput');
+    if (quick) quick.style.display = 'none';
+    if (P.off) { if (form) form.style.display = 'none'; list.innerHTML = '<div class="mpc-sys">Akun GM tidak memakai Pesan Pribadi.</div>'; return; }
+    if (!P.open) {
+      if (form) form.style.display = 'none';
+      if (P.list == null) {
+        list.innerHTML = '<div class="mpc-sys">Memuat pesan&hellip;</div>';
+        if (!P.busy) {
+          P.busy = true;
+          google.script.run.withSuccessHandler(function (r) { P.busy = false; P.list = r.list || []; P.unread = r.unread || 0; updUnread_(); if (MPc.tab === 'p' && !P.open) renderPm_(); })
+            .withFailureHandler(function (e) { P.busy = false; P.list = []; list.innerHTML = '<div class="mpc-sys">' + esc_(e.message) + '</div>'; }).api_mpPm('daftar');
+        }
+        return;
+      }
+      list.innerHTML = (P.list.length ? '' : '<div class="mpc-sys">Belum ada pesan. Buka kartu kapten lalu pilih <b>Kirim Pesan</b>.</div>') +
+        P.list.map(function (c) {
+          var w = c.who || {}, l = c.last || {};
+          return '<div class="mpc-pmrow' + (c.unread ? ' un' : '') + '" data-pid="' + esc_(w.id) + '"><span class="mpc-pmf">' + faceOf_(w) + '</span><span class="mpc-pmb"><b style="color:' + ((ARCH_COL_[w.a] || ['#f0cf78'])[0]) + '">' + esc_(w.n || 'Kapten') + '</b><span class="mpc-t">' + pmTime_(l.ts) + '</span>' +
+            '<span class="mpc-pms">' + (l.mine ? '<i>Kamu:</i> ' : '') + esc_(l.tx || '') + '</span></span>' + (c.unread ? '<i class="mpc-ub mpc-pmu">' + (c.unread > 9 ? '9+' : c.unread) + '</i>' : '') + '</div>';
+        }).join('');
+      list.querySelectorAll('.mpc-pmrow').forEach(function (r, i) { r.addEventListener('click', function () { pmOpenThread_(r.getAttribute('data-pid'), P.list[i] && P.list[i].who); }); });
+      list.scrollTop = 0;
+      return;
+    }
+    var w = P.who || { n: 'Kapten' };
+    if (form) form.style.display = w.gm ? 'none' : '';
+    if (inp) { inp.setAttribute('data-pm', '1'); inp.placeholder = 'Balas ' + (w.n || 'kapten') + '…'; }
+    list.innerHTML = '<div class="mpc-pmhead"><button class="mpc-back" title="Kembali">' + ic('left') + '</button><span class="mpc-pmf">' + faceOf_(w) + '</span><b class="mpc-n" style="color:' + ((ARCH_COL_[w.a] || ['#f0cf78'])[0]) + '">' + esc_(w.n || 'Kapten') + '</b></div>' +
+      (P.more ? '<button class="mpc-more">Muat pesan sebelumnya</button>' : '') +
+      (P.loaded === false ? '<div class="mpc-sys">Memuat&hellip;</div>' : (P.msgs.length ? '' : '<div class="mpc-sys">Belum ada pesan. Sapa ' + esc_(w.n || 'kapten') + '!</div>')) +
+      P.msgs.map(function (m) {
+        return '<div class="mpc-msg mpc-pm' + (m.mine ? ' mine' : '') + '"><span class="mpc-t">' + pmTime_(m.ts) + (m.mine && m.read ? ' &middot; dibaca' : '') + '</span><div class="mpc-tx">' + esc_(m.tx) + '</div></div>';
+      }).join('');
+    list.querySelector('.mpc-back').addEventListener('click', function () { P.open = null; P.list = null; renderChat_(); });
+    list.querySelector('.mpc-pmhead .mpc-n').addEventListener('click', function () { if (P.open) openCaptain_(P.open); });
+    var more = list.querySelector('.mpc-more');
+    if (more) more.addEventListener('click', function () {
+      more.disabled = true; var pub = P.open, first = P.msgs.length ? P.msgs[0].id : 0;
+      google.script.run.withSuccessHandler(function (r) { if (P.open !== pub) return; P.msgs = (r.msgs || []).concat(P.msgs); P.more = !!r.more; var h = list.scrollHeight; renderPm_(); list.scrollTop = list.scrollHeight - h; })
+        .withFailureHandler(function (e) { more.disabled = false; showToast(e.message, 'error'); }).api_mpPm('utas', pub, first);
+    });
+    if (!more || !more.disabled) list.scrollTop = list.scrollHeight;
   }
 
   /* ---- kartu kapten lain ---- */
@@ -5141,8 +5257,19 @@
         '<div class="cap-actions"><button class="btn btn-danger" id="capDuel">' + ic('cannon') + '&nbsp; Duel Kapal</button><button class="btn" id="capDice">' + ic('dice') + '&nbsp; Duel Dadu</button></div>' +
         '<p class="muted small" style="margin:8px 0 0;">Duel kapal: tiap giliran kalian mengunci perintah &mdash; kemudi, layar, meriam kiri/kanan, dan peluru. Angin dan sudut lambung menentukan. Saat kedua kapal sekarat, Pertarungan Terakhir dimainkan realtime (tanpa taruhan).</p></div>'
         : '<div class="card small muted">' + ic('anchor') + ' Duel hanya bisa kalau kalian merapat di pelabuhan yang sama.</div>') +
+      (MPc.pm.ok && !p.gm ? '<h3>' + ic('chat') + 'Kirim Pesan</h3><div class="card cap-pm"><form id="capPmForm" onsubmit="return false;"><input id="capPmTx" maxlength="140" placeholder="Tulis pesan untuk ' + esc_(p.n) + '&hellip;" autocomplete="off"><button class="btn" type="submit" id="capPmSend">' + ic('send') + '&nbsp; Kirim</button></form>' +
+        '<button class="btn cap-pm-open" id="capPmOpen" type="button">' + ic('chat') + '&nbsp; Buka percakapan</button></div>' : '') +
       '<h3>' + ic('gift') + 'Kirim Gold</h3><div class="card cap-gift"><input type="number" id="capGiftAmt" min="1" step="50" value="100"><button class="btn" id="capGift">' + ic('gift') + '&nbsp; Kirim</button></div>');
     var stake = 100;
+    var pmF = document.getElementById('capPmForm');
+    if (pmF) {
+      pmF.addEventListener('submit', function () {
+        var i = document.getElementById('capPmTx'), tx = String(i.value || '').trim(); if (!tx) return;
+        var btn = document.getElementById('capPmSend'); btn.disabled = true;
+        pmSend_(p.id, tx, function (ok) { btn.disabled = false; if (ok) { i.value = ''; showToast('Pesan terkirim ke ' + p.n + '.', 'success'); } });
+      });
+      document.getElementById('capPmOpen').addEventListener('click', function () { closeModal(); pmOpenThread_(p.id, { id: p.id, n: p.n, a: p.a, f: p.f }); });
+    }
     document.querySelectorAll('#capStakes .chip-opt').forEach(function (b) { b.addEventListener('click', function () { stake = Number(b.getAttribute('data-v')); document.querySelectorAll('#capStakes .chip-opt').forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
     var d1 = document.getElementById('capDuel'), d2 = document.getElementById('capDice');
     if (d1) d1.addEventListener('click', function () { challenge_(p, stake, 'naval'); });
