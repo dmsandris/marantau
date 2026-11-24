@@ -50,7 +50,7 @@ function create(dataDir) {
     ubah(b = {}) {
       const g = b.gemini || {}, p = b.penjaga || {}, t = b.telegram || {};
       const n = merge(s, {});
-      if (typeof g.key === 'string') n.gemini.key = g.key.trim().slice(0, 200);
+      if (typeof g.key === 'string') n.gemini.key = g.key.replace(/\s+/g, '').slice(0, 200);
       if (g.hapus === true) n.gemini.key = '';
       if (typeof g.model === 'string' && /^[a-z0-9.\-]{3,60}$/i.test(g.model.replace(/^models\//, ''))) n.gemini.model = g.model.replace(/^models\//, '');
       if ('auto' in p) n.penjaga.auto = !!p.auto;

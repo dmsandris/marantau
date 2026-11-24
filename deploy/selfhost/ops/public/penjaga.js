@@ -133,8 +133,9 @@
   }
   $('#setAi').addEventListener('submit', async e => {
     e.preventDefault();
-    const key = $('#setKey').value.trim(), body = { gemini: { model: $('#setModel').value } };
-    if (key) { if (!/^[A-Za-z0-9_\-]{20,}$/.test(key)) { msg('#setAiMsg', 'Kunci terlihat tidak lengkap. Salin ulang dari Google AI Studio.', 'bad'); $('#setKey').focus(); return; } body.gemini.key = key; }
+    // Format kunci Google berubah-ubah (AIza…, AQ.…), jadi hanya dicek panjang dan tanpa spasi.
+    const key = $('#setKey').value.replace(/\s+/g, ''), body = { gemini: { model: $('#setModel').value } };
+    if (key) { if (!/^[\x21-\x7E]{20,200}$/.test(key)) { msg('#setAiMsg', 'Kunci terlihat tidak lengkap. Salin ulang dari Google AI Studio.', 'bad'); $('#setKey').focus(); return; } body.gemini.key = key; }
     await simpan(body, '#setAiMsg', key ? 'Kunci dan model tersimpan. Tekan Tes koneksi untuk memastikan.' : 'Model tersimpan.');
     $('#setKey').value = '';
   });

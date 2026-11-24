@@ -24,7 +24,7 @@ const DEV = ENV.OPS_DEV === '1';
 const BACKUP_REQ = ENV.OPS_BACKUP_REQ || '/backup-req';
 const MCP_TOKEN = ENV.OPS_MCP_TOKEN || '';
 const API_DOMAIN = ENV.OPS_API_DOMAIN || 'api.marantau.web.id';
-const VERSION = '2.0.0';
+const VERSION = '2.0.1';
 const { Q: EKO, IKN_TARGET_DEFAULT } = require('./eko');
 const { Q: AUD, J: JEJAK } = require('./audit');
 const ILU = require('./iluminaty');
