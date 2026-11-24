@@ -40,6 +40,11 @@
   .mk-teka input:focus { outline: none; border-color: #b98a2e; box-shadow: 0 0 0 3px rgba(185,138,46,.18); }
   .mk-teka .sisa { font: 400 13px Georgia, serif; color: #8a6a3c; }
   @media (max-width: 480px) { .mk-sob { grid-template-columns: 1fr; } }
+  .mk2-bars { margin: 10px 0 2px; display: grid; gap: 7px; }
+  .mk2-bar { display: grid; grid-template-columns: 84px 1fr 72px; align-items: center; gap: 8px; font: 600 12.5px Georgia, serif; color: #5a4226; }
+  .mk2-bar i { display: block; height: 9px; border-radius: 5px; background: rgba(120,90,50,.18); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.18); }
+  .mk2-bar b { display: block; height: 100%; background: linear-gradient(90deg, #b98a2e, #e8bf55); border-radius: 5px; transition: width .5s ease; }
+  .mk2-bar em { font-style: normal; text-align: right; color: #7a5a30; }
 </style>
 <script>
 /* =====================================================================
@@ -104,7 +109,24 @@ var MK = (function () {
       gaul: { name: 'Hasiolan', title: 'Galangan Gaul-Wash &middot; Skitraw', bg: ['#3a4a5a', '#12181f'],
         ap: apOf('hasiolan-black-pearl', 'kapten', 0, { age: 0.5, head: 'ikat', facial: 1 }) },
       rongsok: { name: 'Penjaga Pasar Rongsok', title: 'Zentul', bg: ['#5a4a3a', '#161008'],
-        ap: apOf('penjaga-pasar-rongsok-zentul', 'gudang', 1, { age: 0.5, head: 'caping' }) }
+        ap: apOf('penjaga-pasar-rongsok-zentul', 'gudang', 1, { age: 0.5, head: 'caping' }) },
+      /* Saga 4 Bagian II */
+      coco: (function () { try { if (typeof cocoEpan_ === 'function') { var c = cocoEpan_(); return { name: c.name, title: 'Javasche Bank &middot; Joungjava', ap: c.ap, bg: ['#4a3a2a', '#140e08'] }; } } catch (e) { }
+        return { name: 'coco epan', title: 'Javasche Bank &middot; Joungjava', bg: ['#4a3a2a', '#140e08'], ap: apOf('joungjava|bankir', 'bankir', 0, { head: 'bowler', eye: 'monocle', item: 'pipe', age: 0.86 }) }; })(),
+      ocid: { name: 'Paman Ocid', title: 'Arsip &amp; Jam Agung &middot; em pe\'er de pe\'er', bg: ['#3a3a4a', '#10101a'], ap: apOf('ocid-kubah-arsip', 'pustakawan', 0, { age: 0.9 }) },
+      euis: { name: 'Teh Euis', title: 'Perpustakaan Rakyat &middot; TooGood', bg: ['#5a3a3a', '#1a0e0e'],
+        ap: { fem: 1, skin: 1, hair: 0, hairStyle: 0, facial: 0, head: 'none', eyes: 2, seed: 31313, role: 'saudagar', age: 0.4 } },
+      dorus: { name: 'Ki Dorus', title: 'Balai Kongsi &middot; Pelabuhan Rantai Lama', bg: ['#4a3e2e', '#14100a'],
+        ap: apOf('ki-dorus-rantai-lama', 'pustakawan', 0, { age: 0.95, head: 'peci', eye: 'glasses', outfit: 'koko', neck: 'chain', facial: 2, hair: 5 }) },
+      ama: { name: 'Ama Kerang', title: 'Tetua penyelam &middot; Karang Garam', bg: ['#2a4a5a', '#0a161c'], ap: apOf('ama-kerang-karang-garam', 'gudang', 1, { age: 0.95 }) },
+      tassy: { name: 'Tassyaaa', title: 'Pandai besi &middot; FreeYork', bg: ['#6a3a1a', '#1a0c04'], ap: apOf('tassyaaa-freeyork-tempa', 'tukang', 1, { age: 0.5, outfit: 'apron', head: 'ikat', facial: 0 }) },
+      petrik: { name: 'Petrik', title: 'Juru mudi Sayap Tempa', bg: ['#5a4a2a', '#161208'], ap: apOf('petrik-freeyork-juru', 'tukang', 0, { age: 0.25, head: 'none', facial: 0 }) },
+      zafa: { name: 'zafachmie', title: 'Gubernur TooGood &middot; nakhoda Black Pearl', bg: ['#2a2a3a', '#0a0a12'],
+        ap: { fem: 0, skin: 4, hair: 0, hairStyle: 5, facial: 3, head: 'none', eyes: 1, seed: 90909, role: 'pustakawan', age: 0.5 } },
+      gala: { name: 'Uda Gala', title: 'Galangan Gaul-Wash &middot; Skitraw', bg: ['#5a2a3a', '#1a0a10'],
+        ap: { fem: 0, skin: 2, hair: 0, hairStyle: 1, facial: 4, head: 'arch', eyes: 1, seed: 424242, role: 'tukang', age: 0.55 } },
+      tedskyL: { name: 'Jendral Tedsky', title: 'Penarik lonceng &middot; Rantai Lama', bg: ['#4a3a1a', '#1a1408'], medals: 1,
+        ap: apOf('jendral-tedsky', 'syahbandar', 0, { age: 0.72, facial: 1, head: 'kapten', outfit: 'mantel' }) }
     };
     return NN;
   }
@@ -147,7 +169,7 @@ var MK = (function () {
   function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
   // nama tempat untuk tiap jenis panel — dipakai penunjuk arah
   var TEMPAT = { tavern: 'Lapau', tasks: 'Papan Tugas', ship: 'Dermaga (panel Kapal)', market: 'Pasar', setsail: 'layar Berlayar',
-    library: 'Perpustakaan', sirkuit: 'Sirkuit Selat Lurus', garasi: 'Garasi Yaptob', tiba: 'begitu kapal merapat', heat: 'begitu kapal merapat',
+    library: 'Perpustakaan', bank: 'Bank', balaikongsi: 'Balai Kongsi', sirkuit: 'Sirkuit Selat Lurus', garasi: 'Garasi Yaptob', tiba: 'begitu kapal merapat', heat: 'begitu kapal merapat',
     laut: 'angkat sauh ke sana' };
   // arah satu langkah: kota + tempat + catatan malam
   function arah(d) {
@@ -191,6 +213,7 @@ var MK = (function () {
       if (b) b.disabled = false;
       var m = (e && e.message) || String(e);
       if (/terlalu panas/.test(m) && args && (args[0] === 'balap' || args[0] === 'coba')) { panasKartu(args[1], m); return; }
+      if (/masih kurang|belum membawa ransum/.test(m) && args && args[0] === 'setor') { kurangKartu(args[1], m); return; }
       showToast(m, 'error');
       if (/bergeser|Bersambung/.test(m)) refresh();
     }).api_mahkota.apply(null, args);
@@ -373,7 +396,7 @@ var MK = (function () {
   /* =====================================================================
    * Sinematik
    * ===================================================================== */
-  function cine(kind, slides, cb) {
+  function cine(kind, slides, cb, data) {
     var finished = false;
     if (!window.MTCine || !document.body) { if (cb) cb(); return; }
     close();
@@ -382,7 +405,7 @@ var MK = (function () {
       '<div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
     document.body.appendChild(ov);
     var stop = function () { };
-    try { stop = MTCine.play(ov.querySelector('canvas'), kind) || stop; } catch (e) { console.warn('[MK] cine', e); }
+    try { stop = MTCine.play(ov.querySelector('canvas'), kind, data ? { data: data } : undefined) || stop; } catch (e) { console.warn('[MK] cine', e); }
     var i = 0, txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.cb-skip');
     function show() { txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i]; txt.classList.add('in'); b.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Selesai'; }
     function finish() {
@@ -908,7 +931,232 @@ var MK = (function () {
       pilih: { patahkan: 'patahkan', dewan: 'dewan', marlya: 'marlya' },
       epilog: true },
 
-    /* penanda: langkah di atas 40 belum ada */
+    /* =================== Saga 4 Bagian II "Takhta Tanpa Mahkota" (langkah 41-60) =================== */
+    /* 41 */ { at: 'tavern', main: 'lapau', icon: 'bird', title: 'Sinyal yang Tidak Padam', mk2: true,
+      p: function (s) {
+        var m = (s && s.mk2) || {}, v = m.stempel || 'patahkan', l = [{ narr: 'Seekor pelikan di jendela', icon: 'bird', t: '<p>Pelikan mesin Ratu Marlya hinggap di kusen. Matanya merah, sayapnya basah garam. Tiga hari setelah rantai IKN putus, ia datang lagi.</p>' }];
+        if (v === 'patahkan') l.push({ narr: 'Belahan stempel', icon: 'crown', t: '<p>Dua belahan kuningan stempel Kumis Hitam yang kau simpan di palka <b>bergetar sendiri</b>. Dari retakan gagangnya keluar cahaya biru yang berdenyut, menunjuk ke Laut Jauh.</p>' });
+        else if (v === 'dewan') l.push({ narr: 'Lonceng Rantai Lama', icon: 'crown', t: '<p>Kabar dari Laut Jauh: lonceng Pelabuhan Rantai Lama berbunyi sendiri tiga kali semalam, di ruang tempat stempel Kumis Hitam disimpan Dewan Dua Tangan.</p>' + (m.fate === 'dewan' ? '<p class="muted small">Jendral Tedsky bersumpah bukan ia yang menarik talinya.</p>' : '') });
+        else l.push({ narr: 'Di samping mahkota Ratu', icon: 'crown', t: '<p>Stempel Kumis Hitam yang kau kembalikan kepada Ratu Marlya menyala biru di malam hari, di samping mahkotanya sendiri.</p>' });
+        l.push({ narr: 'Kapal yang tidak pernah sampai', icon: 'ship', t: '<p>Satu kabar lagi, dari syahbandar ke syahbandar: kapal yang membawa Kumis Hitam pulang <b>tidak pernah merapat</b> di pelabuhan Pemerintah Dunia mana pun. Di laut, layar-layar biru kembali berpatroli.</p>' });
+        return l;
+      },
+      b: btn('go', 'scroll', 'Periksa kabar stempel'),
+      a: function (s) {
+        var m = (s && s.mk2) || {};
+        return [{ n: 'marlya', t: '"Frekuensi suar itu memakai inti teknologi M.A.R.I.E. milikku sendiri, Kapten."' + (m.stempel === 'marlya' ? ' <i>"Stempelnya ada di sini, di sampingku. Ia menyala sejak semalam."</i>' : '') },
+          { n: 'marlya', t: '"Segera angkat sauh menuju <b>Istana Marie Regal</b>. Aku akan membongkar isi suar itu bersamamu."' },
+          { narr: 'Laut tidak lagi damai', icon: 'alert', t: '<p class="muted">Navy Pemerintah Dunia kembali mencegat pelayaran. Kabur dan suap tidak berlaku di bawah darurat militer Kumis Hitam. Kalah tidak menenggelamkan kapal: kau terseret pulang dengan muatan dan gold utuh.</p>' }];
+      },
+      next: 'Istana Marie Regal.' },
+
+    /* 42 */ { at: 'tasks', c: 'marie_regal', main: 'marlya', icon: 'eye', title: 'Saringan Terbongkar', mk2: true,
+      p: [{ narr: 'Istana Marie Regal', icon: 'eye', t: '<p>Ratu Marlya membuka meja kerjanya yang lama: kabel, lensa, dan papan sirkuit yang ia sembunyikan sejak M.A.R.I.E. dimatikan. Di tengahnya, gelombang suar berkedip di layar kaca.</p>' },
+        '"Suar ini tidak mengirim pesan, Kapten. Ia <b>merekam</b>. Setiap kali kapalmu menembus Jaring, ia mencatat sesuatu." <i>Ia menyodorkan lensa.</i> "Baca kedipannya bersamaku."'],
+      b: btn('go', 'eye', 'Bongkar log suar bersama Ratu Marlya'),
+      g: { kind: 'sandi', opts: { kicker: 'Istana Marie Regal', title: 'Sandi Mercusuar &middot; Log Suar', lives: 3,
+        panels: ['UKUR KAPAL TERCEPAT', 'LACAK BATU TERAKHIR', 'KOORDINAT TERKUNCI'],
+        intro: 'Setiap kedipan satu huruf. Pecahkan tiga baris log suar itu.' } },
+      a: function (s) {
+        var m = (s && s.mk2) || {};
+        return ['"Frekuensi ini memakai arsitektur inti M.A.R.I.E. milikku sendiri, Kapten! Penarikan armada di IKN kemarin bukan kekalahan."',
+          '"Kumis Hitam sengaja memakai pajak pelabuhan dan Jaring Rantai sebagai <b>saringan</b>. Ia ingin mengukur batas kecepatan kapten-kapten pemberontak, dan menunggu satu-satunya batu baterai yang tidak kuserahkan padanya. Batu yang kuberikan padamu."',
+          m.marlya === 'kabarkan' ? '<i>Ia menunduk.</i> "Lima gubernur sudah tahu aku menjual laut ini. Biar sekarang mereka lihat aku membelinya kembali."'
+            : '<i>Ia tidak menatapmu.</i> "Kau sudah memaafkanku sekali. Jangan dulu memaafkanku lagi, sampai ini selesai."',
+          '"Tujuannya pelabuhan tempat anak-anak rantai seperti kami dulu dilelang. Tapi koordinat akhirnya dikunci sandi dari masa perpecahan pendiri Moramora dan <b>The Marshells</b>."',
+          '"Pergilah ke <b>Javasche Bank di Joungjava</b> dan temui <b>coco epan</b>. Aku sudah mengirim surat padanya, dan catatan leluhurnya menyimpan buku sandi itu."'];
+      },
+      next: 'Javasche Bank, Joungjava.' },
+
+    /* 43 */ { at: 'bank', c: 'joungjava', main: 'coco', icon: 'book', title: 'Buku Sandi & Nama Lama', mk2: true,
+      p: [{ narr: 'Javasche Bank &middot; Joungjava', icon: 'book', t: '<p>coco epan membaca surat Ratu Marlya dua kali, melepas monokelnya, lalu membacanya sekali lagi tanpa monokel.</p>' },
+        '"Leluhur saya salah satu pendiri Moramora, Kapten. Seorang Marshell menawarinya mahkota, dan ia menerimanya. Sahabatnya ia jual." <i>Ia mengetuk pipanya ke meja.</i> "Keluarga saya menyimpan buku sandi itu supaya ada yang ingat harganya."'],
+      b: btn('go', 'book', 'Temui coco epan'),
+      a: [{ narr: 'Buku Sandi Moramora Kuno', icon: 'book', t: '<p>Buku kecil bersampul kulit yang sudah retak. Di halaman pertama: lambang dua tangan yang terputus oleh mahkota.</p>' },
+        '"Bawa buku sandi leluhur saya ini kembali ke <b>Ratu Marlya di Istana Marie Regal</b>." <i>Ia tersenyum tipis.</i> "Ironis, bukan? Buku dari raja yang ia gulingkan. Semoga ini cukup untuk membongkar tujuan akhir The Marshells."'],
+      next: 'Istana Marie Regal.' },
+
+    /* 44 */ { at: 'tasks', c: 'marie_regal', main: 'marlya', icon: 'map', title: 'Koordinat Teluk Mati', mk2: true,
+      p: [{ narr: 'Istana Marie Regal', icon: 'map', t: '<p>Marlya membuka Buku Sandi di samping layar suar. Halaman-halamannya robek dan tercecer; urutannya harus disusun ulang.</p>' }],
+      b: btn('go', 'map', 'Pecahkan koordinat akhir bersama Marlya'),
+      g: { kind: 'tercecer', opts: { title: 'Surat Tercecer &middot; Buku Sandi', sub: 'Istana Marie Regal', kicker: 'Padukan buku sandi dengan log suar',
+        intro: 'Ketuk lembar sandi <b>berurutan</b> sampai koordinatnya terbaca dari awal ke akhir.',
+        salah: 'Koordinatnya belum nyambung. Baca ujung tiap lembar, lalu susun ulang.',
+        sobek: ['Di balik pelabuhan tempat rantai dijual,', 'ada teluk yang tak pernah diberi angin,', 'dijaga rantai yang lebih tua dari pemerintah,', 'di sanalah mahkota yang karam menunggu.'] } },
+      a: ['"Koordinatnya bukan pelabuhannya, Kapten. <b>Teluk Dalam</b> di belakang Pelabuhan Rantai Lama, yang dikunci rantai tua Pemerintah Dunia."',
+        '"Pergilah ke <b>Arsip & Jam Agung di Pulau em pe\'er de pe\'er</b>. <b>Paman Ocid</b> menyimpan catatan perjanjian The Marshells."'],
+      next: 'Arsip, em pe\'er de pe\'er.' },
+
+    /* 45 */ { at: 'library', c: 'empeer_depeer', main: 'ocid', icon: 'scroll', title: 'Arsip Terlarang Dewan', mk2: true,
+      p: [{ narr: 'Arsip Kubah &middot; di bawah Jam Agung', icon: 'scroll', t: '<p>Paman Ocid memutar tiga kunci kuningan. Brankas arsip terlarang Dewan Mahkota terbuka dengan bunyi seperti napas tertahan.</p>' },
+        '"Perjanjian ini ditulis dengan darah, Kapten. Pemerintah Dunia pertama dan keluarga The Marshells."'],
+      b: btn('go', 'scroll', 'Buka brankas bersama Paman Ocid'),
+      a: ['"Leluhur The Marshells dulu <b>penjaga segel Teluk Dalam</b>. Di dasar teluk itu ada altar yang menyedot apa saja yang hanyut di arus dalam Mare Nusantara. Mereka bersumpah menjaganya. Lalu mereka berkhianat, dan menjual sumpah itu kepada Pemerintah Dunia."',
+        '"Untuk masuk ke Teluk Dalam tanpa dihancurkan rantai kuno, kau butuh anak kunci gerbangnya. Temui <b>Teh Euis di Perpustakaan Rakyat TooGood</b>. Dia penjaga kunci-kunci tua pulau itu."'],
+      next: 'Perpustakaan Rakyat, TooGood.' },
+
+    /* 46 */ { at: 'library', c: 'toogood', main: 'euis', icon: 'key', title: 'Kunci-Kunci Tua', mk2: true,
+      p: [{ narr: 'Perpustakaan Rakyat &middot; TooGood', icon: 'key', t: '<p>Teh Euis menurunkan sebuah kotak kayu dari rak paling atas. Di dalamnya puluhan anak kunci, masing-masing diikat pita dengan nama pintunya. Satu tidak berpita.</p>' },
+        '"Dari semua kunci tua ini, cuma satu yang Teteh tidak pernah tahu pintunya." <i>Ia mengangkatnya ke cahaya.</i> "Besi tua, berat, giginya berbentuk mata rantai."'],
+      b: btn('go', 'key', 'Tanyakan kunci tua pada Teh Euis'),
+      a: [{ narr: 'Anak Kunci Besi Tua', icon: 'key', t: '<p>Teh Euis meletakkan anak kunci itu di telapak tanganmu, lalu menutup jarimu di atasnya.</p>' },
+        '"Akhirnya ketemu juga lubangnya. Kunci ini untuk gerbang rantai di <b>Pelabuhan Rantai Lama</b>, Kapten. Angkat sauh sekarang. Dan pulang lagi, nya."'],
+      next: 'Berlayar ke Pelabuhan Rantai Lama.' },
+
+    /* 47 */ { at: 'tiba', c: 'rantai_lama', main: 'dorus', icon: 'anchor', title: 'Teluk Tanpa Angin', mk2: true, praOff: true,
+      tibaCine: { kind: 'mk2_teluk', slides: ['Di balik Pelabuhan Rantai Lama, sebuah rantai raksasa melintang di mulut teluk. Puluhan tahun tak pernah diturunkan.',
+        'Mata rantainya berdenyut biru, pelan, seperti sesuatu yang bernapas di bawahnya.', 'Di ujung dermaga, sebuah lentera menunggu.'] },
+      p: function (s) {
+        var m = (s && s.mk2) || {}, l = [{ narr: 'Pelabuhan Rantai Lama', icon: 'anchor', t: '<p>Kapal merapat di dermaga yang sunyi. Ki Dorus sudah berdiri di ujungnya, lentera di tangan, seolah sudah tahu kau akan datang malam ini.</p>' }];
+        if (m.fate === 'dewan') l.push({ n: 'tedskyL', t: '<i>Di menara lonceng, seorang tua berseragam lusuh berhenti menarik tali. Ia melihat anak kunci di tanganmu, lalu memalingkan muka tanpa sepatah kata.</i>' });
+        else l.push({ narr: 'Surat dari Kamp Pemulung', icon: 'scroll', t: '<p>Ki Dorus menyerahkan surat pendek yang tiba lewat Cik Siss di IKN: <i>"Kalau kumis itu belum pulang, berarti ia belum selesai menghitung. &mdash; J.T."</i></p>' });
+        return l;
+      },
+      b: btn('go', 'anchor', 'Sambut Ki Dorus'),
+      a: [{ narr: 'Hadiah Q20', icon: 'coin', t: '<p>Dewan Mahkota mengirim upah untuk kapten yang membongkar saringan Kumis Hitam.</p>' },
+        '<i>Ki Dorus menatap Anak Kunci Besi di tanganmu.</i> "Dicatat. Sudah puluhan tahun tak ada yang membawa kunci itu."',
+        '"Masuklah ke <b>Balai Kongsi</b> di belakangku sekarang. Akan kuceritakan apa yang diincar The Marshells."'],
+      next: 'Balai Kongsi, Rantai Lama.' },
+
+    /* 48 */ { at: 'balaikongsi', c: 'rantai_lama', main: 'dorus', icon: 'book', title: 'Kisah Ki Dorus', mk2: true,
+      p: [{ narr: 'Balai Kongsi &middot; Rantai Lama', icon: 'book', t: '<p>Ki Dorus menutup buku kongsinya dan membuka buku lain yang lebih tua: Buku Juru Tulis Balai Pelelangan. Halamannya menguning, tintanya merah.</p>' },
+        '"Kau tahu apa yang ada di dasar Teluk Dalam, Kapten? <b>Mahkota Karam</b>. Mahkota Raja Bjorneo."',
+        '"Semua arus dalam Mare Nusantara bermuara ke Palung Arus Mati di teluk itu. Pusaran Bjorneo juga." <i>Ia menatapmu lama.</i> "Kau sendiri yang melemparnya ke pusaran itu, Kapten. Laut tidak pernah membuang apa pun. Ia hanya memindahkannya."'],
+      b: btn('go', 'book', 'Dengarkan kesaksian Ki Dorus'),
+      a: ['"Siapa pun yang mengenakan mahkota itu di atas altar segel bisa membalikkan arus laut dan mengunci seluruh pelayaran Mare Nusantara. Cukai Kumis Hitam cuma latihan. Ini yang ia cari."',
+        '"Altarnya bisa dilemahkan dengan <b>Lempeng Segel Perunggu</b>, tapi lempeng itu tenggelam di palung berarus mati. Hanya satu keluarga penyelam yang berani turun ke sana tanpa terhisap."',
+        '"Berlayarlah ke <b>Kepulauan Karang Garam</b> dan temui <b>Ama Kerang serta cucunya, Ipo</b>, di dermaga. Dicatat."'],
+      next: 'Dermaga Karang Garam.' },
+
+    /* 49 */ { at: 'ship', c: 'karang_garam', main: 'ama', icon: 'fish', title: 'Nasi Ulam & Palung Arus', mk2: true, bahan: { beras: 10 },
+      p: [{ narr: 'Galangan Karang &middot; Karang Garam', icon: 'fish', t: '<p>Ama Kerang duduk di ujung dermaga tiang, kakinya menjuntai di atas air. Ipo menggulung tali selam di sampingnya.</p>' },
+        '"Palung arus mati? Aku masih sanggup turun, Kapten. Tapi perutku tidak." <i>Ia terkekeh.</i> "Aku sudah lama mengidam <i>nasi ulam</i>. Bawakan aku <b>10 Beras</b> dari tanah subur <b>Joungjava</b> dulu, baru kita turun ke palung!"'],
+      b: btn('go', 'crate', 'Serahkan 10 Beras & selam bersama Ama Kerang'),
+      bOk: btn('go', 'fish', 'Selam bersama Ama Kerang'),
+      g: { kind: 'selam', opts: { kicker: 'Palung arus mati &middot; Karang Garam', title: 'Selam Mutiara &middot; Lempeng Segel', targetName: 'Peti Karam', target: 'part', guide: false,
+        intro: '<b>Ama Kerang:</b> "Petinya di celah karang hitam, Kapten. Arus di sana diam, tapi menarik. Ambil, lalu naik pelan."',
+        grabMsg: '<b>Peti Karam!</b> Berat, dan di dalamnya ada sesuatu yang berdentang.',
+        cards: { ok: ['Peti Karam', 'Di tanganmu', 'Di dalamnya: <b>Lempeng Segel Perunggu</b>, retak dimakan garam.'], empty: ['Naik tanpa peti', 'Masih di dasar', '<b>Ipo:</b> "Nenek bilang turun lagi, pelan-pelan."'] } } },
+      a: [{ narr: 'Lempeng Segel Perunggu', icon: 'fish', t: '<p>Lempeng bundar sebesar tutup tempayan, berukir mata rantai di pinggirnya. Retaknya menjalar dari tengah.</p>' },
+        '<i>Ama Kerang menyantap nasi ulam hangat buatan Ipo.</i> "Lempeng kuno ini retak dimakan garam, Kapten."',
+        '"Bawa ke <b>Dok Legenda di FreeYork</b>. Pandai besi <b>Tassyaaa</b> satu-satunya yang sanggup menempa ulang logam purba begini."'],
+      next: 'Dok Legenda, FreeYork.' },
+
+    /* 50 */ { at: 'ship', c: 'freeyork', main: 'tassy', icon: 'hammer', title: 'Tungku Lempeng Segel', mk2: true, bahan: { besi: 20, mesiu: 15 },
+      p: [{ narr: 'Dok Legenda &middot; FreeYork', icon: 'hammer', t: '<p>Tassyaaa membalik Lempeng Segel di atas landasan, mengetuknya sekali, lalu mendengarkan dengungnya dengan mata terpejam.</p>' },
+        '"Logam purbaaa. Tidak bisa ditempa dengan api biasaaa." <i>Ia menunjuk tungku.</i> "Bawakan <b>20 Besi</b> dari IKN atau FreeYork, dan <b>15 Mesiu</b> dari TooGood atau Skitraw. Tungkunya harus putih membaraaa."',
+        { n: 'petrik', t: '"Bu, Sayap Tempa sudah siap." <i>Di belakang dok, bangkai Sayap Patah yang dulu kandas di karang telapak tangan kini mengapung lagi: lambungnya ditambal perunggu, sayap logamnya ditempa ulang.</i> "Aku tidak mau memakai nama lamanya, Kapten. Kapal ini sekarang <b>Sayap Tempa</b>."' }],
+      b: btn('go', 'crate', 'Serahkan 20 Besi & 15 Mesiu ke Tassyaaa'),
+      a: [{ narr: 'Tungku putih membara', icon: 'hammer', t: '<p>Mesiu dilempar ke tungku sedikit demi sedikit. Besi meleleh menjadi pengikat. Retak di Lempeng Segel menutup, satu garis demi satu garis.</p>' },
+        '"Lempeng segelnyaaa sudah utuuuh lagi, dan Petrik akan menyusul dengan Sayap Tempaaa."',
+        '"Sekarang bawa lempeng ini ke <b>Garasi Yaptob di Zentul</b>. Minta <b>Yaptob</b> dan <b>cangcimen</b> mengkalibrasi gelombangnyaaa sekalian menyiapkan Barisan Pacu."'],
+      next: 'Garasi Yaptob, Zentul.' },
+
+    /* 51 */ { at: 'garasi', c: 'zentul', main: 'yaptob', icon: 'wrench', title: 'Kalibrasi & Barisan Pacu', mk2: true, bahan: { oli_hitam: 15, tools: 10 },
+      p: [{ narr: 'Garasi Yaptob &middot; Zentul', icon: 'wrench', t: '<p>YusaintJolt masih terbaring di sudut garasi dengan lunas tersambung separuh. cangcimen sedang mengampelas sambungannya.</p>' },
+        '"Lempeng ini bergetar di frekuensi yang salah." <i>Yaptob mengetuknya dengan kunci pas.</i> "Aku butuh <b>15 Oli Hitam</b> dari Zentul dan <b>10 Perkakas</b> dari Sunda Empire untuk membersihkan alur gelombangnya. Sekalian kusetel kapal-kapal Barisan Pacu."'],
+      b: btn('go', 'crate', 'Serahkan 15 Oli Hitam & 10 Perkakas'),
+      bOk: btn('go', 'hammer', 'Kalibrasi resonansi bersama Yaptob'),
+      g: { kind: 'tempa', opts: { kicker: 'Garasi Yaptob &middot; Zentul', title: 'Tempa Pengait &middot; Kalibrasi Resonansi',
+        intro: '<b>Yaptob:</b> "Pukul di zona hijau, celup sekali. Sama seperti katup dulu, Kapten. Bedanya, yang ini bernyanyi."' } },
+      a: [{ narr: 'Lempeng berdengung bersih', icon: 'wrench', t: '<p>Dengung Lempeng Segel turun satu nada, lalu tenang. Di dermaga, mesin-mesin Barisan Pacu menyala satu per satu.</p><p class="muted small">Garasi Warlord tetap terbuka untuk upgrade kapalmu.</p>' },
+        '"Lempeng ini sudah terkalibrasi, dan Barisan Pacu siap turun ke selat! YusaintJolt masih patah, jadi aku numpang perahu muridku."',
+        '"Bawa lempeng itu ke <b>Istana Marie Regal</b>. Hanya <b>Ratu Marlya</b> yang bisa memasang <b>Pengacau Frekuensi M.A.R.I.E.</b> ke dalamnya."'],
+      next: 'Istana Marie Regal.' },
+
+    /* 52 */ { at: 'tasks', c: 'marie_regal', main: 'marlya', icon: 'star', title: 'Pengacau Frekuensi', mk2: true, bahan: { emas: 5, mutiara: 5 },
+      p: [{ narr: 'Istana Marie Regal', icon: 'star', t: '<p>Ratu Marlya memasang Lempeng Segel di dudukan tembaga dan mengitarinya dengan kabel halus.</p>' },
+        '"Pengacau Frekuensi akan meledak kalau penghantarnya kotor. Aku butuh <b>5 Emas</b> dari Sunda atau Bjorneo sebagai penghantar murni, dan <b>5 Mutiara</b> dari Paradiso atau Sunda sebagai lensa fokus."'],
+      b: btn('go', 'crate', 'Serahkan 5 Emas & 5 Mutiara ke Marlya'),
+      a: [{ narr: 'Lempeng Segel Berpengacau', icon: 'star', t: '<p>Mutiara dipasang di lima lekuk lempeng. Saat arus pertama dialirkan, mutiara-mutiara itu menyala ungu, lalu padam pelan.</p>' },
+        '"Untuk Andry." <i>Ia mengusap lempeng itu.</i> "Aku yang membuat mesin yang mengunci laut. Kali ini aku yang membawa kuncinya ke garis depan, Kapten. Aku turun berperang."',
+        '"Sekarang kumpulkan armada utama kita. Temui <b>Hasiolan dan Uda Gala di Galangan Gaul-Wash, Skitraw</b>."'],
+      next: 'Galangan Gaul-Wash, Skitraw.' },
+
+    /* 53 */ { at: 'ship', c: 'skitraw', main: 'gaul', icon: 'cup', title: 'Penghangat Armada Skitraw', mk2: true, bahan: { jackdaniels: 20, jhonnywalker: 20 },
+      p: [{ narr: 'Galangan Gaul-Wash &middot; Skitraw', icon: 'cup', t: '<p>Neon Gaul-Wash berkedip di atas deretan kapal perang Skitraw. Uda Gala berdiri di tengah galangan, tangan di pinggang.</p>' },
+        { n: 'gala', t: '"Angin Laut Jauh itu dingin sampai ke tulang, Kapten. Anak-anak Skitraw ndak bisa berperang kalau giginya gemeretak." <i>Ia tertawa keras.</i> "Bawakan <b>20 JackDaniels</b> dan <b>20 JhonnyWalker</b> dari Sunda Empire. Penghangat perjalanan!"' }],
+      b: btn('go', 'crate', 'Serahkan 20 JackDaniels & 20 JhonnyWalker'),
+      a: [{ n: 'gala', t: '"Ambo jago palabuahan ko. Hasiolan nan mambao anak-anak."' },
+        '"Semangat anak-anak Skitraw sudah menyala! Armada kami siap bergerak di sayap timur."',
+        '"Sekarang pergilah ke <b>Dok Kering TooGood</b>. <b>zafachmie</b> dan <b>Bang Rimba</b> sedang menyiapkan <b>Black Pearl</b> dan Armada Bebas di sana."'],
+      next: 'Dok Kering, TooGood.' },
+
+    /* 54 */ { at: 'ship', c: 'toogood', main: 'zafa', icon: 'crate', title: 'Sumpah & Ransum Black Pearl', mk2: true,
+      cicil: { beras: 300, ikan_asin: 300, tuak: 150 },
+      cineSesudah: { kind: 'mk2_armada', slides: ['Genderang Legenda Trust ditabuh di dermaga TooGood. Asap tidak lagi naik dari cerobongnya; yang naik hanya layar.',
+        'Black Pearl di depan. Di belakangnya Armada Bebas, armada Skitraw, Sayap Tempa, dan Barisan Pacu.', 'Haluan ke timur. Ke Teluk Dalam.'] },
+      p: [{ narr: 'Dok Kering &middot; TooGood', icon: 'crate', t: '<p>Black Pearl sudah keluar dari gua. Ratusan awak Armada Bebas berjejal di dermaga, dan Bang Rimba menghitung mereka dengan jari.</p>' },
+        { n: 'rimba', t: '"Ratusan awak butuh makan, Kapten. <b>300 Beras</b> dari Joungjava, <b>300 Ikan Asin</b> dari Skitraw, <b>150 Tuak</b> dari Bjorneo atau Paradiso. Boleh dicicil &mdash; setor sebanyak yang muat di palkamu, tiap kali kau merapat di sini."' },
+        '"Darah Buccaneer tidak berperang dengan perut kosong." <i>zafachmie meninju lambung Black Pearl dengan pelan.</i> "Dan tidak berperang tanpa nama Andry di mulutnya."'],
+      b: btn('go', 'crate', 'Setor Ransum Perang'),
+      a: [{ narr: 'Hadiah Q21', icon: 'coin', t: '<p>Logistik armada aliansi lengkap.</p>' },
+        '<i>zafachmie mengepalkan tangan di haluan Black Pearl.</i> "Ransum penuh dan seluruh sekutu sudah bergerak!"',
+        '"Angkat sauh menuju <b>Pelabuhan Rantai Lama</b> sekarang. Kita tembus blokade terluar Kumis Hitam!"'],
+      next: 'Berlayar ke Pelabuhan Rantai Lama.' },
+
+    /* 55 */ { at: 'tiba', c: 'rantai_lama', main: 'zafa', icon: 'flag', title: 'Blokade Luar Rantai', mk2: true,
+      p: [{ narr: 'Perairan Rantai Lama', icon: 'flag', t: '<p>Asap meriam masih menggantung di atas air. Dua kapal Gugus Tugas "Tembok Mahkota" terseret arus, bendera birunya separuh tenggelam.</p>' }],
+      b: btn('go', 'anchor', 'Merapat ke dermaga'),
+      a: ['<i>Suara zafachmie dari corong laut:</i> "Garis depan mereka jebol!"',
+        '"Merapatlah ke <b>Dermaga Pelabuhan Rantai Lama</b> sekarang dan buka gerbang teluknya dengan kunci dari Teh Euis!"'],
+      next: 'Dermaga Rantai Lama.' },
+
+    /* 56 */ { at: 'ship', c: 'rantai_lama', main: 'dorus', icon: 'key', title: 'Gerbang yang Terkunci', mk2: true,
+      cineAfter: { kind: 'mk2_gerbang', slides: ['Anak kunci berputar. Mata rantai raksasa itu bergetar, lalu turun ke air untuk pertama kalinya dalam puluhan tahun.',
+        'Teluk Dalam terbuka.', 'Dan dari kabut di belakang armada, sebuah kapal hitam berpinggir emas menyelinap masuk lebih dulu.'] },
+      p: [{ narr: 'Gerbang Rantai Teluk Dalam', icon: 'key', t: '<p>Di ujung dermaga ada tiang batu berlubang kunci, dan di sebelahnya dudukan bundar seukuran Lempeng Segel.</p>' },
+        '"Kunci dulu, lalu lempeng. Kalau urutan nadanya salah, rantai itu akan mengencang, bukan turun." <i>Ki Dorus mengangkat lenteranya.</i> "Dicatat atau tidak, ini malam terpenting pelabuhan ini."'],
+      b: btn('go', 'key', 'Buka Gerbang Rantai dengan Anak Kunci Tua'),
+      g: { kind: 'sandi', opts: { kicker: 'Gerbang Rantai &middot; Rantai Lama', title: 'Sandi Mercusuar &middot; Gerbang Teluk', lives: 3,
+        panels: ['KUNCI BESI TUA', 'LEMPENG BERPENGACAU', 'TURUNKAN RANTAI'],
+        intro: 'Setiap kedipan satu huruf. Pecahkan tiga baris nada gerbang itu.' } },
+      a: [{ narr: 'Pintu yang terbuka untuk dua orang', icon: 'alert', t: '<p>Ki Dorus menurunkan lenteranya pelan-pelan.</p>' },
+        '"Kita membukakan pintunya untuk dia, Kapten." <i>Ia menatap kabut tempat kapal hitam itu menghilang.</i> "Tidak ada waktu untuk menyesal."',
+        '"Rantai sudah turun! Masuklah ke <b>Balai Kongsi</b>. Seluruh pemimpin armada aliansi sudah berkumpul untuk menyusun formasi serang terakhir!"'],
+      next: 'Balai Kongsi, Rantai Lama.' },
+
+    /* 57 */ { at: 'balaikongsi', c: 'rantai_lama', main: 'zafa', icon: 'users', title: 'Dewan Perang Laut', mk2: true,
+      cineAfter: { kind: 'mk2_mahkota', slides: ['Di dasar Teluk Dalam, altar segel menyala. Mahkota Karam terangkat dari endapan arus.',
+        'Di anjungan Sovereign Mahkota, Kumis Hitam mengenakannya. Untuk pertama kalinya, ia tersenyum.', 'Arus teluk berbalik.'] },
+      p: function (s) {
+        var m = (s && s.mk2) || {}, l = [{ narr: 'Balai Kongsi &middot; malam perang', icon: 'users', t: '<p>Meja kongsi Ki Dorus disulap jadi peta. zafachmie, Ratu Marlya, Hasiolan, Bang Rimba, Petrik, dan cangcimen berdiri mengelilinginya.</p>' },
+          '"Barisan Pacu menembus zona bidik meriam di mulut teluk. Kau di barisan depan, Kapten. Hasiolan sayap timur, Bang Rimba dan Petrik dari selatan. Marlya dan aku menunggu kapal induknya."'];
+        if (m.fate === 'dewan') l.push({ n: 'tedskyL', t: '<i>Dari ambang pintu, penarik lonceng bicara tanpa masuk.</i> "Rantai di teluk itu lebih tua dari aku, Kapten. Aku dulu cuma lewat di bawahnya. Pastikan kau tidak."' });
+        return l;
+      },
+      b: btn('go', 'users', 'Mulai Operasi Takhta Tanpa Mahkota'),
+      a: ['"Kau lihat sendiri, Kapten. Ia sudah memakainya."',
+        '"Tidak ada jalan mundur. Kembali ke kapalmu dan tekan <b>Pimpin barisan depan</b>. Kita hancurkan barikade selat ini bersama-sama!"'],
+      next: 'Dermaga Rantai Lama: pimpin barisan depan.' },
+
+    /* 58 */ { at: 'ship', c: 'rantai_lama', main: 'cangcimen', icon: 'flag', title: 'Gelombang 1: Terobosan Selat', mk2: true, perang: true, race: true, win: true,
+      p: [{ narr: 'Mulut Teluk Dalam', icon: 'flag', t: '<p>Barikade meriam apung berjajar di mulut teluk, dan di belakangnya dua kapal tempur berat Gugus Tugas "Tembok Mahkota".</p>' },
+        '"Zona bidik meriam mereka lebar, Kapten. Ikuti garis api perahuku &mdash; lurus, jangan ragu. Setelah kita lewat, kau hajar Tembok Utara dan Tembok Selatan!"'],
+      pKilat: ['"Zona bidik sudah tertembus! Sekarang giliran meriammu, Kapten. <b>Tembok Utara</b> lebih dulu, lalu <b>Tembok Selatan</b>."'],
+      b: btn('go', 'flag', 'Pimpin barisan depan!'),
+      bSerang: btn('serang', 'flag', 'Serbu barikade!'),
+      kalahLine: 'Salvo barikade memaksa perahu-perahu Barisan Pacu memutar. Coba lagi, Kapten.',
+      next: 'Battle Akhir Bersama: Gelombang 1.' },
+
+    /* 59 */ { at: 'ship', c: 'rantai_lama', main: 'gaul', icon: 'flag', title: 'Gelombang 2: Benturan Dua Armada', mk2: true, perang: true,
+      p: [{ narr: 'Tengah pusaran Teluk Dalam', icon: 'flag', t: '<p>Tiga kapal elit Armada Pemburu "Algojo" menunggu di tengah palung. Dari kabut timur, armada Skitraw muncul; dari selatan, meriam Armada Bebas dan Sayap Tempa.</p>' },
+        '"Kami tahan sayap kiri dan kanan. Kau tumbangkan kapal komandonya, Kapten!"'],
+      bSerang: btn('serang', 'flag', 'Serbu jantung armada!'),
+      next: 'Battle Akhir Bersama: Gelombang 2.' },
+
+    /* 60 */ { at: 'ship', c: 'rantai_lama', main: 'hitam', icon: 'crown', title: 'Gelombang 3: Sovereign Mahkota', mk2: true, perang: true, tamat2: true,
+      p: [{ narr: 'Anjungan Sovereign Mahkota', icon: 'crown', t: '<p>Kapal induk hitam berpinggir emas berdiri di atas altar yang menyala. Di anjungannya, Kumis Hitam mengenakan Mahkota Karam.</p>' },
+        '"Kau pikir cukai dan rantai pelabuhan itu tujuan akhirku, Kapten? Itu hanyalah uji saring! Aku butuh mengukur batas kecepatan pemberontak dan melacak resonansi terakhir M.A.R.I.E. untuk membuka segel di bawah kaki kita ini."',
+        '"Terima kasih sudah membukakan jalannya."'],
+      pMenang: [{ narr: 'Geladak yang tenggelam', icon: 'crown', t: '<p>Sovereign Mahkota miring ke Palung Arus Mati. Armada aliansi menarik Kumis Hitam ke geladak Black Pearl. Di papan geladak itu, kepingan inti <b>Mahkota Karam</b> berguling dan berhenti di dekat kakimu.</p>' },
+        { n: 'marlya', t: '"Mahkota itu masih bisa menyimpan arus, Kapten. Sedikit. Cukup untuk orang yang salah." <i>Ia menoleh kepadamu.</i> "Keputusannya milikmu."' }],
+      bSerang: btn('serang', 'crown', 'Hadapi Kumis Hitam!'),
+      bPilih: '<button class="btn btn-gold" data-mk="hancurkan">' + ic('hammer') + '&nbsp; Hancurkan di Palung Rantai Lama</button>' +
+         '<button class="btn" data-mk="ocid">' + ic('scroll') + '&nbsp; Serahkan ke Arsip Dewan (Paman Ocid)</button>',
+      pilih: { hancurkan: 'hancurkan', ocid: 'ocid' },
+      next: 'Battle Akhir Bersama: Gelombang 3.' },
+
     null
   ].filter(function (x) { return !!x; });
 
@@ -951,6 +1199,115 @@ var MK = (function () {
           actions(btn('ok', null, 'Tutup', false)) + '</div>';
         on(w, '[data-mk=ok]', function () { close(); loadState(); });
       });
+    });
+  }
+
+
+  /* =====================================================================
+   * Saga 4 Bagian II: setoran bertahap, Battle Akhir Bersama, epilog sinematik + credit
+   * ===================================================================== */
+  var NAMA_BARANG = { beras: 'Beras', ikan_asin: 'Ikan Asin', tuak: 'Tuak', besi: 'Besi', mesiu: 'Mesiu', oli_hitam: 'Oli Hitam', tools: 'Perkakas',
+    emas: 'Emas', mutiara: 'Mutiara', jackdaniels: 'JackDaniels', jhonnywalker: 'JhonnyWalker' };
+  function mk2Run(w, i) {
+    var d = S[i], s = st(), m = (s && s.mk2) || {};
+    if (d.cicil) {
+      var c = (m.data && m.data.cicil) || {};
+      var bars = '<div class="mk2-bars">' + Object.keys(d.cicil).map(function (k) {
+        var n = d.cicil[k], v = Math.min(n, c[k] || 0);
+        return '<div class="mk2-bar"><span>' + esc(NAMA_BARANG[k] || k) + '</span><i><b style="width:' + Math.round(v / n * 100) + '%"></b></i><em>' + v + ' / ' + n + '</em></div>';
+      }).join('') + '</div>';
+      var list = d.p.slice(), last = list[list.length - 1];
+      list[list.length - 1] = typeof last === 'string' ? last + bars : Object.assign({}, last, { t: last.t + bars });
+      pages(w, d.main || 'lapau', list, d.b, function (w2) {
+        on(w2, '[data-mk=go]', function (b) {
+          call(['setor', i], function (r) {
+            if (r && r.maju) { after(i, r); return; }
+            au('coin');
+            var masuk = Object.keys((r && r.masuk) || {}).map(function (k) { return r.masuk[k] + ' ' + (NAMA_BARANG[k] || k); }).join(', ');
+            if (masuk) showToast('Ransum disetor: ' + masuk + '.', 'success');
+            var w3 = insertTop('<div></div>'); if (w3) mk2Run(w3, i);
+          }, b);
+        });
+      }, d);
+      return;
+    }
+    // Battle Akhir Bersama
+    if (d.pilih && m.menang) {
+      pages(w, d.main || 'lapau', d.pMenang, d.bPilih, function (w2) {
+        Object.keys(d.pilih).forEach(function (key) {
+          on(w2, '[data-mk=' + key + ']', function (b) {
+            w2.querySelectorAll('[data-mk]').forEach(function (x) { x.disabled = true; });
+            call(['pilih', i, d.pilih[key]], function (r) { after(i, r); }, b);
+          });
+        });
+      }, d);
+      return;
+    }
+    var butuhKilat = !!(d.race && !m.kilat);
+    pages(w, d.main || 'lapau', (d.race && m.kilat && d.pKilat) ? d.pKilat : d.p, butuhKilat ? d.b : d.bSerang, function (w2) {
+      on(w2, '[data-mk=go]', function (b) { balap(i, b); });
+      on(w2, '[data-mk=serang]', function (b) { serang(i, b); });
+    }, d);
+  }
+  function serang(i, b) {
+    call(['serang', i], function (r) {
+      au('cannon'); close();
+      if (typeof openPendingCombat_ === 'function') openPendingCombat_(r && r.voyage);
+      else if (typeof loadState === 'function') loadState();
+    }, b);
+  }
+  function kilatLewat(i) {
+    var d = S[i]; au('success');
+    var w = modalWrap(d.icon, d.title, 'Teluk Dalam'); if (w) runStep(w, i);
+  }
+  function kurangKartu(i, m) {
+    var d = S[i] || {};
+    var w = modalTerbuka() ? insertTop('<div></div>') : modalWrap(d.icon || 'crate', d.title || 'Barang kurang', ''); if (!w) { showToast(m, 'error'); return; }
+    au('page');
+    w.innerHTML = speech(who(d.main || 'lapau'), '<p>"Belum cukup, Kapten. Pulang dulu, cari lagi, lalu kembali ke sini. Aku tidak ke mana-mana."</p><p class="muted small">' + ic('crate') + ' ' + esc(m) + '</p>',
+      actions(btn('tutup', null, 'Baik', false)));
+    on(w, '[data-mk=tutup]', function () { var w2 = insertTop('<div></div>'); if (w2) runStep(w2, i); else close(); });
+  }
+  // credit bergulir (format Saga 3): bisa dilewati manual setelah 3 detik, tidak pernah otomatis
+  function credit2(nama, cb) {
+    if (!window.MTCine || !document.body) { if (cb) cb(); return; }
+    close();
+    var ov = document.createElement('div'); ov.className = 'qt-cine cb-cine';
+    ov.innerHTML = '<canvas></canvas><button class="cb-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button>';
+    document.body.appendChild(ov);
+    var done = false, stop = function () { };
+    function fin() { if (done) return; done = true; try { stop(); } catch (e) { } ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450); if (cb) setTimeout(cb, 80); }
+    try { stop = MTCine.play(ov.querySelector('canvas'), 'mk2_credits', { data: { name: nama }, onIntroEnd: function () { setTimeout(fin, 1200); } }) || stop; } catch (e) { fin(); return; }
+    var sk = ov.querySelector('.cb-skip'); sk.onclick = fin; setTimeout(function () { sk.classList.add('on'); }, 3000);
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+  }
+  function epilog2(i, r) {
+    var s = st(), m = (s && s.mk2) || {}, pil = (m.data && m.data.mahkota) || 'hancurkan', fate = m.fate || 'dewan';
+    var nama = 'Kapten'; try { nama = (state.player && (state.player.characterName || state.player.name)) || 'Kapten'; } catch (e) { }
+    try { metaBump_('mkpenumbang', 1); } catch (e) { }
+    au('achieve');
+    var karam = ['Sovereign Mahkota miring pelan ke Palung Arus Mati. Kumis Hitam ditarik ke geladak Black Pearl, kumisnya basah dan tidak disisir.',
+      '<i>"Laut yang bebas tidak bisa dihitung, Kapten."</i> Ia menatap air. <i>"...Mungkin memang tidak perlu."</i>',
+      pil === 'ocid' ? 'Kepingan Mahkota Karam dibungkus kain bendera dan dibawa ke em pe\'er de pe\'er. Paman Ocid menyegelnya di bawah Jam Agung, di samping Jam Pasir yang sudah kosong.'
+        : 'Kepingan Mahkota Karam kau lepaskan ke Palung Arus Mati. Arus Mare Nusantara dan Laut Jauh kembali liar &mdash; dan bebas &mdash; selamanya.'];
+    var fajar = ['Rantai-rantai raksasa di dasar teluk tenggelam selamanya. Ki Dorus menyalakan lentera pertama di dermaga yang kini punya angin laut.' +
+        (fate === 'dewan' ? ' Di menara lonceng, Jendral Tedsky menarik talinya satu kali saja.' : ' Jauh di IKN, Jendral Tedsky menatap ke timur dari bawah sayap Garuda.'),
+      'zafachmie dan Ratu Marlya berdiri di haluan Black Pearl dan melemparkan bunga ke laut untuk saudara ketiga mereka. <i>"Laut ini akhirnya benar-benar bebas, Saudaraku."</i>',
+      'Di Warung Pantai Joungjava, coco epan menutup buku utang lama keluarganya, lalu memesan kopi pahit bersama Pak Tua Karto.',
+      'Di Lapau Oli Zentul, cangcimen dan Yaptob bersulang oli bersama Rayan Bazzy. Lunas YusaintJolt akhirnya tersambung.',
+      '<i>&ldquo;Mahkota tidak pernah membuat seseorang menjadi raja; keberanian untuk berlayar tanpa rantai itulah yang memerdekakan lautan.&rdquo;</i>'];
+    cine('mk2_karam', karam, function () {
+      cine('mk2_fajar', fajar, function () {
+        credit2(nama, function () {
+          var w = modalWrap('crown', 'Saga Keempat', 'Lengkap'); if (!w) return;
+          w.innerHTML = '<div class="cb-narr" style="text-align:center">' +
+            '<h2 style="letter-spacing:.14em;margin:6px 0">SAGA KEEMPAT &mdash; LENGKAP</h2><p class="muted small">Monopoli &amp; Mahkota &middot; Takhta Tanpa Mahkota</p>' + reward(r) +
+            '<div class="mk-reward">' + ic('medal') + '<div><b>Gelar: Penumbang Mahkota</b><br><span class="muted small">Tersimpan di Kartu Kapten.</span></div></div>' +
+            '<div class="mk-reward">' + ic('flag') + '<div><b>Rupa: Layar Hitam-Emas "Takhta Bebas"</b><br><span class="muted small">Pasang di Kedai Rantau.</span></div></div>' +
+            actions(btn('ok', null, 'Tutup', false)) + '</div>';
+          on(w, '[data-mk=ok]', function () { close(); if (typeof loadState === 'function') loadState(); });
+        });
+      }, { rantai: fate });
     });
   }
 
@@ -1007,10 +1364,16 @@ var MK = (function () {
   function after(i, r) {
     var d = S[i];
     if (d.epilog) { epilog(i, r); return; }
+    if (d.tamat2) { epilog2(i, r); return; }
+    if (d.cineSesudah && !cineSudah(d.cineSesudah.kind)) {
+      cineTandai(d.cineSesudah.kind);
+      cine(d.cineSesudah.kind, d.cineSesudah.slides, function () { after(i, r); });
+      return;
+    }
     if (d.win && d.title === 'Final Turnamen Obor') { try { metaBump_('mkobor', 1); } catch (e) { } }
     var w = modalTerbuka() ? insertTop('<div></div>') : modalWrap(d.icon, d.title, '');
     if (!w) return;
-    var list = (d.a || [{ narr: d.title, icon: d.icon, t: '<p>Selesai.</p>' }]).slice();
+    var list = ((typeof d.a === 'function' ? d.a(st()) : d.a) || [{ narr: d.title, icon: d.icon, t: '<p>Selesai.</p>' }]).slice();
     au('success');
     var lanjutLabel = (d.at === 'tiba' || d.at === 'heat' || d.at === 'setsail' || d.setor) ? 'Tutup' : 'Lanjut';
     pages(w, d.main || 'lapau', list, btn('ok', null, lanjutLabel, false), function (w2) {
@@ -1026,9 +1389,12 @@ var MK = (function () {
 
   function runStep(w, i) {
     var d = S[i];
+    if (d.mk2 && (d.perang || d.cicil)) { mk2Run(w, i); return; }
+    var P = typeof d.p === 'function' ? d.p(st()) : d.p;
+    var bahanOk = !!(d.bahan && (((st() && st().mk2 && st().mk2.data) || {})['bahan' + (i + 1)]));
     if (d.info) { pages(w, d.main || 'lapau', d.p, btn('ok', null, 'Tutup', false), function (w2) { on(w2, '[data-mk=ok]', close); }, d); return; }
     var perluOleh = !!(d.oleh && !((st() && st().data) || {}).olehOk);
-    pages(w, d.main || 'lapau', (d.oleh && !perluOleh && d.pSudah) ? d.pSudah : d.p, perluOleh ? d.bOleh : d.b, function (w2) {
+    pages(w, d.main || 'lapau', (d.oleh && !perluOleh && d.pSudah) ? d.pSudah : P, perluOleh ? d.bOleh : (bahanOk && d.bOk ? d.bOk : d.b), function (w2) {
       if (d.pilih) {
         Object.keys(d.pilih).forEach(function (key) {
           on(w2, '[data-mk=' + key + ']', function (b) {
@@ -1049,6 +1415,15 @@ var MK = (function () {
           return;
         }
         if (d.teka) { teka(i, w2); return; }
+        // Bagian II: barang diserahkan dulu (server mengambilnya), baru mini game / langkah tuntas
+        if (d.bahan && !bahanOk) {
+          call(['setor', i], function (r) {
+            if (r && r.maju) { after(i, r); return; }
+            au('coin'); showToast('Barang diterima.', 'success');
+            var w3 = modalTerbuka() ? insertTop('<div></div>') : modalWrap(d.icon, d.title, ''); if (w3) runStep(w3, i);
+          }, b);
+          return;
+        }
         if ((d.at === 'sirkuit' || d.heat) && !d.g) { balap(i, b); return; }
         function teruskan(res) {
           if (d.cineAfter) { b.disabled = true; cine(d.cineAfter.kind, d.cineAfter.slides, function () { kirim(i, res, null); }); return; }
@@ -1100,18 +1475,18 @@ var MK = (function () {
         var srv = c.querySelector('.trk-srv'), btn2 = c.querySelector('.trk-btn'), out = null;
         btn2.onclick = function () {
           if (!out) return; var g = G; G = null; if (g) g.close();
-          setTimeout(function () { if (out.maju === false) ulangBabak(i, out); else after(i, out); }, 420);
+          setTimeout(function () { if (out.kilat) kilatLewat(i); else if (out.maju === false) ulangBabak(i, out); else after(i, out); }, 420);
         };
         call(['selesai', i, t.run, res.log], function (rr) {
           out = rr;
           if (c.isConnected) {
             var menang = !!(rr.hasil && rr.hasil.win);
-            btn2.textContent = rr.maju === false ? 'ULANGI' : 'LANJUT';
+            btn2.textContent = rr.maju === false && !rr.kilat ? 'ULANGI' : 'LANJUT';
             srv.textContent = rr.target
               ? (rr.maju === false ? 'Gerbang bambu menutup di depan haluan.' : 'Lewat, tepat sebelum gerbang menutup.')
               : (menang ? 'Rayan Bazzy mencatat namamu di papan.' : 'Lawanmu sudah di garis akhir.');
             btn2.disabled = false;
-          } else setTimeout(function () { if (rr.maju === false) ulangBabak(i, rr); else after(i, rr); }, 420);
+          } else setTimeout(function () { if (rr.kilat) kilatLewat(i); else if (rr.maju === false) ulangBabak(i, rr); else after(i, rr); }, 420);
         });
       });
     }, b);
@@ -1169,7 +1544,7 @@ var MK = (function () {
         return;
       }
       if (!siap || at !== 'market' || kota !== cid()) return;
-    } else if (d.at !== at) return;
+    } else if ((d.at === 'balaikongsi' && !(state && state.kongsi) ? 'tavern' : d.at) !== at) return;
     if (d.c && d.c !== cid()) return;
     // agen Bang Rimba hanya di pasar kota tempat jaring ditembus: di pasar lain, beri tahu di mana ia menunggu
     if (d.zonaHere) {
@@ -1187,13 +1562,14 @@ var MK = (function () {
   function tiba(auto) {
     var s = st(); if (!s || !docked()) return false;
     var i = idx(), d = S[i];
-    if (!d || (d.at !== 'tiba' && d.at !== 'heat') || d.c !== cid()) return false;
+    var pilihMk2 = !!(d && d.perang && d.pilih && s.mk2 && s.mk2.menang);
+    if (!d || (d.at !== 'tiba' && d.at !== 'heat' && !pilihMk2) || d.c !== cid()) return false;
     if (auto) {
       if (tibaShown === i || gameOpen) return false;
       if (document.getElementById('modalOverlay') && document.getElementById('modalOverlay').classList.contains('open')) return false;
       if (window.MTGames8 && MTGames8.isOpen && MTGames8.isOpen()) return false;
       tibaShown = i;
-      var w = modalWrap(d.icon, d.title, d.at === 'heat' ? 'IKN' : 'Zentul'); if (w) runStep(w, i);
+      var w = modalWrap(d.icon, d.title, d.at === 'heat' ? 'IKN' : (cityNm(d.c) || 'Zentul')); if (w) runStep(w, i);
       return true;
     }
     var w2 = insertTop('<div></div>'); if (w2) runStep(w2, i);
@@ -1221,8 +1597,10 @@ var MK = (function () {
 
   // Sinematik kedatangan: diputar begitu kapal merapat, sebelum tokoh pertama bicara.
   var cineKey = 'MT_MK_CINE_';
-  function cineSudah(k) { try { return localStorage.getItem(cineKey + k) === '1'; } catch (e) { return false; } }
-  function cineTandai(k) { try { localStorage.setItem(cineKey + k, '1'); } catch (e) { } }
+  // Bagian II: kunci berpola mt_seen_ ikut tersimpan di Buku Adegan (server), jadi tidak terulang di perangkat lain
+  function ck(k) { return /^mk2_/.test(k) ? 'mt_seen_mk2c_' + k : cineKey + k; }
+  function cineSudah(k) { try { return localStorage.getItem(ck(k)) === '1'; } catch (e) { return false; } }
+  function cineTandai(k) { try { localStorage.setItem(ck(k), '1'); } catch (e) { } }
   var cineOn = false;
   function cineBukaScene(d) {
     if (!d.tibaScene) return;
@@ -1259,7 +1637,7 @@ var MK = (function () {
     var v = state && state.voyage;
     if (!v || !v.inTransit || v.encounterPending || v._optimistic) return false;
     var i = idx(), d = S[i];
-    if (!d || !d.tibaCine || d.c !== v.destinationCityId || cineSudah(d.tibaCine.kind)) return false;
+    if (!d || !d.tibaCine || d.praOff || d.c !== v.destinationCityId || cineSudah(d.tibaCine.kind)) return false;
     if (sisaLayarMs() > 1500) return false;
     var ov = document.getElementById('modalOverlay');
     if (ov && ov.classList.contains('open')) return false;
@@ -1278,12 +1656,15 @@ var MK = (function () {
       try {
         if (tibaCine()) return;
         if (tiba(false)) return;
-        if (currentPanel === 'tavern' || currentPanel === 'tasks' || currentPanel === 'ship' || currentPanel === 'market' || currentPanel === 'setsail' || currentPanel === 'library') kartu(currentPanel);
+        if (currentPanel === 'tavern' || currentPanel === 'tasks' || currentPanel === 'ship' || currentPanel === 'market' || currentPanel === 'setsail' || currentPanel === 'library' || currentPanel === 'bank' || currentPanel === 'balaikongsi') kartu(currentPanel);
         else if (currentPanel && tiba(false)) return;
       } catch (e) { console.warn('[MK] panel', e); }
     });
   }
-  setInterval(function () { try { if (aktif() && !gameOpen && !cineOn) { if (tibaCine()) return; tiba(true); } } catch (e) { } }, 2500);
+  setInterval(function () {
+    try { var s0 = st(); if (s0 && s0.mk2 && typeof metaMax_ === 'function') metaMax_('mkblokade', s0.mk2.navyMenang || 0); } catch (e) { }
+    try { if (aktif() && !gameOpen && !cineOn) { if (tibaCine()) return; tiba(true); } } catch (e) { }
+  }, 2500);
   setInterval(function () { try { tibaCinePra(); } catch (e) { } }, 250);
 
   return {
@@ -1305,7 +1686,11 @@ if (typeof ACH !== 'undefined' && ACH.push) ACH.push(
   { id: 'mk_saga4', t: 3, ic: 'crown', n: 'Saga Keempat', d: 'Putuskan Jaring Rantai di gerbang IKN dan tamatkan "Monopoli & Mahkota".', g: function (m) { return [m.c.mksagakeempat || 0, 1]; } },
   { id: 'mk_pacuselat', t: 3, ic: 'flag', n: 'Sang Pacu Selat', d: 'Menang sepuluh kali Adu Kapten di Selat Lurus, Zentul.', g: function (m) { return [m.c.adumenang || 0, 10]; } },
   { id: 'mk_gelanggang', t: 3, ic: 'trophy', n: 'Juara Gelanggang', d: 'Tembus empat babak Pacu Gugur Yaptob dalam satu pekan.', g: function (m) { return [m.c.pacujuara || 0, 1]; } },
-  { id: 'mk_penembus', t: 3, ic: 'anchor', n: 'Penembus Monopoli', d: 'Sepuluh kali lolos dari Jaring Rantai Kumis Hitam dengan muatan utuh.', g: function (m) { return [m.c.mhtembus || 0, 10]; } }
+  { id: 'mk_penembus', t: 3, ic: 'anchor', n: 'Penembus Monopoli', d: 'Sepuluh kali lolos dari Jaring Rantai Kumis Hitam dengan muatan utuh.', g: function (m) { return [m.c.mhtembus || 0, 10]; } },
+  { id: 'mk2_blokade', t: 3, ic: 'anchor', n: 'Pemecah Blokade', d: 'Menangkan sepuluh pertempuran melawan Navy Pemerintah Dunia di Saga 4.', g: function (m) { return [m.c.mkblokade || 0, 10]; } },
+  { id: 'mk2_janji', t: 3, ic: 'key', n: 'Penjaga Janji Rantai Lama', d: 'Kumpulkan armada aliansi dan logistik perangnya sampai siap berlayar ke Teluk Dalam.', g: function (m) { return [m.c.mkjanjirantai || 0, 1]; } },
+  { id: 'mk2_sovereign', t: 3, ic: 'crown', n: 'Penakluk Sovereign', d: 'Menangkan Battle Akhir Bersama di Teluk Dalam Rantai Lama.', g: function (m) { return [m.c.mkpenakluk || 0, 1]; } },
+  { id: 'mk2_penumbang', t: 3, ic: 'crown', n: 'Penumbang Mahkota', d: 'Tamatkan Saga Keempat sampai Mahkota Karam tumbang.', g: function (m) { return [m.c.mkpenumbang || 0, 1]; } }
 );
 /* =====================================================================
  * Garasi Warlord — tahap terakhir kapal (server: 0078-warlord.sql)

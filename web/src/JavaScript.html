@@ -3040,7 +3040,9 @@
     if (!cvResizeBound_) { window.addEventListener('resize', cvResize_); cvResizeBound_ = true; }
 
     var pf = document.getElementById('combatPlayerFace'); if (pf) pf.innerHTML = playerFaceSvg_();
-    var ef = document.getElementById('combatEnemyFace'); if (ef) ef.innerHTML = MTFace.svg(MTFace.npc('enemy|' + enemy.enemyName, 'bajak', 0), { bgColors: ['#5a1a14', '#1a0806'] });
+    var ef = document.getElementById('combatEnemyFace'); if (ef) ef.innerHTML = enemy.navyLook   // Saga 4 Bagian II: perwira Navy berseragam biru
+      ? MTFace.svg(Object.assign(MTFace.npc('navy|' + enemy.enemyName, 'syahbandar', 0), { head: 'kapten', outfit: 'mantel' }), { bgColors: ['#1b345c', '#0a1220'], medals: 2 })
+      : MTFace.svg(MTFace.npc('enemy|' + enemy.enemyName, 'bajak', 0), { bgColors: ['#5a1a14', '#1a0806'] });
     updateCombatHud_(enemy, ship);
     document.getElementById('combatLogBox').innerHTML = buildCombatLogHtml_() || '<p>' + esc_(enemy.enemyName) + ' mendekat. Pilih taktikmu, Kapten!</p>';
     cvResize_();   // Tide v65: ukur ulang setelah kartu HUD & kotak log terisi
@@ -3063,7 +3065,7 @@
     document.getElementById('combatEnemyName').textContent = enemy.enemyName;
     document.getElementById('combatRoundLabel').textContent = 'Ronde ' + (enemy.round || 1);
     // displayLevel = level tampilan (drama); enemyLevel = level efektif untuk peluang kena
-    document.getElementById('combatEnemySub').textContent = 'Kapal bajak laut · Level ' + (enemy.displayLevel != null ? enemy.displayLevel : enemy.enemyLevel);
+    document.getElementById('combatEnemySub').textContent = (enemy.navyLook ? 'Navy Pemerintah Dunia' : 'Kapal bajak laut') + ' · Level ' + (enemy.displayLevel != null ? enemy.displayLevel : enemy.enemyLevel);
 
     var enemyPct = enemy.enemyMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((enemy.enemyHp / enemy.enemyMaxHp) * 100))) : 0;
     document.getElementById('combatEnemyHpText').textContent = enemy.enemyHp + ' / ' + enemy.enemyMaxHp + ' HP';

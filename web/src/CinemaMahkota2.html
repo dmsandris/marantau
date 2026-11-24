@@ -1,0 +1,305 @@
+<script>
+/* =====================================================================
+ * Saga 4 Bagian II "Takhta Tanpa Mahkota" — sinematik (MTCine).
+ *   mk2_teluk    Langkah 47: rantai raksasa Teluk Dalam, lentera Ki Dorus
+ *   mk2_armada   Langkah 54: armada aliansi berangkat dari TooGood saat fajar
+ *   mk2_gerbang  Langkah 56: rantai turun, Sovereign Mahkota menyelinap masuk
+ *   mk2_mahkota  Langkah 57: Kumis Hitam mengenakan Mahkota Karam, arus berbalik
+ *   mk2_karam    Epilog 1: Sovereign Mahkota karam, mahkota retak
+ *   mk2_fajar    Epilog 2-6: Teluk Dalam berangin, bunga untuk Andry (opts.data.rantai = dewan|ikn)
+ *   mk2_credits  Credit bergulir Saga Keempat (opts.data.name)
+ * Semua hanya gambar; teks cerita ada di keterangan (Mahkota.html). Kapal: MTShip, langit & laut: MTSky.
+ * ===================================================================== */
+(function () {
+  if (!window.MTCine || !MTCine.register || !window.MTSky || !window.MTShip) return;
+  var C = MTCine.H, U = C.U, sm = C.sm;
+  var FULL = { speed: 20, cargo: 20, condition: 20, cannons: 20 }, WL4 = ['speed', 'cargo', 'condition', 'cannons'];
+  function vis(look, wl) { return MTShip.fromVisual({ look: look, tier: 5, up: FULL, wl: wl || null }); }
+  var V = {
+    navy: function () { return vis({ hull: '#1c2438', trim: '#9fb4d8', sail: '#34476e', flag: '#14203a', emblemColor: '#c9d6f0' }); },
+    sov: function () { return vis({ hull: '#141018', trim: '#e0b84a', sail: '#1e1a26', flag: '#0c0a10', emblemColor: '#e0b84a', emblem: 'crest' }, WL4); },
+    skitraw: function () { return vis({ hull: '#6a2a1c', trim: '#e8c060', sail: '#f2e2c4', flag: '#b02a20', emblemColor: '#f2e2c4' }); },
+    bebas: function () { return vis({ hull: '#3a2a1e', trim: '#c9a450', sail: '#e8dcc0', flag: '#1a1a1a', emblemColor: '#e8dcc0' }); },
+    tempa: function () { return vis({ hull: '#5a4028', trim: '#d8963a', sail: '#cdb896', flag: '#7a3a1a', emblemColor: '#f0d090' }); },
+    me: function () { try { return MTShip.fromVisual(typeof myShipVisual_ === 'function' ? myShipVisual_() : null); } catch (e) { return MTShip.fromVisual({ tier: 4, up: FULL }); } },
+    pearl: function () { return MTShip.pearlOpts(); }
+  };
+  function scaleFor(o, W, H, f) { var e = MTShip.extent(o), k = o.sizeK || 1; return Math.min(W * f / ((e.aft + e.fore) * k), H * f * 1.15 / (e.up * k)); }
+  function ship(ctx, o, x, y, s, dir, t, lit, ex) {
+    var p = {}, k; for (k in o) p[k] = o[k]; if (ex) for (k in ex) p[k] = ex[k];
+    p.dir = dir; p.t = t; p.lit = lit; p.moving = 1;
+    try { MTShip.draw(ctx, x, y, s, p); } catch (e) { }
+  }
+  function foam(ctx, x, y, s, dir, t, sp) { try { MTShip.foam(ctx, x, y, s, dir, t, sp, 1); } catch (e) { } }
+  function stars(ctx, W, hy, n, seed, a) {
+    var r = U.rng(seed); ctx.save();
+    for (var i = 0; i < n; i++) { var y = Math.pow(r(), 1.5) * hy * 0.9; ctx.fillStyle = 'rgba(235,240,255,' + ((0.15 + r() * 0.6) * a * (1 - y / hy)).toFixed(3) + ')'; ctx.fillRect(r() * W, y, r() < 0.9 ? 1 : 1.7, r() < 0.9 ? 1 : 1.7); }
+    ctx.restore();
+  }
+  function blackIn(ctx, W, H, t, d) { if (t < d) { ctx.fillStyle = 'rgba(0,0,0,' + (1 - sm(0, d, t)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); } }
+  function fadeOut(ctx, W, H, t, a, b) { var k = sm(a, b, t); if (k > 0) { ctx.fillStyle = 'rgba(0,0,0,' + k.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); } }
+  function caption(ctx, W, H, txt, a) {
+    if (a <= 0.01) return;
+    ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'left'; var fs = Math.round(Math.min(W, H) * 0.028);
+    ctx.font = '700 ' + fs + 'px ' + (C.SUB_FONT || 'Georgia, serif'); ctx.fillStyle = 'rgba(255,240,215,.9)';
+    ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 6; try { ctx.letterSpacing = (fs * 0.18).toFixed(1) + 'px'; } catch (e) { }
+    ctx.fillText(txt, W * 0.045, H * 0.08); ctx.restore();
+  }
+  /** Rantai bergantung (path, tanpa panggang): dari (x0,y0) ke (x1,y1) dengan lengkung sag. */
+  function chain(ctx, x0, y0, x1, y1, sag, lw, col, glowA) {
+    var n = Math.max(8, Math.round(Math.hypot(x1 - x0, y1 - y0) / (lw * 1.25)));
+    ctx.save(); ctx.lineCap = 'round';
+    if (glowA > 0) { ctx.shadowColor = 'rgba(110,170,255,' + glowA.toFixed(3) + ')'; ctx.shadowBlur = lw * 1.6; }
+    for (var i = 0; i < n; i++) {
+      var f = i / (n - 1), x = U.lerp(x0, x1, f), y = U.lerp(y0, y1, f) + Math.sin(f * Math.PI) * sag;
+      ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, lw * 0.28);
+      ctx.beginPath();
+      if (i % 2) ctx.ellipse(x, y, lw * 0.55, lw * 0.3, Math.atan2(y1 - y0, x1 - x0), 0, 6.2832);
+      else ctx.ellipse(x, y, lw * 0.25, lw * 0.4, Math.atan2(y1 - y0, x1 - x0), 0, 6.2832);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function bellTower(ctx, x, base, h, lit, lamp) {
+    var w = h * 0.22;
+    ctx.fillStyle = lit('#2a2420'); ctx.fillRect(x - w / 2, base - h, w, h);
+    ctx.fillStyle = lit('#3a3028'); ctx.fillRect(x - w * 0.7, base - h - w * 0.2, w * 1.4, w * 0.2);
+    ctx.beginPath(); ctx.moveTo(x - w * 0.75, base - h - w * 0.2); ctx.lineTo(x, base - h - w * 1.1); ctx.lineTo(x + w * 0.75, base - h - w * 0.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = lit('#c9a450'); ctx.beginPath(); ctx.arc(x, base - h + w * 0.55, w * 0.24, Math.PI, 0); ctx.lineTo(x + w * 0.3, base - h + w * 0.8); ctx.lineTo(x - w * 0.3, base - h + w * 0.8); ctx.closePath(); ctx.fill();
+    if (lamp > 0) C.glow(ctx, x, base - h + w * 0.6, h * 0.5, '255,190,110', 0.5 * lamp);
+  }
+  function dock(ctx, x0, x1, y, lit) {
+    ctx.fillStyle = lit('#3a2a1c'); ctx.fillRect(x0, y - 4, x1 - x0, 7);
+    for (var px = x0 + 8; px < x1; px += 26) { ctx.fillRect(px, y, 4, 30); }
+  }
+  function petals(P, x, y, m) {
+    for (var i = 0; i < 3; i++) P.add({ x: x + (Math.random() - 0.5) * m * 0.02, y: y, vx: (Math.random() - 0.3) * m * 0.004, vy: -m * 0.002 * Math.random(), g: m * 0.00012,
+      drag: 0.99, r: Math.max(1.2, m * 0.004), life: 3 + Math.random() * 2, col: Math.random() < 0.5 ? 'rgba(255,236,240,A)' : 'rgba(255,200,120,A)', a: 0.95 });
+  }
+
+  /* ======================= mk2_teluk ======================= */
+  MTCine.register('mk2_teluk', function () {
+    var lit = C.makeLit(), clouds = MTSky.makeClouds(U.rng(4701), 5), glit = MTSky.makeGlitter(U.rng(4703)), me = V.me();
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.66 + sm(0, 9, t) * 0.08, null, 'gloom'), hy = H * 0.56, m = Math.min(W, H);
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null); stars(ctx, W, hy, 70, 4705, sm(2, 8, t));
+      MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 0.6);
+      // tanjung kiri-kanan mulut teluk
+      ctx.fillStyle = lit('#1e2228');
+      ctx.beginPath(); ctx.moveTo(0, hy + 2); ctx.lineTo(0, hy - H * 0.16); ctx.quadraticCurveTo(W * 0.12, hy - H * 0.2, W * 0.26, hy - H * 0.04); ctx.lineTo(W * 0.3, hy + 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(W, hy + 2); ctx.lineTo(W, hy - H * 0.14); ctx.quadraticCurveTo(W * 0.86, hy - H * 0.19, W * 0.72, hy - H * 0.05); ctx.lineTo(W * 0.68, hy + 2); ctx.fill();
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.5, drift: 8 });
+      // rantai raksasa menutup teluk, berdenyut biru
+      var pulse = 0.35 + 0.35 * Math.sin(t * 2.2) * sm(2.5, 4, t);
+      chain(ctx, W * 0.25, hy - H * 0.05, W * 0.73, hy - H * 0.05, H * 0.07, m * 0.018, '#7a7064', pulse);
+      C.glow(ctx, W * 0.49, hy + H * 0.01, m * 0.25, '90,150,255', 0.18 * pulse);
+      // menara lonceng & dermaga Rantai Lama
+      bellTower(ctx, W * 0.14, hy - H * 0.02, H * 0.22, lit, 1);
+      dock(ctx, W * 0.02, W * 0.3, hy + H * 0.06, lit);
+      // Ki Dorus dengan lentera
+      var kd = sm(4, 6, t);
+      if (kd > 0) { ctx.save(); ctx.globalAlpha = kd; C.figure(ctx, W * 0.24, hy + H * 0.06, H * 0.1, { dress: 'robe', hat: 'peci', pose: 'hold', prop: 'lantern', dir: 1, col: '#0c0a08', t: t, rim: '255,190,110', rimSide: 1, rimA: 0.6 }); ctx.restore(); }
+      // kapal pemain masuk dari kanan
+      var s = scaleFor(me, W, H, 0.3), e = C.ease(sm(0.6, 8, t)), x = U.lerp(W * 1.05, W * 0.55, e), y = hy + H * 0.2;
+      ship(ctx, me, x, y, s, -1, t, lit, { furl: sm(5, 8, t) * 0.6, lanterns: 0.8, roll: Math.sin(t) * 0.01 });
+      foam(ctx, x, y, s, -1, t, 0.6 * (1 - sm(6, 9, t)));
+      caption(ctx, W, H, 'PELABUHAN RANTAI LAMA', sm(1, 2.5, t) * (1 - sm(8.5, 9.5, t)));
+      C.vignette(ctx, W, H, 0.6); blackIn(ctx, W, H, t, 1.2);
+    }
+    return { draw: draw, intro: 6.5 };
+  });
+
+  /* ======================= mk2_armada ======================= */
+  MTCine.register('mk2_armada', function () {
+    var lit = C.makeLit(), clouds = MTSky.makeClouds(U.rng(5401), 6), glit = MTSky.makeGlitter(U.rng(5403)), P = new C.Particles();
+    var F = [{ o: V.pearl(), d: 0, y: 0.25, k: 0.34 }, { o: V.me(), d: 0.6, y: 0.31, k: 0.26 }, { o: V.skitraw(), d: 1.3, y: 0.12, k: 0.2 },
+      { o: V.bebas(), d: 1.9, y: 0.17, k: 0.2 }, { o: V.tempa(), d: 2.6, y: 0.08, k: 0.17 }, { o: V.bebas(), d: 3.2, y: 0.04, k: 0.14 }];
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.985 + sm(0, 9, t) * 0.06, null), hy = H * 0.5, m = Math.min(W, H);
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null);
+      C.glow(ctx, W * 0.78, hy, m * 0.5, '255,200,140', 0.35 * sm(0, 6, t));
+      MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 1.2);
+      // TooGood merdeka di kiri: benteng tanpa asap
+      ctx.fillStyle = lit('#2c2622'); ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(0, hy - H * 0.1); ctx.quadraticCurveTo(W * 0.12, hy - H * 0.14, W * 0.24, hy); ctx.fill();
+      ctx.fillStyle = lit('#3a302a'); ctx.fillRect(W * 0.02, hy - H * 0.17, W * 0.09, H * 0.09);
+      for (var bt = 0; bt < 5; bt++) ctx.fillRect(W * 0.02 + bt * W * 0.02, hy - H * 0.19, W * 0.012, H * 0.02);
+      ctx.fillStyle = lit('#1a1614'); ctx.fillRect(W * 0.13, hy - H * 0.2, W * 0.014, H * 0.12);
+      C.waveFlag ? 0 : 0;
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 1, drift: 30 });
+      F.slice().sort(function (a, b) { return a.y - b.y; }).forEach(function (f, i) {
+        var s = scaleFor(f.o, W, H, f.k), e = sm(f.d, f.d + 6.5, t), x = U.lerp(-W * 0.25, W * (0.2 + (5 - f.d / 0.65) * 0.11), C.ease(e)), y = hy + H * f.y;
+        ship(ctx, f.o, x, y, s, 1, t + i, lit, { lanterns: 0.4, roll: Math.sin(t * 1.1 + i) * 0.014 });
+        foam(ctx, x, y, s, 1, t, 0.8 * e);
+      });
+      // genderang: kelopak & bara terbang di haluan Black Pearl
+      if (t > 3 && t < 8 && Math.random() < 0.4) petals(P, W * 0.55, hy + H * 0.12, m);
+      P.run(ctx, dt);
+      caption(ctx, W, H, 'ARMADA ALIANSI BERANGKAT', sm(1, 2.5, t) * (1 - sm(8.5, 9.5, t)));
+      C.vignette(ctx, W, H, 0.45); blackIn(ctx, W, H, t, 1);
+    }
+    return { draw: draw, intro: 7.5 };
+  });
+
+  /* ======================= mk2_gerbang ======================= */
+  MTCine.register('mk2_gerbang', function () {
+    var lit = C.makeLit(), glit = MTSky.makeGlitter(U.rng(5601)), sov = V.sov(), P = new C.Particles(), fog = null;
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.86, null, 'gloom'), hy = H * 0.55, m = Math.min(W, H);
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null); stars(ctx, W, hy, 90, 5603, 1);
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.4, drift: 6 });
+      // rantai turun ke air (sag membesar, ujung tenggelam)
+      var down = C.ease(sm(1, 4.5, t)), lw = m * 0.02;
+      if (down < 1) chain(ctx, W * 0.12, hy - H * 0.1 + down * H * 0.3, W * 0.88, hy - H * 0.1 + down * H * 0.3, H * 0.06 + down * H * 0.2, lw, '#9a9488', 0.95 * (1 - down));
+      if (t > 3.6 && t < 4.6 && Math.random() < 0.8) for (var k = 0; k < 6; k++) P.add({ x: W * (0.2 + Math.random() * 0.6), y: hy + H * 0.02, vx: (Math.random() - 0.5) * m * 0.004, vy: -m * (0.004 + Math.random() * 0.006), g: m * 0.0003, drag: 0.98, r: Math.max(1, m * 0.003), life: 1 + Math.random(), col: 'rgba(200,225,255,A)', a: 0.8 });
+      C.glow(ctx, W * 0.5, hy + H * 0.05, m * 0.4, '90,150,255', 0.25 * (1 - down) + 0.06);
+      // kabut lalu Sovereign Mahkota menyelinap masuk (siluet gelap, lentera emas)
+      if (!fog) fog = C.puffSprite(5605, 380, 110, { sx: 0.6, sy: 1, th: 0.22, soft: 0.36, a: 0.55, dark: [40, 44, 60], lite: [110, 120, 150], lx: 0, ly: -4 });
+      var sx = U.lerp(W * 1.2, W * 0.58, C.ease(sm(4.5, 9.5, t))), s = scaleFor(sov, W, H, 0.42), y = hy + H * 0.1;
+      ctx.save(); ctx.globalAlpha = 0.3 + 0.7 * sm(4.5, 7, t); ship(ctx, sov, sx, y, s, -1, t, function (h, a) { return lit(h, a); }, { lanterns: 1, furl: 0.4 }); ctx.restore();
+      ctx.globalAlpha = 0.65; ctx.drawImage(fog, ((t * 0.02) % 1.2) * W - W * 0.3, hy - H * 0.06, W * 1.1, H * 0.2); ctx.globalAlpha = 1;
+      P.run(ctx, dt);
+      caption(ctx, W, H, 'GERBANG RANTAI TELUK DALAM', sm(0.5, 2, t) * (1 - sm(9, 10, t)));
+      C.vignette(ctx, W, H, 0.65); blackIn(ctx, W, H, t, 1);
+    }
+    return { draw: draw, intro: 8 };
+  });
+
+  /* ======================= mk2_mahkota ======================= */
+  MTCine.register('mk2_mahkota', function () {
+    var lit = C.makeLit(), sov = V.sov(), P = new C.Particles();
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.9, 'storm'), hy = H * 0.5, m = Math.min(W, H), cx = W * 0.5, cy = H * 0.72;
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null);
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { rough: 1.6, drift: 40 });
+      // pusaran arus berbalik
+      var sp = sm(2, 7, t);
+      ctx.save(); ctx.strokeStyle = 'rgba(230,190,90,' + (0.35 * sp).toFixed(3) + ')'; ctx.lineWidth = Math.max(1, m * 0.003);
+      for (var r = 0; r < 7; r++) { ctx.beginPath(); for (var a = 0; a < 6.3; a += 0.12) { var rr = m * (0.05 + r * 0.05) * (1 + a * 0.04); var px = cx + Math.cos(a - t * (1.4 - r * 0.1)) * rr * 1.8, py = cy + Math.sin(a - t * (1.4 - r * 0.1)) * rr * 0.32; if (a) ctx.lineTo(px, py); else ctx.moveTo(px, py); } ctx.stroke(); }
+      ctx.restore();
+      // altar di bawah air menyala, mahkota naik
+      var up = C.ease(sm(1.2, 4.5, t)), my = U.lerp(cy + H * 0.15, hy - H * 0.2, up);
+      C.glow(ctx, cx, cy + H * 0.08, m * 0.3, '255,200,90', 0.4 * sm(0.5, 2, t));
+      var s = scaleFor(sov, W, H, 0.5);
+      ship(ctx, sov, cx - W * 0.05, cy, s, 1, t, lit, { lanterns: 1, roll: Math.sin(t * 2) * 0.02 });
+      C.figure(ctx, cx + W * 0.04, cy - s * 52, s * 32, { dress: 'uniform', hat: 'bicorne', pose: up > 0.95 ? 'salute' : 'point', dir: -1, col: '#06060a', accent: '#c9a450', rim: '255,200,110', rimSide: -1, rimA: 0.7 });
+      // Mahkota Karam
+      var crx = up > 0.95 ? cx + W * 0.04 : cx, cry = up > 0.95 ? cy - s * 52 - s * 34 : my, cs = m * 0.035;
+      ctx.save(); ctx.translate(crx, cry); ctx.fillStyle = '#e0b84a'; ctx.strokeStyle = '#7a5a20'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-cs, cs * 0.4); ctx.lineTo(-cs, -cs * 0.3); ctx.lineTo(-cs * 0.5, cs * 0.05); ctx.lineTo(0, -cs * 0.6); ctx.lineTo(cs * 0.5, cs * 0.05); ctx.lineTo(cs, -cs * 0.3); ctx.lineTo(cs, cs * 0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#101018'; [-0.5, 0, 0.5].forEach(function (k) { ctx.beginPath(); ctx.arc(k * cs, cs * 0.15, cs * 0.12, 0, 6.3); ctx.fill(); });
+      ctx.restore();
+      C.glow(ctx, crx, cry, m * 0.12, '255,210,120', 0.6 + 0.2 * Math.sin(t * 6));
+      if (Math.random() < 0.5) P.add({ x: crx + (Math.random() - 0.5) * cs * 2, y: cry, vx: (Math.random() - 0.5) * m * 0.002, vy: -m * 0.002, drag: 0.98, r: Math.max(0.8, m * 0.002), life: 1.2, col: 'rgba(255,220,140,A)', add: true });
+      P.run(ctx, dt);
+      // kilat badai
+      if (t > 4.6 && t < 4.8) { ctx.fillStyle = 'rgba(240,240,255,.55)'; ctx.fillRect(0, 0, W, H); }
+      caption(ctx, W, H, 'MAHKOTA KARAM', sm(0.5, 2, t) * (1 - sm(8, 9, t)));
+      C.vignette(ctx, W, H, 0.7); blackIn(ctx, W, H, t, 1);
+    }
+    return { draw: draw, intro: 7 };
+  });
+
+  /* ======================= mk2_karam (epilog 1) ======================= */
+  MTCine.register('mk2_karam', function () {
+    var lit = C.makeLit(), glit = MTSky.makeGlitter(U.rng(6001)), sov = V.sov(), P = new C.Particles(), cracked = false;
+    var allies = [{ o: V.pearl(), x: 0.18, y: 0.2, k: 0.24, d: 1 }, { o: V.skitraw(), x: 0.84, y: 0.14, k: 0.17, d: -1 }, { o: V.tempa(), x: 0.7, y: 0.06, k: 0.13, d: -1 }];
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.95 + sm(2, 9, t) * 0.08, null), hy = H * 0.52, m = Math.min(W, H), cx = W * 0.48, cy = hy + H * 0.16;
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null);
+      C.glow(ctx, W * 0.5, hy, m * 0.6, '255,190,130', 0.3 * sm(3, 9, t));
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.8, drift: 14 });
+      allies.forEach(function (a, i) { var s = scaleFor(a.o, W, H, a.k); ship(ctx, a.o, W * a.x, hy + H * a.y, s, a.d, t + i, lit, { lanterns: 0.5 }); });
+      // Sovereign Mahkota miring dan tenggelam
+      var tilt = C.ease(sm(2.5, 8, t)), s = scaleFor(sov, W, H, 0.44);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, cy + s * 6); ctx.clip();
+      ctx.translate(cx, cy + tilt * s * 60); ctx.rotate(-0.5 * tilt); ship(ctx, sov, 0, 0, s, 1, t, lit, { damage: 0.6 + tilt * 0.4, lanterns: 1 - tilt });
+      ctx.restore();
+      if (t > 2 && !cracked) { cracked = true; for (var k = 0; k < 40; k++) { var an = Math.random() * 6.3, v = m * (0.004 + Math.random() * 0.01); P.add({ x: cx + s * 10, y: cy - s * 80, vx: Math.cos(an) * v, vy: Math.sin(an) * v, g: m * 0.0003, drag: 0.97, r: Math.max(0.8, m * 0.0025), life: 1 + Math.random(), col: 'rgba(255,215,130,A)', add: true }); } }
+      if (t > 2 && t < 2.25) { ctx.fillStyle = 'rgba(255,240,200,.6)'; ctx.fillRect(0, 0, W, H); }
+      if (Math.random() < 0.3 && tilt > 0.1) P.add({ x: cx + (Math.random() - 0.5) * s * 120, y: cy, vx: 0, vy: -m * 0.001, drag: 0.99, r: m * 0.01, grow: m * 0.0005, life: 2, col: 'rgba(40,36,40,A)', a: 0.4 });
+      P.run(ctx, dt);
+      caption(ctx, W, H, 'PALUNG ARUS MATI', sm(0.5, 2, t) * (1 - sm(8.5, 9.5, t)));
+      C.vignette(ctx, W, H, 0.5); blackIn(ctx, W, H, t, 1); fadeOut(ctx, W, H, t, 9.2, 10.4);
+    }
+    return { draw: draw, intro: 9 };
+  });
+
+  /* ======================= mk2_fajar (epilog 2) ======================= */
+  MTCine.register('mk2_fajar', function (opts) {
+    var D = (opts && opts.data) || {}, lit = C.makeLit(), clouds = MTSky.makeClouds(U.rng(6201), 5), glit = MTSky.makeGlitter(U.rng(6203)), pearl = V.pearl(), P = new C.Particles();
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.02 + sm(0, 10, t) * 0.06, null), hy = H * 0.55, m = Math.min(W, H);
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null);
+      C.glow(ctx, W * 0.7, hy, m * 0.55, '255,210,150', 0.4);
+      MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 1);
+      ctx.fillStyle = lit('#2a2622');
+      ctx.beginPath(); ctx.moveTo(0, hy + 2); ctx.lineTo(0, hy - H * 0.12); ctx.quadraticCurveTo(W * 0.15, hy - H * 0.15, W * 0.3, hy + 2); ctx.fill();
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.6, drift: 18 });
+      bellTower(ctx, W * 0.1, hy - H * 0.04, H * 0.2, lit, 0.6);
+      // lentera pertama Ki Dorus di ujung dermaga teluk
+      dock(ctx, W * 0.0, W * 0.32, hy + H * 0.05, lit);
+      C.figure(ctx, W * 0.29, hy + H * 0.05, H * 0.09, { dress: 'robe', hat: 'peci', pose: 'hold', prop: 'lantern', dir: 1, col: '#100c08', t: t, rim: '255,200,140', rimSide: 1, rimA: 0.5 });
+      if (D.rantai === 'dewan') C.figure(ctx, W * 0.1, hy - H * 0.04, H * 0.05, { dress: 'uniform', hat: 'bicorne', pose: 'salute', dir: 1, col: '#0c0a08' });
+      // Black Pearl: zafachmie & Marlya melempar bunga
+      var s = scaleFor(pearl, W, H, 0.34), x = W * 0.6, y = hy + H * 0.2;
+      ship(ctx, pearl, x, y, s, 1, t, lit, { lanterns: 0.4, furl: 0.7 });
+      var fy = y - s * 26;
+      C.figure(ctx, x + s * 46, fy, s * 32, { dress: 'coat', hat: 'none', pose: Math.sin(t * 1.3) > 0.2 ? 'point' : 'stand', dir: 1, col: '#0c0a0a', rim: '255,210,160', rimSide: 1, rimA: 0.55 });
+      C.figure(ctx, x + s * 62, fy, s * 27, { dress: 'gown', hat: 'none', pose: 'hold', dir: 1, col: '#120c14', rim: '255,210,160', rimSide: 1, rimA: 0.55 });
+      if (t > 2.5 && Math.random() < 0.35) petals(P, x + s * 70, fy - s * 20, m);
+      P.run(ctx, dt);
+      caption(ctx, W, H, 'TELUK DALAM BERANGIN LAGI', sm(0.5, 2, t) * (1 - sm(9, 10, t)));
+      C.vignette(ctx, W, H, 0.42); blackIn(ctx, W, H, t, 1.2);
+    }
+    return { draw: draw, intro: 9 };
+  });
+
+  /* ======================= mk2_credits ======================= */
+  var CRED_SEC = 40;
+  MTCine.register('mk2_credits', function (opts) {
+    var D = (opts && opts.data) || {}, name = String(D.name || 'Kapten'), lit = C.makeLit(), glit = MTSky.makeGlitter(U.rng(6401)), clouds = MTSky.makeClouds(U.rng(6403), 6);
+    var fleet = [V.pearl(), V.me(), V.skitraw(), V.tempa()];
+    var LINES = [['logo', 'MARANTAU'], ['h', 'Saga Keempat — Monopoli & Mahkota'], ['s', 'Lengkap'], ['gap'],
+      ['s', 'Pencipta'], ['b', 'DMSandris'], ['gap'],
+      ['s', 'Bersama'], ['b', 'zafachmie · Ratu Marlya · coco epan'], ['b', 'Hasiolan · Uda Gala · Bang Rimba'], ['b', 'Tassyaaa · Petrik · Ama Kerang · Ipo'],
+      ['b', 'Yaptob · cangcimen · Rayan Bazzy'], ['b', 'Paman Ocid · Teh Euis · Ki Dorus'], ['gap'],
+      ['s', 'Dan yang dikenang'], ['b', 'Andry Ivankov'], ['gap'], ['gap'],
+      ['i', 'Mahkota tidak pernah membuat seseorang menjadi raja;'], ['i', 'keberanian untuk berlayar tanpa rantai itulah yang memerdekakan lautan.'], ['gap'], ['gap'],
+      ['end', 'untukmu ' + name + ', terima kasih telah berlayar . .']];
+    function draw(ctx, W, H, t, dt) {
+      var pal = MTSky.palette(0.05 + (t / CRED_SEC) * 0.1, null), hy = H * 0.62, m = Math.min(W, H);
+      lit.set(pal.tint);
+      MTSky.paintSky(ctx, W, hy, pal, t, null); MTSky.paintClouds(ctx, W, hy, pal, clouds, dt, 0.8);
+      MTSky.paintSea(ctx, W, H, hy, pal, t, { glitter: glit, rough: 0.6, drift: 16 });
+      fleet.forEach(function (o, i) { var s = scaleFor(o, W, H, 0.12 + i * 0.015), x = ((t * W * 0.012 + i * W * 0.28) % (W * 1.3)) - W * 0.15, y = hy + H * (0.06 + i * 0.04); ship(ctx, o, x, y, s, 1, t + i, lit, { lanterns: 0.3 }); });
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, W, H);
+      // teks bergulir
+      var lh = Math.max(18, m * 0.052), HK = { logo: 2.4, h: 1.5, s: 1.25, b: 1.05, i: 1.05, end: 1.4, gap: 0.9 }, ys = [], acc = 0;
+      LINES.forEach(function (L) { var k = HK[L[0]] || 1; ys.push(acc + k * lh / 2); acc += k * lh; });
+      var total = acc + H, off = H - (t / (CRED_SEC - 6)) * total * 0.86;
+      ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      LINES.forEach(function (L, i) {
+        var y = Math.max(off + ys[i], L[0] === 'end' ? H * 0.5 : -1e9); if (y < -lh * 2 || y > H + lh * 2) return;
+        var a = U.clamp(Math.min((H - y) / (H * 0.15), (y + lh) / (H * 0.2)), 0, 1); if (L[0] === 'end') a = sm(0, 2, t - (CRED_SEC - 12));
+        ctx.globalAlpha = a; ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 8;
+        if (L[0] === 'logo') { ctx.font = Math.round(m * 0.1) + 'px ' + (C.TITLE_FONT || 'Georgia'); ctx.fillStyle = '#e8bf55'; }
+        else if (L[0] === 'h') { ctx.font = '700 ' + Math.round(m * 0.04) + 'px ' + (C.SUB_FONT || 'Georgia'); ctx.fillStyle = '#fff1d0'; }
+        else if (L[0] === 's') { ctx.font = '700 ' + Math.round(m * 0.026) + 'px ' + (C.SUB_FONT || 'Georgia'); ctx.fillStyle = 'rgba(232,191,85,.95)'; }
+        else if (L[0] === 'b') { ctx.font = Math.round(m * 0.032) + 'px Georgia, serif'; ctx.fillStyle = '#f4ead6'; }
+        else if (L[0] === 'i') { ctx.font = 'italic ' + Math.round(m * 0.03) + 'px Georgia, serif'; ctx.fillStyle = '#f4ead6'; }
+        else if (L[0] === 'end') { ctx.font = 'italic ' + Math.round(m * 0.034) + 'px Georgia, serif'; ctx.fillStyle = '#ffe6a8'; }
+        if (L[1]) ctx.fillText(L[1], W / 2, y);
+      });
+      ctx.restore();
+      blackIn(ctx, W, H, t, 1.5);
+    }
+    return { draw: draw, intro: CRED_SEC };
+  });
+})();
+</script>
