@@ -5049,7 +5049,7 @@
         '<button class="mp-btn" id="mpChatBtn" title="Obrolan (Enter)">' + ic('chat') + '<i id="mpUnread"></i></button>' +
       '</div>' +
       '<div id="mpChat" class="scene-layer">' +
-        '<div class="mpc-head"><button data-t="c" class="on">Pelabuhan</button><button data-t="g">Dunia</button><button data-t="o">Kapten</button><button data-t="p">Pesan</button><button class="mpc-x" title="Tutup">' + ic('x') + '</button></div>' +
+        '<div class="mpc-head"><button data-t="c" class="on">Pelabuhan</button><button data-t="g">Dunia</button><button data-t="o">Kapten</button><button data-t="p" style="display:none">Pesan</button><button class="mpc-x" title="Tutup">' + ic('x') + '</button></div>' +
         '<div id="mpcList"></div>' +
         '<div class="mpc-quick">' + ['Salam, Kapten!', 'Ada yang mau dagang?', 'Siap duel?', 'Harga bagus di sini!', 'Hati-hati bajak laut!', 'Terima kasih!'].map(function (q) { return '<button>' + q + '</button>'; }).join('') + '</div>' +
         '<form id="mpcForm" onsubmit="return false;"><input id="mpcInput" maxlength="140" placeholder="Tulis pesan&hellip;" autocomplete="off"><button type="submit" title="Kirim">' + ic('send') + '</button></form>' +
@@ -5131,8 +5131,16 @@
   function pmReading_() { return chatOpen_() && MPc.tab === 'p' && !document.hidden; }
   function pmPulse_(pm) {
     var P = MPc.pm;
-    if (!pm) { P.ok = false; P.off = true; return; }
-    P.ok = true;
+    // Tab Pesan hanya tampil bila server mengirim 'pm' (akun GM tidak; server lama saat deploy juga tidak)
+    var tabP = document.querySelector('#mpChat .mpc-head button[data-t="p"]');
+    if (!pm) {
+      P.ok = false; P.off = true;
+      if (tabP) tabP.style.display = 'none';
+      if (MPc.tab === 'p') { MPc.tab = 'c'; MPc.pm.open = null; renderChat_(); }
+      return;
+    }
+    P.ok = true; P.off = false;
+    if (tabP) tabP.style.display = '';
     if (!P.primed) {
       P.primed = true; MPc.since.pm = pm.top || 0; P.unread = pm.unread || 0;
       if (P.unread > 0) { showToast('Ada ' + P.unread + ' pesan baru, Kapten. Buka obrolan → Pesan.', ''); pmToastLink_(null); }
