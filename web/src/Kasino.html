@@ -86,6 +86,25 @@
   .ksn-tcard.soon p { font-size: .76em; }
   .ksn-tcard.soon .go { position: static; display: inline-block; margin-top: 2px; align-self: flex-start; }
   .ksn-tcard.soon .go { background: rgba(211,163,66,.1); color: var(--ks-brass-l); border-color: rgba(211,163,66,.35); }
+  /* papan gambler */
+  .ksn-papan { display: grid; grid-template-columns: 1.55fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .ksn-pb { padding: 10px 12px; border-radius: 12px; background: linear-gradient(160deg, rgba(211,163,66,.14), rgba(0,0,0,.3)); border: 1px solid rgba(211,163,66,.34); min-width: 0; }
+  .ksn-pb .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 7px; font-family: var(--font-title); font-size: .72em; letter-spacing: .12em; text-transform: uppercase; color: var(--ks-brass-l); }
+  .ksn-pb .hd span { font-family: var(--font-body); text-transform: none; letter-spacing: 0; color: var(--ks-dim); font-size: .95em; }
+  .ksn-pb ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+  .ksn-pb li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.3); font-size: .86em; min-width: 0; }
+  .ksn-pb li.me { outline: 1px solid var(--ks-brass-l); background: rgba(211,163,66,.16); }
+  .ksn-pb .md { flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--ks-num); font-weight: 700; font-size: .85em; color: #2a1a08;
+    background: radial-gradient(circle at 35% 30%, #fff1b8, #d3a342 70%); }
+  .ksn-pb li:nth-child(2) .md { background: radial-gradient(circle at 35% 30%, #fff, #b8bec6 70%); }
+  .ksn-pb li:nth-child(3) .md { background: radial-gradient(circle at 35% 30%, #ffe0c2, #b9763d 70%); }
+  .ksn-pb .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ks-ink); font-weight: 600; }
+  .ksn-pb .vl { font-family: var(--ks-num); font-weight: 700; color: #fbeabb; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+  .ksn-pb .vl small { display: block; font-family: var(--font-body); font-weight: 400; font-size: .72em; color: var(--ks-dim); text-align: right; }
+  .ksn-pb .none { padding: 10px 6px; text-align: center; font-size: .84em; font-style: italic; color: var(--ks-dim); }
+  .ksn-pb.king li { padding: 9px 10px; }
+  .ksn-pb.king .md { flex-basis: 30px; height: 30px; font-size: 1.05em; }
+  @media (max-width: 640px) { .ksn-papan { grid-template-columns: 1fr; } }
   .ksn-sub { margin: 14px 0 8px; font-family: var(--font-title); font-size: .7em; letter-spacing: .14em; text-transform: uppercase; color: var(--ks-brass-l);
     display: flex; align-items: center; gap: 8px; }
   .ksn-sub::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(211,163,66,.4), transparent); }
@@ -505,8 +524,20 @@ var MTKasino = (function () {
     blackjack: '<svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.8"><rect x="4" y="4" width="11" height="16" rx="2"/><path d="M15 7h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-1"/><path d="M9.5 10l-2 2.5 2 2.5 2-2.5-2-2.5z" fill="#f0cf78"/></svg>',
     slot: '<svg viewBox="0 0 24 24" fill="none" stroke="#f0cf78" stroke-width="1.8"><rect x="3" y="5" width="15" height="14" rx="2.5"/><path d="M8 5v14M13 5v14"/><path d="M18 10h2.5v-3"/><circle cx="20.5" cy="6" r="1.5" fill="#f0cf78"/></svg>'
   };
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function papanHtml() {
+    var P = (K.st && K.st.papan) || {}, H = P.hari || [], W = P.pekan || null;
+    function row(x, i) {
+      return '<li' + (x.me ? ' class="me"' : '') + '><span class="md">' + (i + 1) + '</span><span class="nm">' + esc(x.n) + (x.me ? ' (kamu)' : '') + '</span>' +
+        '<span class="vl">' + fmt(x.turnover) + '<small>' + fmt(x.rounds) + ' ronde</small></span></li>';
+    }
+    var hari = H.length ? '<ol>' + H.map(row).join('') + '</ol>' : '<div class="none">Meja masih sepi hari ini. Jadilah yang pertama, Kapten.</div>';
+    var pekan = W ? '<ol>' + row(W, 0) + '</ol>' : '<div class="none">Belum ada pemain pekan ini.</div>';
+    return '<div class="ksn-papan"><div class="ksn-pb"><div class="hd">Gambler Hari Ini <span>top 3 &middot; total taruhan</span></div>' + hari + '</div>' +
+      '<div class="ksn-pb king"><div class="hd">Gambler Pekan Ini <span>Senin&ndash;Minggu</span></div>' + pekan + '</div></div>';
+  }
   function renderLobby() {
-    var T = K.st.tables || {}, bjOn = !!(K.st.bj && K.st.bj.active), html = hostHtml(hostLine()) + '<div class="ksn-grid">';
+    var T = K.st.tables || {}, bjOn = !!(K.st.bj && K.st.bj.active), html = hostHtml(hostLine()) + papanHtml() + '<div class="ksn-grid">';
     Object.keys(GAME).forEach(function (g) {
       var open = !!T[g], d = TDESC[g], tag = !open ? '<span class="go shut">Ditutup</span>' : (g === 'blackjack' && bjOn) ? '<span class="go busy">Ronde berjalan</span>' : '<span class="go">Buka</span>';
       html += '<button type="button" class="ksn-tcard" data-ksn-g="' + g + '"' + (open ? '' : ' disabled') + ' aria-label="Duduk di meja ' + GAME[g].title + '">' + tag +
