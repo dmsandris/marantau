@@ -1,0 +1,492 @@
+<style>
+  /* ================= MTGames9 · Dengar Tanah ================= */
+  .s5d { position: fixed; inset: 0; z-index: 2147482000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    background: radial-gradient(120% 80% at 50% 110%, #2a2016 0%, #120d09 55%, #070504 100%); color: #ead9b8; font-family: Georgia, serif;
+    opacity: 0; transition: opacity .4s ease; overflow-y: auto; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  .s5d.on { opacity: 1; }
+  .s5d-top { width: 100%; max-width: 560px; display: flex; align-items: center; gap: 10px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 4px; }
+  .s5d-top .k { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #b99a66; }
+  .s5d-top .t { font-size: 19px; font-weight: 700; color: #f3e3c0; }
+  .s5d-top .x { margin-left: auto; min-height: 36px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); color: #d8c49a;
+    border: 1px solid rgba(214,176,92,.35); font: 600 13px Georgia, serif; cursor: pointer; }
+  .s5d-stage { position: relative; width: min(92vw, 460px); aspect-ratio: 1 / 1; margin: 6px auto 0; }
+  .s5d-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .s5d-hud { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; font-size: 13px; color: #cdb88f; margin-top: 4px; min-height: 20px; }
+  .s5d-hud b { color: #f6dc98; }
+  .s5d-msg { max-width: 520px; margin: 8px 16px 0; text-align: center; font-size: 15px; line-height: 1.5; min-height: 46px; color: #ead9b8; }
+  .s5d-msg.good { color: #b8e6a8; } .s5d-msg.bad { color: #f2a48c; }
+  .s5d-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .s5d-acts button { min-height: 44px; padding: 10px 18px; border-radius: 999px; font: 700 14px Georgia, serif; cursor: pointer;
+    background: rgba(255,255,255,.06); color: #ead9b8; border: 1px solid rgba(214,176,92,.4); }
+  .s5d-acts button.utama { background: linear-gradient(180deg, #e8c060, #b4842c); color: #1d1206; border-color: #7a5818; }
+  .s5d-acts button[disabled] { opacity: .35; cursor: default; }
+  .s5d-hint { font-size: 12px; color: #9c8762; text-align: center; margin-top: 2px; }
+  @media (prefers-reduced-motion: reduce) { .s5d { transition: none; } }
+</style>
+<script>
+/* =====================================================================
+ * MTGames9 — "Dengar Tanah" (Saga 5, konsep 8.4). Kind server: 'listen'.
+ *   MTGames9.main({ ctx: 'quest'|'trial', preset, step, kicker, title }, cb)
+ *     -> api_mg_start, permainan, api_mg_finish; cb({ win, cancelled, efek })
+ *   Preset: cari_lereng · lagu_tidur · lagu_tidur_pendek · akar_selatan
+ * Suara = isyarat utama; riak & cahaya = pendamping; getar = bonus. Bisa dimainkan tanpa suara.
+ * Penilaian akhir di server (game.mg_listen_judge); S5DengarNilai di bawah identik (diuji JS = SQL).
+ * ===================================================================== */
+/*NILAI-MULAI*/
+var S5DengarNilai = (function () {
+  function bad() { throw new Error('Catatan permainan tidak sah.'); }
+  function int(v, lo, hi) { if (typeof v !== 'number' || Math.floor(v) !== v || v < lo || v > hi) bad(); return v; }
+  function arr(v, max) { if (v == null) return []; if (!Array.isArray(v) || v.length > max) bad(); return v; }
+  function frasaCocok(att, fr, beat, tol) {
+    if (!Array.isArray(att) || att.length !== fr.length) return false;
+    var t0 = att[0].t_ms, e0 = fr[0][1];
+    for (var j = 0; j < fr.length; j++) {
+      if (att[j].pad !== fr[j][0]) return false;
+      if (Math.abs((att[j].t_ms - t0) - (fr[j][1] - e0) * beat) > tol) return false;
+    }
+    return true;
+  }
+  function hits(taps, t0, interval, beats, tol) {
+    var used = [], n = 0;
+    for (var i = 0; i < taps.length; i++) {
+      var t = taps[i].t_ms, best = -1, bd = null;
+      for (var k = 0; k < beats; k++) {
+        if (used[k]) continue;
+        var d = Math.abs(t - (t0 + k * interval));
+        if (d <= tol && (bd === null || d < bd)) { bd = d; best = k; }
+      }
+      if (best >= 0) { used[best] = true; n++; }
+    }
+    return n;
+  }
+  function judge(p, l, elapsed) {
+    if (!l || typeof l !== 'object' || Array.isArray(l)) bad();
+    var lim = Math.min(elapsed + 3000, p.max_ms), last = -1, i, t, idx = -1, dir = false, ok;
+    if (p.preset === 'cari_lereng') {
+      var a = arr(l.probes, p.probes), b = arr(l.answers, p.answers), c = arr(l.pattern_picks, p.tries);
+      for (i = 0; i < a.length; i++) { t = int(a[i].t_ms, 0, lim); int(a[i].p, 0, 8); if (i > 0 && t < a[i - 1].t_ms) bad(); }
+      for (i = 0; i < b.length; i++) {
+        t = int(b[i].t_ms, 0, lim); if (t < last) bad(); last = t;
+        if (int(b[i].p, 0, 8) === p.S) { dir = true; idx = i; break; }
+      }
+      if (dir && b.length > idx + 1) bad();
+      ok = false;
+      for (i = 0; i < c.length; i++) {
+        if (!dir) bad();
+        t = int(c[i].t_ms, 0, lim); if (t < last) bad(); last = t;
+        if (typeof c[i].opsi !== 'string' || ['A', 'B', 'C'].indexOf(c[i].opsi) < 0) bad();
+        if (c[i].opsi === 'A') { ok = true; idx = i; break; }
+      }
+      if (ok && c.length > idx + 1) bad();
+      return { won: dir && ok, gali: dir, napas: ok };
+    }
+    if (p.preset === 'lagu_tidur' || p.preset === 'lagu_tidur_pendek') {
+      var ph = arr(l.phrases, p.urutan.length); ok = ph.length === p.urutan.length;
+      for (i = 0; i < ph.length; i++) {
+        var x = ph[i]; if (!x || typeof x !== 'object' || Array.isArray(x)) bad();
+        var n = int(x.n, 1, 3); if (n !== p.urutan[i]) bad();
+        if ('replays' in x && int(x.replays, 0, 99) > p.replays) bad();
+        var at = arr(x.attempts, p.tries), fr = p.frasa[String(n)], tr = 0;
+        for (var j = 0; j < at.length; j++) {
+          var cc = arr(at[j], 24);
+          for (var k = 0; k < cc.length; k++) { t = int(cc[k].t_ms, 0, lim); int(cc[k].pad, 0, 2); if (t < last) bad(); last = t; }
+          if (frasaCocok(cc, fr, p.beat_ms, p.tol_ms)) { tr = j + 1; break; }
+        }
+        if (tr === 0) { ok = false; if (i < ph.length - 1) bad(); }
+        else if (tr < at.length) bad();
+      }
+      return { won: ok, frasa: ph.length };
+    }
+    if (p.preset === 'akar_selatan') {
+      var da = arr(l.dir_answers, p.answers);
+      for (i = 0; i < da.length; i++) {
+        t = int(da[i].t_ms, 0, lim); if (t < last) bad(); last = t;
+        if (int(da[i].d, 0, 7) === p.target) { dir = true; idx = i; break; }
+      }
+      if (dir && da.length > idx + 1) bad();
+      var tp = arr(l.taps, 2 * p.beats);
+      if (!dir) { if (tp.length > 0) bad(); return { won: false, arah: false, hits: 0 }; }
+      var t0 = int(l.t0_ms, last, lim);
+      for (i = 0; i < tp.length; i++) { t = int(tp[i].t_ms, last, lim); if (i > 0 && t < tp[i - 1].t_ms) bad(); }
+      var h = hits(tp, t0, p.interval_ms, p.beats, p.tol_ms);
+      return { won: h >= p.hits_needed, arah: true, hits: h };
+    }
+    bad();
+  }
+  return { judge: judge, frasaCocok: frasaCocok, hits: hits };
+})();
+/*NILAI-SELESAI*/
+
+var MTGames9 = (function () {
+  var REDUCE = false; try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  var cur = null;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function rpc(fn, args) {
+    return new Promise(function (ok, fail) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[fn].apply(r, args); });
+  }
+  function vib(ms) { try { if (ms > 0 && navigator.vibrate) navigator.vibrate(ms); } catch (e) { } }
+
+  /* ---------- Audio: tabuh bumi bernada rendah, terjadwal dengan jam audio ---------- */
+  var AC = null, MASTER = null;
+  function audio() {
+    if (AC) { if (AC.state === 'suspended') try { AC.resume(); } catch (e) { } return AC; }
+    try {
+      var C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
+      AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = 0.9; MASTER.connect(AC.destination);
+    } catch (e) { AC = null; }
+    return AC;
+  }
+  // waktu klien (ms sejak t0Perf) -> waktu audio
+  function atAudio(perfMs) { var a = audio(); if (!a) return 0; return a.currentTime + Math.max(0, (perfMs - performance.now()) / 1000); }
+  function thump(whenPerf, gain, freq, dur) {
+    var a = audio(); if (!a || gain <= 0) return;
+    var t = atAudio(whenPerf), o = a.createOscillator(), g = a.createGain(), o2 = a.createOscillator(), g2 = a.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(freq * 1.6, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.08);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9 * gain, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.5));
+    o2.type = 'triangle'; o2.frequency.value = freq * 2.02; g2.gain.setValueAtTime(0.0001, t); g2.gain.exponentialRampToValueAtTime(0.18 * gain, t + 0.01); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    o.connect(g); g.connect(MASTER); o2.connect(g2); g2.connect(MASTER);
+    o.start(t); o.stop(t + (dur || 0.5) + 0.05); o2.start(t); o2.stop(t + 0.25);
+  }
+  var PAD_HZ = [98, 131, 175];
+  function pad(whenPerf, i, gain) { thump(whenPerf, gain == null ? 0.8 : gain, PAD_HZ[i], 0.6); }
+
+  /* ---------- Kerangka layar ---------- */
+  function shell(o) {
+    var el = document.createElement('div'); el.className = 's5d'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', String(o.title || 'Dengar Tanah').replace(/&middot;/g, '·').replace(/<[^>]+>/g, ''));
+    el.innerHTML = '<div class="s5d-top"><div><div class="k">' + (o.kicker || 'Dengar Tanah') + '</div><div class="t">' + (o.title || 'Dengar Tanah') + '</div></div>' +
+      '<button class="x" type="button">Nanti dulu</button></div>' +
+      '<div class="s5d-stage"><canvas></canvas></div><div class="s5d-hud"></div><div class="s5d-msg" aria-live="polite"></div>' +
+      '<div class="s5d-acts"></div><div class="s5d-hint">Suara, riak, dan cahaya membawa pesan yang sama. Bisa dimainkan tanpa suara.</div>';
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('on'); });
+    var cv = el.querySelector('canvas'), ctx = cv.getContext('2d');
+    var S = { el: el, cv: cv, ctx: ctx, hud: el.querySelector('.s5d-hud'), msg: el.querySelector('.s5d-msg'), acts: el.querySelector('.s5d-acts'),
+      timers: [], rip: [], glow: {}, draw: null, raf: 0, dead: false, paused: false, onPause: null };
+    function size() { var c = S.cv, r = c.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); c.width = Math.round(r.width * d); c.height = Math.round(r.height * d); S.ctx.setTransform(d, 0, 0, d, 0, 0); }
+    size(); S.size = size; window.addEventListener('resize', size);
+    // ronde baru: kanvas baru (pendengar ketukan lama ikut hilang), timer & riak dibersihkan
+    S.reset = function () {
+      S.timers.forEach(clearTimeout); S.timers = []; S.rip = []; S.draw = null; S.onPause = null; S.onResume = null;
+      var nc = S.cv.cloneNode(false); S.cv.parentNode.replaceChild(nc, S.cv); S.cv = nc; S.ctx = nc.getContext('2d'); size();
+    };
+    function loop() {
+      if (S.dead) return;
+      var cv = S.cv, ctx = S.ctx, r = cv.getBoundingClientRect(), W = r.width, H = r.height, now = performance.now();
+      ctx.clearRect(0, 0, W, H);
+      ground(ctx, W, H, now);
+      if (S.draw) S.draw(ctx, W, H, now);
+      S.rip = S.rip.filter(function (q) {
+        var k = (now - q.t) / q.d; if (k < 0) return true; if (k >= 1) return false;
+        ctx.save(); ctx.strokeStyle = 'rgba(' + (q.col || '236,196,120') + ',' + (q.a * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(q.x * W, q.y * H, (q.r0 + q.r1 * k) * W, (q.r0 + q.r1 * k) * W * 0.62, 0, 0, 6.2832); ctx.stroke(); ctx.restore();
+        return true;
+      });
+      S.raf = requestAnimationFrame(loop);
+    }
+    S.raf = requestAnimationFrame(loop);
+    S.later = function (fn, ms) { var t = setTimeout(function () { if (!S.dead) fn(); }, ms); S.timers.push(t); return t; };
+    S.ripple = function (x, y, n, whenPerf, col) {
+      if (REDUCE) n = Math.min(n, 1);
+      for (var i = 0; i < n; i++) S.rip.push({ x: x, y: y, t: (whenPerf || performance.now()) + i * 140, d: 1100, r0: 0.02, r1: 0.09 + n * 0.02, a: 0.85, col: col });
+    };
+    S.buttons = function (list) {
+      S.acts.innerHTML = '';
+      list.forEach(function (b) {
+        if (!b) return;
+        var e = document.createElement('button'); e.type = 'button'; e.textContent = b.l; if (b.utama) e.className = 'utama'; if (b.off) e.disabled = true;
+        e.addEventListener('click', function () { if (!e.disabled) b.fn(e); }); S.acts.appendChild(e);
+      });
+    };
+    S.say = function (html, cls) { S.msg.className = 's5d-msg' + (cls ? ' ' + cls : ''); S.msg.innerHTML = html; };
+    S.close = function () {
+      if (S.dead) return; S.dead = true; cancelAnimationFrame(S.raf); S.timers.forEach(clearTimeout);
+      window.removeEventListener('resize', size); document.removeEventListener('visibilitychange', vis);
+      el.classList.remove('on'); setTimeout(function () { el.remove(); }, 400); cur = null;
+    };
+    function vis() { if (document.hidden) { S.paused = true; if (S.onPause) S.onPause(); } else if (S.paused) { S.paused = false; if (S.onResume) S.onResume(); } }
+    document.addEventListener('visibilitychange', vis);
+    return S;
+  }
+
+  // Latar: tanah & batu gelap yang halus; gunung tidak pernah digambar berubah
+  function ground(ctx, W, H, now) {
+    var g = ctx.createRadialGradient(W * 0.5, H * 0.55, W * 0.05, W * 0.5, H * 0.55, W * 0.75);
+    g.addColorStop(0, '#3a2c1e'); g.addColorStop(1, '#120c08'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalAlpha = 0.18; ctx.strokeStyle = '#6a5236'; ctx.lineWidth = 1;
+    for (var i = 0; i < 9; i++) { var y = H * (0.12 + i * 0.1); ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(W * 0.3, y - 10 + Math.sin(i) * 8, W * 0.7, y + 12, W, y - 4); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  /* =================================================================
+   * Preset cari_lereng: 3x3 titik lereng -> gali -> baca napas
+   * ================================================================= */
+  function cariLereng(S, P, T, done) {
+    var log = { probes: [], answers: [], pattern_picks: [] }, sel = -1, listening = false, phase = 1, heard = {};
+    function pos(i) { return { x: 0.2 + (i % 3) * 0.3, y: 0.2 + Math.floor(i / 3) * 0.3 }; }
+    function L(i) { var a = Math.abs((i % 3) - (P.S % 3)) + Math.abs(Math.floor(i / 3) - Math.floor(P.S / 3)); return Math.max(0, 4 - a); }
+    function hud() {
+      S.hud.innerHTML = phase === 1 ? 'Telinga: <b>' + (P.probes - log.probes.length) + '</b> &middot; Galian: <b>' + (P.answers - log.answers.length) + '</b>'
+        : 'Pilihan: <b>' + (P.tries - log.pattern_picks.length) + '</b>';
+    }
+    S.draw = function (ctx, W, H) {
+      if (phase !== 1) { breathDraw(ctx, W, H); return; }
+      for (var i = 0; i < 9; i++) {
+        var p = pos(i), r = W * 0.055, on = i === sel, h = heard[i];
+        ctx.save();
+        ctx.fillStyle = on ? 'rgba(240,200,120,.28)' : 'rgba(255,255,255,.05)'; ctx.strokeStyle = on ? '#f0c878' : 'rgba(214,176,92,.4)'; ctx.lineWidth = on ? 2.5 : 1.2;
+        ctx.beginPath(); ctx.ellipse(p.x * W, p.y * H, r, r * 0.62, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
+        if (h != null) { ctx.fillStyle = '#e8d2a2'; ctx.font = '600 ' + Math.round(W * 0.03) + 'px Georgia'; ctx.textAlign = 'center';
+          ctx.fillText(['hening', 'samar', 'pelan', 'jelas', 'kuat'][h], p.x * W, p.y * H + r * 1.25); }
+        ctx.restore();
+      }
+    };
+    function tap(e) {
+      if (phase !== 1 || listening) return;
+      var r = S.cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height, best = -1, bd = 1;
+      for (var i = 0; i < 9; i++) { var p = pos(i), d = Math.hypot(p.x - x, p.y - y); if (d < 0.13 && d < bd) { bd = d; best = i; } }
+      if (best < 0) return;
+      audio(); sel = best;
+      if (log.probes.length >= P.probes) { S.say('Telingamu sudah lelah. Pilih titik, lalu <b>Gali di sini</b>.'); paint(); return; }
+      listening = true; var t = T(), lv = L(best);
+      log.probes.push({ p: best, t_ms: t }); heard[best] = lv;
+      S.say('Menempelkan telinga ke tanah&hellip;'); paint();
+      var now = performance.now();
+      for (var k = 0; k < 3; k++) thump(now + 200 + k * 420, lv * 0.25, 52, 0.7);
+      var p = pos(best); S.ripple(p.x, p.y, lv, now + 200);
+      vib(lv * 30);
+      S.later(function () {
+        listening = false;
+        S.say(lv === 0 ? 'Hening. Tidak ada apa-apa di sini.' : lv >= 4 ? '<b>Di sini.</b> Tanah berdenyut kuat di bawah telingamu.' : ['', 'Samar sekali.', 'Ada sesuatu, pelan.', 'Jelas. Dekat.'][lv]);
+        paint();
+      }, P.listen_ms);
+    }
+    function paint() {
+      hud();
+      if (phase !== 1) return;
+      S.buttons([{ l: 'Gali di sini', utama: true, off: sel < 0 || listening, fn: gali }]);
+    }
+    function gali() {
+      if (sel < 0 || listening) return;
+      log.answers.push({ p: sel, t_ms: T() });
+      if (sel === P.S) { S.say('Tanah di bawahmu bergetar teratur. <b>Ini sumbernya.</b>', 'good'); phase = 2; S.later(napas, 1600); hud(); S.buttons([]); return; }
+      if (log.answers.length >= P.answers) { S.say('Galianmu salah tempat lagi. Sumbernya bergeser jauh.', 'bad'); S.buttons([]); S.later(function () { done(log); }, 1400); return; }
+      S.say('Bukan di sini. Dengarkan lagi lerengnya.', 'bad'); paint();
+    }
+    // ---- Tahap 2: baca napas ----
+    var breathT0 = 0, breathPat = null;
+    function breathDraw(ctx, W, H) {
+      var now = performance.now();
+      ctx.save(); ctx.fillStyle = 'rgba(240,200,120,.08)'; ctx.beginPath(); ctx.ellipse(W / 2, H * 0.5, W * 0.2, W * 0.12, 0, 0, 6.2832); ctx.fill(); ctx.restore();
+      void now; void breathT0; void breathPat;
+    }
+    function playPat(id, startPerf) {
+      var iv = P.pola[id], t = startPerf, beats = [t];
+      for (var i = 0; i < iv.length - 1; i++) { t += iv[i]; beats.push(t); }
+      beats.forEach(function (b) { thump(b, 0.8, 50, 0.7); S.ripple(0.5, 0.5, 1, b); S.later(function () { vib(25); }, Math.max(0, b - performance.now())); });
+      return beats[beats.length - 1] + 900 - startPerf;
+    }
+    function napas() {
+      phase = 2; hud();
+      S.say('Napas di bawah tanah. Dengarkan dua kali&hellip;');
+      var now = performance.now() + 300, d1 = playPat('A', now), d2 = playPat('A', now + d1 + 600);
+      S.later(pilihan, d1 + d2 + 700);
+    }
+    function pilihan() {
+      S.say('Mana yang sama dengan napas itu? Dengarkan tiap pilihan, lalu pilih.');
+      var list = P.urut.map(function (id, k) {
+        return { l: '▶ Pilihan ' + (k + 1), fn: function () { playPat(id, performance.now() + 150); } };
+      });
+      P.urut.forEach(function (id, k) {
+        list.push({ l: 'Pilih ' + (k + 1), utama: true, fn: function () {
+          log.pattern_picks.push({ opsi: id, t_ms: T() });
+          if (id === 'A') { S.say('Itu dia. <b>Napas orang yang tidur.</b>', 'good'); S.buttons([]); S.later(function () { done(log); }, 1200); return; }
+          if (log.pattern_picks.length >= P.tries) { S.say('Bukan napas itu.', 'bad'); S.buttons([]); S.later(function () { done(log); }, 1200); return; }
+          S.say('Bukan yang itu. Dengarkan lagi.', 'bad'); hud();
+        } });
+      });
+      S.buttons(list); hud();
+    }
+    S.cv.addEventListener('pointerdown', tap);
+    S.say('Ketuk titik di lereng untuk <b>menempelkan telinga</b>. Makin dekat sumbernya, makin kuat getarannya.');
+    paint();
+  }
+
+  /* =================================================================
+   * Preset lagu_tidur / lagu_tidur_pendek: dengar lalu sambung (tanya-jawab ritme)
+   * ================================================================= */
+  function laguTidur(S, P, T, done) {
+    var log = { phrases: [] }, fi = 0, att = null, phase = 'dengar', cur = null, nama = { 1: 'Frasa pertama', 2: 'Frasa kedua', 3: 'Frasa ketiga, bagian yang selama ini hilang' };
+    var PADX = [0.22, 0.5, 0.78], PADY = 0.62, glow = [0, 0, 0];
+    S.draw = function (ctx, W, H, now) {
+      for (var i = 0; i < 3; i++) {
+        var g = Math.max(0, glow[i] - now) / 450, x = PADX[i] * W, y = PADY * H, r = W * 0.12;
+        ctx.save();
+        var gr = ctx.createRadialGradient(x, y, r * 0.2, x, y, r * 1.6); gr.addColorStop(0, 'rgba(240,200,110,' + (0.08 + g * 0.55).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(240,200,110,0)');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = '#4a3a2a'; ctx.strokeStyle = 'rgba(214,176,92,' + (0.45 + g * 0.5).toFixed(3) + ')'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.55, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#cdb88f'; ctx.font = '600 ' + Math.round(W * 0.032) + 'px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText(['rendah', 'sedang', 'tinggi'][i], x, y + r * 0.95);
+        ctx.restore();
+      }
+      if (cur) {
+        ctx.save(); ctx.fillStyle = '#e8d2a2'; ctx.font = '600 ' + Math.round(W * 0.034) + 'px Georgia'; ctx.textAlign = 'center';
+        var fr = P.frasa[String(cur.n)], d = '';
+        for (var k = 0; k < fr.length; k++) d += k < (att ? att.length : 0) ? '● ' : '○ ';
+        ctx.fillText(phase === 'sambung' ? d.trim() : '', W / 2, H * 0.22); ctx.restore();
+      }
+    };
+    function lightUp(i, whenPerf) { S.later(function () { glow[i] = performance.now() + 450; }, Math.max(0, whenPerf - performance.now())); }
+    function play() {
+      phase = 'dengar'; S.buttons([]);
+      var fr = P.frasa[String(cur.n)], start = performance.now() + 350;
+      fr.forEach(function (b) { var w = start + b[1] * P.beat_ms; pad(w, b[0]); lightUp(b[0], w); S.ripple(PADX[b[0]], PADY, 1, w); });
+      var end = start + fr[fr.length - 1][1] * P.beat_ms + 700;
+      S.later(sambung, end - performance.now());
+    }
+    function hud() {
+      S.hud.innerHTML = 'Frasa <b>' + (fi + 1) + '/' + P.urutan.length + '</b> &middot; Percobaan: <b>' + (P.tries - cur.attempts.length) + '</b> &middot; Dengar ulang: <b>' + (P.replays - cur.replays) + '</b>';
+    }
+    function sambung() {
+      phase = 'sambung'; att = [];
+      S.say('Sekarang sambung. Ketuk batu sesuai nada dan iramanya.');
+      S.buttons([{ l: 'Dengar lagi', off: cur.replays >= P.replays, fn: function () { cur.replays++; hud(); S.say('Dengarkan baik-baik&hellip;'); play(); } }]);
+      hud();
+    }
+    function mulaiFrasa() {
+      var n = P.urutan[fi]; cur = { n: n, attempts: [], replays: 0 }; log.phrases.push(cur); hud();
+      S.say('<b>' + nama[n] + '.</b> Dengarkan dulu&hellip;'); S.later(play, 700);
+    }
+    function tap(e) {
+      if (phase !== 'sambung' || !att) return;
+      var r = S.cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height, best = -1;
+      for (var i = 0; i < 3; i++) if (Math.abs(x - PADX[i]) < 0.14 && Math.abs(y - PADY) < 0.16) best = i;
+      if (best < 0) return;
+      audio(); var t = T(); att.push({ pad: best, t_ms: t }); pad(performance.now(), best, 0.7); glow[best] = performance.now() + 450; S.ripple(PADX[best], PADY, 1); vib(15);
+      var fr = P.frasa[String(cur.n)];
+      if (att.length < fr.length) return;
+      cur.attempts.push(att);
+      var ok = S5DengarNilai.frasaCocok(att, fr, P.beat_ms, P.tol_ms); att = null; phase = 'nilai';
+      if (ok) {
+        S.say(cur.n === 3 ? '<b>Lagunya utuh.</b> Tanah menjawab dari jauh.' : 'Nadanya bersambung. Tanah menjawab.', 'good');
+        fi++; S.buttons([]);
+        if (fi >= P.urutan.length) { S.later(function () { done(log); }, 1300); return; }
+        S.later(mulaiFrasa, 1500); return;
+      }
+      if (cur.attempts.length >= P.tries) { S.say('Nadanya patah di tengah jalan.', 'bad'); S.buttons([]); S.later(function () { done(log); }, 1300); return; }
+      S.say('Iramanya belum menyatu. Coba lagi dari awal frasa.', 'bad'); hud(); S.later(sambung, 900);
+    }
+    S.cv.addEventListener('pointerdown', tap);
+    mulaiFrasa();
+  }
+
+  /* =================================================================
+   * Preset akar_selatan: putar dial ke arah detak, lalu selaraskan denyut
+   * ================================================================= */
+  function akarSelatan(S, P, T, done) {
+    var log = { dir_answers: [], t0_ms: 0, taps: [] }, d = 0, phase = 1, hum = null, beatsAt = [], flash = 0;
+    var NM = ['Utara', 'Timur Laut', 'Timur', 'Tenggara', 'Selatan', 'Barat Daya', 'Barat', 'Barat Laut'];
+    function L(x) { var a = Math.abs(x - P.target); a = Math.min(a, 8 - a); return Math.max(0, 4 - a); }
+    S.draw = function (ctx, W, H, now) {
+      var cx = W / 2, cy = H * 0.5, R = W * 0.32;
+      ctx.save(); ctx.strokeStyle = 'rgba(214,176,92,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.stroke();
+      for (var i = 0; i < 8; i++) {
+        var a = -Math.PI / 2 + i * Math.PI / 4, on = i === d && phase === 1;
+        ctx.fillStyle = on ? '#f6dc98' : 'rgba(205,184,143,.6)'; ctx.font = (on ? '700 ' : '400 ') + Math.round(W * 0.03) + 'px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(NM[i], cx + Math.cos(a) * R * 1.22, cy + Math.sin(a) * R * 1.22);
+      }
+      if (phase === 1) {
+        var a2 = -Math.PI / 2 + d * Math.PI / 4, lv = L(d), pul = 0.5 + 0.5 * Math.sin(now / 300);
+        ctx.strokeStyle = 'rgba(240,200,110,' + (0.4 + lv * 0.12 * pul).toFixed(3) + ')'; ctx.lineWidth = 4 + lv * 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a2) * R * 0.9, cy + Math.sin(a2) * R * 0.9); ctx.stroke();
+      } else {
+        var f = Math.max(0, flash - now) / 350;
+        var gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R); gr.addColorStop(0, 'rgba(240,190,90,' + (0.15 + f * 0.6).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(240,190,90,0)');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.fill();
+      }
+      ctx.restore();
+    };
+    function humTick() {   // detak arah yang sedang ditunjuk dial, mengikuti tingkat getaran
+      if (S.dead || phase !== 1) return;
+      var lv = L(d), now = performance.now();
+      thump(now + 30, lv * 0.25, 46, 0.8); if (lv) S.ripple(0.5, 0.5, Math.min(lv, 2), now + 30); vib(lv * 20);
+      hum = S.later(humTick, 1100);
+    }
+    function putar(k) { if (phase !== 1) return; audio(); d = (d + k + 8) % 8; S.say('Arah: <b>' + NM[d] + '</b>. Dengarkan detaknya.'); }
+    function kunci() {
+      log.dir_answers.push({ d: d, t_ms: T() });
+      if (d === P.target) { phase = 2; S.say('Dari sanalah. Detak lambat, teredam, sangat jauh.', 'good'); S.buttons([]); S.later(selaras, 1500); return; }
+      if (log.dir_answers.length >= P.answers) { S.say('Detaknya hilang di antara akar.', 'bad'); S.buttons([]); S.later(function () { done(log); }, 1300); return; }
+      S.say('Bukan dari arah itu. Putar lagi.', 'bad'); paint1();
+    }
+    function paint1() {
+      S.hud.innerHTML = 'Kunci arah: <b>' + (P.answers - log.dir_answers.length) + '</b>';
+      S.buttons([{ l: '◀', fn: function () { putar(-1); } }, { l: 'Kunci arah', utama: true, fn: kunci }, { l: '▶', fn: function () { putar(1); } }]);
+    }
+    function selaras() {
+      log.taps = []; beatsAt = [];
+      S.hud.innerHTML = 'Ketuk mengikuti <b>6 detak</b>. Dua detak pertama hanya contoh.';
+      S.say('Dengarkan dua detak, lalu ketuk layar <b>bersama</b> setiap detak berikutnya.');
+      S.buttons([]);
+      var start = performance.now() + 600;
+      for (var k = 0; k < P.beats + 2; k++) {
+        var w = start + k * P.interval_ms; beatsAt.push(w);
+        thump(w, 0.85, 44, 0.9); S.ripple(0.5, 0.5, 2, w);
+        (function (w2, kk) { S.later(function () { flash = performance.now() + 350; vib(30); if (kk === 2) { log.t0_ms = T(); } }, Math.max(0, w2 - performance.now())); })(w, k);
+      }
+      S.later(function () { done(log); }, beatsAt[beatsAt.length - 1] - performance.now() + P.interval_ms * 0.6);
+    }
+    S.onPause = function () { if (phase === 2) { S.timers.forEach(clearTimeout); S.timers = []; } };
+    S.onResume = function () { if (phase === 2) { S.say('Detaknya terputus. Dengarkan lagi dari awal.'); S.later(selaras, 1200); } };
+    S.cv.addEventListener('pointerdown', function (e) {
+      if (phase === 1) { var r = S.cv.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2;
+        if (Math.hypot(x, y) < r.width * 0.12) return; var a = Math.atan2(y, x) + Math.PI / 2; d = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8; putar(0); return; }
+      if (log.t0_ms && log.taps.length < 2 * P.beats) { log.taps.push({ t_ms: T() }); flash = performance.now() + 200; }
+    });
+    S.say('Putar arah dengan mengetuk tepi lingkaran atau tombol panah. Makin tepat arahnya, makin kuat detaknya.');
+    paint1(); humTick();
+  }
+
+  var PRESET = { cari_lereng: cariLereng, lagu_tidur: laguTidur, lagu_tidur_pendek: laguTidur, akar_selatan: akarSelatan };
+
+  /* ---------- Siklus sesi ---------- */
+  function main(o, cb) {
+    if (cur) return;
+    o = o || {};
+    var f = PRESET[o.preset]; if (!f) { cb && cb({ cancelled: true }); return; }
+    var S = shell(o); cur = S; audio();
+    var finished = false;
+    function fin(res) { if (finished) return; finished = true; S.close(); if (cb) setTimeout(function () { cb(res); }, 420); }
+    S.el.querySelector('.x').onclick = function () { fin({ cancelled: true }); };
+    function mulai() {
+      S.reset();
+      S.say('Menyiapkan&hellip;'); S.buttons([]); S.hud.innerHTML = '';
+      rpc('api_mg_start', ['listen', o.ctx || 'quest', o.preset, o.step == null ? '' : o.step]).then(function (r) {
+        if (S.dead) return;
+        var P = r.params, t0 = performance.now(), sid = r.session_id;
+        var T = function () { return Math.max(0, Math.round(performance.now() - t0)); };
+        f(S, P, T, function (log) {
+          S.say('Tanah menimbang&hellip;'); S.buttons([]);
+          rpc('api_mg_finish', [sid, log]).then(function (h) {
+            if (S.dead) return;
+            if (h.status === 'won') { fin({ win: true, efek: h.efek, result: h.result }); return; }
+            if (h.status === 'expired') S.say(esc(h.pesan || 'Kesempatan berlalu. Coba lagi, tanpa kerugian.'), 'bad');
+            else S.say('Tanah belum mau bicara. Coba lagi, tanpa kerugian.', 'bad');
+            S.draw = null;
+            S.buttons([{ l: 'Coba lagi', utama: true, fn: function () { mulai(); } }, { l: 'Nanti dulu', fn: function () { fin({ win: false }); } }]);
+          }, function (e) {
+            S.say(esc((e && e.message) || 'Gagal menghubungi server.'), 'bad');
+            S.buttons([{ l: 'Coba lagi', utama: true, fn: function () { mulai(); } }, { l: 'Nanti dulu', fn: function () { fin({ win: false }); } }]);
+          });
+        });
+      }, function (e) {
+        S.say(esc((e && e.message) || 'Gagal menghubungi server.'), 'bad');
+        S.buttons([{ l: 'Coba lagi', utama: true, fn: function () { mulai(); } }, { l: 'Nanti dulu', fn: function () { fin({ cancelled: true }); } }]);
+      });
+    }
+    mulai();
+  }
+  function open(kind, opts, cb) { main(Object.assign({ preset: kind }, opts || {}), cb); }
+  return { main: main, open: open, isOpen: function () { return !!cur; } };
+})();
+</script>

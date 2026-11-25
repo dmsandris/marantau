@@ -9,7 +9,7 @@ language plpgsql security definer set search_path = game, public as $$
 declare
   v_me game.players := game.me();
   v_pid uuid := v_me.player_id;
-  v_city text; v_city_json jsonb; v_ver text; r jsonb; v_ps jsonb;
+  v_city text; v_city_json jsonb; v_ver text; r jsonb; v_ps jsonb; v_s5 jsonb;
 begin
   if v_me.archetype = '' then
     return jsonb_build_object('needsCharacter', true, 'username', coalesce(v_me.username, game.auth_username()));
@@ -85,6 +85,13 @@ begin
         'cocoepan', null, 'tigasilang', null, 'limatangan', null, 'duatangan', null, 'gotong', null, 'pacu', null, 'tony', null, 'kongsi', null, 'tonyHunt', null, 'peregrin', null, 'duneks', null, 'jtq', null, 'surat', null, 'cukai', null, 'mahkota', null, 'warlord', null, 'kasino', null);
     end if;
   exception when others then raise warning '[pasir] state: %', sqlerrm;
+  end;
+
+  -- S5: key 's5' hanya ada bila pemain berhak (tidak dikirim sebagai null; fungsi didefinisikan 0107)
+  begin
+    v_s5 := game.s5_view(v_pid);
+    if v_s5 is not null then r := r || jsonb_build_object('s5', v_s5); end if;
+  exception when others then null;
   end;
 
   -- Kirim daftar kota sekalian kalau cache client belum versi terbaru
