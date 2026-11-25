@@ -54,7 +54,8 @@ with r as (select player_id, created_at, net_delta, bet_amount, capped from game
   where status <> 'active' and created_at > now() - ($1::int * interval '1 hour')),
 m as (select player_id, max(c)::int as maks_per_menit from (select player_id, count(*) as c from r group by 1, date_trunc('minute', created_at)) z group by 1)
 select ${NAMA} as kapten, p.username, count(*)::int as ronde, sum(r.bet_amount)::float8 as putaran, sum(r.net_delta)::float8 as bersih,
-  (count(*) filter (where r.capped))::int as kena_batas, coalesce(m.maks_per_menit, 0) as maks_per_menit
+  (count(*) filter (where r.capped))::int as kena_batas, coalesce(m.maks_per_menit, 0) as maks_per_menit,
+  coalesce((select value::numeric from game.config where key = 'KasinoMenangHarian'), 2500000)::float8 as batas
 from r join game.players p on p.player_id = r.player_id left join m on m.player_id = r.player_id
 group by p.player_id, p.character_name, p.username, m.maks_per_menit`,
 
@@ -164,7 +165,7 @@ function nilai(ctx) {
   for (const k of kasino) {
     const f = get(k.username, k.kapten); Object.assign(f.angka, { kasino_ronde: k.ronde, kasino_bersih: k.bersih, kasino_kena_batas: k.kena_batas });
     if (k.maks_per_menit >= 40) tandai(k.username, k.kapten, 'kasino_mesin', 'Ritme kasino seperti mesin', `${k.maks_per_menit} ronde kasino dalam satu menit, ${k.ronde} ronde total`, 4);
-    if (k.bersih >= 5e6 || k.kena_batas >= 2) tandai(k.username, k.kapten, 'kasino_menang', 'Menang besar di kasino', `bersih ${jt(k.bersih)} dari ${k.ronde} ronde (putaran ${jt(k.putaran)}), ${k.kena_batas}× menyentuh batas harian`, 2);
+    if (k.bersih >= Math.max(5e6, 2 * (k.batas || 0)) || k.kena_batas >= 2) tandai(k.username, k.kapten, 'kasino_menang', 'Menang besar di kasino', `bersih ${jt(k.bersih)} dari ${k.ronde} ronde (putaran ${jt(k.putaran)}), ${k.kena_batas}× menyentuh batas harian`, 2);
   }
 
   // Gabungkan tanda dengan kode sama (ambil poin terbesar, bukti digabung).
@@ -188,7 +189,7 @@ function nilai(ctx) {
 
 // ---------- Gemini ----------
 const AI_SYSTEM = `Kamu analis anti-curang untuk "Marantau", game dagang kapal berbasis browser (gaya Tradewinds) dengan ±35 pemain.
-Ekonomi: kapten membeli barang murah di satu pulau dan menjualnya di pulau lain, menyelesaikan misi gubernur, memancing, Pesanan Harian, Balai Kongsi (investasi), Bursa (jual-beli antar kapten), transfer gold antar kapten, duel dadu, Kasino Mutiara di Paradiso (melawan bandar, Edge diatur GM, batas menang bersih 2,5 jt per hari per kapten, tanpa batas kalah), dan menggali harta memakai peta harta (peta dibeli, digali, kadang menghasilkan artefak yang bisa dijual).
+Ekonomi: kapten membeli barang murah di satu pulau dan menjualnya di pulau lain, menyelesaikan misi gubernur, memancing, Pesanan Harian, Balai Kongsi (investasi), Bursa (jual-beli antar kapten), transfer gold antar kapten, duel dadu, Kasino Mutiara di Paradiso (melawan bandar, Edge diatur GM, batas menang bersih per hari per kapten diatur GM lewat KasinoMenangHarian, tanpa batas kalah), dan menggali harta memakai peta harta (peta dibeli, digali, kadang menghasilkan artefak yang bisa dijual).
 Pemain manusia normal: puluhan sampai beberapa ratus aksi per hari, jarang lebih dari 30 aksi per menit, ada jeda tidur.
 Tanda curang yang pernah terjadi: seorang kapten memakai skrip membeli 12.000+ peta harta dan menggali ribuan kali dengan jeda 0,1 detik untuk mencetak gold dan artefak.
 Tugasmu: nilai setiap kapten di data (yang sudah diringkas server) dan beri tingkat risiko: tinggi, sedang, rendah, atau wajar. Jelaskan alasan dalam Bahasa Indonesia yang singkat dan konkret, berdasarkan angka yang ada. Jangan mengarang angka. Bedakan pemain rajin dari pola otomatis atau eksploit. Sarankan tindakan GM yang proporsional (pantau, cek jejak di Panel Ops, tanya pemain, bekukan, kembalikan gold), tanpa menghukum tanpa bukti.

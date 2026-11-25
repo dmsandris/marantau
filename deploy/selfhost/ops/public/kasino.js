@@ -48,8 +48,10 @@
     ], D.harian, { rowLevel: r => r.bandar_bersih < 0 ? 'warn' : '' });
   }
   const kaptenBtn = n => `<button type="button" class="lnk" data-ks-kapten="${esc(n)}">${esc(n)}</button>`;
+  const cap = () => (D && D.ringkas && D.ringkas.batas_harian) || 2500000;
   function renderKapten() {
     const el = $('#ksKapten');
+    const nt = $('#ksKaptenNote'); if (nt) nt.textContent = 'Merah: menang bersih hari ini sudah menyentuh batas harian (' + n0(cap()) + '). Kuning: di atas 80%. Klik nama untuk melihat jejak rondenya.';
     if (!D || !D.kapten) { showErr(el, (D && D.errors && D.errors.kapten) || 'tidak ada data', () => refreshKs(true)); return; }
     if (!D.kapten.length) { empty(el, '<b>Belum ada kapten</b> yang bermain di rentang ini.'); return; }
     el.innerHTML = table([
@@ -59,7 +61,7 @@
       { h: 'Bersih', k: 'bersih', num: 1, f: r => signed(r.bersih) }, { h: 'Bersih hari ini', k: 'bersih_hari_ini', num: 1, f: r => signed(r.bersih_hari_ini) },
       { h: 'Kena batas', k: 'kena_batas', num: 1, f: r => n0(r.kena_batas) }, { h: 'Gold kini', k: 'gold_kini', num: 1, f: r => n0(r.gold_kini) },
       { h: 'Terakhir', k: 'terakhir', cls: () => 'dim' },
-    ], D.kapten, { tall: true, rowLevel: r => r.bersih_hari_ini >= 2500000 ? 'bad' : r.bersih_hari_ini >= 2000000 ? 'warn' : '' });
+    ], D.kapten, { tall: true, rowLevel: r => r.bersih_hari_ini >= cap() ? 'bad' : r.bersih_hari_ini >= 0.8 * cap() ? 'warn' : '' });
   }
   function renderAudit() {
     const el = $('#ksAudit');
@@ -144,6 +146,13 @@
         { h: 'Ronde', k: 'ronde', num: 1, f: r => n0(r.ronde) }, { h: 'Putaran', k: 'putaran', num: 1, f: r => n0(r.putaran) },
       ], rows, { rowLevel: r => r.sisa <= 0 ? 'bad' : r.terpakai_pct >= 80 ? 'warn' : '' });
     });
+    put('#ksAuditBatas', 'auditBatas', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Batas belum pernah diubah</b> lewat panel GM.'); return; }
+      el.innerHTML = table([
+        { h: 'Waktu (WIB)', k: 'waktu', cls: () => 'dim' }, { h: 'GM', k: 'gm' }, { h: 'Batas lama', k: 'lama', num: 1, f: r => n0(r.lama) },
+        { h: 'Batas baru', k: 'baru', num: 1, f: r => n0(r.baru) }, { h: 'Catatan', k: 'catatan', cls: () => 'wrap' },
+      ], rows);
+    });
     put('#ksBesar', 'besar', (el, rows) => {
       if (!rows.length) { empty(el, '<b>Belum ada ronde</b> di rentang ini.'); return; }
       el.innerHTML = table([
@@ -165,7 +174,7 @@
   }
   function renderAll() { renderBoard(); renderMeja(); renderHarian(); renderKapten(); renderAudit(); renderExtra(); }
   async function refreshKs(force) {
-    const ids = ['#ksBoard', '#ksMeja', '#ksHarian', '#ksKapten', '#ksAudit', '#ksAlarm', '#ksGerbang', '#ksAktif', '#ksTopHari', '#ksTopPekan', '#ksKuota', '#ksBesar', '#ksCuriga'];
+    const ids = ['#ksBoard', '#ksMeja', '#ksHarian', '#ksKapten', '#ksAudit', '#ksAlarm', '#ksGerbang', '#ksAktif', '#ksTopHari', '#ksTopPekan', '#ksKuota', '#ksBesar', '#ksCuriga', '#ksAuditBatas'];
     if (force) ids.forEach(id => { const e = $(id); if (e) delete e.dataset.ready; });
     await load(ids, async () => { if (!D || force || D.jam !== (S.j === 'semua' ? null : +S.j)) await fetchMain(force); renderAll(); });
     renderFeed();

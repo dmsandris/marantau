@@ -412,7 +412,7 @@ async function iluCari(q) {
 function kasinoData(jamKey, force) {
   const jam = auditJam(jamKey);
   return cached('kasino:' + jam, 20e3, async () => {
-    const { out, errors } = await parts(Object.fromEntries(['ringkas', 'meja', 'harian', 'kapten', 'audit', 'gerbang', 'alarm', 'kuota', 'topHari', 'topPekan', 'besar', 'aktif', 'curiga'].map(k => [k, KAS.Q[k]])), [jam]);
+    const { out, errors } = await parts(Object.fromEntries(['ringkas', 'meja', 'harian', 'kapten', 'audit', 'gerbang', 'alarm', 'kuota', 'topHari', 'topPekan', 'besar', 'aktif', 'curiga', 'auditBatas'].map(k => [k, KAS.Q[k]])), [jam]);
     return { at: now(), jam, errors, ...out, ringkas: out.ringkas ? out.ringkas[0] : null };
   }, force);
 }

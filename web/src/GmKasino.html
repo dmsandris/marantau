@@ -15,6 +15,9 @@
   #mtGmPanel .ksg-tag.cur { background: #372316; color: #fbeabb; }
   #mtGmPanel .ksg-er.dirty { border-color: #c9922f; box-shadow: 0 0 0 1px #c9922f; }
   @media (max-width: 520px) { #mtGmPanel .ksg-er { grid-template-columns: 1fr 72px; } #mtGmPanel .ksg-er input[type=range] { grid-column: 1 / -1; order: 3; } #mtGmPanel .ksg-er .ksg-tag { order: 4; grid-column: 1 / -1; } }
+  #mtGmPanel .ksg-lim { grid-template-columns: 70px 1fr auto auto; } #mtGmPanel .ksg-lim input { min-height: 32px; padding: 4px 6px; text-align: right; }
+  #mtGmPanel .ksg-lim button { min-height: 32px; padding: 4px 12px; border-radius: 9px; border: 0; background: #372316; color: #fbeabb; font-weight: 700; font-size: 13px; cursor: pointer; }
+  @media (max-width: 520px) { #mtGmPanel .ksg-lim { grid-template-columns: 1fr 1fr; } }
   #mtGmPanel .ksg-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
   #mtGmPanel .ksg-tbl th { text-align: left; font-weight: 700; color: var(--parch-muted, #7b6445); padding: 4px; font-size: 11.5px; }
   #mtGmPanel .ksg-tbl td { padding: 5px 4px; border-top: 1px solid rgba(79,51,30,.15); vertical-align: top; }
@@ -47,6 +50,7 @@
       return '<div class="ksg-er" data-ksg-row="' + g + '"><b>' + NM[g] + '</b><input type="range" min="-10" max="10" step="0.5" value="' + v + '" data-ksg-r="' + g + '" aria-label="Edge ' + NM[g] + '">' +
         '<input type="number" min="-10" max="10" step="0.1" value="' + v + '" data-ksg-n="' + g + '" aria-label="Edge ' + NM[g] + ' (%)"><span data-ksg-t="' + g + '">' + tag(v) + '</span></div>';
     }).join('');
+    var li = $('ksgLim'); if (li && document.activeElement !== li) li.value = Number(D.limits.menangHarian) || ''; var lc = $('ksgLimCur'); if (lc) lc.textContent = 'kini ' + f(D.limits.menangHarian);
     var S = D.stats || {}, rows = G.map(function (g) {
       var s = S[g]; if (!s) return '<tr><td>' + NM[g] + '</td><td class="n" colspan="5">belum ada ronde</td></tr>';
       return '<tr><td>' + NM[g] + (s.alarm ? ' ⚠' : '') + '</td><td class="n">' + f(s.rounds) + '</td><td class="n">' + f(s.turnover) + '</td><td class="n">' + f(s.houseNet) + '</td>' +
@@ -60,6 +64,7 @@
       '<div class="ksg-note">Bandar + = gold terserap (sink). Target Blackjack mengandaikan basic strategy; pemain biasa wajar di bawah target, alarm hanya bila pemain menang di atas target.</div>' +
       '<div class="ksg-h5">Menang bersih hari ini (batas ' + f(D.limits.menangHarian) + ')</div>' +
       ((D.top || []).length ? '<table class="ksg-tbl">' + D.top.map(function (t) { return '<tr><td>' + esc(t.kapten) + (t.penuh ? ' <span class="ksg-tag cur">penuh</span>' : '') + '</td><td class="n">' + f(t.rounds) + ' ronde</td><td class="n">' + (t.net >= 0 ? '+' : '') + f(t.net) + '</td></tr>'; }).join('') + '</table>' : '<div class="ksg-note">Belum ada ronde hari ini.</div>') +
+      ((D.limitAudit || []).length ? '<div class="ksg-h5">Riwayat perubahan batas harian</div><table class="ksg-tbl">' + D.limitAudit.map(function (a) { var d = new Date(Number(a.at)); return '<tr><td>' + ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2) + '</td><td class="n">' + f(a.old) + ' → ' + f(a.new) + '</td><td>' + esc(a.gm) + ': ' + esc(a.note) + '</td></tr>'; }).join('') + '</table>' : '') +
       '<div class="ksg-h5">Riwayat perubahan Edge</div>' +
       ((D.audit || []).length ? '<table class="ksg-tbl">' + D.audit.map(function (a) { var d = new Date(Number(a.at)); return '<tr><td>' + ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2) + '</td><td>' + NM[a.game] + '</td><td class="n">' + pc(a.old) + ' → ' + pc(a.new) + '</td><td>' + esc(a.gm) + ': ' + esc(a.note) + '</td></tr>'; }).join('') + '</table>' : '<div class="ksg-note">Belum ada perubahan.</div>');
     wire();
@@ -92,6 +97,15 @@
     ch.forEach(function (g) { var v = Number(document.querySelector('[data-ksg-n="' + g + '"]').value); p = p.then(function () { return rpc(['edge', g, v, note]); }).then(function (x) { D = x; }); });
     p.then(function () { busy = false; $('ksgNote').value = ''; paint(); msg('Edge tersimpan & tercatat di audit.'); }, function (e) { busy = false; msg(e.message, true); load(); });
   }
+  function saveLimit() {
+    var v = Math.round(Number($('ksgLim').value)), note = ($('ksgLimNote').value || '').trim(), cur = Number(D.limits.menangHarian);
+    if (!(v >= 100000 && v <= 100000000)) { msg('Batas harus antara 100.000 dan 100.000.000 gold.', true); return; }
+    if (v === cur) { msg('Batas belum diubah.', true); return; }
+    if (note.length < 3) { msg('Isi catatan perubahan batas dulu (wajib, tercatat di audit).', true); $('ksgLimNote').focus(); return; }
+    if (!confirm('Ubah batas menang harian?\n\n' + f(cur) + ' → ' + f(v) + ' gold per kapten per hari' + (v > cur ? '\n(lebih banyak gold bisa masuk ke ekonomi)' : '') + '\n\nCatatan: ' + note)) return;
+    busy = true; msg('Menyimpan batas…');
+    rpc(['limit', v, note]).then(function (x) { busy = false; D = x; $('ksgLimNote').value = ''; paint(); msg('Batas menang harian tersimpan & tercatat di audit.'); }, function (e) { busy = false; msg(e.message, true); load(); });
+  }
   function load() { if (busy) return; rpc(['status']).then(function (x) { D = x; paint(); }, function (e) { msg(e.message, true); }); }
   function mount() {
     var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box || $('ksgGm')) return;
@@ -103,9 +117,13 @@
       '<div class="ksg-edge" id="ksgEdge"></div>' +
       '<label style="margin-top:8px">Catatan Perubahan (wajib)<input type="text" id="ksgNote" maxlength="300" placeholder="Contoh: sink gold pekan ini, ekonomi terlalu basah"></label>' +
       '<div class="mtp-acts"><button type="button" id="ksgSave">Simpan Edge</button><button type="button" class="alt" id="ksgRef">Muat ulang</button></div>' +
-      '<div class="mtp-msg" id="ksgMsg" aria-live="polite"></div><div class="ksg-h5">Statistik &amp; alarm RTP</div><div id="ksgStat"></div>';
+      '<div class="mtp-msg" id="ksgMsg" aria-live="polite"></div>' +
+      '<div class="ksg-h5">Batas menang bersih per hari nyata</div><div class="ksg-note">Berlaku per kapten, ganti hari pukul 00.00 WIB, tidak ada batas kalah. Tidak tampil di layar pemain. Perubahan langsung berlaku, termasuk untuk sisa hari ini.</div>' +
+      '<div class="ksg-er ksg-lim"><b>Batas</b><input type="number" id="ksgLim" min="100000" max="100000000" step="100000" aria-label="Batas menang harian (gold)"><span class="ksg-tag cur" id="ksgLimCur"></span><button type="button" id="ksgLimSave">Simpan batas</button></div>' +
+      '<label style="margin-top:8px">Catatan perubahan batas (wajib)<input type="text" id="ksgLimNote" maxlength="300" placeholder="Contoh: naik ke 5 jt, pemain aktif sudah banyak"></label>' +
+      '<div class="ksg-h5">Statistik &amp; alarm RTP</div><div id="ksgStat"></div>';
     if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
-    $('ksgSave').onclick = saveEdge; $('ksgRef').onclick = load;
+    $('ksgSave').onclick = saveEdge; $('ksgLimSave').onclick = saveLimit; $('ksgRef').onclick = load;
     var btn = $('mtGmBtn'); if (btn) btn.addEventListener('click', function () { load(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();

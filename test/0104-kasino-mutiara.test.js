@@ -270,6 +270,23 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
     const th = await H.sql(KAS.Q.topHari); ok(th.length > 0 && 'bersih' in th[0], 'ops topHari: ada kolom menang bersih');
     const tp = await H.sql(KAS.Q.topPekan); ok(tp.length === 1 || tp.length > 0, 'ops topPekan jalan');
   }
+  {
+    // GM: ubah batas menang harian (audit wajib, rentang, hanya GM), Ops ikut membaca
+    await H.expectError(() => A.call('api_gmKasino', ['limit', 5000000, 'coba']), /khusus GM/);
+    await H.expectError(() => G.call('api_gmKasino', ['limit', 5000000, '']), /catatan/);
+    await H.expectError(() => G.call('api_gmKasino', ['limit', 50000, 'terlalu kecil']), /antara 100\.000 dan 100\.000\.000/);
+    await H.expectError(() => G.call('api_gmKasino', ['limit', 'abc', 'bukan angka']), /antara 100\.000/);
+    const gs = await G.call('api_gmKasino', ['limit', 5000000, 'naik ke 5 jt, pemain aktif banyak']);
+    ok(num(gs.limits.menangHarian) === 5000000, 'gm limit: status memuat batas baru');
+    ok(num((await one(`select game.ks_cap() c`)).c) === 5000000, 'gm limit: ks_cap membaca 5 jt');
+    ok(gs.limitAudit.length === 1 && num(gs.limitAudit[0].old) === 2500000 && num(gs.limitAudit[0].new) === 5000000 && /5 jt/.test(gs.limitAudit[0].note), 'gm limit: audit tercatat');
+    ok(JSON.stringify((await A.call('api_kasino', ['status'])).kasino).indexOf('5000000') < 0, 'gm limit: batas tidak bocor ke pemain');
+    const rg = (await H.sql(KAS.Q.ringkas, [null]))[0]; ok(num(rg.batas_harian) === 5000000, 'ops ringkas: batas_harian = 5 jt');
+    const ab = await H.sql(KAS.Q.auditBatas); ok(ab.length === 1 && num(ab[0].baru) === 5000000, 'ops auditBatas jalan');
+    // kuota sisa ikut batas baru: pemain yang menang 2,5 jt masih bisa menang
+    await G.call('api_gmKasino', ['limit', 2500000, 'kembalikan ke 2,5 jt']);
+    ok(num((await one(`select game.ks_cap() c`)).c) === 2500000, 'gm limit: bisa dikembalikan');
+  }
   const kat = await H.sql(ALIRAN.Q.kategori, [null]);
   ok(kat.some(r => r.kel === 'Kasino'), 'aliran dana memuat kategori Kasino');
   const kap = await H.sql(ALIRAN.Q.kapten, [null]);
