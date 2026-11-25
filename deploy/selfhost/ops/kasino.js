@@ -20,7 +20,8 @@ select count(*) filter (where r.status <> 'active')::int as ronde,
   (-coalesce(sum(r.net_delta) filter (where r.net_delta < 0), 0))::float8 as sink,
   count(*) filter (where r.capped)::int as kena_batas,
   (select count(*)::int from game.kasino_round where status = 'active') as aktif_kini,
-  (select value from game.config where key = 'KasinoOpen') as gerbang
+  (select value from game.config where key = 'KasinoOpen') as gerbang,
+  coalesce((select value::numeric from game.config where key = 'KasinoMenangHarian'), 2500000)::float8 as batas_harian
 from game.kasino_round r where ${SINCE}`,
 
   meja: `
@@ -140,6 +141,10 @@ select ${NAMA} as kapten, p.username, count(*)::int as ronde, sum(r.bet_amount):
 from game.kasino_round r join game.players p on p.player_id = r.player_id
 where r.status <> 'active' group by p.player_id, p.character_name, p.username having count(*) >= 100 order by z desc limit 15`,
 };
+
+Q.auditBatas = `
+select ${WIB('a.created_at')} as waktu, coalesce(p.username, '?') as gm, a.old_limit::float8 as lama, a.new_limit::float8 as baru, a.note as catatan
+from game.kasino_limit_audit a left join game.players p on p.player_id = a.gm_id order by a.id desc limit 50`;
 
 const GAMES = ['', 'dadu', 'roulette', 'blackjack', 'slot'];
 const STATUS = ['', 'settled', 'active', 'expired'];

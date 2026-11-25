@@ -92,6 +92,17 @@ create table if not exists game.kasino_edge_audit (
 );
 alter table game.kasino_edge_audit enable row level security;
 
+-- Audit perubahan batas menang harian (GM, Tide v87)
+create table if not exists game.kasino_limit_audit (
+  id         bigserial primary key,
+  gm_id      uuid not null references game.players(player_id) on update cascade on delete cascade,
+  old_limit  bigint not null,
+  new_limit  bigint not null,
+  note       text not null,
+  created_at timestamptz not null default now()
+);
+alter table game.kasino_limit_audit enable row level security;
+
 -- ---------------------------------------------------------------------
 -- Bantuan
 -- ---------------------------------------------------------------------
@@ -654,6 +665,7 @@ select game.expose('api_kasino');
 --   ['status']
 --   ['edge', meja, persen (-10..10), catatan]   -> tercatat di kasino_edge_audit
 --   ['gate', 'all'|meja, true|false]
+--   ['limit', batas menang harian (100.000..100.000.000), catatan]  -> kasino_limit_audit
 -- ---------------------------------------------------------------------
 create or replace function game.ks_gm_stats() returns jsonb
 language sql stable as $$
@@ -678,7 +690,7 @@ $$;
 
 create or replace function public.api_gmKasino(a jsonb default '[]'::jsonb) returns jsonb
 language plpgsql security definer set search_path = game, public as $$
-declare v_id uuid := game.uid(); v_act text := lower(coalesce(game.arg(a, 0), 'status')); v_g text; v_new numeric; v_old numeric;
+declare v_id uuid := game.uid(); v_act text := lower(coalesce(game.arg(a, 0), 'status')); v_g text; v_new numeric; v_old numeric; v_lim numeric;
   v_note text; v_on boolean; k text;
 begin
   if not game.is_gm(v_id) then raise exception 'Perintah ini khusus GM.'; end if;
@@ -700,6 +712,14 @@ begin
     else raise exception 'Meja tidak dikenal.'; end if;
     perform game.cfg_set(k, case when v_on then '1' else '0' end);
     perform game.log(v_id, 'GM Kasino: ' || k || ' = ' || case when v_on then 'buka' else 'tutup' end || '.');
+  elsif v_act = 'limit' then
+    begin v_lim := round((game.arg(a, 1))::numeric); exception when others then v_lim := null; end;
+    if v_lim is null or v_lim < 100000 or v_lim > 100000000 then raise exception 'Batas menang harian harus antara 100.000 dan 100.000.000 gold.'; end if;
+    v_note := btrim(coalesce(game.arg(a, 2), ''));
+    if length(v_note) < 3 then raise exception 'Isi catatan perubahan (alasan) dulu.'; end if;
+    insert into game.kasino_limit_audit(gm_id, old_limit, new_limit, note) values (v_id, game.ks_cap(), v_lim::bigint, left(v_note, 300));
+    perform game.cfg_set('KasinoMenangHarian', v_lim::bigint::text);
+    perform game.log(v_id, 'GM Kasino: batas menang harian = ' || v_lim::bigint || '.');
   elsif v_act <> 'status' then
     raise exception 'Aksi tidak dikenal.';
   end if;
@@ -720,6 +740,9 @@ begin
                 from game.kasino_round k join game.players p on p.player_id = k.player_id
                where k.ks_day = game.ks_day() and k.status <> 'active'
                group by p.player_id, p.character_name, p.username order by sum(k.net_delta) desc limit 8) t),
+    'limitAudit', (select coalesce(jsonb_agg(jsonb_build_object('at', (extract(epoch from x.created_at) * 1000)::bigint,
+                'gm', coalesce(p.username, '?'), 'old', x.old_limit, 'new', x.new_limit, 'note', x.note) order by x.id desc), '[]'::jsonb)
+                from (select * from game.kasino_limit_audit order by id desc limit 10) x left join game.players p on p.player_id = x.gm_id),
     'audit', (select coalesce(jsonb_agg(jsonb_build_object('at', (extract(epoch from x.created_at) * 1000)::bigint,
                 'gm', coalesce(p.username, '?'), 'game', x.game_type, 'old', x.old_edge * 100, 'new', x.new_edge * 100, 'note', x.note)
                 order by x.id desc), '[]'::jsonb)
