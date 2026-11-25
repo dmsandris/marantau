@@ -175,6 +175,27 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
   await H.sql(`select game.cfg_set('S5MgJedaMs', '0'), game.cfg_set('S5MgPerJam', '3')`);
   await H.expectError(() => G.call('api_mg_start', ['uji', 'quest', 'satu']), /kelelahan/);
   await H.sql(`select game.cfg_set('S5MgPerJam', '30')`);
+
+  // ---------- Alat uji GM (api_s5 gm_*) ----------
+  await H.sql(`select game.cfg_set('FiturPenguji', '')`);
+  await H.expectError(() => B.call('api_s5', ['gm_dunia', 'seberang']), /Aksi tidak dikenal/);
+  await H.expectError(() => B.call('api_s5', ['status']), /Aksi tidak dikenal/);
+  let g = await G.call('api_s5', ['gm_status']);
+  ok(g.gm.dunia === 'mare' && g.gm.gerbang.a === '0', 'status GM');
+  g = await G.call('api_s5', ['gm_dunia', 'seberang']);
+  ok(g.gm.dunia === 'seberang', 'GM pindah ke seberang (tanpa gerbang terbuka)');
+  ok((await one(`select c, sea from game.mp_presence where player_id = $1`, [G.id])).sea === true, 'presence GM langsung tersamar');
+  await H.expectError(() => pre(G, 'api_buy'), /di seberang titian/);
+  await pre(G, 'api_s5'); await pre(G, 'api_gmcommand');
+  ok((await one(`select cross_day from game.s5_state where player_id = $1`, [G.id])).cross_day === null, 'uji pagar tidak mencatat hari titian');
+  g = await G.call('api_s5', ['gm_dunia', 'mare']);
+  ok(g.gm.dunia === 'mare', 'GM kembali ke Mare');
+  await pre(G, 'api_buy');
+  await H.expectError(() => G.call('api_s5', ['gm_dunia', 'bulan']), /mare atau seberang/);
+  await H.sql(`select game.s5_catat_seberang($1, 'seberang')`, [G.id]);
+  ok((await G.call('api_s5', ['gm_status'])).gm.bisa.ok === false, 'hari titian tercatat');
+  ok((await G.call('api_s5', ['gm_reset_hari'])).gm.bisa.ok === true, 'GM reset hari titian');
+  await G.call('api_s5', ['gm_dunia', 'mare']);
   // gerbang ditutup lagi -> rahasia
   await H.sql(`select game.cfg_set('FiturPenguji', '')`);
   await H.expectError(() => G.call('api_mg_finish', [s5.session_id, { n: 3 }]), /Aksi tidak dikenal/);

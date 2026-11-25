@@ -384,3 +384,47 @@ begin
   return jsonb_build_object('status', s.status, 'result', v_res, 'efek', v_efek);
 end $$;
 select game.expose('api_mg_finish');
+
+-- ---------------------------------------------------------------------
+-- 6. api_s5 — titik masuk S5. Fase 0: alat uji GM saja (pemain lain: "Aksi tidak dikenal.").
+--    Fase berikutnya mendefinisikan ulang fungsi ini (aksi quest) dan tetap membawa aksi gm_*.
+-- ---------------------------------------------------------------------
+create or replace function game.s5_gm_status(p_pid uuid) returns jsonb
+language sql stable as $$
+  select jsonb_build_object(
+    'dunia', game.s5_dunia(p_pid),
+    'hari', game.game_day(),
+    'crossDay', (select cross_day from game.s5_state where player_id = p_pid),
+    'bisa', game.s5_bisa_seberang(p_pid),
+    'gerbang', jsonb_build_object('a', game.cfg('S5aOpen'), 'b', game.cfg('S5bOpen'), 'c', game.cfg('S5cOpen')),
+    'penguji', coalesce(game.cfg('FiturPenguji'), ''))
+$$;
+
+create or replace function game.s5_gm_act(p_pid uuid, a jsonb) returns jsonb
+language plpgsql as $$
+declare v_act text := lower(coalesce(game.arg(a, 0), '')); v_ke text := lower(coalesce(game.arg(a, 1), ''));
+begin
+  if not game.is_gm(p_pid) then raise exception 'Aksi tidak dikenal.'; end if;
+  if v_act = 'gm_dunia' then
+    -- Uji pagar: hanya menandai dunia GM sendiri. Kapal tidak dipindahkan, hari titian tidak dicatat.
+    if v_ke not in ('mare', 'seberang') then raise exception 'Pilih mare atau seberang.'; end if;
+    perform game.s5_row(p_pid);
+    update game.s5_state set dunia = v_ke, updated_at = now() where player_id = p_pid;
+    perform game.mp_touch(p_pid);
+  elsif v_act = 'gm_reset_hari' then
+    update game.s5_state set cross_day = null, tiket_day = null, updated_at = now() where player_id = p_pid;
+  elsif v_act <> 'gm_status' then
+    raise exception 'Aksi tidak dikenal.';
+  end if;
+  return jsonb_build_object('ok', true, 'gm', game.s5_gm_status(p_pid));
+end $$;
+
+create or replace function public.api_s5(a jsonb default '[]'::jsonb) returns jsonb
+language plpgsql security definer set search_path = game, public as $$
+declare v_pid uuid := game.uid(); v_act text := lower(coalesce(game.arg(a, 0), ''));
+begin
+  if v_pid is null then raise exception 'Aksi tidak dikenal.'; end if;
+  if v_act like 'gm\_%' then return game.s5_gm_act(v_pid, a); end if;
+  raise exception 'Aksi tidak dikenal.';
+end $$;
+select game.expose('api_s5');

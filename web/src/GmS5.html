@@ -1,0 +1,58 @@
+<style>
+  /* ================= Panel GM: Uji Titian (S5) ================= */
+  #mtGmPanel .s5g-st { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin-top: 8px; font-size: 13px; }
+  #mtGmPanel .s5g-st dt { color: var(--parch-muted, #7b6445); } #mtGmPanel .s5g-st dd { margin: 0; font-weight: 700; }
+  #mtGmPanel .s5g-note { font-size: 12px; color: var(--parch-muted, #7b6445); margin-top: 6px; line-height: 1.45; }
+</style>
+<script>
+(function () {
+  'use strict';
+  var D = null;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function rpc(args) { return new Promise(function (ok, fail) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r.api_s5.apply(r, args); }); }
+  function msg(t, err) { var m = $('s5gMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('err', !!err); } }
+  function onOff(v) { return v === '1' ? 'buka' : 'tutup'; }
+
+  function paint() {
+    if (!D) return;
+    var sbr = D.dunia === 'seberang';
+    $('s5gSum').textContent = sbr ? 'DI SEBERANG' : 'Mare';
+    $('s5gSum').classList.toggle('on', sbr);
+    $('s5gSt').innerHTML =
+      '<dt>Dunia akun ini</dt><dd>' + (sbr ? 'Seberang (pagar aktif)' : 'Mare (normal)') + '</dd>' +
+      '<dt>Gerbang</dt><dd>Bagian I ' + onOff(D.gerbang.a) + ' · titian ' + onOff(D.gerbang.b) + ' · seberang ' + onOff(D.gerbang.c) + '</dd>' +
+      '<dt>Penguji</dt><dd>' + esc(D.penguji || '(kosong)') + '</dd>' +
+      '<dt>Titian hari ini</dt><dd>' + (D.bisa && D.bisa.ok ? 'boleh menyeberang' : esc((D.bisa && D.bisa.pesan) || '-')) + '</dd>';
+    $('s5gGo').hidden = sbr; $('s5gBack').hidden = !sbr;
+  }
+  function act(args, done) {
+    msg('Memproses…');
+    rpc(args).then(function (x) { D = x.gm; paint(); msg(done); }, function (e) { msg(e.message, true); });
+  }
+  function load() { rpc(['gm_status']).then(function (x) { D = x.gm; paint(); }, function (e) { msg(e.message, true); }); }
+  function mount() {
+    var box = document.querySelector('#mtGmPanel .mtp-box'); if (!box || $('s5gGm')) return;
+    var hint = box.querySelector(':scope > .mtp-hint:last-child');
+    var sec = document.createElement('div'); sec.id = 's5gGm'; sec.setAttribute('data-k', 's5uji');
+    sec.innerHTML = '<h4>Uji Titian<span class="mtp-sum" id="s5gSum"></span></h4>' +
+      '<dl class="s5g-st" id="s5gSt"></dl>' +
+      '<div class="s5g-note">Uji pagar: akun ini ditandai "di seberang" tanpa memindahkan kapal. Pasar, Bank, Gudang, mancing, Kasino, Kongsi, dan papan misi harus ditolak; berlayar, chat dunia, PM, Kapal, dan Panel GM tetap jalan. Pemain lain melihatmu "berlayar". Muat ulang game setelah menekan tombol.</div>' +
+      '<div class="mtp-acts"><button type="button" id="s5gGo">Pindah ke seberang (uji pagar)</button>' +
+      '<button type="button" id="s5gBack">Kembali ke Mare</button>' +
+      '<button type="button" class="alt" id="s5gHari">Reset hari titian</button>' +
+      '<button type="button" class="alt" id="s5gRef">Muat ulang</button></div>' +
+      '<div class="mtp-msg" id="s5gMsg" aria-live="polite"></div>';
+    if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
+    $('s5gGo').onclick = function () {
+      if (!confirm('Tandai akun GM ini "di seberang"? Pasar, Bank, Gudang, dll. akan menolak sampai kamu menekan "Kembali ke Mare".')) return;
+      act(['gm_dunia', 'seberang'], 'Sekarang di seberang. Muat ulang game, lalu coba buka Pasar.');
+    };
+    $('s5gBack').onclick = function () { act(['gm_dunia', 'mare'], 'Kembali ke Mare. Muat ulang game.'); };
+    $('s5gHari').onclick = function () { act(['gm_reset_hari'], 'Hari titian direset.'); };
+    $('s5gRef').onclick = load;
+    var btn = $('mtGmBtn'); if (btn) btn.addEventListener('click', function () { load(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+})();
+</script>
