@@ -1,0 +1,225 @@
+<style>
+  /* ================= S5 · kartu langkah bersama (logika 10.2) ================= */
+  .s5k { position: relative; margin: 6px 0 12px; padding: 14px 14px 12px; border-radius: 14px; font: 400 15px/1.5 Georgia, serif;
+    color: #3a2a18; background: linear-gradient(180deg, rgba(255,250,238,.92), rgba(244,232,206,.92));
+    border: 1px solid rgba(120,90,50,.42); box-shadow: 0 6px 18px rgba(40,25,10,.18); opacity: 0; transform: translateY(12px);
+    transition: opacity .25s ease, transform .25s ease; }
+  .s5k.on { opacity: 1; transform: none; }
+  .s5k.out { opacity: 0; transform: translateY(6px); }
+  .s5k.tema-seberang { color: #efe2bf; background: radial-gradient(120% 90% at 50% 0%, rgba(40,36,58,.97), rgba(10,10,20,.97));
+    border-color: rgba(214,176,92,.55); box-shadow: 0 8px 26px rgba(0,0,0,.5), inset 0 0 0 1px rgba(214,176,92,.12); }
+  .s5k-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .s5k-hd .f { width: 52px; height: 52px; flex: none; border-radius: 10px; overflow: hidden; border: 1px solid rgba(90,60,30,.4); }
+  .s5k.tema-seberang .s5k-hd .f { border-color: rgba(214,176,92,.5); }
+  .s5k-hd .f svg { width: 100%; height: 100%; display: block; }
+  .s5k-hd .nm { font-weight: 700; font-size: 15px; } .s5k-hd .nm small { display: block; font-weight: 400; font-size: 12.5px; opacity: .75; }
+  .s5k-bd { min-height: 4.6em; transition: opacity .25s ease; cursor: pointer; }
+  .s5k-bd.fade { opacity: 0; }
+  .s5k-bd p { margin: 0 0 .5em; }
+  .s5k-ptj { margin-top: 8px; padding: 8px 11px; border-radius: 10px; font-style: italic; background: rgba(36,71,122,.1);
+    border: 1px dashed rgba(36,71,122,.45); color: #17335e; opacity: 0; transition: opacity .3s ease; }
+  .s5k.tema-seberang .s5k-ptj { background: rgba(214,176,92,.1); border-color: rgba(214,176,92,.45); color: #f1d58e; }
+  .s5k-ptj.on { opacity: 1; }
+  .s5k-tunggu { margin-top: 8px; font-size: 13px; opacity: .85; }
+  .s5k-ft { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+  .s5k-ft button { min-height: 40px; padding: 8px 16px; border-radius: 999px; font: 700 14px Georgia, serif; cursor: pointer;
+    background: rgba(255,255,255,.6); color: #3a2a18; border: 1px solid rgba(120,90,50,.45); transition: transform .12s, opacity .2s; }
+  .s5k-ft button.utama { background: linear-gradient(180deg, #e8bf55, #b98a2e); color: #2a1a08; border-color: #8a6420; }
+  .s5k.tema-seberang .s5k-ft button { background: rgba(255,255,255,.06); color: #efe2bf; border-color: rgba(214,176,92,.45); }
+  .s5k.tema-seberang .s5k-ft button.utama { background: linear-gradient(180deg, #f0cf72, #b98a2e); color: #1a1208; }
+  .s5k-ft button[disabled] { opacity: .4; cursor: default; }
+  .s5k-ft button:active:not([disabled]) { transform: scale(.98); }
+  .s5k-ft .hal { margin-right: auto; align-self: center; font-size: 12px; opacity: .6; }
+  .s5k-opts { display: grid; gap: 8px; margin-top: 10px; }
+  .s5k-opts button { text-align: left; padding: 10px 12px; border-radius: 12px; font: 400 15px/1.4 Georgia, serif; cursor: pointer;
+    background: rgba(255,255,255,.5); color: inherit; border: 1px solid rgba(120,90,50,.38); }
+  .s5k.tema-seberang .s5k-opts button { background: rgba(255,255,255,.05); border-color: rgba(214,176,92,.4); }
+  @media (prefers-reduced-motion: reduce) { .s5k, .s5k-bd, .s5k-ptj { transition: none; } .s5k { transform: none; } }
+</style>
+<script>
+/* =====================================================================
+ * S5Kartu — mesin kartu langkah bersama Saga 5 (KONSEP 10.2).
+ *
+ *   S5Kartu.buka({
+ *     id: 's5-3',                     // kunci langkah (untuk melanjutkan dari halaman aksi)
+ *     host: elemen | null,            // default: paling atas #modalContent
+ *     tema: 'mare' | 'seberang',
+ *     tokoh: { nama, gelar, wajah },  // wajah = string SVG (opsional)
+ *     halaman: ['<p>..</p>', ...],    // maks 4; teks mengetik <= 1,2 dtk, ketuk = tampil penuh
+ *     petunjuk: 'kiasan berikutnya',  // tampil di halaman terakhir; Tutup aktif bersamaan
+ *     aksi: { label, fn },            // tombol langkah (Lanjut / Mulai / label unik); kartu ditutup sistem dulu
+ *     pilihan: [{ label, fn }],       // opsional, mengganti tombol aksi
+ *     tunggu: { menit, teks },        // opsional: tombol aksi nonaktif + hitung mundur (10.2 F)
+ *     tutup: true, onTutup: fn
+ *   })
+ *   S5Kartu.ganti(opts)   -> langkah beruntun di tempat yang sama: crossfade isi, kartu tetap terbuka
+ *   S5Kartu.tutup()       -> fade-out 0,25 dtk
+ *   S5Kartu.aktif()       -> id kartu yang terbuka / null
+ *
+ * Aturan: kartu tidak pernah ditutup oleh waktu atau sinematik; tidak ada auto-lanjut;
+ * kartu S5 selalu paling atas, kartu berikutnya mengantre.
+ * ===================================================================== */
+var S5Kartu = (function () {
+  var T_IN = 250, T_OUT = 250, T_JEDA = 300, T_KETIK_MAKS = 1200, HAL_MAKS = 4;
+  var cur = null, antre = [], dibaca = {}, timers = [];
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function later(fn, ms) { var t = setTimeout(fn, ms); timers.push(t); return t; }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function reduce() { try { return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+  function simpan() { try { localStorage.setItem('mt_s5k_dibaca', JSON.stringify(dibaca)); } catch (e) { } }
+  try { dibaca = JSON.parse(localStorage.getItem('mt_s5k_dibaca') || '{}') || {}; } catch (e) { dibaca = {}; }
+
+  function menitLabel(m) {
+    m = Math.max(1, Math.round(m || 0));
+    return m >= 60 ? Math.floor(m / 60) + ' jam' + (m % 60 ? ' ' + (m % 60) + ' menit' : '') : m + ' menit';
+  }
+
+  function hostOf(o) {
+    if (o.host) return o.host;
+    var c = document.getElementById('modalContent');
+    return c || document.body;
+  }
+
+  // Ketik HTML tanpa memecah tag: tampilkan node teks bertahap (<= 1,2 dtk total)
+  function ketik(el, html, done) {
+    el.innerHTML = html;
+    if (reduce()) { done(); return function () { }; }
+    var nodes = [], w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n, total = 0;
+    while ((n = w.nextNode())) { nodes.push({ n: n, t: n.nodeValue }); total += n.nodeValue.length; n.nodeValue = ''; }
+    if (!total) { done(); return function () { }; }
+    var shown = 0, selesai = false, iv;
+    function render(k) {
+      var sisa = k;
+      nodes.forEach(function (x) { var take = Math.max(0, Math.min(x.t.length, sisa)); x.n.nodeValue = x.t.slice(0, take); sisa -= take; });
+    }
+    function full() { if (selesai) return; selesai = true; clearInterval(iv); render(total); done(); }
+    var per = Math.max(1, Math.ceil(total / (T_KETIK_MAKS / 16)));
+    iv = setInterval(function () { shown += per; if (shown >= total) full(); else render(shown); }, 16);
+    return full;
+  }
+
+  function wajah(t) { return t && t.wajah ? '<div class="f">' + t.wajah + '</div>' : ''; }
+
+  function isi(o) {
+    var t = o.tokoh;
+    return (t ? '<div class="s5k-hd">' + wajah(t) + '<div class="nm">' + esc(t.nama) + (t.gelar ? '<small>' + esc(t.gelar) + '</small>' : '') + '</div></div>' : '') +
+      '<div class="s5k-bd" role="button" tabindex="0" aria-live="polite"></div>' +
+      '<div class="s5k-ptj" aria-live="polite"></div>' +
+      '<div class="s5k-tunggu" hidden></div>' +
+      '<div class="s5k-opts" hidden></div>' +
+      '<div class="s5k-ft"><span class="hal"></span></div>';
+  }
+
+  function pasang(o, el) {
+    var hal = (o.halaman || []).slice(0, HAL_MAKS);
+    if (!hal.length) hal = [''];
+    var i = 0, penuh = null;
+    // kartu yang pernah ditutup sebelum waktunya: langsung ke halaman aksi
+    if (o.id && dibaca[o.id]) i = hal.length - 1;
+    var bd = el.querySelector('.s5k-bd'), ptj = el.querySelector('.s5k-ptj'), ft = el.querySelector('.s5k-ft'),
+      ops = el.querySelector('.s5k-opts'), tg = el.querySelector('.s5k-tunggu'), lbl = el.querySelector('.hal');
+
+    function tombol(label, cls, fn, mati) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls;
+      if (mati) b.disabled = true; b.addEventListener('click', function () { if (!b.disabled) fn(b); }); ft.appendChild(b); return b;
+    }
+    function bersihTombol() { Array.prototype.slice.call(ft.querySelectorAll('button')).forEach(function (b) { b.remove(); }); }
+
+    function jalankan(fn) {
+      // tombol lanjutan: kartu ditutup sistem (fade-out 0,25) -> jeda <= 0,3 -> sinematik / mini game
+      Array.prototype.slice.call(el.querySelectorAll('button')).forEach(function (b) { b.disabled = true; });
+      if (o.id) { delete dibaca[o.id]; simpan(); }
+      tutup(function () { later(function () { try { fn(); } catch (e) { console.error('[S5Kartu]', e); } }, T_JEDA); }, true);
+    }
+
+    function akhir() {
+      lbl.textContent = hal.length > 1 ? (i + 1) + '/' + hal.length : '';
+      if (o.petunjuk) { ptj.innerHTML = esc(o.petunjuk); ptj.classList.add('on'); } else ptj.style.display = 'none';
+      if (o.id) { dibaca[o.id] = 1; simpan(); }
+      bersihTombol();
+      if (o.pilihan && o.pilihan.length) {
+        ops.hidden = false; ops.innerHTML = '';
+        o.pilihan.forEach(function (p) {
+          var b = document.createElement('button'); b.type = 'button'; b.innerHTML = esc(p.label);
+          b.addEventListener('click', function () { jalankan(p.fn); }); ops.appendChild(b);
+        });
+      }
+      if (o.tutup !== false) tombol('Tutup', '', function () { tutup(); });
+      if (o.aksi && !(o.pilihan && o.pilihan.length)) {
+        var mati = !!o.tunggu;
+        tombol(o.aksi.label || 'Lanjut', 'utama', function () { jalankan(o.aksi.fn); }, mati);
+      }
+      if (o.tunggu) {
+        tg.hidden = false;
+        var sisa = o.tunggu.menit;
+        var tulis = function () { tg.textContent = (o.tunggu.teks || 'Terbuka lagi dalam') + ' ± ' + menitLabel(sisa) + '.'; };
+        tulis();
+        var iv = setInterval(function () { sisa -= 1; if (sisa <= 0) { clearInterval(iv); tg.textContent = 'Sudah bisa, Kapten.'; if (o.tunggu.onSelesai) o.tunggu.onSelesai(); } else tulis(); }, 60000);
+        timers.push(iv);
+      }
+    }
+
+    function tampil() {
+      lbl.textContent = hal.length > 1 ? (i + 1) + '/' + hal.length : '';
+      bersihTombol();
+      penuh = ketik(bd, hal[i], function () {
+        penuh = null;
+        if (i < hal.length - 1) tombol('Lanjut', 'utama', function () {
+          bd.classList.add('fade');
+          later(function () { i++; bd.classList.remove('fade'); tampil(); }, T_OUT);
+        });
+        else akhir();
+      });
+    }
+    bd.addEventListener('click', function () { if (penuh) penuh(); });
+    bd.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && penuh) { e.preventDefault(); penuh(); } });
+    tampil();
+  }
+
+  function buka(o) {
+    o = o || {};
+    if (cur && cur.o.id !== o.id) { antre.push(o); return; }
+    if (cur) { ganti(o); return; }
+    var host = hostOf(o), el = document.createElement('div');
+    el.className = 's5k' + (o.tema === 'seberang' ? ' tema-seberang' : '');
+    el.innerHTML = isi(o);
+    host.insertBefore(el, host.firstChild);
+    cur = { o: o, el: el };
+    requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add('on'); }); });
+    // ketukan diterima setelah animasi muncul selesai
+    el.style.pointerEvents = 'none';
+    later(function () { el.style.pointerEvents = ''; }, T_IN);
+    pasang(o, el);
+  }
+
+  function ganti(o) {
+    if (!cur) { buka(o); return; }
+    var el = cur.el;
+    el.style.transition = 'opacity .25s ease'; el.style.opacity = '0';
+    clearTimers();
+    later(function () {
+      el.className = 's5k on' + (o.tema === 'seberang' ? ' tema-seberang' : '');
+      el.innerHTML = isi(o); cur.o = o; pasang(o, el); el.style.opacity = '';
+    }, T_OUT);
+  }
+
+  function tutup(cb, sistem) {
+    if (!cur) { if (cb) cb(); return; }
+    var c = cur; cur = null; clearTimers();
+    c.el.classList.add('out');
+    setTimeout(function () {
+      if (c.el.parentNode) c.el.parentNode.removeChild(c.el);
+      if (!sistem && c.o.onTutup) { try { c.o.onTutup(); } catch (e) { } }
+      if (cb) cb();
+      if (antre.length) buka(antre.shift());
+    }, T_OUT);
+  }
+
+  return {
+    buka: buka, ganti: ganti, tutup: tutup, menitLabel: menitLabel,
+    aktif: function () { return cur ? cur.o.id || '' : null; },
+    lupa: function (id) { delete dibaca[id]; simpan(); }
+  };
+})();
+</script>
