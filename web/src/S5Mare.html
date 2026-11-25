@@ -1,0 +1,553 @@
+<style>
+  /* ================= S5 · Bagian I (Mare) ================= */
+  .s5m-wrap { margin: 0 0 6px; }
+  .s5m-jurnal { margin: 6px 0 10px; padding: 9px 12px; border-radius: 12px; font: italic 14px/1.45 Georgia, serif; color: #3a2a18;
+    background: rgba(255,248,230,.72); border: 1px dashed rgba(120,90,50,.45); }
+  .s5m-jurnal b { font-style: normal; letter-spacing: .08em; font-size: 11px; text-transform: uppercase; color: #8a6a3a; display: block; margin-bottom: 2px; }
+  .s5m-wl { margin: 8px 0 2px; display: grid; gap: 4px; font-size: 14px; }
+  .s5m-wl div { display: flex; gap: 8px; align-items: baseline; }
+  .s5m-wl i { font-style: normal; width: 18px; text-align: center; font-weight: 700; }
+  .s5m-wl .y i { color: #2e7d32; } .s5m-wl .n i { color: #b23a2a; }
+  .s5m-hadiah { margin-top: 8px; padding: 7px 10px; border-radius: 10px; background: rgba(214,176,92,.16); border: 1px solid rgba(160,120,50,.4); font-weight: 700; }
+</style>
+<script>
+/* =====================================================================
+ * S5 Bagian I — Mare (langkah 1-19, Q23-Q25). Server: 0107-s5-bagian1.sql (api_s5).
+ *   Kartu memakai S5Kartu (logika 10.2): halaman, tombol aksi, baris petunjuk.
+ *   Mini game lama: MTGames (pantun) · MTGames2 (angin) · MTGames3 (jejak, sandi mercusuar)
+ *     · MTGames4 (selam, sandi pelikan) · MTGames5 (manifest) · MK.lokal (warga, tercecer)
+ *   Dengar Tanah: MTGames9 (dinilai server). Sinematik: CinemaS5a.html (Buku Adegan mt_seen_s5c_*).
+ *   Kartu muncul paling atas di bangunan sasaran; di Lapau pulau lain tampil catatan samar (jurnal).
+ * ===================================================================== */
+var S5M = (function () {
+  if (typeof panelHeader_ !== 'function' || !window.S5Kartu || !window.MTFace) return {};
+  function st() { return (state && state.s5) || null; }
+  function aktif() { return !!st(); }
+  function idx() { var s = st(); return s ? (s.step || 0) : -1; }
+  function cid() { try { return state && state.city ? state.city.CityId : ''; } catch (e) { return ''; } }
+  function cityNm(id) { try { var c = (state.cities || []).filter(function (x) { return x.CityId === id; })[0]; return c ? c.Name : id; } catch (e) { return id; } }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  function frac() { return typeof dayFrac_ === 'function' ? dayFrac_() : 0.4; }
+  function night() { var f = frac(); return f >= 0.72 || f < 0.04; }
+  function menitKeMalam() { var f = frac(), len = (state && state.dayLengthMinutes) || 180; return Math.max(1, Math.ceil(((0.72 - f + 1) % 1) * len)); }
+  function au(k) { try { au_(k); } catch (e) { } }
+  var gameOpen = false, cineOn = false;
+
+  /* ---------- tokoh ---------- */
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    NN = {
+      dwi: { name: "dwi de'clown", title: "Black's Alley &middot; TooGood", clown: true, bg: ['#3a2a4a', '#120c18'],
+        ap: { fem: 0, skin: 2, hair: 2, hairStyle: 3, facial: 0, head: 'none', eyes: 0, seed: 70707, role: 'lapau', age: 0.4 } },
+      opung: { name: 'Opung Mossam', title: 'Bangku pojok, Kedai Tuak &middot; Bjorneo', bg: ['#3a4a3a', '#101810'],
+        ap: apOf('opung-mossam-bjorneo', 'lapau', 0, { age: 0.94, facial: 2, hair: 4, head: 'ikat', outfit: 'mantel' }) },
+      etalase: { name: 'Bu Etalase', title: 'Lapak etalase kaca, Pasar Joungjava', bg: ['#5a4a2a', '#1a140a'],
+        ap: apOf('bu-etalase-joungjava', 'saudagar', 1, { age: 0.62, head: 'none', outfit: 'kebaya' }) },
+      derjandy: { name: 'Derjandy', title: 'Juru mudi tua, Karang Garam', bg: ['#2a4a5a', '#0a141a'],
+        ap: apOf('derjandy-karang-garam', 'kapten', 0, { age: 0.82, facial: 2, head: 'ikat', outfit: 'rompi' }) },
+      susi: { name: 'Susi susalty', title: 'Pembuat garam, Otoland', bg: ['#4a5a6a', '#121a20'],
+        ap: apOf('susi-susalty-otoland', 'lapau', 1, { age: 0.45, head: 'none', outfit: 'apron' }) },
+      baayu: { name: 'Om Baayu', title: 'Penjaga cermin terakhir, Kota Sowtour', bg: ['#2a2a4a', '#0c0c18'],
+        ap: apOf('om-baayu-sowtour-motor', 'tukang', 0, { age: 0.85, facial: 4, hair: 4, head: 'none', outfit: 'mantel' }) },
+      yaptob: { name: 'Yaptob', title: 'Garasi Yaptob &middot; Zentul', bg: ['#7a4a1a', '#1a0e06'], medals: 1,
+        ap: apOf('yaptob-garasi-zentul-yusaintjolt', 'tukang', 0, { age: 0.78, facial: 2, head: 'ikat', outfit: 'apron' }) },
+      tetua: { name: 'Tetua desa tiang', title: 'Karang Garam', bg: ['#4a3a2a', '#140e08'],
+        ap: apOf('tetua-desa-tiang-karang-garam', 'lapau', 0, { age: 0.9, facial: 3, hair: 4, head: 'none' }) }
+    };
+    return NN;
+  }
+  function who(k) {
+    if (!k || k === 'lapau') { try { return npc_('lapau'); } catch (e) { return { name: 'Penjaga lapau', title: '', ap: MTFace.npc('x|lapau', 'lapau') }; } }
+    return N()[k];
+  }
+  function tokoh(k) {
+    var n = who(k); if (!n) return null;
+    return { nama: n.name.replace(/&middot;/g, '·'), gelar: String(n.title || '').replace(/&middot;/g, '·').replace(/&amp;/g, '&'),
+      wajah: n.svg || MTFace.svg(n.ap, { bgColors: n.bg || ['#2a3c5a', '#101822'], medals: n.medals, clown: !!n.clown }) };
+  }
+
+  /* ---------- panel ---------- */
+  function modalTerbuka() { var ov = document.getElementById('modalOverlay'); return !!(ov && ov.classList.contains('open')); }
+  function host() {
+    var c = document.getElementById('modalContent'); if (!c) return null;
+    var old = c.querySelector('.s5m-wrap'); if (old) old.remove();
+    var anchor = c.querySelector('.ph'), w = document.createElement('div'); w.className = 's5m-wrap';
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(w, anchor.nextSibling); else c.insertBefore(w, c.firstChild);
+    return w;
+  }
+  function bukaModal(icon, title, sub) {
+    currentPanel = null; setModal_(panelHeader_(icon || 'scroll', title || '', sub || ''));
+    var box = document.getElementById('modalBox'); if (box) { box.classList.remove('size-wide'); box.classList.add('size-mid'); box.scrollTop = 0; }
+    document.getElementById('modalOverlay').classList.add('open');
+    return host();
+  }
+  function close() { try { closeModal(); } catch (e) { try { document.getElementById('modalOverlay').classList.remove('open'); } catch (e2) { } } }
+
+  /* ---------- server ---------- */
+  var perluSegar = false;
+  function call(args, ok, fail) {
+    google.script.run.withSuccessHandler(function (r) {
+      r = r || {};
+      if (r.s5 !== undefined && state) state.s5 = r.s5;
+      if (r.newGold != null && typeof patchGold_ === 'function') { try { patchGold_(r.newGold); if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) { } }
+      if (typeof invalidatePanelCache_ === 'function') try { invalidatePanelCache_(); } catch (e) { }
+      perluSegar = true;
+      try { ok(r); } catch (e) { console.warn('[S5]', e); }
+    }).withFailureHandler(function (e) {
+      var m = (e && e.message) || String(e);
+      if (fail) { try { fail(m); } catch (e2) { } return; }
+      showToast(m, 'error');
+    }).api_s5.apply(null, args);
+  }
+  function segarkan() { if (!perluSegar) return; perluSegar = false; if (typeof loadState === 'function') { try { loadState(); } catch (e) { } } }
+
+  /* ---------- mini game ---------- */
+  function lib(kind) {
+    return ({ pantun: window.MTGames, angin: window.MTGames2, jejak: window.MTGames3, sandi: window.MTGames3,
+      selam: window.MTGames4, pelikan: window.MTGames4, manifest: window.MTGames5 })[kind] || null;
+  }
+  function game(g, d, cb) {
+    function fin(res) { gameOpen = false; try { cb(res || { cancelled: true }); } catch (e) { console.warn('[S5] game', e); } }
+    gameOpen = true;
+    if (g.kind === 'dengar') {
+      if (!window.MTGames9) { fin({ cancelled: true }); return; }
+      close();
+      MTGames9.main({ ctx: 'quest', preset: g.preset, step: S.indexOf(d) + 1, kicker: g.kicker, title: g.title }, fin);
+      return;
+    }
+    var lok = window.MK && MK.lokal && MK.lokal[g.kind];
+    if (lok) { try { lok(Object.assign({}, g.opts || {}), fin); } catch (e) { console.warn('[S5] lokal', e); fin({ win: true }); } return; }
+    var L = lib(g.kind), k = g.kind === 'pelikan' ? 'sandi' : g.kind;
+    if (L && typeof L.open === 'function') {
+      try { close(); L.open(k, Object.assign({}, g.opts || {}), fin); return; } catch (e) { console.warn('[S5] game', e); }
+    }
+    fin({ win: true });   // mini game lama tidak termuat: cerita tetap bisa lanjut
+  }
+
+  /* ---------- sinematik (sekali per pemain; Buku Adegan) ---------- */
+  function ck(k) { return 'mt_seen_s5c_' + k; }
+  function cineSudah(k) { try { return localStorage.getItem(ck(k)) === '1'; } catch (e) { return false; } }
+  function cineTandai(k) { try { localStorage.setItem(ck(k), '1'); } catch (e) { } }
+  function cine(c, cb) {
+    if (!c || !window.MTCine || !document.body) { if (cb) cb(); return; }
+    if (c.sekali !== false && cineSudah(c.kind)) { if (cb) cb(); return; }
+    cineTandai(c.kind); cineOn = true;
+    var finished = false;
+    close();
+    var ov = document.createElement('div'); ov.className = 'qt-cine cb-cine';
+    ov.innerHTML = '<canvas></canvas><button class="cb-skip" type="button">Lewati &nbsp;&#8250;&#8250;</button>' +
+      '<div class="qt-cap"><div class="qt-captext"></div><div class="qt-capbtn"><button class="btn btn-gold"></button></div></div>';
+    document.body.appendChild(ov);
+    var stop = function () { };
+    try { stop = MTCine.play(ov.querySelector('canvas'), c.kind) || stop; } catch (e) { console.warn('[S5] cine', e); }
+    var slides = c.slides || [], i = 0, txt = ov.querySelector('.qt-captext'), b = ov.querySelector('.qt-capbtn .btn'), skip = ov.querySelector('.cb-skip');
+    function show() { txt.classList.remove('in'); void txt.offsetWidth; txt.innerHTML = slides[i] || ''; txt.classList.add('in'); b.innerHTML = i < slides.length - 1 ? 'Lanjut &nbsp;&#8250;' : 'Lanjut'; }
+    function finish() {
+      if (finished) return; finished = true; cineOn = false;
+      document.removeEventListener('keydown', onKey);
+      try { stop(); } catch (e) { }
+      ov.classList.add('out'); setTimeout(function () { ov.remove(); }, 450);
+      if (cb) setTimeout(cb, 300);
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    document.addEventListener('keydown', onKey);
+    b.onclick = function () { au('page'); if (++i < slides.length) show(); else finish(); };
+    skip.onclick = function () { finish(); };
+    setTimeout(function () { skip.classList.add('on'); }, 1000);   // 10.2 C: tombol Lewati setelah 1 detik
+    requestAnimationFrame(function () { ov.classList.add('show'); });
+    if (slides.length) setTimeout(function () { if (!finished) show(); }, c.intro || 1800);
+    else { txt.style.display = 'none'; b.innerHTML = 'Lanjut'; setTimeout(function () { ov.querySelector('.qt-capbtn').classList.add('in'); }, c.intro || 2600); }
+  }
+
+  /* =====================================================================
+   * 19 langkah.  at = panel · c = kota · main = pembicara
+   *   p = halaman sebelum aksi · b = label tombol aksi · g = mini game · pre/post = sinematik
+   *   a = halaman sesudah berhasil · next = baris petunjuk (juga tampil sebagai catatan di Lapau lain)
+   * ===================================================================== */
+  var SCENE_DWI = '<rect width="1000" height="600" fill="#2a1e18"/><rect x="0" y="470" width="1000" height="130" fill="#1a120c"/>' +
+    '<rect x="150" y="40" width="700" height="440" fill="#4a3a2a" stroke="#1a100a" stroke-width="10"/>' +
+    '<rect x="170" y="60" width="660" height="400" fill="#c9a27a"/>' +
+    '<path d="M170 300 L330 140 L420 210 L500 90 L600 230 L700 170 L830 300 Z" fill="#3a2c24"/>' +
+    '<path d="M500 90 q-30 -40 0 -60 q30 -20 10 -40" stroke="#5a4a40" stroke-width="16" fill="none" opacity=".7"/>' +
+    '<path d="M470 110 q-40 30 -60 90 M530 110 q50 40 70 100" stroke="#e85a20" stroke-width="10" fill="none" opacity=".85"/>' +
+    '<rect x="170" y="300" width="660" height="160" fill="#2a4a5a"/>' +
+    '<path d="M170 300 L240 260 L260 300 Z M760 300 L830 240 L830 300 Z" fill="#14100c"/>' +
+    '<g fill="#6a4a2a" stroke="#2a1a0a" stroke-width="2"><rect x="610" y="310" width="70" height="40"/><path d="M600 312 L645 280 L690 312 Z"/><rect x="618" y="350" width="6" height="40"/><rect x="666" y="350" width="6" height="40"/></g>' +
+    '<g fill="#6a4a2a" stroke="#2a1a0a" stroke-width="2"><rect x="700" y="320" width="56" height="34"/><path d="M692 322 L728 296 L764 322 Z"/><rect x="706" y="354" width="5" height="34"/><rect x="745" y="354" width="5" height="34"/></g>' +
+    '<rect x="60" y="500" width="60" height="70" fill="#7a3a2a"/><rect x="880" y="490" width="70" height="80" fill="#2a5a7a"/>' +
+    '<circle cx="260" cy="520" r="18" fill="#e8c060"/><circle cx="300" cy="530" r="14" fill="#c04040"/>';
+  var SCENE_KINCIR = '<rect width="1000" height="600" fill="#1c2630"/><rect x="0" y="380" width="1000" height="220" fill="#d8dcd8"/>' +
+    '<g fill="#e8ece8" stroke="#9aa4a8" stroke-width="2"><rect x="60" y="420" width="260" height="60"/><rect x="360" y="430" width="260" height="60"/><rect x="660" y="420" width="280" height="60"/></g>' +
+    '<rect x="470" y="140" width="24" height="290" fill="#5a4a3a"/>' +
+    '<g transform="translate(482 150)" stroke="#4a3a2a" stroke-width="10"><line x1="-140" y1="0" x2="140" y2="0"/><line x1="0" y1="-140" x2="0" y2="140"/></g>' +
+    '<g fill="#e0d8c8" opacity=".8"><rect x="350" y="140" width="110" height="20"/><rect x="504" y="140" width="110" height="20"/><rect x="472" y="18" width="20" height="110"/><rect x="472" y="172" width="20" height="110"/></g>' +
+    '<rect x="480" y="300" width="16" height="22" fill="#efe6cc" transform="rotate(8 488 311)"/>' +
+    '<path d="M100 470 h80 M420 480 h60 M760 470 h90" stroke="#b8c0c4" stroke-width="6"/>' +
+    '<g fill="#7a6a5a"><rect x="820" y="330" width="50" height="60"/><path d="M812 332 L845 306 L878 332 Z"/></g>' +
+    '<path d="M150 380 q20 -30 40 0" stroke="#5a5a5a" stroke-width="4" fill="none"/><circle cx="700" cy="470" r="8" fill="#c8b070"/>';
+
+  var S = [
+    /* 1 */ { at: 'tavern', main: 'lapau', icon: 'cup', title: 'Bisikan Lapau',
+      p: ['<p><i>Penjaga lapau mencondongkan badan, merendahkan suara seperti orang yang takut didengar dinding.</i></p><p>"Kapten. Ada kabar aneh dari ujung barat. <b>Ada seorang badut yang bermimpi akhir dari dunia.</b>"</p>'],
+      b: 'Dengar bisikan',
+      a: ['<p>"Katanya ia melukis mimpinya semalaman, tidak tidur, tidak makan. Catnya belum kering waktu orang-orang melihatnya."</p><p><i>Ia kembali mengelap gelas, seolah tidak pernah bicara.</i></p>'],
+      next: 'Seorang badut bermimpi tentang akhir dunia, dan melukisnya semalaman.' },
+
+    /* 2 */ { at: 'tavern', c: 'toogood', main: 'dwi', icon: 'eye', title: 'Lukisan yang Masih Basah',
+      p: ['<p>"Kapten! Lama tak melihat lambungmu bersandar di sini. Masih utuh? Black\'s Alley sekarang ramai, untung tak ada yang mabuk sampai pagi."</p>',
+        '<p><i>Senyumnya pelan-pelan turun.</i> "Tapi kau tidak datang untuk tuak, kan."</p><p><i>Ia membuka kain penutup sebuah kanvas. Catnya masih basah. Gunung terbesar meledak, dan lahar menumpahkan kesengsaraan ke dunia.</i></p>',
+        '<p>"Aku memimpikannya tiga malam berturut-turut. Aku belum pernah ke tempat itu. Tapi aku melukisnya seperti orang yang lahir di sana. Lihatlah sendiri, Kapten. Ada yang tidak aku mengerti."</p>'],
+      b: 'Periksa lukisan',
+      g: { kind: 'jejak', opts: { sceneSvg: SCENE_DWI, warm: true, cfg: {
+        kicker: "Black's Alley &middot; kanvas dwi de'clown", title: 'Olah Jejak &middot; Lukisan Mimpi',
+        intro: 'Lukisan ini penuh warna, tapi hanya <b>empat jejak</b> yang menunjuk ke satu tempat nyata. Sisanya hanya cat.',
+        clues: [
+          { id: 'panggung', x: 645, y: 330, r: 44, t: 'Rumah di atas kayu', th: 'Rumah panggung berkayu tebal. Kayunya <b>tidak lapuk</b> walau berdiri di atas air.' },
+          { id: 'asap', x: 500, y: 60, r: 40, t: 'Asap yang bernapas', th: 'Asap naik, turun, naik lagi. Teratur. <b>Seperti orang menarik napas.</b>' },
+          { id: 'tebing', x: 795, y: 275, r: 38, t: 'Tebing hitam di tepi laut', th: 'Tebing hitam, batu bekas api. <b>Tanah gunung api.</b>' },
+          { id: 'kabut', x: 330, y: 380, r: 50, t: 'Laut yang berkabut', th: 'Dwi melukis kabut tebal di atas laut, padahal langitnya cerah. <b>Kabut yang tak pernah pergi.</b>' }
+        ],
+        decoys: [
+          { x: 90, y: 535, r: 40, th: 'Kaleng cat merah. Bukan bagian dari lukisan.' },
+          { x: 915, y: 530, r: 40, th: 'Kaleng cat biru, separuh kosong.' },
+          { x: 280, y: 525, r: 36, th: 'Kuas yang belum dicuci.' },
+          { x: 450, y: 170, r: 30, th: 'Lahar menyala. Semua orang melihat ini lebih dulu.' }
+        ],
+        deduce: [
+          { q: 'Tempat seperti apa yang dilukis dwi?', opts: [
+            { t: 'Pulau dagang yang ramai di barat', why: 'Tak ada pasar atau kapal dagang di lukisan itu.' },
+            { t: 'Tempat kabut tak pernah pergi, dengan gunung yang bernapas', ok: true, why: 'Rumah panggung, tebing api, kabut yang menetap, asap yang bernapas: semuanya menunjuk ke satu pulau.' },
+            { t: 'Kota istana di atas bukit', why: 'Tak ada istana, hanya rumah panggung di tepi air.' }
+          ] }
+        ] } } },
+      a: ['<p>"Rumah di atas kayu yang tak mau tenggelam. Asap yang menarik napas, lalu menghembus, teratur."</p>',
+        '<p>"Aku belum pernah ke sana, Kapten, tapi aku kenal baunya: <b>tempat kabut tak pernah pergi</b>." <i>Ia menutup kanvasnya dengan hati-hati.</i> "Kalau mimpiku benar, jangan biarkan aku melukis bagian akhirnya."</p>'],
+      next: 'Gunung yang bernapas, di tempat kabut tak pernah pergi.' },
+
+    /* 3 */ { at: 'tavern', c: 'bjorneo', main: 'lapau', icon: 'cup', title: 'Kopi yang Bergetar',
+      p: ['<p><i>Cangkir-cangkir di atas meja bergetar pelan, serempak, lalu diam. Lalu bergetar lagi.</i></p><p>"Kau lihat itu, Kapten? Sudah seminggu. Kopiku bergoyang sendiri, berirama, seperti ada yang mengetuk dari bawah lantai."</p>',
+        '<p>"Orang kampung bilang cuma gempa kecil. Tapi gempa tidak punya irama. Ikut aku ke lereng. Kita tempelkan telinga ke tanah."</p>'],
+      b: 'Tanya soal getaran',
+      g: { kind: 'dengar', preset: 'cari_lereng', kicker: 'Lereng Bjorneo', title: 'Dengar Tanah &middot; Lereng' },
+      post: { kind: 's5_napas', slides: ['Tanah di lereng berdenyut pelan, teratur.', 'Di lapau, cangkir-cangkir bergetar ke arah yang sama.'] },
+      a: ['<p>"Napas. Itu napas orang tidur, Kapten. Gunung ini sedang tidur, dan tidurnya gelisah."</p>',
+        '<p>"Si tua yang selalu mengopi di <b>bangku pojok</b> itu pernah bilang gunung ini dulu ditidurkan dengan lagu. Kukira ia cuma mengigau."</p>'],
+      next: 'Si tua di bangku pojok lapau ini tahu lagu yang menidurkan gunung.' },
+
+    /* 4 */ { at: 'tavern', c: 'bjorneo', main: 'opung', icon: 'music', title: 'Lagu Separuh',
+      p: ['<p><i>Lelaki tua di bangku pojok mengaduk kopinya tanpa menoleh.</i> "Getaran itu. Kau mau tanya soal getaran itu."</p>',
+        '<p>"Kakek dari kakekku pengawal istana. Kami diwarisi satu lagu untuk gunung ini. Lagu tidur." <i>Ia bersenandung. Nadanya patah di tengah.</i> "Hanya tinggal separuh. Bantu aku menyambungnya, Kapten."</p>'],
+      b: 'Tanya Opung soal batuk gunung',
+      g: { kind: 'pantun', opts: { place: 'Bangku pojok &middot; Kedai Tuak, Bjorneo', kicker: 'Lagu tidur gunung', title: 'Balas Pantun &middot; Lagu Separuh',
+        quote: 'Separuh lagu dinyanyikan Opung. Separuhnya lagi harus kau sambung.', cta: 'Sambung lagunya', cooldownSec: 0 } },
+      a: ['<p>"Ya. Ya, begitu bunyinya." <i>Matanya basah sebentar.</i> "Tapi masih ada bagian yang hilang. Bagian akhir. Kakekku bilang ada di sebuah buku tentang raja-raja yang tenggelam."</p>',
+        '<p>"Buku itu bukan di sini. <b>Yang suka memajang kisah di balik kaca, di tanah paling subur</b>, dialah yang menyimpannya."</p>'],
+      next: 'Buku raja-raja yang tenggelam, dipajang di balik kaca, di tanah paling subur.' },
+
+    /* 5 */ { at: 'market', c: 'joungjava', main: 'etalase', icon: 'book', title: 'Etalase',
+      p: ['<p>"Selamat datang, selamat datang! Kapten mau lihat koleksi? Naskah tertua di Mare Nusantara, semua di balik kaca, semua asli."</p>',
+        '<p><i>Ia mengeluarkan sebuah buku bersampul kulit dengan hormat.</i> "<b>Chronicle of the Drowned Kings.</b> Kisah Raja Bjorneo yang tenggelam di perairannya sendiri. Lengkap dengan tanggal dan nama kapalnya!"</p>'],
+      b: 'Lihat koleksi naskah',
+      g: { kind: 'manifest', opts: { kicker: 'Lapak etalase kaca &middot; Joungjava', title: 'Cocokkan Manifest &middot; Chronicle',
+        ledgerTitle: 'Catatan Syahbandar Lama', intro: 'Cocokkan <b>tanggal</b> dan <b>nama kapal</b> di Chronicle dengan catatan syahbandar lama.',
+        cardTitle: 'Kapal Raja Bjorneo', cardQuote: '"Buku ini tidak pernah salah, Kapten."' } },
+      a: ['<p><i>Kau membalik catatan syahbandar sekali lagi.</i> Pada tanggal itu, <b>tidak ada satu pun kapal raja yang tercatat karam</b>.</p>',
+        '<p>"Aneh. Buku yang kuhafal, tapi tepi halamannya selalu kuabaikan." <i>Ia menyodorkan kaca pembesar.</i> "Ini, pakai."</p>'],
+      next: 'Tepi halaman Chronicle, dengan kaca pembesar.', lanjut: true },
+
+    /* 6 */ { at: 'market', c: 'joungjava', main: 'etalase', icon: 'book', title: 'Catatan di Tepi Halaman',
+      p: ['<p><i>Di tepi halaman terakhir, tulisan tangan yang sangat kecil, hampir tertutup cap perpustakaan.</i></p>'],
+      b: 'Baca tepi halaman',
+      post: { kind: 's5_tinta', slides: ['<i>"bukan tenggelam, berangkat."</i>'] },
+      a: ['<p>"<b>Bukan tenggelam, berangkat.</b>" <i>Bu Etalase membaca dua kali, lalu duduk.</i> "Penulisnya tidak pernah melihat sendiri. Selama ini aku memajang dongeng."</p>',
+        '<p><i>Di bawahnya ada satu coretan lagi:</i> "Yang kau cari ditinggal rapi <b>di bawah bayangan gunung</b>."</p>'],
+      next: 'Sesuatu ditinggal rapi di bawah bayangan gunung.' },
+
+    /* 7 */ { at: 'ship', c: 'bjorneo', main: 'opung', icon: 'anchor', title: 'Bangkai di Perairan Tua', narr: 'Dermaga Bjorneo',
+      p: ['<p><i>Di bawah bayangan gunung, air dermaga sangat tenang. Terlalu tenang. Nelayan tidak pernah menebar jala di sini.</i></p><p>Ada bentuk panjang di dasar, gelap, sejajar dengan pantai.</p>'],
+      b: 'Selam di perairan tua',
+      g: { kind: 'selam', opts: { kicker: 'Perairan tua &middot; di bawah bayangan gunung', title: 'Selam &middot; Kapal Raja', targetName: 'Lambung kapal raja', target: 'part', guide: false } },
+      post: { kind: 's5_lambung', slides: ['Lambung kapal tersembul dari gelap. Utuh. Seperti sedang menunggu.'] },
+      a: ['<p>Kapal ini <b>rapi sekali</b> untuk ukuran bangkai. Tidak ada lubang, tidak ada tiang patah.</p>'],
+      next: 'Kapal itu terlalu rapi untuk bangkai. Periksa lambungnya.', lanjut: true },
+
+    /* 8 */ { at: 'ship', c: 'bjorneo', main: 'opung', icon: 'anchor', title: 'Lambung yang Dirapikan', narr: 'Dermaga Bjorneo',
+      p: ['<p>Tali digulung rapi. Palka kosong, disapu bersih. Pintu-pintu ditutup, tidak didobrak.</p><p>Di lunas, ada <b>cap aksara kuno</b> yang belum pernah kau lihat.</p>'],
+      b: 'Periksa lambung',
+      a: ['<p>Kapal ini <b>ditinggalkan dengan sengaja</b>, bukan karam. Kau menyalin cap di lunas ke selembar kain. <span class="muted small">(Salinan cap disimpan di catatanmu.)</span></p>',
+        '<p><i>Aksara ini bukan milik pelaut. Salin, lalu cari yang masih membacanya, di kampung yang kayunya tak lapuk.</i></p>'],
+      next: 'Aksara di lunas. Yang masih bisa membacanya ada di kampung yang kayunya tak lapuk.' },
+
+    /* 9 */ { at: 'tavern', c: 'bjorneo', main: 'opung', icon: 'key', title: 'Pembaca Cap',
+      p: ['<p><i>Opung memandang salinan cap lama sekali.</i> "Aksara istana. Hanya pengawal yang diajari membacanya."</p>', '<p>"Bacakan bersamaku, Kapten. Satu goresan, satu angka."</p>'],
+      b: 'Tunjukkan cap lunas',
+      g: { kind: 'pelikan', opts: { kicker: 'Cap di lunas kapal raja', title: 'Sandi Pelikan &middot; Aksara Istana', panels: ['SERIBU TAHUN', 'BANGUN LALU TIDUR', 'JANTUNG MENIDURKAN'], lives: 3, hintFirst: 1 } },
+      post: { kind: 's5_cap', slides: ['Cap di lunas terbaca sebagai garis cahaya.'] },
+      a: ['<p>"<b>Serpihan pertama.</b> Gunung ini punya siklus seribu tahun. Ia dibangunkan, lalu ditidurkan. Dan yang menidurkannya adalah <b>jantungnya</b>."</p>',
+        '<p>"Jantung itu dibawa pemiliknya berlayar ke arah matahari terbit. Yang pernah menambatkan perahu di <b>tiang-tiang timur</b> pasti mengenal lunas semacam ini."</p>'],
+      next: 'Jantung gunung dibawa ke arah matahari terbit. Tiang-tiang timur mengenal lunas itu.' },
+
+    /* 10 */ { at: 'tavern', c: 'karang_garam', main: 'derjandy', icon: 'compass', title: 'Juru Mudi yang Mengenal Lunas',
+      p: ['<p><i>Lelaki tua bertangan kasar meraih gambar lunasmu sebelum kau selesai bicara.</i> "Ini. Aku pernah melihat ini waktu masih bocah. Kapal ini dulu bersandar di tiang timur, jauh sebelum pelabuhan ini punya nama."</p>',
+        '<p>"Bekas tambatannya masih ada. Ikut aku. Anginnya licik di sana."</p>'],
+      b: 'Bawa gambar lunas',
+      g: { kind: 'angin', opts: { kicker: 'Laut timur &middot; tiang tambatan lama', title: 'Jaring Angin &middot; Tiang Timur', zones: 3 } },
+      a: ['<p><i>Di tiang tambatan lama, ada bekas tali yang aneh: diikat dengan simpul istana.</i></p>', '<p>"Aku bisa menceritakan ujung tali yang pertama, Kapten. Tapi tolong carikan yang masih ingat. Tetua desa tiang."</p>'],
+      next: 'Tetua desa tiang masih ingat ujung tali itu.', lanjut: true },
+
+    /* 11 */ { at: 'tavern', c: 'karang_garam', main: 'derjandy', icon: 'users', title: 'Pamit, Bukan Karam',
+      p: ['<p><i>Tiga tetua duduk di bawah tiang. Masing-masing bersumpah melihat kapal raja pergi.</i></p>'],
+      b: 'Tanyakan ke tetua tiang',
+      g: { kind: 'warga', opts: { kicker: 'Desa tiang &middot; Karang Garam', icon: 'users', title: 'Tanya Warga &middot; Tetua Tiang', sub: 'Karang Garam',
+        intro: 'Tiga tetua mengingat malam kapal raja pergi. Satu di antaranya mengarang.',
+        fakta: 'Kapal itu ditinggalkan <b>dengan tali tergulung rapi</b>, dan simpulnya <b>simpul istana</b>. Rajanya pergi <b>saat fajar</b>.',
+        bohong: 2,
+        saksi: [
+          { nama: 'Nek Ijah', peran: 'Penganyam jaring', fem: 1, kata: 'Fajar itu talinya digulung pelan-pelan, Nak. Simpul istana, bukan simpul nelayan. Orang yang mau pulang tidak menggulung tali serapi itu.', salah: 'Tali rapi, simpul istana, saat fajar: cocok.' },
+          { nama: 'Wak Darman', peran: 'Penjaga tiang', kata: 'Raja turun dari kapalnya sendiri, membawa peti kecil yang menyala. Ia pamit pada kami satu per satu, lalu naik perahu kecil ke arah gunung.', salah: 'Ia pamit, bukan karam. Keterangannya cocok.' },
+          { nama: 'Pak Usup', peran: 'Pengasin ikan', kata: 'Aku ingat badai besar malam itu! Kapalnya dihantam ombak dan tenggelam sebelum matahari terbit. Rajanya ikut tenggelam.', salah: '' }
+        ] } },
+      a: ['<p><i>Wak Darman menurunkan suaranya.</i> "<b>Serpihan kedua.</b> Raja tidak tenggelam. Ia pergi membawa jantung gunung untuk ditempa ulang di tanah asalnya. Hanya lingkar inti kerajaan yang tahu."</p>',
+        '<p>Derjandy menggeleng pelan. "Si kolektor naskah bangga pada separuh cerita. Kalau kau mau jujur padanya, <b>pulanglah ke tanah yang subur</b>."</p>'],
+      next: 'Ia pergi, bukan tenggelam. Si kolektor naskah di tanah yang subur berhak tahu.' },
+
+    /* 12 */ { at: 'market', c: 'joungjava', main: 'etalase', icon: 'book', title: 'Sebuah Kebenaran untuk Kolektor',
+      p: ['<p>"Kapten! Kau kembali. Ceritakan, ceritakan semuanya."</p>', '<p><i>Kau menceritakan kapal yang rapi, tali yang tergulung, raja yang pamit saat fajar. Bu Etalase memeluk Chronicle-nya.</i></p><p>"Lalu buku ini harus kuapakan, Kapten?"</p>'],
+      pilih: [{ k: 'luruskan', l: 'Luruskan buku itu: tulis yang sebenarnya di catatan margin' }, { k: 'biarkan', l: 'Biarkan legendanya: kebenaran ini cukup kita yang tahu' }],
+      a: function (s) {
+        var lurus = ((s && s.data) || {}).kabar_buku !== 'biarkan';
+        return [lurus ? '<p>"Kau benar. Buku yang baik boleh salah, asal mau dibetulkan." <i>Ia menulis di tepi halaman dengan tangan gemetar, lalu tersenyum.</i> "Terima kasih, Kapten."</p>'
+          : '<p>"Kau baik sekali." <i>Ia mengusap sampul bukunya.</i> "Orang butuh dongeng, Kapten. Biar kebenarannya kita yang simpan."</p>',
+          '<p><i>Ia membuka laci di bawah etalase.</i> "Ini. Dulu ada orang menitipkannya padaku, potongan kertas bergaris garam. Aku tak pernah membacanya. Yang bergaris garam sebaiknya dibaca <b>orang yang dekat dengan kincir tua</b>."</p>'];
+      },
+      next: 'Potongan kertas bergaris garam, untuk orang yang dekat dengan kincir tua.' },
+
+    /* 13 */ { at: 'tavern', c: 'otoland', main: 'susi', icon: 'eye', title: 'Garam dan Kincir',
+      p: ['<p><i>Perempuan bertangan putih garam memandangi potongan kertasmu dengan curiga.</i> "Dari mana kau dapat ini?"</p>',
+        '<p>"&hellip;Baik. Ada catatan tua yang terselip di tiang kincir dan palung garam. Nenekku melarang kami mencabutnya. Cari sendiri, aku tak mau dimarahi arwah."</p>'],
+      b: 'Tanya soal potongan catatan',
+      g: { kind: 'jejak', opts: { sceneSvg: SCENE_KINCIR, warm: false, cfg: {
+        kicker: 'Tambak garam &middot; Otoland', title: 'Olah Jejak &middot; Kincir Tua',
+        intro: 'Tambak garam berkilau di bawah bulan. Ada <b>empat jejak</b> potongan catatan. Sisanya hanya garam.',
+        clues: [
+          { id: 'tiang', x: 488, y: 311, r: 26, t: 'Kertas di tiang kincir', th: 'Selembar kertas terselip di celah tiang kincir. <b>Bergaris garam</b>, sama seperti potonganmu.' },
+          { id: 'palung', x: 450, y: 480, r: 40, t: 'Palung garam', th: 'Di dasar palung, potongan kedua tertindih kerak garam.' },
+          { id: 'simpul', x: 165, y: 380, r: 28, t: 'Tali bersimpul', th: 'Tali dengan <b>simpul istana</b>. Seseorang dari kapal raja pernah ke sini.' },
+          { id: 'gubuk', x: 845, y: 355, r: 36, t: 'Gubuk penjaga', th: 'Di bawah atap gubuk, potongan ketiga, dibungkus daun.' }
+        ],
+        decoys: [
+          { x: 190, y: 450, r: 50, th: 'Petak garam biasa.' }, { x: 790, y: 450, r: 50, th: 'Petak garam, baru dipanen.' },
+          { x: 700, y: 470, r: 20, th: 'Sekeping koin tua. Bukan catatan.' }, { x: 482, y: 150, r: 30, th: 'Poros kincir, berkarat.' }
+        ],
+        deduce: [
+          { q: 'Siapa yang menyelipkan potongan-potongan catatan ini?', opts: [
+            { t: 'Pedagang garam yang iseng', why: 'Pedagang tidak memakai simpul istana.' },
+            { t: 'Orang dari lingkar istana, yang ingin kebenaran disimpan garam', ok: true, why: 'Simpul istana, kertas bergaris garam, disebar di tempat yang tidak pernah dibongkar: sengaja disimpan.' },
+            { t: 'Nenek Susi sendiri', why: 'Neneknya hanya menjaga, bukan menulis. Aksaranya aksara istana.' }
+          ] }
+        ] } } },
+      a: ['<p>"Tulisannya luntur kalau dibaca kering," kata Susi susalty. "<b>Basahi dulu.</b> Garam itu yang menjaganya selama ini."</p>'],
+      next: 'Potongan catatan harus dibasahi dulu sebelum dibaca.', lanjut: true },
+
+    /* 14 */ { at: 'tavern', c: 'otoland', main: 'susi', icon: 'scroll', title: 'Yang Dijaga Garam',
+      p: ['<p><i>Kau membasahi potongan-potongan itu dengan air laut. Huruf-hurufnya timbul pelan, seperti baru ditulis.</i></p>'],
+      b: 'Basahi potongan',
+      g: { kind: 'tercecer', opts: { title: 'Surat Tercecer &middot; Catatan Garam', sub: 'Tambak garam, Otoland', kicker: 'Susun potongan yang basah',
+        intro: 'Ketuk potongan <b>berurutan</b> sampai kalimatnya nyambung.', salah: 'Kalimatnya belum nyambung. Baca ujung tiap potongan.',
+        sobek: ['Gunung di bawah kabut itu bukan sekadar gunung,', 'ia adalah titian ke dunia di seberang,', 'tempat cahaya tujuh warna menyeberang setiap malam,', 'dan hanya raja yang tahu jalan pulangnya.'] } },
+      a: ['<p>"<b>Serpihan ketiga.</b> Gunung itu jembatan," bisik Susi susalty. "Ke mana?"</p>',
+        '<p>"Tujuh warna, katanya. Kota yang menaranya dari cermin menyimpan warna yang tak terlihat siang hari. Ia baru mau bicara <b>setelah lampu dinyalakan</b>. Naiklah ke yang paling tinggi."</p>'],
+      next: 'Kota bermenara cermin, setelah lampu dinyalakan. Naik ke yang paling tinggi.' },
+
+    /* 15 */ { at: 'tavern', c: 'sowtour', main: 'baayu', icon: 'sun', title: 'Cermin Terakhir', t: 'malam',
+      wait: '"Datang lagi saat lampu dinyalakan, Kapten. Cermin tidak bicara di siang hari."',
+      p: ['<p><i>Om Baayu menunggu di kaki menara tertinggi, jaket kulitnya berbau oli.</i> "Kau mencari warna yang tidak terlihat. Aku tahu wajah orang seperti itu."</p>',
+        '<p><i>Kalian naik ratusan anak tangga. Di puncak, cermin terakhir Kota Sowtour menghadap ke barat daya, ke arah kabut.</i> "Nyalakan sandinya. Cermin hanya menjawab pola yang benar."</p>'],
+      b: 'Tatap cermin',
+      g: { kind: 'sandi', opts: { kicker: 'Menara tertinggi &middot; Kota Sowtour', title: 'Sandi Mercusuar &middot; Cermin Terakhir', lives: 3 } },
+      post: { kind: 's5_cermin', slides: ['Pantulan cermin pecah menjadi tujuh warna.', 'Di seberang kabut, garis cahaya membentang. Ke arah gunung yang bernapas.'] },
+      a: ['<p><i>Om Baayu tidak berkedip.</i> "Garis cahaya tujuh warna, membentang ke seberang kabut. Aku menjaganya empat puluh tahun dan baru dua kali melihatnya."</p>'],
+      next: 'Cermin sudah menunjukkan jalannya. Sekarang dengar syaratnya.', lanjut: true },
+
+    /* 16 */ { at: 'tavern', c: 'sowtour', main: 'baayu', icon: 'alert', title: 'Hanya untuk yang Lurus',
+      p: ['<p>"Duduk, Kapten. Ada syaratnya. Selalu ada syaratnya."</p>'],
+      b: 'Dengar syarat',
+      a: ['<p>"<b>Serpihan keempat.</b> Pintu itu hanya menerima lambung yang tak goyah. Lambung yang berani lari lurus, melewati rantai."</p>',
+        '<p>"Pintu itu tak menerima yang goyah. Pergilah ke <b>tempat obor tak pernah padam dan laut berbau oli</b>. Garasi di sana sudah tahu."</p>'],
+      next: 'Hanya lambung yang lurus yang diterima. Garasi di tempat obor tak pernah padam sudah tahu.' },
+
+    /* 17 */ { at: 'garasi', c: 'zentul', main: 'yaptob', icon: 'wrench', title: 'Lambung yang Tak Goyah',
+      warlord: true,
+      p: function (s) {
+        var w = (s && s.warlord) || {};
+        if (w.terpasang) return ['<p><i>Yaptob merangkak di bawah lambungmu, mengetuk lunas dengan kunci inggris, lalu keluar sambil menyeka oli dari dahinya.</i></p><p>"Lurus. Mesin Jolt Warlord-mu tidak bergoyang satu derajat pun." <i>Ia mengangguk sekali.</i> "Pintu macam apa pun yang kau cari, lambung ini diterima."</p>'];
+        return ['<p><i>Yaptob menimbang lambungmu lama sekali.</i> "Lurus? Belum. Lambungmu masih milik pemain, bukan milik angin."</p>',
+          '<p>"<b>Mesin Jolt Warlord</b> ada di garasiku, dan harganya bukan harga kopi."</p>' + wlDaftar(w)];
+      },
+      b: 'Siapkan lambung',
+      a: ['<p>"Bawa semuanya pulang <b>ke tempat gunung bernapas</b>. Yang kau kumpulkan belum jadi apa-apa sebelum disatukan."</p>'],
+      next: 'Empat serpihan harus disatukan di tempat gunung bernapas.' },
+
+    /* 18 */ { at: 'tavern', c: 'bjorneo', main: 'opung', icon: 'scroll', title: 'Menyatukan Serpihan',
+      p: ['<p><i>Opung menyingkirkan cangkir-cangkir dari meja.</i> "Empat serpihan. Siklus, jantung, jembatan, syarat. Susun, Kapten. Jangan sampai terbalik."</p>'],
+      b: 'Satukan serpihan',
+      g: { kind: 'manifest', opts: { kicker: 'Bangku pojok &middot; Kedai Tuak, Bjorneo', title: 'Cocokkan Manifest &middot; Empat Serpihan',
+        ledgerTitle: 'Naskah Lingkar Dalam', intro: 'Cocokkan tiap <b>serpihan</b> dengan urutan naskah lingkar dalam.', cardTitle: 'Empat serpihan', cardQuote: '"Naskah yang benar tak pernah ditulis di satu tempat."' } },
+      a: ['<p>"Naskah utuh." <i>Opung menunjuk baris terakhir.</i> "Lagu yang separuh itu bagian dari naskah ini. Bagian akhirnya bukan ditulis, Kapten. Bagian akhirnya <b>didengar</b>."</p>',
+        '<p>"Lagu tidur hanya dinyanyikan <b>setelah lampu kampung padam, di tempat air jatuh</b>."</p>'],
+      next: 'Lagu tidur dinyanyikan setelah lampu padam, di tempat air jatuh.' },
+
+    /* 19 */ { at: 'tavern', c: 'bjorneo', main: 'opung', icon: 'music', title: 'Lagu yang Utuh', t: 'malam',
+      wait: '"Datang lagi saat lampu dinyalakan, Kapten. Gunung tidak mendengar lagu di siang hari."',
+      p: ['<p><i>Lampu kampung padam satu per satu. Opung berdiri, mengambil tongkatnya.</i> "Ikut aku ke air terjun. Malam ini gunung mendengar."</p>'],
+      b: 'Ikut Opung ke air terjun',
+      pre: { kind: 's5_jalan', sekali: false, slides: ['Jalan setapak ke kaki air terjun. Hanya lentera Opung yang menyala.'] },
+      g: { kind: 'dengar', preset: 'lagu_tidur', kicker: 'Kaki air terjun &middot; Bjorneo', title: 'Dengar Tanah &middot; Lagu Tidur' },
+      post: { kind: 's5_airterjun', slides: ['Lagunya utuh.', 'Air terjun terbelah. Dari balik air, cahaya tipis keluar dari mulut gua.'] },
+      a: ['<p><i>Opung memandang cahaya di balik air lama sekali, lalu memberi hormat ke arah gunung.</i></p>',
+        '<p>"Pintunya terbuka. Gunung tidak akan lari, Kapten. <b>Masuklah kalau kau sudah siap.</b>"</p>'],
+      next: 'Pintu di balik air terjun sudah terbuka. Cahaya itu menunggu lambung yang lurus.' }
+  ];
+
+  function wlDaftar(w) {
+    function row(okv, t) { return '<div class="' + (okv ? 'y' : 'n') + '"><i>' + (okv ? '✓' : '✗') + '</i><span>' + t + '</span></div>'; }
+    var f = typeof formatGold === 'function' ? formatGold : String;
+    return '<div class="s5m-wl">' +
+      row(!!w.mentok, 'Mesin kapal mentok (Level V Tier IV)') +
+      row((w.punyaGold || 0) >= (w.gold || 0), f(w.gold || 0) + ' gold') +
+      row((w.punyaOli || 0) >= (w.oli || 0), (w.oli || 0) + ' Oli Hitam di palka (' + (w.punyaOli || 0) + ')') +
+      row((w.punyaBahan || 0) >= (w.bahanN || 0), (w.bahanN || 0) + ' ' + (w.bahanNama || 'bahan khusus') + ' (' + (w.punyaBahan || 0) + ')') +
+      '<div class="n"><i>&middot;</i><span><b>Mesin Jolt Warlord: belum terpasang.</b> Pasang di Garasi Warlord, lalu kembali ke sini.</span></div></div>';
+  }
+
+  /* ---------- jalannya satu langkah ---------- */
+  function hal(d) { var p = typeof d.p === 'function' ? d.p(st()) : d.p; return (p || []).slice(0, 4); }
+  function halA(d) { var a = typeof d.a === 'function' ? d.a(st()) : d.a; return (a || []).slice(0, 4); }
+  function sub(d) { return d.c ? cityNm(d.c) : (state && state.city ? state.city.Name : ''); }
+
+  function runStep(i, w) {
+    var d = S[i]; if (!d) return;
+    w = w || host(); if (!w) return;
+    var o = { id: 's5-' + (i + 1), host: w, tokoh: tokoh(d.main), halaman: hal(d), tutup: true };
+    if (d.pilih) {
+      o.pilihan = d.pilih.map(function (p) { return { label: p.l, fn: function () { pilih(i, p.k); } }; });
+    } else if (d.warlord && !((st() && st().warlord) || {}).terpasang) {
+      o.pilihan = [{ label: 'Buka Garasi Warlord', fn: function () { garasiAsli(); } }];
+    } else {
+      o.aksi = { label: d.b, fn: function () { aksi(i); } };
+    }
+    S5Kartu.buka(o);
+  }
+  function kembali(i, pesan) {
+    var d = S[i]; if (pesan) showToast(pesan, 'info');
+    var w = modalTerbuka() ? host() : bukaModal(d.icon, d.title, sub(d));
+    if (w) runStep(i, w);
+  }
+  function aksi(i) {
+    var d = S[i];
+    var mulai = function () {
+      if (!d.g) { maju(i, 'ok'); return; }
+      game(d.g, d, function (res) {
+        if (!res || res.cancelled || res.win === false) { kembali(i, res && res.win === false ? 'Belum berhasil, Kapten. Coba lagi.' : null); return; }
+        maju(i, 'ok');
+      });
+    };
+    if (d.pre) { cine(d.pre, mulai); return; }
+    mulai();
+  }
+  function maju(i, res) {
+    var d = S[i];
+    call(['maju', i + 1, res], function (r) { selesai(i, r); }, function (m) { kembali(i, m); });
+  }
+  function pilih(i, k) {
+    call(['pilih', i + 1, k], function (r) { selesai(i, r); }, function (m) { kembali(i, m); });
+  }
+  function selesai(i, r) {
+    var d = S[i];
+    try { au('success'); } catch (e) { }
+    var lanjut = function () {
+      var w = modalTerbuka() ? host() : bukaModal(d.icon, d.title, sub(d)); if (!w) return;
+      var pages = halA(d).slice();
+      if (r && r.gold > 0) pages[pages.length - 1] = (pages[pages.length - 1] || '') + '<div class="s5m-hadiah">+' + (typeof formatGold === 'function' ? formatGold(r.gold) : r.gold) + ' gold</div>';
+      var nd = S[i + 1], sambung = d.lanjut && nd && nd.at === d.at && nd.c === d.c && (nd.t !== 'malam' || night());
+      var o = { id: 's5-a' + (i + 1), host: w, tokoh: tokoh(d.main), halaman: pages, petunjuk: d.next, tutup: true,
+        onTutup: function () { lanjutKe(d); } };
+      if (sambung) o.aksi = { label: 'Lanjut', fn: function () { var w2 = modalTerbuka() ? host() : bukaModal(nd.icon, nd.title, sub(nd)); runStep(i + 1, w2); } };
+      S5Kartu.buka(o);
+    };
+    if (d.post) { cine(d.post, lanjut); return; }
+    lanjut();
+  }
+  function lanjutKe(d) {
+    segarkan();
+    if (d.at === 'garasi') { close(); return; }
+    try { if (typeof invalidatePanelCache_ === 'function') invalidatePanelCache_(); } catch (e) { }
+  }
+
+  /* ---------- kartu di bangunan ---------- */
+  function jurnal(w) {
+    var i = idx(), prev = S[i - 1], s = st();
+    if (!prev || !prev.next || !s) return;
+    if (i >= S.length) return;
+    var el = document.createElement('div'); el.className = 's5m-jurnal';
+    el.innerHTML = '<b>Jejak gunung</b>' + prev.next.replace(/</g, '&lt;');
+    w.appendChild(el);
+  }
+  function kartu(at) {
+    if (!docked() || gameOpen || cineOn) return;
+    var s = st(); if (!s || (s.dunia && s.dunia !== 'mare')) return;
+    var i = idx(), d = S[i];
+    if (!d) {   // Bagian I selesai, titian belum dibuka
+      if (i >= S.length && at === 'tavern' && cid() === 'bjorneo' && !s.gerbangB) {
+        var wb = host(); if (!wb) return;
+        S5Kartu.buka({ id: 's5-tunggu', host: wb, tokoh: tokoh('opung'), halaman: ['<p>"Cahaya di balik air terjun itu masih menyala setiap malam, Kapten. Ia menunggu lambung yang lurus."</p><p class="muted small">Bersambung.</p>'], tutup: true });
+      }
+      return;
+    }
+    if (d.at !== at) { if (at === 'tavern') { var wj = host(); if (wj) jurnal(wj); } return; }
+    if (d.c && d.c !== cid()) { if (at === 'tavern') { var wk = host(); if (wk) jurnal(wk); } return; }
+    var w = host(); if (!w) return;
+    if (d.t === 'malam' && !night()) {
+      S5Kartu.buka({ id: 's5-w' + (i + 1), host: w, tokoh: tokoh(d.main), halaman: [d.wait || '"Datang lagi saat lampu dinyalakan, Kapten."'], tutup: true,
+        aksi: { label: d.b, fn: function () { } }, tunggu: { menit: menitKeMalam(), teks: 'Lampu dinyalakan dalam' } });
+      return;
+    }
+    runStep(i, w);
+  }
+  function garasiAsli() {
+    close();
+    setTimeout(function () { if (ORIG_GARASI) ORIG_GARASI(); }, 300);
+  }
+
+  // kartu di panel: setelah panel kota dirender
+  if (typeof wrap_ === 'function') {
+    wrap_('setModal_', function () {
+      if (gameOpen || cineOn || !aktif()) return;
+      try {
+        if (currentPanel === 'tavern' || currentPanel === 'market' || currentPanel === 'ship') kartu(currentPanel);
+      } catch (e) { console.warn('[S5] panel', e); }
+    });
+  }
+  // Garasi Yaptob (Zentul): kartu langkah 17 lebih dulu
+  var ORIG_GARASI = null;
+  function pasangGarasi() {
+    if (!window.MTMahkota || !MTMahkota.garasi || MTMahkota.__s5) return;
+    ORIG_GARASI = MTMahkota.garasi;
+    MTMahkota.garasi = function () {
+      try {
+        var s = st(), d = s && S[idx()];
+        if (d && d.at === 'garasi' && cid() === d.c && docked() && !gameOpen) {
+          var w = bukaModal(d.icon, 'Garasi Yaptob', 'Zentul'); if (w) { runStep(idx(), w); return true; }
+        }
+      } catch (e) { console.warn('[S5] garasi', e); }
+      return ORIG_GARASI.apply(this, arguments);
+    };
+    MTMahkota.__s5 = true;
+  }
+  pasangGarasi(); setTimeout(pasangGarasi, 0);
+
+  return { S: S, aktif: aktif, kartu: kartu, runStep: runStep };
+})();
+</script>

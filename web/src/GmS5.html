@@ -23,8 +23,11 @@
       '<dt>Dunia akun ini</dt><dd>' + (sbr ? 'Seberang (pagar aktif)' : 'Mare (normal)') + '</dd>' +
       '<dt>Gerbang</dt><dd>Bagian I ' + onOff(D.gerbang.a) + ' · titian ' + onOff(D.gerbang.b) + ' · seberang ' + onOff(D.gerbang.c) + '</dd>' +
       '<dt>Penguji</dt><dd>' + esc(D.penguji || '(kosong)') + '</dd>' +
-      '<dt>Titian hari ini</dt><dd>' + (D.bisa && D.bisa.ok ? 'boleh menyeberang' : esc((D.bisa && D.bisa.pesan) || '-')) + '</dd>';
+      '<dt>Titian hari ini</dt><dd>' + (D.bisa && D.bisa.ok ? 'boleh menyeberang' : esc((D.bisa && D.bisa.pesan) || '-')) + '</dd>' +
+      '<dt>Mode uji cerita</dt><dd>' + (D.uji ? 'NYALA (hanya akun ini)' : 'mati') + '</dd>' +
+      '<dt>Langkah aktif</dt><dd>' + (D.langkah ? D.langkah + (D.langkah > D.ada ? ' (bersambung)' : ' dari ' + D.ada) : '-') + '</dd>';
     $('s5gGo').hidden = sbr; $('s5gBack').hidden = !sbr;
+    $('s5gUji').textContent = D.uji ? 'Matikan mode uji cerita' : 'Nyalakan mode uji cerita';
   }
   function act(args, done) {
     msg('Memproses…');
@@ -42,6 +45,14 @@
       '<button type="button" id="s5gBack">Kembali ke Mare</button>' +
       '<button type="button" class="alt" id="s5gHari">Reset hari titian</button>' +
       '<button type="button" class="alt" id="s5gRef">Muat ulang</button></div>' +
+      '<div class="s5g-note">Mode uji cerita membuka Bagian I untuk akun GM ini saja (pemain lain tidak terpengaruh). Lompat ke langkah, lalu muat ulang game dan datangi tempatnya.</div>' +
+      '<div class="mtp-acts"><button type="button" id="s5gUji">Nyalakan mode uji cerita</button>' +
+      '<input id="s5gN" type="number" min="1" max="20" value="1" style="width:70px" aria-label="Langkah">' +
+      '<button type="button" class="alt" id="s5gLompat">Lompat ke langkah</button></div>' +
+      '<div class="mtp-acts"><select id="s5gPre" aria-label="Preset Dengar Tanah"><option value="cari_lereng">Dengar Tanah: lereng</option>' +
+      '<option value="lagu_tidur">Dengar Tanah: lagu tidur</option><option value="lagu_tidur_pendek">Dengar Tanah: lagu pendek</option>' +
+      '<option value="akar_selatan">Dengar Tanah: akar selatan</option></select>' +
+      '<button type="button" class="alt" id="s5gCoba">Coba main (tanpa efek)</button></div>' +
       '<div class="mtp-msg" id="s5gMsg" aria-live="polite"></div>';
     if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
     $('s5gGo').onclick = function () {
@@ -51,6 +62,16 @@
     $('s5gBack').onclick = function () { act(['gm_dunia', 'mare'], 'Kembali ke Mare. Muat ulang game.'); };
     $('s5gHari').onclick = function () { act(['gm_reset_hari'], 'Hari titian direset.'); };
     $('s5gRef').onclick = load;
+    $('s5gUji').onclick = function () { act(['gm_uji', D && D.uji ? '0' : '1'], 'Mode uji diubah. Muat ulang game.'); };
+    $('s5gLompat').onclick = function () { act(['gm_langkah', String($('s5gN').value || '1')], 'Langkah diatur. Muat ulang game.'); };
+    $('s5gCoba').onclick = function () {
+      if (!window.MTGames9) { msg('Mini game belum termuat.', true); return; }
+      if (!D || !D.uji) { msg('Nyalakan mode uji cerita dulu.', true); return; }
+      try { closeModal(); } catch (e) { }
+      MTGames9.main({ ctx: 'trial', preset: $('s5gPre').value, title: 'Uji Dengar Tanah', kicker: 'Panel GM' }, function (r) {
+        showToast(r && r.win ? 'Uji Dengar Tanah: menang.' : 'Uji Dengar Tanah selesai.', r && r.win ? 'success' : 'info');
+      });
+    };
     var btn = $('mtGmBtn'); if (btn) btn.addEventListener('click', function () { load(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
