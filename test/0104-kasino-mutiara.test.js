@@ -243,6 +243,33 @@ const ok = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1); } 
     if (k === 'feed') ok(rows.length > 0 && rows.every(r => r.meja === 'Duel Dadu' && !/shoe/.test(r.detail)), 'ops feed tersaring & tanpa sepatu');
     if (k === 'ringkas') ok(rows[0].ronde > 0, 'ops ringkas ada ronde');
   }
+  {
+    // papan gambler di lobi: top 3 hari ini + top 1 pekan, peringkat total taruhan, tanpa menang bersih
+    const stA = (await A.call('api_kasino', ['status'])).kasino, stB = (await B.call('api_kasino', ['status'])).kasino;
+    ok(stA.papan && Array.isArray(stA.papan.hari) && stA.papan.hari.length >= 1 && stA.papan.hari.length <= 3, 'papan: hari 1..3 baris');
+    ok(stA.papan.pekan && stA.papan.pekan.n, 'papan: ada gambler pekan ini');
+    const dbTop = await H.sql(`select p.username, d.turnover::bigint t from game.kasino_daily d join game.players p using (player_id) where d.ks_day = game.ks_day() and d.turnover > 0 order by d.turnover desc, d.rounds desc limit 3`);
+    ok(stA.papan.hari.length === dbTop.length && stA.papan.hari.every((x, i) => num(x.turnover) === num(dbTop[i].t)), 'papan: urutan & angka sama dengan kasino_daily');
+    ok(stA.papan.hari.every((x, i) => i === 0 || num(stA.papan.hari[i - 1].turnover) >= num(x.turnover)), 'papan: urut turun');
+    ok(stA.papan.hari.filter(x => x.me).length <= 1 && stA.papan.hari.some(x => x.me) === (stA.papan.hari.some(x => x.n === 'Kapten Ana')), 'papan: penanda "kamu" benar untuk Ana');
+    ok(stB.papan.hari.some(x => x.me && x.n === 'Kapten Budi') === stB.papan.hari.some(x => x.n === 'Kapten Budi'), 'papan: penanda "kamu" benar untuk Budi');
+    ok(!/"net"|bersih|cap|batas|kuota/i.test(JSON.stringify(stA.papan)), 'papan: tidak membocorkan menang bersih/kuota');
+    const wk = await one(`select p.username, sum(d.turnover)::bigint t from game.kasino_daily d join game.players p using (player_id)
+      where d.ks_day between date_trunc('week', game.ks_day()::timestamp)::date and game.ks_day() group by p.username order by 2 desc limit 1`);
+    ok(num(stA.papan.pekan.turnover) === num(wk.t), 'papan: top 1 pekan = total taruhan Senin..hari ini');
+    // pekan lalu tidak ikut: pindahkan semua baris hari ini ke 8 hari lalu -> papan hari kosong, pekan hanya jika masih dalam pekan
+    await H.sql(`update game.kasino_daily set ks_day = ks_day - 8 where ks_day = game.ks_day()`);
+    const lalu = (await A.call('api_kasino', ['status'])).kasino.papan;
+    ok(lalu.hari.length === 0 && lalu.pekan == null, 'papan: data 8 hari lalu tidak masuk hari/pekan ini');
+    await H.sql(`update game.kasino_daily set ks_day = ks_day + 8 where ks_day = game.ks_day() - 8`);
+    ok((await A.call('api_kasino', ['status'])).kasino.papan.hari.length >= 1, 'papan: kembali setelah data dipulihkan');
+    // GM dan Ops: kuota/alarm/gerbang hanya terbaca lewat query Ops
+    const kq = await H.sql(KAS.Q.kuota); ok(kq.length > 0 && kq.every(r => num(r.sisa) >= 0 && num(r.batas) === 2500000), 'ops kuota: sisa >= 0, batas 2,5 jt');
+    const al = await H.sql(KAS.Q.alarm); ok(al.length > 0 && al.every(r => 'z' in r && typeof r.alarm === 'boolean'), 'ops alarm: z & status per meja');
+    const gb = await H.sql(KAS.Q.gerbang); ok(gb.some(r => r.key === 'KasinoOpen'), 'ops gerbang: memuat KasinoOpen');
+    const th = await H.sql(KAS.Q.topHari); ok(th.length > 0 && 'bersih' in th[0], 'ops topHari: ada kolom menang bersih');
+    const tp = await H.sql(KAS.Q.topPekan); ok(tp.length === 1 || tp.length > 0, 'ops topPekan jalan');
+  }
   const kat = await H.sql(ALIRAN.Q.kategori, [null]);
   ok(kat.some(r => r.kel === 'Kasino'), 'aliran dana memuat kategori Kasino');
   const kap = await H.sql(ALIRAN.Q.kapten, [null]);

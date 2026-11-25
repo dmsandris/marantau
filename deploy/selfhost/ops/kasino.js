@@ -75,6 +75,70 @@ select ${WIB('a.created_at')} as waktu, coalesce(p.username, '?') as gm,
   round(a.old_edge * 100, 2)::float8 as edge_lama_pct, round(a.new_edge * 100, 2)::float8 as edge_baru_pct, a.note as catatan
 from game.kasino_edge_audit a left join game.players p on p.player_id = a.gm_id
 order by a.id desc limit 100`,
+
+  // ---- Pengecekan tambahan (v86): gerbang & konfigurasi, alarm z-score, kuota, papan gambler, ronde besar, aktif, kapten janggal ----
+  gerbang: `
+select c.key, c.value from game.config c where c.key like 'Kasino%' or c.key = 'FiturPenguji' order by c.key`,
+
+  // z-score per meja, seluruh riwayat (rumus sama dengan ks_gm_stats yang dipakai panel GM)
+  alarm: `
+with s as (
+  select r.game_type g, count(*)::int n, sum(r.bet_amount::numeric) bet, sum(r.payout_amount::numeric) pay,
+    sum(r.bet_amount::numeric * (1 - r.edge_applied::numeric)) expv, sum(power(r.bet_amount::numeric, 2)) b2,
+    avg(power(r.payout_amount::numeric / r.bet_amount - (1 - r.edge_applied::numeric), 2)) v
+  from game.kasino_round r where r.status <> 'active' group by r.game_type),
+z as (select *, case when v > 0 and b2 > 0 then (pay - expv) / sqrt(b2 * v) else 0 end zz from s),
+m as (select coalesce((select value::numeric from game.config where key = 'KasinoAlarmMinRonde'), 1000) as min_ronde)
+select case z.g when 'dadu' then 'Duel Dadu' when 'roulette' then 'Roulette' when 'blackjack' then 'Blackjack' else 'Slot' end as meja,
+  z.n as ronde, m.min_ronde::int as min_ronde, round(100 * z.pay / nullif(z.bet, 0), 2)::float8 as rtp_pct, round(100 * z.expv / nullif(z.bet, 0), 2)::float8 as rtp_target_pct,
+  round(z.zz, 2)::float8 as z,
+  (z.n >= m.min_ronde and (z.zz > 4 or (z.g <> 'blackjack' and z.zz < -4))) as alarm
+from z, m order by z.n desc`,
+
+  // kuota menang harian per kapten (hari nyata WIB, hanya GM yang boleh lihat)
+  kuota: `
+select ${NAMA} as kapten, p.username, d.net::float8 as bersih, d.rounds as ronde, d.turnover::float8 as putaran,
+  c.cap::float8 as batas, greatest(0, c.cap - d.net)::float8 as sisa, round((100 * d.net / nullif(c.cap, 0))::numeric, 0)::float8 as terpakai_pct
+from game.kasino_daily d join game.players p on p.player_id = d.player_id,
+  (select coalesce((select value::numeric from game.config where key = 'KasinoMenangHarian'), 2500000)::bigint as cap) c
+where d.ks_day = ${TODAY} and d.rounds > 0 order by d.net desc limit 40`,
+
+  // papan gambler yang tampil di lobi pemain (peringkat total taruhan) + menang bersihnya, yang tidak tampil ke pemain
+  topHari: `
+select ${NAMA} as kapten, p.username, d.turnover::float8 as putaran, d.rounds as ronde, d.net::float8 as bersih
+from game.kasino_daily d join game.players p on p.player_id = d.player_id
+where d.ks_day = ${TODAY} and d.turnover > 0 order by d.turnover desc, d.rounds desc limit 10`,
+  topPekan: `
+select ${NAMA} as kapten, p.username, sum(d.turnover)::float8 as putaran, sum(d.rounds)::int as ronde, sum(d.net)::float8 as bersih,
+  to_char(date_trunc('week', ${TODAY}::timestamp)::date, 'YYYY-MM-DD') as sejak
+from game.kasino_daily d join game.players p on p.player_id = d.player_id
+where d.ks_day between date_trunc('week', ${TODAY}::timestamp)::date and ${TODAY}
+group by p.player_id, p.character_name, p.username having sum(d.turnover) > 0 order by 3 desc, 4 desc limit 10`,
+
+  besar: `
+select ${WIB('r.created_at')} as waktu, ${NAMA} as kapten, p.username, ${MEJA} as meja, r.bet_amount::float8 as taruhan,
+  r.payout_amount::float8 as bayaran, r.net_delta::float8 as selisih, round((r.payout_amount::numeric / r.bet_amount), 1)::float8 as pengali, r.capped as kena_batas
+from game.kasino_round r join game.players p on p.player_id = r.player_id
+where r.status <> 'active' and ${SINCE} order by r.net_delta desc limit 15`,
+
+  aktif: `
+select ${NAMA} as kapten, p.username, r.bet_amount::float8 as taruhan, r.gold_before::float8 as gold_sebelum,
+  round(extract(epoch from now() - r.created_at))::int as umur_detik,
+  coalesce((select value::int from game.config where key = 'KasinoBjDetik'), 120) as batas_detik
+from game.kasino_round r join game.players p on p.player_id = r.player_id
+where r.status = 'active' order by r.created_at`,
+
+  // kapten dengan hasil paling menyimpang dari harapan (z), minimal 100 ronde. Blackjack bias karena strategi pemain beda dari basic strategy.
+  curiga: `
+select ${NAMA} as kapten, p.username, count(*)::int as ronde, sum(r.bet_amount)::float8 as putaran,
+  round((100 * sum(r.payout_amount::numeric) / nullif(sum(r.bet_amount::numeric), 0)), 1)::float8 as rtp_pct,
+  round((100 * sum(r.bet_amount::numeric * (1 - r.edge_applied::numeric)) / nullif(sum(r.bet_amount::numeric), 0)), 1)::float8 as rtp_target_pct,
+  round((case when avg(power(r.payout_amount::numeric / r.bet_amount - (1 - r.edge_applied::numeric), 2)) > 0
+    then (sum(r.payout_amount::numeric) - sum(r.bet_amount::numeric * (1 - r.edge_applied::numeric)))
+      / sqrt(sum(power(r.bet_amount::numeric, 2)) * avg(power(r.payout_amount::numeric / r.bet_amount - (1 - r.edge_applied::numeric), 2))) else 0 end), 2)::float8 as z,
+  sum(r.net_delta)::float8 as bersih
+from game.kasino_round r join game.players p on p.player_id = r.player_id
+where r.status <> 'active' group by p.player_id, p.character_name, p.username having count(*) >= 100 order by z desc limit 15`,
 };
 
 const GAMES = ['', 'dadu', 'roulette', 'blackjack', 'slot'];

@@ -79,6 +79,7 @@ create table if not exists game.kasino_daily (
   primary key (player_id, ks_day)
 );
 alter table game.kasino_daily enable row level security;
+create index if not exists kasino_daily_day_idx on game.kasino_daily (ks_day, turnover desc);
 
 create table if not exists game.kasino_edge_audit (
   id         bigserial primary key,
@@ -558,6 +559,32 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- Papan Gambler (lobi): top 3 hari ini + top 1 pekan ini (Senin..Minggu WIB).
+-- Peringkat berdasar TOTAL TARUHAN (turnover), bukan menang bersih, supaya batas
+-- menang harian tidak terbaca dari papan dan angka kuota tetap tersembunyi.
+-- ---------------------------------------------------------------------
+create or replace function game.ks_papan(p_pid uuid) returns jsonb
+language sql stable as $$
+  with hr as (
+    select d.player_id, d.turnover, d.rounds from game.kasino_daily d
+     where d.ks_day = game.ks_day() and d.turnover > 0
+     order by d.turnover desc, d.rounds desc, d.player_id limit 3),
+  pk as (
+    select d.player_id, sum(d.turnover)::bigint turnover, sum(d.rounds)::int rounds from game.kasino_daily d
+     where d.ks_day between date_trunc('week', game.ks_day()::timestamp)::date and game.ks_day()
+     group by d.player_id having sum(d.turnover) > 0
+     order by 2 desc, 3 desc, 1 limit 1)
+  select jsonb_build_object(
+    'hari', coalesce((select jsonb_agg(jsonb_build_object('n', coalesce(nullif(p.character_name, ''), p.username),
+               'turnover', h.turnover, 'rounds', h.rounds, 'me', h.player_id = p_pid)
+               order by h.turnover desc, h.rounds desc, h.player_id)
+               from hr h join game.players p on p.player_id = h.player_id), '[]'::jsonb),
+    'pekan', (select jsonb_build_object('n', coalesce(nullif(p.character_name, ''), p.username),
+               'turnover', k.turnover, 'rounds', k.rounds, 'me', k.player_id = p_pid)
+               from pk k join game.players p on p.player_id = k.player_id))
+$$;
+
+-- ---------------------------------------------------------------------
 -- Status untuk lobi (tanpa Edge, tanpa angka kuota)
 -- ---------------------------------------------------------------------
 create or replace function game.ks_status(p_pid uuid) returns jsonb
@@ -580,7 +607,7 @@ begin
     'tables', jsonb_build_object('dadu', game.ks_table_on('dadu'), 'roulette', game.ks_table_on('roulette'),
                                  'blackjack', game.ks_table_on('blackjack'), 'slot', game.ks_table_on('slot')),
     'bj', case when v_bj.id is null then null else game.ks_bj_view(v_bj, false) end,
-    'catatan', v_log, 'total', v_tot);
+    'catatan', v_log, 'total', v_tot, 'papan', game.ks_papan(p_pid));
 end $$;
 
 -- ---------------------------------------------------------------------

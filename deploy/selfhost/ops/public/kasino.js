@@ -88,9 +88,84 @@
       ], F.feed, { tall: true, rowLevel: r => r.kena_batas ? 'warn' : r.status === 'active' ? 'ok' : '' }) + (F.feed.length >= 300 ? '<p class="note">Menampilkan 300 ronde terbaru.</p>' : '');
     });
   }
-  function renderAll() { renderBoard(); renderMeja(); renderHarian(); renderKapten(); renderAudit(); }
+  function renderExtra() {
+    const bad = (k) => ((D && D.errors && D.errors[k]) || 'tidak ada data');
+    const put = (id, key, mk) => {
+      const el = $(id); if (!el) return;
+      if (!D || !D[key]) { showErr(el, bad(key), () => refreshKs(true)); return; }
+      mk(el, D[key]);
+    };
+    put('#ksAlarm', 'alarm', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada ronde</b> yang tercatat.'); return; }
+      el.innerHTML = table([
+        { h: 'Meja', k: 'meja', cls: () => 'name' }, { h: 'Ronde', k: 'ronde', num: 1, f: r => n0(r.ronde) }, { h: 'Minimal alarm', k: 'min_ronde', num: 1, f: r => n0(r.min_ronde) },
+        { h: 'RTP nyata', k: 'rtp_pct', num: 1, f: r => pct(r.rtp_pct) }, { h: 'RTP target', k: 'rtp_target_pct', num: 1, f: r => pct(r.rtp_target_pct) },
+        { h: 'z', k: 'z', num: 1, f: r => NF1.format(r.z) }, { h: 'Status', k: 'alarm', f: r => r.alarm ? 'ALARM' : r.ronde < r.min_ronde ? 'data belum cukup' : 'wajar' },
+      ], rows, { rowLevel: r => r.alarm ? 'bad' : '' });
+    });
+    put('#ksGerbang', 'gerbang', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada konfigurasi</b> kasino di game.config (memakai nilai bawaan).'); return; }
+      const v = k => (rows.find(r => r.key === k) || {}).value;
+      const buka = v('KasinoOpen') === '1';
+      el.innerHTML = `<p class="note"><b>${buka ? 'Kasino BUKA untuk semua kapten.' : 'Kasino TUTUP.'}</b> Penguji: ${esc(v('FiturPenguji') || '(kosong)')}</p>` + table([
+        { h: 'Kunci', k: 'key', cls: () => 'name' }, { h: 'Nilai', k: 'value', cls: () => 'wrap' },
+      ], rows, { rowLevel: r => /^KasinoOpen/.test(r.key) && r.value !== '1' ? 'warn' : /^KasinoEdge/.test(r.key) && +r.value !== 0 ? 'warn' : '' });
+    });
+    put('#ksAktif', 'aktif', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Tidak ada</b> ronde Blackjack yang sedang berjalan.'); return; }
+      el.innerHTML = table([
+        { h: 'Kapten', k: 'kapten', html: 1, f: r => kaptenBtn(r.kapten) + ` <span class="dim">${esc(r.username)}</span>`, cls: () => 'name' },
+        { h: 'Taruhan', k: 'taruhan', num: 1, f: r => n0(r.taruhan) }, { h: 'Gold sebelum', k: 'gold_sebelum', num: 1, f: r => n0(r.gold_sebelum) },
+        { h: 'Umur (detik)', k: 'umur_detik', num: 1, f: r => n0(r.umur_detik) }, { h: 'Batas (detik)', k: 'batas_detik', num: 1, f: r => n0(r.batas_detik) },
+      ], rows, { rowLevel: r => r.umur_detik > r.batas_detik * 2 ? 'bad' : r.umur_detik > r.batas_detik ? 'warn' : '' });
+    });
+    const topCols = [
+      { h: '#', k: 'x', num: 1, f: (r, i) => String(i + 1) },
+      { h: 'Kapten', k: 'kapten', html: 1, f: r => kaptenBtn(r.kapten) + ` <span class="dim">${esc(r.username)}</span>`, cls: () => 'name' },
+      { h: 'Total taruhan', k: 'putaran', num: 1, f: r => n0(r.putaran) }, { h: 'Ronde', k: 'ronde', num: 1, f: r => n0(r.ronde) },
+      { h: 'Menang bersih', k: 'bersih', num: 1, f: r => signed(r.bersih) },
+    ];
+    const withRank = rows => rows.map((r, i) => Object.assign({ _i: i }, r));
+    put('#ksTopHari', 'topHari', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada</b> yang bermain hari ini.'); return; }
+      el.innerHTML = table(topCols.map(c => c.k === 'x' ? Object.assign({}, c, { f: r => String(r._i + 1) }) : c), withRank(rows), { rowLevel: r => r._i < 3 ? 'ok' : '' });
+    });
+    put('#ksTopPekan', 'topPekan', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada</b> yang bermain pekan ini.'); return; }
+      const h = $('#ksPekanH'); if (h) h.textContent = 'Pekan ini (sejak Senin ' + rows[0].sejak + ')';
+      el.innerHTML = table(topCols.map(c => c.k === 'x' ? Object.assign({}, c, { f: r => String(r._i + 1) }) : c), withRank(rows), { rowLevel: r => r._i < 1 ? 'ok' : '' });
+    });
+    put('#ksKuota', 'kuota', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada</b> kapten yang bermain hari ini.'); return; }
+      el.innerHTML = table([
+        { h: 'Kapten', k: 'kapten', html: 1, f: r => kaptenBtn(r.kapten) + ` <span class="dim">${esc(r.username)}</span>`, cls: () => 'name' },
+        { h: 'Menang bersih', k: 'bersih', num: 1, f: r => signed(r.bersih) }, { h: 'Batas', k: 'batas', num: 1, f: r => n0(r.batas) },
+        { h: 'Sisa kuota', k: 'sisa', num: 1, f: r => n0(r.sisa) }, { h: 'Terpakai', k: 'terpakai_pct', num: 1, f: r => n0(r.terpakai_pct) + '%' },
+        { h: 'Ronde', k: 'ronde', num: 1, f: r => n0(r.ronde) }, { h: 'Putaran', k: 'putaran', num: 1, f: r => n0(r.putaran) },
+      ], rows, { rowLevel: r => r.sisa <= 0 ? 'bad' : r.terpakai_pct >= 80 ? 'warn' : '' });
+    });
+    put('#ksBesar', 'besar', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada ronde</b> di rentang ini.'); return; }
+      el.innerHTML = table([
+        { h: 'Waktu (WIB)', k: 'waktu', cls: () => 'dim' }, { h: 'Kapten', k: 'kapten', html: 1, f: r => kaptenBtn(r.kapten), cls: () => 'name' }, { h: 'Meja', k: 'meja' },
+        { h: 'Taruhan', k: 'taruhan', num: 1, f: r => n0(r.taruhan) }, { h: 'Bayaran', k: 'bayaran', num: 1, f: r => n0(r.bayaran) },
+        { h: 'Selisih', k: 'selisih', num: 1, f: r => signed(r.selisih) }, { h: 'Pengali', k: 'pengali', num: 1, f: r => NF1.format(r.pengali) + '×' },
+        { h: 'Batas', k: 'kena_batas', f: r => r.kena_batas ? 'dipotong' : '' },
+      ], rows, { rowLevel: r => r.kena_batas ? 'warn' : '' });
+    });
+    put('#ksCuriga', 'curiga', (el, rows) => {
+      if (!rows.length) { empty(el, '<b>Belum ada kapten</b> dengan minimal 100 ronde.'); return; }
+      el.innerHTML = table([
+        { h: 'Kapten', k: 'kapten', html: 1, f: r => kaptenBtn(r.kapten) + ` <span class="dim">${esc(r.username)}</span>`, cls: () => 'name' },
+        { h: 'Ronde', k: 'ronde', num: 1, f: r => n0(r.ronde) }, { h: 'Putaran', k: 'putaran', num: 1, f: r => n0(r.putaran) },
+        { h: 'RTP nyata', k: 'rtp_pct', num: 1, f: r => pct(r.rtp_pct) }, { h: 'RTP target', k: 'rtp_target_pct', num: 1, f: r => pct(r.rtp_target_pct) },
+        { h: 'z', k: 'z', num: 1, f: r => NF1.format(r.z) }, { h: 'Bersih', k: 'bersih', num: 1, f: r => signed(r.bersih) },
+      ], rows, { rowLevel: r => r.z > 4 ? 'bad' : r.z > 3 ? 'warn' : '' });
+    });
+  }
+  function renderAll() { renderBoard(); renderMeja(); renderHarian(); renderKapten(); renderAudit(); renderExtra(); }
   async function refreshKs(force) {
-    const ids = ['#ksBoard', '#ksMeja', '#ksHarian', '#ksKapten', '#ksAudit'];
+    const ids = ['#ksBoard', '#ksMeja', '#ksHarian', '#ksKapten', '#ksAudit', '#ksAlarm', '#ksGerbang', '#ksAktif', '#ksTopHari', '#ksTopPekan', '#ksKuota', '#ksBesar', '#ksCuriga'];
     if (force) ids.forEach(id => { const e = $(id); if (e) delete e.dataset.ready; });
     await load(ids, async () => { if (!D || force || D.jam !== (S.j === 'semua' ? null : +S.j)) await fetchMain(force); renderAll(); });
     renderFeed();
