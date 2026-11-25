@@ -10,7 +10,7 @@ begin
   end if;
 end $$;
 
--- 2) Kebijakan Realtime (0023b, 0026, 0030) - hanya bila fungsinya ada
+-- 2) Kebijakan Realtime (0023b, 0026, 0030, 0109) - hanya bila fungsinya ada
 do $$
 begin
   if to_regclass('realtime.messages') is null then return; end if;
@@ -23,6 +23,11 @@ begin
     drop policy if exists "marantau kirim duel" on realtime.messages;
     create policy "marantau kirim duel" on realtime.messages for insert to authenticated
       with check (realtime.messages.extension = 'broadcast' and public.mt_rt_duel_ok(realtime.topic()));
+  end if;
+  if to_regprocedure('public.mt_rt_pacu_ok(text)') is not null then
+    drop policy if exists "marantau kirim pacu" on realtime.messages;
+    create policy "marantau kirim pacu" on realtime.messages for insert to authenticated
+      with check (realtime.messages.extension = 'broadcast' and public.mt_rt_pacu_ok(realtime.topic()));
   end if;
   if to_regprocedure('public.mt_rt_raid_ok(text)') is not null then
     drop policy if exists "marantau kirim serbuan" on realtime.messages;
