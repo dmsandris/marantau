@@ -74,6 +74,7 @@ const DIST = path.join(__dirname, '..', 'dist');
           } catch (e) {
             if (/MT_MAINT/.test(e.message)) { const j = JSON.parse(e.message); return send(res, 503, j); }
             if (/MT_PWCHANGE/.test(e.message)) { const j = JSON.parse(e.message); return send(res, 403, j); }
+            throw e;   // penolakan lain (Pasir, pagar seberang) diteruskan seperti PostgREST
           }
           const r = await db.query(`select public.${fn}($1::jsonb) as r`, [JSON.stringify(b.a || [])]);
           if (process.env.SLOW) await new Promise(r => setTimeout(r, Number(process.env.SLOW)));
