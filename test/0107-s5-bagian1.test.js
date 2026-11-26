@@ -105,7 +105,7 @@ const NILAI = new Function(blok + '; return S5DengarNilai;')();
   ok((await st(A)) === undefined, 'baru 1 hari setelah Saga 4');
   await tamatS4(A, 3);
   let s = await st(A);
-  ok(s && s.step === 0 && s.d.n === 1 && s.ada === 19, 'tiga hari game setelah Saga 4 -> langkah 1');
+  ok(s && s.step === 0 && s.d.n === 1 && s.ada >= 19, 'tiga hari game setelah Saga 4 -> langkah 1');
   await H.expectError(() => B.call('api_s5', ['maju', 1, 'ok']), /Aksi tidak dikenal/);
   await H.expectError(() => A.call('api_mg_start', ['listen', 'quest', 'cari_lereng', 3]), /bergeser/);
   await H.expectError(() => A.call('api_mg_start', ['listen', 'trial', 'cari_lereng']), /Belum ada yang menunggu/);   // trial hanya GM
@@ -164,8 +164,8 @@ const NILAI = new Function(blok + '; return S5DengarNilai;')();
   await H.expectError(() => maju(A, 19), /lampu dinyalakan/);
   await clock(MALAM);
   const r19 = await maju(A, 19);
-  ok(r19.s5.step === 19 && r19.s5.d === null, 'langkah 19 selesai, bersambung');
-  await H.expectError(() => maju(A, 20), /Bersambung/);
+  ok(r19.s5.step === 19 && (r19.s5.d === null || r19.s5.d.n === 20), 'langkah 19 selesai (Bagian I tuntas)');
+  if (!r19.s5.gerbangB) await H.expectError(() => maju(A, 20), /Bersambung/);   // langkah 20+ diuji di 0113
   ok((await gold(A)) === g0 + 550000, 'total hadiah Bagian I (Q25 dibayar di langkah 20)');
   await clock(SIANG);
 
@@ -192,7 +192,7 @@ const NILAI = new Function(blok + '; return S5DengarNilai;')();
   await H.sql(`update game.mg_session set issued_ms = issued_ms - 200000 where id = $1`, [t1.session_id]);
   const tf = await G.call('api_mg_finish', [t1.session_id, perfect(t1.params)]);
   ok(tf.status === 'won' && Object.keys(tf.efek).length === 0, 'trial tanpa efek quest');
-  await H.expectError(() => G.call('api_s5', ['gm_langkah', '25']), /Langkah 1 sampai/);
+  await H.expectError(() => G.call('api_s5', ['gm_langkah', '99']), /Langkah 1 sampai/);
   await G.call('api_s5', ['gm_uji', '0']);
   ok((await st(G)) === undefined, 'mode uji dimatikan: tertutup lagi');
   ok((await G.call('api_s5', ['gm_status'])).gm.uji === false, 'status uji mati');

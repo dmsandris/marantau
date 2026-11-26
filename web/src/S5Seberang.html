@@ -1,0 +1,522 @@
+<style>
+  /* ================= S5 · dunia seberang (Bagian II) ================= */
+  .s5p-host { position: relative; width: 100%; aspect-ratio: 16 / 10; min-height: 260px; border-radius: 14px; overflow: hidden; background: #020309;
+    border: 1px solid rgba(214,176,92,.45); box-shadow: inset 0 0 40px rgba(0,0,0,.8); }
+  .s5p-host canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .s5p-host .lbl { position: absolute; left: 10px; bottom: 8px; font: 700 10px var(--font-title, Georgia); letter-spacing: .28em; color: rgba(240,207,120,.7); pointer-events: none; text-transform: uppercase; }
+  @media (max-width: 560px) { .s5p-host { aspect-ratio: 4 / 5; } }
+  .s5s-box { margin: 6px 0 10px; padding: 12px 14px; border-radius: 14px; color: #efe2bf; font: 15px/1.5 Georgia, serif;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(40,36,58,.97), rgba(10,10,20,.97)); border: 1px solid rgba(214,176,92,.5); }
+  .s5s-box h4 { margin: 0 0 6px; font: 700 13px var(--font-title, Georgia); letter-spacing: .14em; text-transform: uppercase; color: #f0cf72; }
+  .s5s-box .row { display: flex; gap: 8px; align-items: baseline; font-size: 14px; } .s5s-box .row i { font-style: normal; width: 18px; text-align: center; font-weight: 700; }
+  .s5s-box .y i { color: #8fe0a0; } .s5s-box .n i { color: #f29a80; }
+  .s5s-box .acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+  .s5s-box button { min-height: 42px; padding: 8px 16px; border-radius: 999px; font: 700 14px Georgia, serif; cursor: pointer;
+    background: linear-gradient(180deg, #f0cf72, #b98a2e); color: #1a1208; border: 1px solid #8a6420; }
+  .s5s-box button[disabled] { opacity: .4; cursor: default; }
+  .s5s-box .muted { opacity: .75; font-size: 13px; }
+  .s5s-teka { display: flex; gap: 8px; margin-top: 8px; } .s5s-teka input { flex: 1; min-height: 42px; padding: 8px 12px; border-radius: 10px; font: 16px Georgia, serif;
+    border: 1px solid rgba(214,176,92,.5); background: rgba(255,255,255,.06); color: #efe2bf; }
+  .s5s-cegat { position: fixed; inset: 0; z-index: 2147481000; display: grid; place-items: center; padding: 16px; background: rgba(2,3,9,.72); backdrop-filter: blur(3px); }
+  .s5s-cegat .in { width: min(520px, 94vw); }
+  body.s5-seberang #menuList .btn[data-panel=market], body.s5-seberang #menuList .btn[data-panel=bank], body.s5-seberang #menuList .btn[data-panel=library],
+  body.s5-seberang #menuList .btn[data-panel=bursa], body.s5-seberang #menuList .btn[data-panel=fishing], body.s5-seberang #menuList .btn[data-panel=pacu],
+  body.s5-seberang #menuList .btn[data-panel=warehouse], body.s5-seberang #menuList .btn[data-panel=pesanan], body.s5-seberang #menuList .btn[data-panel=kongsi], body.s5-seberang #menuList .btn[data-panel=kedai] { display: none !important; }
+</style>
+<script>
+/* =====================================================================
+ * S5 Bagian II — dunia seberang (langkah 20-28). Server: 0113-s5-seberang.sql (api_s5, api_mg_*).
+ *   * Kota s5_* dikirim lewat state.s5.kota (bukan cities_json) dan digabung ke state.cities di sini.
+ *   * Peta laut di seberang = S5Peta (MTChart.build dibelokkan); tak ada unsur Mare di layar.
+ *   * Bangunan: Dermaga (penjaga, pulang), Aula Madu (lapau), Balai Penguasa (papan), Dwarfsmith (galangan, 3 pulau).
+ *     Pasar, Bank, Gudang, Pustaka tidak ada.
+ *   * Gunung Merapi di Bjorneo: titik klik baru (langkah 20 dan titian). Titian = Susur Ombak (MTGames10, ctx crossing).
+ *   * Pencegatan cerita (langkah 22, 26): kartu muncul saat berlayar; hanya Lari (Susur Ombak, ctx encounter).
+ * ===================================================================== */
+var S5S = (function () {
+  if (!window.S5M || !S5M.alat || !window.S5Kartu || !window.MTFace) return {};
+  var A = S5M.alat;
+  function st() { return (window.state && state.s5) || null; }
+  function seb() { var s = st(); return !!(s && s.dunia === 'seberang'); }
+  function cid() { try { return state && state.city ? state.city.CityId : ''; } catch (e) { return ''; } }
+  function idx() { var s = st(); return s ? (s.step || 0) : -1; }
+  function docked() { return !(state && state.voyage && state.voyage.inTransit); }
+  var off = 0, offSrc = null;
+  function nowMs() { var s = st(); if (s && s !== offSrc && s.nowMs) { off = s.nowMs - Date.now(); offSrc = s; } return Date.now() + off; }
+  function fmt(n) { return typeof formatGold === 'function' ? formatGold(n) : String(n); }
+  function toast(t, k) { try { showToast(t, k || 'info'); } catch (e) { } }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  try {
+    if (typeof TYPE_META !== 'undefined') {
+      TYPE_META.S5Titian = { icon: 'star', label: 'Kaki Titian' };
+      TYPE_META.S5Gerbang = { icon: 'crown', label: 'Pulau Gerbang' };
+      TYPE_META.S5Raksasa = { icon: 'scales', label: 'Pulau Raksasa' };
+      TYPE_META.S5Kabut = { icon: 'anchor', label: 'Pulau Kabut' };
+      TYPE_META.S5Barak = { icon: 'swords', label: 'Barak Sayap' };
+      TYPE_META.S5Aula = { icon: 'crown', label: 'Aula Raja' };
+      TYPE_META.S5Rune = { icon: 'star', label: 'Menara Rune' };
+      TYPE_META.S5Akar = { icon: 'compass', label: 'Titik Laut' };
+      TYPE_META.S5Selatan = { icon: 'compass', label: 'Titik Laut' };
+      TYPE_META.S5Palung = { icon: 'compass', label: 'Titik Laut' };
+    }
+  } catch (e) { }
+
+  /* ---------- tokoh ---------- */
+  function apOf(seed, role, fem, over) { var a = MTFace.npc(seed, role, fem); for (var k in (over || {})) a[k] = over[k]; return a; }
+  var NN = null;
+  function N() {
+    if (NN) return NN;
+    NN = {
+      heimdall: { name: 'Heimdall', title: 'Penjaga titian · Himinbujang', bg: ['#6a4a1a', '#120c04'],
+        ap: apOf('heimdall-penjaga-titian', 'kapten', 0, { age: 0.82, facial: 3, hair: 4, head: 'none', outfit: 'mantel', eyes: 2 }) },
+      gudrunita: { name: 'Gudrunita', title: 'Pemimpin para sayap', bg: ['#4a5a7a', '#0c1020'],
+        ap: apOf('gudrunita-sayap', 'kapten', 1, { age: 0.4, head: 'none', outfit: 'rompi' }) },
+      aula: { name: 'Penjaga gerbang', title: 'Aula Madu · Himinbujang', bg: ['#5a3a1a', '#140a04'],
+        ap: apOf('penjaga-aula-madu', 'lapau', 0, { age: 0.55, facial: 2, head: 'ikat' }) },
+      jotunia: { name: 'Mak Jotunia', title: 'Penimbang gunung · Jotunjumbo', bg: ['#4a4a5a', '#101014'],
+        ap: apOf('mak-jotunia-raksasa', 'saudagar', 1, { age: 0.75, head: 'ikat', outfit: 'apron' }) },
+      opung: null
+    };
+    return NN;
+  }
+  function tokoh(k) {
+    if (k === 'opung') return A.tokohMare('opung');
+    var n = N()[k]; if (!n) return null;
+    return { nama: n.name, gelar: n.title, wajah: MTFace.svg(n.ap, { bgColors: n.bg }) };
+  }
+
+  /* ---------- langkah 20-28 ---------- */
+  var T = {
+    20: { at: 'merapi', main: 'opung', title: 'Gerbang di Dalam Gunung', tema: 'mare',
+      p: ['<p><i>Kawah menghembuskan napas hangat. Di bibirnya, Opung menunggu dengan lentera yang sama.</i></p><p>"Lagunya sudah utuh, Kapten. Gunung mendengarnya. Lihat."</p>'],
+      b: 'Melangkah ke cahaya', wait: '"Cahaya hanya mau menerima saat malam, Kapten."',
+      post: { kind: 's5_kawah', slides: ['Cahaya tujuh warna menyala di kawah.', 'Busurnya naik, melengkung ke langit yang bukan langit kita.'] },
+      a: ['<p><i>Opung memberi hormat ke arah cahaya.</i> "Di seberang sana ada yang menunggu jantung ini pulang. Pergilah. Aku menjaga lagunya di sini."</p>'],
+      next: 'Cahaya itu menunggu lambung yang lurus.' },
+    23: { at: 'dermaga', main: 'heimdall', title: 'Di Bawah Tanduk',
+      p: ['<p><i>Raksasa bermata emas berdiri di ujung dermaga. Sebuah tanduk tergantung di pinggangnya.</i></p><p>"Tak ada kapal fana melewati titian ini sejak putra bungsu raja pulang, empat ratus tahun lalu. Tamu tak diundang disebut penyusup."</p>',
+        '<p><i>Ia memiringkan kepala, seperti mendengar sesuatu dari lambungmu.</i> "Tapi lambungmu bernyanyi. Lagu yang tak boleh keluar dari Valhalalo." <i>Ia melantunkan baris pertamanya.</i> "Sambung, kalau kau bisa."</p>'],
+      b: 'Hadapi sang penjaga',
+      g: { kind: 'pantun', opts: { place: 'Dermaga &middot; Himinbujang', kicker: 'Sajak skald', title: 'Balas Pantun &middot; Lagu Penjaga',
+        quote: 'Sambung lagu yang kau dengar di Bjorneo. Para sayap tidak bergerak selama ia mendengarkan.', cta: 'Sambung lagunya', cooldownSec: 0 } },
+      a: ['<p><i>Heimdall diam lama.</i> "…Itu suaranya. Anak itu selalu menyanyikannya di dermagaku, setiap kali pulang."</p>'],
+      next: 'Dengarkan sang penjaga.', lanjut: true },
+    24: { at: 'dermaga', main: 'heimdall', title: 'Yang Tak Pernah Melewati Titian',
+      p: ['<p>"Putra bungsu raja pergi, lalu pulang membawa jantung gunung seberang. Dua ratus tahun lalu ia berangkat lagi." <i>Mata emasnya meredup.</i> "Aku melihat ia berangkat. Aku tidak pernah melihat ia sampai di dermagaku."</p>',
+        '<p>"Setiap malam kunyalakan titian untuknya. Itu sebabnya cahaya di gunungmu tak pernah padam." <i>Ia menoleh ke selatan, lalu memalingkan wajah.</i> "Ada satu bagian laut yang tak bisa kulihat sejak waktu itu. Setiap kali aku menoleh ke selatan, mataku kabur."</p>',
+        '<p><b>Gudrunita</b>, pemimpin para sayap, melangkah maju. "Penyusup tetap penyusup, Penjaga."</p><p>"Penyusup tidak menyanyikan lagu itu," jawab Heimdall. <i>Para sayap mundur. Wajah mereka tertutup kain.</i></p>',
+        '<p>"Pintu pulang selalu ada di dermaga ini. Pintu datang ada di kawahmu, sekali sehari, dan kau harus berlari lurus lagi di titian. Titian itu haus: ia meminta oli dari yang ingin datang lagi."</p><p>"Gudang dan banmu tak terjangkau dari sini. Di sini yang ditimbang bukan koin, tapi jerih. Lambungmu terluka? Para kerdil di Dwarfsmith akan menambalnya, dengan harga yang membuat pelaut Mare menangis."</p>'],
+      b: 'Dengar sang penjaga',
+      post: { kind: 's5_tombak', slides: ['Tombak-tombak diturunkan.'] },
+      a: ['<p><i>Heimdall menekan cap tanduk ke sehelai kulit.</i> "Segel ini membuka pulau pertama untukmu."</p><div class="s5m-hadiah">Segel Penjaga</div>'],
+      next: 'Kabar laut dikumpulkan di aula minum di bawah tanduk. Dengarkan sebelum berlayar.' },
+    25: { at: 'aula', main: 'aula', title: 'Aula yang Berbisik',
+      p: ['<p><i>Aula panjang berbau madu dan asap. Tiga penjaga gerbang berebut bercerita tentang laut.</i></p><p>"Monster laut makin sering muncul," kata yang satu. "Ada pulau tempat raksasa menimbang gunung," kata yang lain. Yang ketiga menunjuk ke selatan dan tersenyum terlalu lebar.</p>'],
+      b: 'Dengar kabar laut',
+      g: { kind: 'warga', opts: { kicker: 'Aula Madu &middot; Himinbujang', icon: 'users', title: 'Tanya Warga &middot; Kabar Laut', sub: 'Himinbujang',
+        intro: 'Tiga penjaga gerbang bercerita tentang laut. Satu di antaranya mengarang.',
+        fakta: 'Penjaga titian <b>tak bisa melihat ke selatan</b>. Para sayap <b>tak pernah berlayar ke selatan</b>.',
+        bohong: 2,
+        saksi: [
+          { nama: 'Ragnhildur', peran: 'Penjaga tiang tanduk', fem: 1, kata: 'Ular-ular laut makin berani. Dulu mereka cuma lewat jauh di cakrawala, sekarang sampai menyentuh lambung.', salah: 'Keterangannya cocok dengan laut yang kau lewati.' },
+          { nama: 'Bragimin', peran: 'Penabuh tanduk', kata: 'Yang butuh upah pergi ke pulau raksasa. Di sana ada penimbang gunung, dan ia membayar jerih, bukan koin.', salah: 'Tak ada yang bertentangan dengan yang sudah pasti.' },
+          { nama: 'Lokisaleh', peran: 'Pembawa madu', kata: 'Mau cepat kaya? Berlayarlah lurus ke selatan. Para sayap sering ke sana, jalurnya paling aman.', salah: '' }
+        ] } },
+      a: ['<p>Yang jujur berbisik: "Yang mencari upah di dunia ini pergi ke pulau tempat raksasa menimbang gunung. Hati-hati di laut hitam. Ia tak sepi."</p>'],
+      next: 'Pulau yang menimbang gunung memberi upah.' },
+    27: { at: 'balai', main: 'jotunia', title: 'Penimbang Gunung',
+      p: ['<p><i>Raksasa bertubuh gunung tertawa sampai lantai balai bergetar. Ia menimbang Segel Penjaga di timbangan sebesar perahu.</i></p><p>"Segel penjaga tanduk di tangan manusia kecil. Seumur hidup, baru kali ini."</p>',
+        '<p>"Tak ada tamu yang duduk gratis. Jawab ini:"</p><p><i>"Dibawa pada hari berangkat, ditunggu pada hari pulang. Makin lama makin berat, tapi tak ada timbangan yang sanggup menimbangnya. Apa aku?"</i></p>'],
+      teka: true,
+      a: ['<p>Mak Jotunia terkekeh. "Jawaban yang tepat. Di pulau ini ada yang menunggu satu janji lebih lama daripada tumbuhnya gunungku."</p>'],
+      next: 'Lihat Papan Tugas.', lanjut: true },
+    28: { at: 'balai', main: 'jotunia', title: 'Papan Tugas',
+      p: ['<p><i>Mak Jotunia menepuk papan kayu setinggi tiang kapal.</i> "Di sini yang ditimbang bukan koin. Jerih."</p>'],
+      b: 'Lihat Papan Tugas',
+      post: { kind: 's5_papan', slides: ['Lonceng raksasa berbunyi.', 'Papan Tugas menyala satu per satu.'] },
+      a: function () {
+        var cap = (state && state.ship && (state.ship.CargoCapacity || state.ship.cargoCapacity)) || 0, used = (typeof hudCargoUsed === 'number' ? hudCargoUsed : null);
+        return ['<p>Papan memuat tugas antaran bernominal besar. Satu muatan hampir memenuhi palka.</p>' +
+          (cap ? '<p class="muted small">Palkamu: ' + (used == null ? '?' : used) + ' / ' + cap + ' terisi.</p>' : ''),
+          '<p>"Yang mencari jejak anak bungsu itu bertanya pada mereka yang pernah mengayuh kapalnya. Keturunan mereka tinggal di pulau yang selalu berselimut kabut dingin. Pintu mereka belum terbuka bagi tamu yang belum berjerih."</p>'];
+      },
+      next: 'Pulau berselimut kabut dingin. Pintunya dibuka lewat jerih.' }
+  };
+  var CEGAT = {
+    22: { judul: 'Laut yang Mengawasi', tokoh: 'gudrunita', teks: '<p><i>Sayap-sayap putih turun dari kabut. Wajah mereka tertutup kain yang berbau ramuan.</i></p><p>"Penyusup di titian! Tutup jalannya!"</p>',
+      petunjuk: 'Lari ke dermaga berpagar tanduk di depanmu.', kicker: 'Kejaran sayap', title: 'Susur Ombak &middot; Lari!',
+      lolos: { kind: 's5_lolos', slides: ['Kapalmu membelah ombak hitam.', 'Sayap-sayap itu berhenti di satu garis, lalu tak mengejar lagi.'] },
+      tiba: { kind: 's5_gerbang', slides: ['Dermaga berpagar tanduk.', 'Tombak-tombak terarah ke lambungmu. Bayangan raksasa menutup langit.'] }, buka: 'dermaga' },
+    26: { judul: 'Ular di Laut Hitam', tokoh: null, teks: '<p><i>Sesuatu yang panjang bergerak di bawah lambungmu. Air hitam berkilau emas tersibak di dua sisi.</i></p>',
+      petunjuk: 'Di cakrawala ada pulau yang bahunya setinggi gunung. Lari ke sana.', kicker: 'Ular laut muda', title: 'Susur Ombak &middot; Lari!',
+      lolos: { kind: 's5_lolos', slides: ['Ular itu larut ke kedalaman.'] }, buka: 'balai' }
+  };
+
+  /* ---------- kota seberang di state.cities ---------- */
+  function gabung() {
+    if (!window.state || !state.cities) return;
+    var s = st(), add = (s && s.kota) || [], ids = add.map(function (c) { return c.CityId; });
+    state.cities = state.cities.filter(function (c) { return !/^s5_/.test(c.CityId) || ids.indexOf(c.CityId) >= 0; });
+    add.forEach(function (c) { var i = -1; state.cities.forEach(function (d, k) { if (d.CityId === c.CityId) i = k; }); if (i >= 0) state.cities[i] = c; else state.cities.push(c); });
+    window.MT_SEA_MOOD = seb() ? 'seberang' : null;
+    try { document.body.classList.toggle('s5-seberang', seb()); } catch (e) { }
+  }
+
+  /* ---------- peta laut seberang (MTChart dibelokkan) ---------- */
+  var PETA = { ctl: null, cv: null };
+  function petaOpts(o) {
+    var s = st() || {}, buka = s.buka || [], pulau = {}, titik = {};
+    (s.kota || []).forEach(function (c) { if (/^s5_p/.test(c.CityId)) pulau[c.CityId] = { nama: c.Name, terbuka: buka.indexOf(c.CityId) >= 0 }; else titik[c.CityId] = { nama: c.Name, terbuka: buka.indexOf(c.CityId) >= 0 || c.CityId === o.currentId }; });
+    var rute = []; if (buka.indexOf('s5_p2') >= 0) rute.push(['s5_p1', 's5_p2']);
+    if (o.currentId === 's5_t0' || o.destId === 's5_p1' && (o.currentId === 's5_t0')) rute.push(['s5_t0', 's5_p1']);
+    return { pulau: pulau, titik: titik, rute: rute, fase: s.fase || 2, di: o.currentId, tuju: o.destId || null,
+      jalan: o.progress != null ? { dari: o.currentId, ke: o.destId, p: o.progress } : null };
+  }
+  function pasangPeta() {
+    var host = document.querySelector('.s5p-host:not([data-on])'); if (!host) return;
+    host.setAttribute('data-on', '1');
+    var o = JSON.parse(host.getAttribute('data-o') || '{}'), pick = host.getAttribute('data-pick') === '1';
+    if (PETA.ctl) { try { PETA.ctl.destroy(); } catch (e) { } PETA.ctl = null; }
+    var cv = document.createElement('canvas'); host.insertBefore(cv, host.firstChild); PETA.cv = cv;
+    PETA.ctl = S5Peta.mount(cv, Object.assign(petaOpts(o), { onPick: pick ? function (id) { pilihTujuan(id); } : null }));
+  }
+  setInterval(function () { if (PETA.ctl && PETA.cv && !document.body.contains(PETA.cv)) { try { PETA.ctl.destroy(); } catch (e) { } PETA.ctl = null; PETA.cv = null; } }, 1500);
+  if (window.MTChart && typeof MTChart.build === 'function') {
+    var origBuild = MTChart.build;
+    MTChart.build = function (o) {
+      if (!seb() || !window.S5Peta) return origBuild.apply(this, arguments);
+      o = o || {};
+      var data = { currentId: o.currentId, destId: o.destId, progress: o.progress };
+      setTimeout(pasangPeta, 0);
+      return '<div class="s5p-host" data-pick="' + (o.hoverable ? 1 : 0) + '" data-o="' + esc(JSON.stringify(data)) + '"><span class="lbl">Laut Seberang</span></div>';
+    };
+  }
+  function pilihTujuan(id) {
+    if (!(window.lastSailOptions || []).some(function (x) { return x.cityId === id; })) { toast('Belum ada jalan ke sana, Kapten.'); return; }
+    window.sailSel = id;
+    if (PETA.ctl) PETA.ctl.update({ tuju: id });
+    document.querySelectorAll('.dest-item').forEach(function (d) { d.classList.toggle('sel', d.getAttribute('data-city') === id); });
+    try { renderSailConfirm_(); } catch (e) { }
+  }
+  if (typeof window.selectSailDest_ === 'function') {
+    var origSel = window.selectSailDest_;
+    window.selectSailDest_ = function (id) { if (seb() && PETA.ctl) { pilihTujuan(id); return; } return origSel.apply(this, arguments); };
+  }
+
+  /* ---------- scene pulau seberang ---------- */
+  function glow(ctx, x, y, r, col, a) { if (a <= 0.004) return; var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + col + ',' + a.toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + col + ',0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+  function rumah(ctx, x, base, w, h, u, warna, atap) {
+    ctx.fillStyle = warna || '#1c1610'; ctx.fillRect(x, base - h, w, h);
+    ctx.fillStyle = atap || '#0e0a06'; ctx.beginPath(); ctx.moveTo(x - u * 0.3, base - h); ctx.lineTo(x + w / 2, base - h - u * 1.4); ctx.lineTo(x + w + u * 0.3, base - h); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(240,200,110,.55)'; ctx.lineWidth = Math.max(1, u * 0.06); ctx.beginPath(); ctx.moveTo(x + w / 2, base - h - u * 1.4); ctx.lineTo(x + w / 2 - u * 0.4, base - h - u * 1.9); ctx.moveTo(x + w / 2, base - h - u * 1.4); ctx.lineTo(x + w / 2 + u * 0.4, base - h - u * 1.9); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,200,110,.85)'; ctx.fillRect(x + w * 0.4, base - h * 0.55, w * 0.2, h * 0.3);
+  }
+  function drawDyn(inst, ctx, p, t, dt, d) {
+    var u = d.u;
+    (d.api || []).forEach(function (f) { glow(ctx, f.x, f.y, u * (1.2 + 0.4 * Math.sin(t * 3 + f.x)), '255,170,80', 0.35 + 0.15 * Math.sin(t * 7 + f.x));
+      for (var i = 0; i < 4; i++) { var ph = (t * 1.2 + i * 0.25 + f.x) % 1; ctx.fillStyle = 'rgba(255,' + Math.round(200 - ph * 100) + ',80,' + (1 - ph).toFixed(3) + ')'; ctx.fillRect(f.x + Math.sin(i * 3 + t) * u * 0.4, f.y - ph * u * 1.6, 2, 2); } });
+    if (d.tanduk) glow(ctx, d.tanduk.x, d.tanduk.y, u * 4, '255,214,140', 0.18 + 0.08 * Math.sin(t * 1.4));
+    if (d.rune) for (var q = 0; q < 5; q++) { var ph2 = (t * 0.25 + q * 0.2) % 1; ctx.save(); ctx.globalAlpha = Math.sin(ph2 * Math.PI) * 0.9; ctx.strokeStyle = '#a8c0ff'; ctx.lineWidth = Math.max(1, u * 0.06);
+      ctx.translate(d.rune.x + Math.sin(q * 2 + t * 0.6) * u, d.rune.y - ph2 * u * 4); ctx.beginPath(); ctx.moveTo(0, -u * 0.3); ctx.lineTo(0, u * 0.3); ctx.moveTo(0, -u * 0.1); ctx.lineTo(u * 0.25, -u * 0.3); ctx.stroke(); ctx.restore(); }
+    if (d.raksasa) { var r = d.raksasa, nap = Math.sin(t * 0.5) * u * 0.1; ctx.fillStyle = 'rgba(6,7,12,.96)';
+      ctx.beginPath(); ctx.ellipse(r.x, r.y - u * 6.6 + nap, u * 0.9, u * 1.05, 0, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(r.x - u * 2.4, r.y); ctx.quadraticCurveTo(r.x - u * 2.6, r.y - u * 5.2 + nap, r.x, r.y - u * 5.4 + nap); ctx.quadraticCurveTo(r.x + u * 2.6, r.y - u * 5.2 + nap, r.x + u * 2.4, r.y); ctx.fill();
+      ctx.fillStyle = 'rgba(255,170,60,' + (0.7 + 0.3 * Math.sin(t * 1.7)).toFixed(3) + ')'; ctx.fillRect(r.x - u * 0.45, r.y - u * 6.8 + nap, u * 0.22, u * 0.1); ctx.fillRect(r.x + u * 0.23, r.y - u * 6.8 + nap, u * 0.22, u * 0.1); }
+  }
+  function pulau(ciri) {
+    return function (B) {
+      var u = B.u, ctx = B.ctx, q = B.qTop, sy = B.shoreY, W = B.W || u * 30, dyn = { type: 'fn', fn: drawDyn, u: u, api: [] };
+      if (ciri !== 'kaki') {
+        MTCities.H.hills(B, { c: ['#161a24', '#0a0c12'], h: 0.24, peak: 0.45, trees: 18, kind: 'tree' });
+        MTCities.H.stoneQuay(B, 0, u * 28, '#2a2620');
+      }
+      var dermagaX = u * 2;
+      if (ciri === 'gerbang') {   // gerbang tanduk raksasa di ujung dermaga
+        ctx.save(); ctx.strokeStyle = '#2a2014'; ctx.lineWidth = u * 0.7; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(u * 3, q); ctx.bezierCurveTo(u * 1, q - u * 5, u * 3.5, q - u * 9, u * 6.2, q - u * 8.4);
+        ctx.moveTo(u * 9, q); ctx.bezierCurveTo(u * 11, q - u * 5, u * 8.5, q - u * 9.4, u * 5.8, q - u * 8.8); ctx.stroke();
+        ctx.strokeStyle = 'rgba(240,200,110,.7)'; ctx.lineWidth = u * 0.12; ctx.stroke(); ctx.restore();
+        dyn.tanduk = { x: u * 6, y: q - u * 8.6 };
+      }
+      if (ciri === 'raksasa') dyn.raksasa = { x: u * 24, y: q };
+      if (ciri === 'menara') { ctx.fillStyle = '#12141c'; ctx.fillRect(u * 23, q - u * 9, u * 1.6, u * 9); dyn.rune = { x: u * 23.8, y: q - u * 9.5 }; }
+      if (ciri === 'kaki') {   // tak ada pulau: hanya kaki titian di laut terbuka
+        B.hillY = function () { return sy; };
+        dyn.tanduk = { x: u * 6, y: sy - u * 6 };
+        B.dyn.push(dyn); B.noLamps = true; B.noPosters = true; B.walk = null; B.roamers = [];
+        return;
+      }
+      // bangunan
+      rumah(ctx, u * 11, q, u * 4.4, u * 2.4, u, '#1e160c', '#100a04');
+      MTCities.H.hot(B, 'aula', 'Aula Madu', 'cup', u * 11, q - u * 4.4, u * 4.4, u * 4.4);
+      rumah(ctx, u * 16.4, q, u * 4, u * 2.8, u, '#1a1a22', '#0c0c12');
+      MTCities.H.hot(B, 'balai', 'Balai Penguasa', 'scroll', u * 16.4, q - u * 4.8, u * 4, u * 4.8);
+      MTCities.H.hot(B, 'dermaga', 'Dermaga', 'anchor', dermagaX, q - u * 3.4, u * 7.6, u * 3.4);
+      if (B._dwarf) {
+        ctx.fillStyle = '#1a120c'; ctx.fillRect(u * 21, q - u * 2.2, u * 3.4, u * 2.2);
+        ctx.fillStyle = '#0c0806'; ctx.fillRect(u * 23.6, q - u * 3.8, u * 0.6, u * 1.8);
+        dyn.api.push({ x: u * 23.9, y: q - u * 3.9 });
+        MTCities.H.hot(B, 'ship', 'Dwarfsmith', 'wrench', u * 21, q - u * 4, u * 3.6, u * 4);
+      }
+      B.dyn.push(dyn); B.noPosters = true; B.walk = null; B.roamers = [];
+    };
+  }
+  if (window.MTCities && MTCities.register) {
+    var CIRI = { s5_t0: 'kaki', s5_p1: 'gerbang', s5_p2: 'raksasa', s5_p3: 'tali', s5_p4: 'barak', s5_p5: 'aula', s5_p6: 'menara', s5_t1: 'kaki', s5_t2: 'kaki', s5_t3: 'kaki' };
+    Object.keys(CIRI).forEach(function (id) {
+      var f = pulau(CIRI[id]);
+      MTCities.register(id, function (B) { B._dwarf = /^(s5_p1|s5_p5|s5_p6)$/.test(id); f(B); }, 'seberang');
+    });
+    // Gunung Merapi Bjorneo: titik klik baru, hanya setelah pintu gua terbuka (langkah 20+)
+    var origBj = MTCities.get('bjorneo');
+    if (origBj) MTCities.register('bjorneo', function (B) {
+      origBj(B);
+      try {
+        var s = st();
+        if (s && s.gerbangB && (s.step >= 19)) MTCities.H.hot(B, 'merapi', 'Gunung Merapi', 'star', B.u * 12.6, B.hy - B.H * 0.24, B.u * 4.8, B.H * 0.12);
+      } catch (e) { }
+    });
+  }
+
+  /* ---------- tampilan kota seberang ---------- */
+  if (typeof wrap_ === 'function') {
+    wrap_('renderScene', function () {
+      if (!seb() || !docked()) return;
+      try {
+        var c = state.city || {}, tm = (TYPE_META[c.Type] || {}).label || 'Seberang';
+        var k = document.getElementById('locKicker'); if (k) k.textContent = 'Seberang Titian · ' + tm;
+        var dw = !!c.Dwarf, row = document.getElementById('travelRow');
+        if (row) row.innerHTML = '<div class="cta-group">' +
+          (c.CityId === 's5_t0' ? '' : '<button class="btn glass cta-mini" onclick="openPanel(\'dermaga\')">' + ic('anchor') + 'Dermaga</button>' +
+          '<button class="btn glass cta-mini" onclick="openPanel(\'aula\')">' + ic('cup') + 'Aula Madu</button>') +
+          '<button class="btn glass cta-mini" onclick="openPanel(\'cargo\')">' + ic('crate') + 'Palka</button>' +
+          (dw ? '<button class="btn glass cta-mini" onclick="openPanel(\'ship\')">' + ic('wrench') + 'Dwarfsmith</button>' : '') +
+          '<button class="btn btn-gold cta-sail" onclick="openPanel(\'setsail\')"><span class="cta-ico">' + ic('anchor') + '</span><span><span class="cta-t">Set Sail</span><span class="cta-s">Laut seberang</span></span></button></div>';
+      } catch (e) { console.warn('[S5S] scene', e); }
+    }, function () { try { gabung(); } catch (e) { } });
+    wrap_('renderSetSailWith_', function () {
+      if (!seb()) return;
+      try { var c = document.getElementById('modalContent'), npc = c && c.querySelector('.npc'); if (npc) npc.remove(); } catch (e) { }
+    }, function () { try { gabung(); } catch (e) { } });
+    // sambutan syahbandar Mare tidak ada di seberang
+    if (typeof window.showNpcToast_ === 'function') { var origNpc = window.showNpcToast_; window.showNpcToast_ = function () { if (seb()) return; return origNpc.apply(this, arguments); }; }
+    wrap_('loadState', null, function () { off = 0; offSrc = null; });
+    // tak ada dermaga mancing di seberang
+    wrap_('renderHotspots_', function () { if (!seb()) return; document.querySelectorAll('#sceneHotspots .hot-plaque[data-hot=fishing]').forEach(function (b) { b.remove(); }); });
+  }
+
+  /* ---------- panel ---------- */
+  var BOLEH = { setsail: 1, cargo: 1, profile: 1, log: 1, combat: 1, tasks: 0, settings: 1, leaderboard: 1, chat: 1 };
+  if (typeof window.openPanel === 'function') {
+    var origOpen = window.openPanel;
+    window.openPanel = function (panel) {
+      try {
+        if (panel === 'merapi') { panelMerapi(); return; }
+        if (seb()) {
+          if (panel === 'dermaga') { panelDermaga(); return; }
+          if (panel === 'aula' || panel === 'tavern') { panelAula(); return; }
+          if (panel === 'balai' || panel === 'tasks') { panelBalai(); return; }
+          if (panel === 'ship') { if (state.city && state.city.Dwarf) return origOpen.apply(this, arguments); toast('Tak ada Dwarfsmith di pulau ini, Kapten.'); return; }
+          if (!BOLEH[panel]) { toast('Tak ada yang melayani itu di seberang titian, Kapten.'); return; }
+        }
+      } catch (e) { console.warn('[S5S] panel', e); }
+      return origOpen.apply(this, arguments);
+    };
+  }
+  function modal(icon, judul, sub, nama) {
+    var w = A.bukaModal(icon, judul, sub); currentPanel = nama || null; return w;
+  }
+  function kotak(w, html) { var el = document.createElement('div'); el.className = 's5s-box'; el.innerHTML = html; w.appendChild(el); return el; }
+  function aktifDi(at) { var n = idx() + 1, d = T[n], s = st(); return d && d.at === at && s && s.d && s.d.n === n && (!s.d.c || s.d.c === cid()) ? n : 0; }
+
+  function panelDermaga() {
+    var c = state.city || {}, w = modal('anchor', 'Dermaga', c.Name, 's5dermaga'); if (!w) return;
+    var n = aktifDi('dermaga');
+    if (n) { jalankan(n, w); }
+    else if (c.CityId === 's5_p1') kotak(w, '<p><i>Heimdall berdiri di ujung dermaga, memandang ke titian. Tanduknya diam.</i></p>');
+    else kotak(w, '<p><i>Dermaga dari kayu hitam dan tali-tali tua. Air di bawahnya berkilau emas.</i></p>');
+    if (c.CityId === 's5_p1' && idx() >= 24) pulangBox(w);
+  }
+  function pulangBox(w) {
+    var s = st() || {}, t = s.titian || {}, h = t.hari || { ok: true };
+    var el = kotak(w, '<h4>Pintu pulang</h4><p>Titian membawamu ke kawah Bjorneo. Gratis, tanpa berlari.</p>' +
+      (h.ok ? '' : '<p class="muted">' + esc(h.pesan || 'Titian sudah dilewati hari ini.') + '</p>') +
+      '<div class="acts"><button type="button"' + (h.ok ? '' : ' disabled') + '>Pulang ke Mare</button></div>');
+    el.querySelector('button').onclick = function () {
+      this.disabled = true;
+      A.call(['pulang'], function () { A.close(); toast('Titian membawamu pulang ke kawah Bjorneo.', 'success'); setTimeout(function () { try { loadState(); } catch (e) { } }, 200); },
+        function (m) { toast(m, 'error'); el.querySelector('button').disabled = false; });
+    };
+  }
+  function panelAula() {
+    var c = state.city || {}, w = modal('cup', 'Aula Madu', c.Name, 's5aula'); if (!w) return;
+    var n = aktifDi('aula'); if (n) { jalankan(n, w); return; }
+    kotak(w, '<p><i>Tanduk-tanduk minum bergantung di dinding. Seseorang menyanyikan potongan lagu yang tak selesai.</i></p>' + jurnalHtml());
+  }
+  function panelBalai() {
+    var c = state.city || {}, w = modal('scroll', 'Balai Penguasa', c.Name, 's5balai'); if (!w) return;
+    var n = aktifDi('balai'); if (n) { jalankan(n, w); return; }
+    if (c.CityId === 's5_p2' && idx() >= 28) kotak(w, '<h4>Papan Tugas</h4><p>Lonceng sudah berbunyi. Tugas-tugas antaran menunggu di bab berikutnya.</p><p class="muted">Bersambung.</p>');
+    else kotak(w, '<p><i>Penguasa pulau ini belum mau menerima tamu dari seberang.</i></p>' + jurnalHtml());
+  }
+  function jurnalHtml() {
+    var i = idx(), prev = T[i]; if (!prev || !prev.next) return '';
+    return '<div class="s5m-jurnal" style="background:rgba(255,255,255,.04);color:#e8d6a6;border-color:rgba(214,176,92,.4)"><b style="color:#f0cf72">Jejak gunung</b>' + esc(prev.next) + '</div>';
+  }
+
+  /* ---------- menjalankan satu langkah (kartu tema seberang) ---------- */
+  function hal(d) { return (typeof d.p === 'function' ? d.p(st()) : d.p || []).slice(0, 4); }
+  function halA(d) { return (typeof d.a === 'function' ? d.a(st()) : d.a || []).slice(0, 4); }
+  function tema(d) { return d.tema || (seb() ? 'seberang' : 'mare'); }
+  function jalankan(n, w) {
+    var d = T[n]; if (!d) return;
+    var o = { id: 's5-' + n, host: w, tema: tema(d), tokoh: tokoh(d.main), halaman: hal(d), tutup: true };
+    if (d.t === 'malam' && !A.night()) { o.halaman = [d.wait || '"Datang lagi saat lampu dinyalakan, Kapten."']; o.aksi = { label: d.b, fn: function () { } }; o.tunggu = { menit: A.menitKeMalam(), teks: 'Lampu dinyalakan dalam' }; S5Kartu.buka(o); return; }
+    if (d.teka) { o.halaman = hal(d); o.aksi = { label: 'Jawab', fn: function () { teka(n, w); } }; S5Kartu.buka(o); return; }
+    o.aksi = { label: d.b, fn: function () { aksi(n); } };
+    S5Kartu.buka(o);
+  }
+  function kembali(n, pesan) { if (pesan) toast(pesan, 'info'); var w = A.modalTerbuka() ? A.host() : modal('scroll', T[n].title, (state.city || {}).Name, 's5' + T[n].at); if (w) jalankan(n, w); }
+  function aksi(n) {
+    var d = T[n];
+    if (!d.g) { maju(n, 'ok'); return; }
+    A.game(d.g, d, function (res) {
+      if (!res || res.cancelled || res.win === false) { kembali(n, res && res.win === false ? 'Belum berhasil, Kapten. Coba lagi.' : null); return; }
+      maju(n, 'ok');
+    });
+  }
+  function maju(n, res) { A.call(['maju', n, res], function (r) { selesai(n, r); }, function (m) { kembali(n, m); }); }
+  function teka(n, w) {
+    var s = st() || {}, wt = Math.max(0, Math.ceil(((s.tekaSampai || 0) - nowMs()) / 1000));
+    var w2 = A.modalTerbuka() ? A.host() : modal('scroll', T[n].title, (state.city || {}).Name, 's5balai');
+    var el = kotak(w2, '<h4>Teka-teki Mak Jotunia</h4><p><i>"Dibawa pada hari berangkat, ditunggu pada hari pulang. Makin lama makin berat, tapi tak ada timbangan yang sanggup menimbangnya. Apa aku?"</i></p>' +
+      '<div class="s5s-teka"><input type="text" maxlength="40" autocomplete="off" aria-label="Jawaban"><button type="button">Jawab</button></div><p class="muted" aria-live="polite"></p>');
+    var inp = el.querySelector('input'), b = el.querySelector('button'), msg = el.querySelector('.muted');
+    function kunci(dt) { if (dt <= 0) { b.disabled = false; inp.disabled = false; msg.textContent = ''; return; } b.disabled = true; inp.disabled = true; msg.textContent = 'Mak Jotunia memejamkan mata. Tunggu ' + dt + ' detik.'; setTimeout(function () { if (document.body.contains(el)) kunci(dt - 1); }, 1000); }
+    kunci(wt);
+    function kirim() {
+      if (b.disabled) return; b.disabled = true;
+      A.call(['maju', n, inp.value || ''], function (r) {
+        if (r && r.salah) { A.au('bad'); inp.value = ''; kunci(20); return; }
+        el.remove(); selesai(n, r);
+      }, function (m) { msg.textContent = m; b.disabled = false; });
+    }
+    b.onclick = kirim; inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') kirim(); });
+    setTimeout(function () { try { inp.focus(); } catch (e) { } }, 60);
+  }
+  function selesai(n, r) {
+    var d = T[n]; A.au('success');
+    var lanjut = function () {
+      var w = A.modalTerbuka() ? A.host() : modal('scroll', d.title, (state.city || {}).Name, 's5' + d.at); if (!w) return;
+      var pages = halA(d).slice();
+      if (r && r.gold > 0) pages[pages.length - 1] = (pages[pages.length - 1] || '') + '<div class="s5m-hadiah">+' + fmt(r.gold) + ' gold</div>';
+      var o = { id: 's5-a' + n, host: w, tema: tema(d), tokoh: tokoh(d.main), halaman: pages, petunjuk: d.next, tutup: true, onTutup: function () { A.segarkan(); } };
+      var nd = T[n + 1];
+      if (n === 20) o.aksi = { label: 'Naiki titian', fn: function () { titian(); } };
+      else if (d.lanjut && nd && nd.at === d.at) o.aksi = { label: 'Lanjut', fn: function () { var w2 = A.modalTerbuka() ? A.host() : modal('scroll', nd.title, (state.city || {}).Name, 's5' + nd.at); jalankan(n + 1, w2); } };
+      S5Kartu.buka(o);
+    };
+    if (d.post) { A.cine(d.post, lanjut); return; }
+    lanjut();
+  }
+
+  /* ---------- Gunung Merapi & titian ---------- */
+  function panelMerapi() {
+    var s = st(); if (!s || seb()) return;
+    var w = modal('star', 'Gunung Merapi', 'Bjorneo', 's5merapi'); if (!w) return;
+    if (aktifDi('merapi') === 20) { jalankan(20, w); return; }
+    if (!s.titian || !s.titian.buka) { kotak(w, '<p><i>Asap tipis naik dari kawah, teratur, seperti napas orang tidur.</i></p>'); return; }
+    titianBox(w);
+  }
+  function titianBox(w) {
+    var t = (st() || {}).titian || {}, h = t.hari || { ok: true }, oliOk = t.tiket || (t.punyaOli || 0) >= (t.oli || 0);
+    function row(ok, txt) { return '<div class="row ' + (ok ? 'y' : 'n') + '"><i>' + (ok ? '✓' : '✗') + '</i><span>' + txt + '</span></div>'; }
+    var bisa = h.ok && t.warlord && oliOk;
+    var el = kotak(w, '<h4>Titian tujuh warna</h4><p>Busur cahaya dari kawah. Satu penyeberangan sehari, dan kau harus berlari lurus di atasnya.</p>' +
+      row(h.ok, h.ok ? 'Titian terbuka hari ini' : esc(h.pesan || 'Titian sudah dilewati hari ini.')) +
+      row(!!t.warlord, 'Lambung lurus (Mesin Jolt Warlord)') +
+      (t.oli ? row(oliOk, t.tiket ? 'Ransum titian sudah dibayar hari ini' : t.oli + ' Oli Hitam di palka (ada ' + (t.punyaOli || 0) + '). Dipotong saat mulai.') : row(true, 'Penyeberangan pertama: tanpa ransum')) +
+      '<div class="acts"><button type="button"' + (bisa ? '' : ' disabled') + '>Seberangi titian</button></div>');
+    el.querySelector('button').onclick = function () { titian(); };
+  }
+  function titian() {
+    var t = (st() || {}).titian; if (!t || !window.MTGames10) { toast('Titian belum menyala, Kapten.'); return; }
+    A.close(); A.setSibuk(true);
+    MTGames10.main({ ctx: 'crossing', preset: t.preset, kicker: 'Kawah Bjorneo', title: 'Titian Tujuh Warna' }, function (res) {
+      A.setSibuk(false);
+      if (!res || !res.win) { if (res && !res.cancelled) toast('Titian retak di bawahmu. Coba lagi, tanpa kerugian.', 'info'); try { loadState(); } catch (e) { } return; }
+      var e = res.efek || {};
+      var tiba = function () {
+        if (e.pertama) {
+          var w = modal('star', 'Laut Seberang', 'Kaki Titian', null);
+          S5Kartu.buka({ id: 's5-a21', host: w, tema: 'seberang', halaman: ['<p><i>Laut di sini berwarna lain. Tiga kali tanduk berbunyi, dan di ujung sana hanya satu titik yang menyala.</i></p>'],
+            petunjuk: 'Satu titik yang menyala di ujung laut. Bukalah Set Sail.', tutup: true, onTutup: function () { A.close(); } });
+        } else toast('Titian membawamu ke dermaga bertanduk.', 'success');
+        try { loadState(); } catch (er) { }
+      };
+      if (e.pertama) A.cine({ kind: 's5_tiba', slides: ['Kabut emas menyibak.', 'Laut hitam berkilau emas, dan tanduk berbunyi tiga kali.'] }, tiba); else tiba();
+    });
+  }
+
+  /* ---------- pencegatan cerita saat berlayar ---------- */
+  var cegatOn = false, cekKey = null;
+  function cekCegat() {
+    if (cegatOn || !seb() || docked() || A.sibuk()) return;
+    var s = st(), c = s && s.cegat, v = state.voyage; if (!v) return;
+    // jadwal pencegatan dipasang server saat berangkat: ambil status sekali per pelayaran
+    var key = v.originCityId + '>' + v.destinationCityId + '@' + (v.departAt || '');
+    if ((!c || c.dest !== v.destinationCityId) && cekKey !== key && !v._optimistic) {
+      cekKey = key;
+      google.script.run.withSuccessHandler(function (r) { if (r && r.s5 !== undefined && window.state) state.s5 = r.s5; }).withFailureHandler(function () { }).api_s5('status');
+      return;
+    }
+    if (!c || v.destinationCityId !== c.dest) return;
+    if (nowMs() < c.at) return;
+    var C = CEGAT[c.n]; if (!C) return;
+    cegatOn = true;
+    try { closeModal(); } catch (e) { }
+    var ov = document.createElement('div'); ov.className = 's5s-cegat'; ov.innerHTML = '<div class="in"></div>'; document.body.appendChild(ov);
+    function tutupOv() { ov.remove(); cegatOn = false; }
+    S5Kartu.buka({ id: 's5-c' + c.n, host: ov.querySelector('.in'), tema: 'seberang', tokoh: C.tokoh ? tokoh(C.tokoh) : null, halaman: [C.teks], petunjuk: C.petunjuk, tutup: false,
+      pilihan: [{ label: 'Lari!', fn: function () { lari(c, C, tutupOv); } }, { label: 'Mundur ke pelabuhan asal', fn: function () { mundur(tutupOv); } }] });
+  }
+  function lari(c, C, tutupOv) {
+    tutupOv(); cegatOn = true; A.setSibuk(true);
+    MTGames10.main({ ctx: 'encounter', preset: c.preset, step: c.n, kicker: C.kicker, title: C.title }, function (res) {
+      A.setSibuk(false);
+      if (!res || !res.win) { cegatOn = false; return; }   // kartu muncul lagi: Lari atau Mundur
+      A.cine(C.lolos, function () {
+        // kapal kini boleh merapat
+        try { google.script.run.withSuccessHandler(function () { cegatOn = false; tibaLalu(C); }).withFailureHandler(function () { cegatOn = false; tibaLalu(C); }).api_pollVoyage(); } catch (e) { cegatOn = false; tibaLalu(C); }
+      });
+    });
+  }
+  function tibaLalu(C) {
+    var go = function () { try { loadState(); } catch (e) { } if (C.buka) setTimeout(function () { if (docked() && seb()) openPanel(C.buka); }, 1800); };
+    if (C.tiba) A.cine(C.tiba, go); else go();
+  }
+  function mundur(tutupOv) {
+    A.call(['mundur'], function () { tutupOv(); toast('Kapalmu berbalik ke pelabuhan asal.', 'info'); try { loadState(); } catch (e) { } },
+      function (m) { tutupOv(); toast(m, 'error'); });
+  }
+  setInterval(function () { try { cekCegat(); } catch (e) { } }, 700);
+
+  // Lapau Bjorneo di Mare: Opung sudah menunggu di kawah
+  if (typeof wrap_ === 'function') {
+    wrap_('setModal_', function () {
+      try {
+        var s = st(); if (!s || seb() || currentPanel !== 'tavern' || cid() !== 'bjorneo' || A.sibuk()) return;
+        if (s.d && s.d.n === 20 && s.gerbangB) {
+          var c = document.getElementById('modalContent'); if (!c || c.querySelector('.s5s-merapi')) return;
+          var el = document.createElement('div'); el.className = 's5m-jurnal s5s-merapi';
+          el.innerHTML = '<b>Jejak gunung</b>Bangku pojok kosong. Opung menunggu di kawah Gunung Merapi, saat lampu dinyalakan.';
+          var anchor = c.querySelector('.ph'); if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(el, anchor.nextSibling); else c.insertBefore(el, c.firstChild);
+        }
+      } catch (e) { }
+    });
+  }
+
+  return { seb: seb, T: T, titian: titian, gabung: gabung };
+})();
+</script>

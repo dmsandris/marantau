@@ -129,12 +129,13 @@ language plpgsql stable as $$
 declare v int; d jsonb;
 begin
   if p_kind = 'uji' and game.is_gm(p_pid) then return null; end if;
-  -- uji coba GM (Panel GM): semua preset Dengar Tanah, tanpa efek ke quest
-  if p_kind = 'listen' and p_ctx = 'trial' and game.is_gm(p_pid) then return null; end if;
-  if p_kind = 'listen' and p_ctx = 'quest' and game.s5_eligible(p_pid) then
+  -- uji coba GM (Panel GM): semua preset mini game S5, tanpa efek ke quest
+  if p_kind in ('listen', 'wave') and p_ctx = 'trial' and game.is_gm(p_pid) then return null; end if;
+  if p_kind in ('listen', 'wave') and p_ctx = 'quest' and game.s5_eligible(p_pid) then
     if game.in_transit(p_pid) then return 'Merapat dulu di pelabuhan, Kapten.'; end if;
     v := game.s5_step(p_pid); d := game.s5_steps() -> v;
-    if d is null or p_step is distinct from (d ->> 'n')::int or d ->> 'mg' is distinct from p_preset then
+    if d is null or p_step is distinct from (d ->> 'n')::int or d ->> 'mg' is distinct from p_preset
+       or coalesce(d ->> 'mgk', 'listen') <> p_kind then
       return 'Ceritanya sudah bergeser, Kapten. Dengarkan lagi.';
     end if;
     if d ? 'c' and game.current_city(p_pid) is distinct from (d ->> 'c') then return 'Tanah di sini diam, Kapten.'; end if;
@@ -147,7 +148,7 @@ end $$;
 create or replace function game.s5_mg_efek(p_pid uuid, p_s game.mg_session, p_won boolean) returns jsonb
 language plpgsql as $$
 begin
-  if p_won and p_s.kind = 'listen' and p_s.context = 'quest' and p_s.step_ref is not null then
+  if p_won and p_s.kind in ('listen', 'wave') and p_s.context = 'quest' and p_s.step_ref is not null then
     update game.player_quests set data = data || jsonb_build_object('mg' || p_s.step_ref, p_s.id::text), updated_at = now()
      where player_id = p_pid and quest_id = 's5';
     return jsonb_build_object('langkah', p_s.step_ref, 'siap', true);
