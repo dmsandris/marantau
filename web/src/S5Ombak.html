@@ -1,0 +1,435 @@
+<style>
+  /* ================= MTGames10 · Susur Ombak ================= */
+  .s5o { position: fixed; inset: 0; z-index: 2147482000; background: #020308; color: #efe2bf; font-family: Georgia, serif;
+    opacity: 0; transition: opacity .35s ease; -webkit-user-select: none; user-select: none; touch-action: none; overflow: hidden; }
+  .s5o.on { opacity: 1; }
+  .s5o canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .s5o-top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 0; pointer-events: none; }
+  .s5o-top .k { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #c9a866; }
+  .s5o-top .t { font-size: 17px; font-weight: 700; color: #f6e6bf; text-shadow: 0 1px 4px #000; }
+  .s5o-top .x { margin-left: auto; pointer-events: auto; min-height: 36px; padding: 6px 12px; border-radius: 999px; background: rgba(10,10,20,.55);
+    color: #e2cfa2; border: 1px solid rgba(214,176,92,.4); font: 600 13px Georgia, serif; cursor: pointer; }
+  .s5o-bars { position: absolute; left: 14px; right: 14px; top: calc(62px + env(safe-area-inset-top, 0px)); display: grid; gap: 6px; pointer-events: none; max-width: 520px; margin: 0 auto; }
+  .s5o-bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,.08); border: 1px solid rgba(214,176,92,.3); overflow: hidden; }
+  .s5o-bar i { display: block; height: 100%; width: 100%; border-radius: inherit; background: linear-gradient(90deg, #e8c060, #fff0b8); transition: width .12s linear; }
+  .s5o-bar.daya i { background: linear-gradient(90deg, #8fe0b0, #e8f6c0); }
+  .s5o-bar.daya.rendah i { background: linear-gradient(90deg, #e05040, #f2a060); }
+  .s5o-lbl { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgba(239,226,191,.7); }
+  .s5o-mid { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; width: min(90vw, 460px); }
+  .s5o-mid .big { font: 700 64px Georgia, serif; color: #fff1c4; text-shadow: 0 2px 20px rgba(255,200,100,.6); }
+  .s5o-mid .say { font-size: 16px; line-height: 1.5; text-shadow: 0 1px 6px #000; }
+  .s5o-mid .say.bad { color: #f6b09a; } .s5o-mid .say.good { color: #c8f0b0; }
+  .s5o-acts { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .s5o-acts button { min-height: 46px; padding: 10px 20px; border-radius: 999px; font: 700 15px Georgia, serif; cursor: pointer;
+    background: rgba(10,10,20,.6); color: #efe2bf; border: 1px solid rgba(214,176,92,.45); }
+  .s5o-acts button.utama { background: linear-gradient(180deg, #f0cf72, #b98a2e); color: #1a1208; border-color: #8a6420; }
+  .s5o-hint { position: absolute; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); text-align: center; font-size: 12px; color: rgba(239,226,191,.55); pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .s5o { transition: none; } }
+</style>
+<script>
+/*NILAI-MULAI*/
+/* Penilaian Susur Ombak — identik dengan game.mg_wave_judge (0112). Bilangan bulat, tick 20 ms.
+ * Sim dipakai juga saat bermain: taps ditambahkan berurutan, maju(T) memproses tick sampai T. */
+var S5OmbakNilai = (function () {
+  function Sim(p) {
+    this.p = p; this.c = p.course || []; this.taps = []; this.i = 0; this.k = 0; this.lane = 1; this.lastmv = -100000;
+    this.daya = p.daya_maks; this.kebal = 0; this.r = 0; this.hitrow = -1; this.tabrak = 0; this.selesai = false; this.won = null;
+  }
+  Sim.prototype.ketuk = function (t, dir) { this.taps.push({ t_ms: t, dir: dir }); };
+  // perkiraan apakah ketukan diterima (klien hanya mencatat ketukan yang diterima)
+  Sim.prototype.terima = function (t, dir) {
+    var last = this.lastmv, lane = this.lane;
+    for (var j = this.i; j < this.taps.length; j++) { var x = this.taps[j], nl = lane + x.dir; if (x.t_ms - last >= 100 && nl >= 0 && nl <= 2) { lane = nl; last = x.t_ms; } }
+    var n2 = lane + dir; return t - last >= 100 && n2 >= 0 && n2 <= 2;
+  };
+  Sim.prototype.lajurPada = function () {   // lajur setelah semua ketukan tercatat (untuk gambar)
+    var last = this.lastmv, lane = this.lane;
+    for (var j = this.i; j < this.taps.length; j++) { var x = this.taps[j], nl = lane + x.dir; if (x.t_ms - last >= 100 && nl >= 0 && nl <= 2) { lane = nl; last = x.t_ms; } }
+    return lane;
+  };
+  Sim.prototype.maju = function (sampai) {
+    var p = this.p, c = this.c, nTick = Math.floor(p.dur / 20);
+    while (!this.selesai && this.k < nTick && this.k * 20 <= sampai) {
+      var T = this.k * 20;
+      while (this.i < this.taps.length && this.taps[this.i].t_ms <= T) {
+        var x = this.taps[this.i], nl = this.lane + x.dir;
+        if (x.t_ms - this.lastmv >= 100 && nl >= 0 && nl <= 2) { this.lane = nl; this.lastmv = x.t_ms; }
+        this.i++;
+      }
+      this.daya = Math.min(p.daya_maks, this.daya + p.regen);
+      while (this.r < c.length && c[this.r].t + c[this.r].len <= T) this.r++;
+      if (T >= this.kebal && this.r < c.length) {
+        var w = c[this.r];
+        if (w.t <= T && T < w.t + w.len && (w.m & (1 << this.lane)) !== 0 && this.hitrow !== this.r) {
+          this.daya -= p.hit; this.hitrow = this.r; this.kebal = T + p.iframes; this.tabrak++; this.baruTabrak = T;
+        }
+      }
+      if (this.daya <= 0) { this.selesai = true; this.won = false; break; }
+      this.k++;
+    }
+    if (!this.selesai && this.k >= nTick) { this.selesai = true; this.won = true; }
+    return this;
+  };
+  function judge(p, taps) {
+    var s = new Sim(p); taps.forEach(function (x) { s.ketuk(x.t_ms, x.dir); }); s.maju(Infinity);
+    return { won: s.won, tabrak: s.tabrak, daya: Math.max(s.daya, 0) };
+  }
+  return { Sim: Sim, judge: judge };
+})();
+/*NILAI-SELESAI*/
+
+/* =====================================================================
+ * MTGames10 — "Susur Ombak" (Saga 5, konsep 8.2). Kind server: 'wave'.
+ *   MTGames10.main({ ctx: 'quest'|'crossing'|'encounter'|'trial', preset, step, kicker, title }, cb)
+ *     -> api_mg_start, permainan, api_mg_finish; cb({ win, cancelled, efek, result })
+ *   Kulit 'laut' (karang, kayu hanyut, ombak) dan 'pelangi' (retakan, kepingan, kilat). Aturan sama.
+ * ===================================================================== */
+var MTGames10 = (function () {
+  var REDUCE = false; try { REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+  var RAIN = ['255,90,90', '255,160,70', '255,225,90', '120,225,120', '90,180,255', '120,110,255', '200,120,255'];
+  var cur = null;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function rpc(fn, args) { return new Promise(function (ok, fail) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[fn].apply(r, args); }); }
+  function vib(ms) { if (REDUCE) return; try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { } }
+  function rng(seed) { var s = (seed >>> 0) || 1; return function () { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+
+  /* ---------- suara ---------- */
+  var AC = null, MASTER = null, NOISE = null;
+  function audio() {
+    if (AC) { if (AC.state === 'suspended') try { AC.resume(); } catch (e) { } return AC; }
+    try { var C = window.AudioContext || window.webkitAudioContext; if (!C) return null; AC = new C(); MASTER = AC.createGain(); MASTER.gain.value = 0.7; MASTER.connect(AC.destination);
+      var b = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), d = b.getChannelData(0); for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; NOISE = b; } catch (e) { AC = null; }
+    return AC;
+  }
+  function desir(gain, freq, dur) {
+    var a = audio(); if (!a || !NOISE) return; var t = a.currentTime, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = NOISE; f.type = 'bandpass'; f.frequency.setValueAtTime(freq, t); f.frequency.exponentialRampToValueAtTime(freq * 0.4, t + dur); f.Q.value = 0.8;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(MASTER); s.start(t); s.stop(t + dur + 0.05);
+  }
+  function dentum(gain) {
+    var a = audio(); if (!a) return; var t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + 0.45); desir(gain * 0.6, 900, 0.35);
+  }
+  function denting(i) {
+    var a = audio(); if (!a) return; var t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = 'triangle'; o.frequency.value = [523, 659, 784, 1047][i % 4];
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.15, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + 0.55);
+  }
+  function detak() { var a = audio(); if (!a) return; var t = a.currentTime, o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = 58;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18); o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + 0.2); }
+
+  /* ---------- gambar ---------- */
+  // perspektif: z 0 = kapal, 1 = cakrawala
+  function proj(G, z) { var q = 1 / (1 + 4 * Math.max(-0.2, z)), p = Math.max(0.01, (q - 0.2) / 0.8); return { y: G.hy + (G.sy - G.hy) * p, s: p }; }
+  function lajurX(G, lane, s) { return G.cx + (lane - 1) * G.lw * s; }
+
+  var TIRAI = null;
+  function tirai() {
+    if (TIRAI) return TIRAI; TIRAI = [];
+    [['90,255,170', '190,255,220'], ['214,176,92', '255,230,160']].forEach(function (cc) {
+      var c = document.createElement('canvas'); c.width = 4; c.height = 128; var x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 128);
+      g.addColorStop(0, 'rgba(' + cc[0] + ',0)'); g.addColorStop(0.6, 'rgba(' + cc[0] + ',.3)'); g.addColorStop(0.92, 'rgba(' + cc[1] + ',.85)'); g.addColorStop(1, 'rgba(' + cc[1] + ',0)');
+      x.fillStyle = g; x.fillRect(0, 0, 4, 128); TIRAI.push(c);
+    });
+    return TIRAI;
+  }
+  function langit(G, laut) {   // langit + bintang + cahaya cakrawala: offscreen, dibuat ulang saat ukuran berubah
+    var key = G.W + 'x' + G.H + (laut ? 'l' : 'p'); if (G.langitKey === key) return G.langit;
+    var c = document.createElement('canvas'), d = G.dpr || 1; c.width = Math.round(G.W * d); c.height = Math.round(G.hy * d + 2); var x = c.getContext('2d'); x.scale(d, d);
+    var g = x.createLinearGradient(0, 0, 0, G.hy);
+    g.addColorStop(0, '#02030a'); g.addColorStop(0.6, laut ? '#0a1230' : '#120c2c'); g.addColorStop(1, laut ? '#25305a' : '#3a2650');
+    x.fillStyle = g; x.fillRect(0, 0, G.W, G.hy + 2);
+    var r = rng(77);
+    for (var i = 0; i < 160; i++) { var sx = r() * G.W, sy = r() * G.hy * 0.92, sr = r() < 0.1 ? 1.6 : 0.9; x.fillStyle = 'rgba(230,235,255,' + (0.4 + r() * 0.6).toFixed(2) + ')'; x.beginPath(); x.arc(sx, sy, sr, 0, 6.2832); x.fill(); }
+    // bulan pucat
+    var mx = G.W * 0.8, my = G.hy * 0.5, mr = Math.min(G.W, G.H) * 0.045, mg = x.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 5);
+    mg.addColorStop(0, 'rgba(255,240,210,.35)'); mg.addColorStop(1, 'rgba(255,240,210,0)'); x.fillStyle = mg; x.fillRect(mx - mr * 5, my - mr * 5, mr * 10, mr * 10);
+    x.fillStyle = '#f6ecd2'; x.beginPath(); x.arc(mx, my, mr, 0, 6.2832); x.fill();
+    x.fillStyle = laut ? '#25305a' : '#3a2650'; x.beginPath(); x.arc(mx + mr * 0.35, my - mr * 0.15, mr * 0.9, 0, 6.2832); x.fill();
+    // cahaya cakrawala
+    var hg = x.createLinearGradient(0, G.hy - 40, 0, G.hy); hg.addColorStop(0, 'rgba(240,200,120,0)'); hg.addColorStop(1, 'rgba(240,200,120,.35)');
+    x.fillStyle = hg; x.fillRect(0, G.hy - 40, G.W, 40);
+    G.langit = c; G.langitKey = key; return c;
+  }
+  function latar(ctx, G, P, now) {
+    var W = G.W, H = G.H, laut = P.kulit !== 'pelangi';
+    ctx.drawImage(langit(G, laut), 0, 0, W, G.hy + 1);
+    // aurora tirai
+    var T2 = tirai(); ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (var k = 0; k < (G.ringan ? 1 : 2); k++) for (var a = -10; a < W + 10; a += 5) {
+      var yy = G.hy * (0.42 + k * 0.12) + Math.sin(a * 0.012 + now / 2200 + k * 2) * G.hy * 0.08, hh = G.hy * (0.32 + 0.14 * Math.sin(a * 0.02 + now / 1700 + k));
+      var al = Math.pow(0.5 + 0.5 * Math.sin(a * 0.009 + now / 2600 + k * 3), 1.5) * (k ? 0.45 : 0.75); if (al < 0.04) continue;
+      ctx.globalAlpha = al; ctx.drawImage(T2[k], a, yy - hh, 6, hh);
+    }
+    ctx.restore();
+    if (laut) {
+      var sg = ctx.createLinearGradient(0, G.hy, 0, H); sg.addColorStop(0, '#1c2848'); sg.addColorStop(0.25, '#0c1428'); sg.addColorStop(1, '#03050b');
+      ctx.fillStyle = sg; ctx.fillRect(0, G.hy, W, H - G.hy);
+      // jalur pantulan bulan berkilau
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (var r2 = 0; r2 < 26; r2++) {
+        var zz = r2 / 26, pr0 = proj(G, 1 - zz), wdt = (6 + zz * 60) * (0.6 + 0.4 * Math.sin(now / 260 + r2 * 1.7));
+        ctx.fillStyle = 'rgba(255,236,190,' + (0.06 + 0.12 * (1 - zz)).toFixed(3) + ')';
+        ctx.fillRect(G.W * 0.8 - wdt / 2 + Math.sin(now / 400 + r2) * 6 * zz, pr0.y, wdt, 2 + zz * 3);
+      }
+      ctx.restore();
+      // garis ombak mengalir ke arah kamera
+      var spd = now / P.lead;
+      for (var j = 0; j < 22; j++) {
+        var z = 1 - ((j / 22 + spd) % 1), pr = proj(G, z);
+        ctx.strokeStyle = 'rgba(230,200,130,' + (0.06 + 0.3 * pr.s).toFixed(3) + ')'; ctx.lineWidth = 1 + pr.s * 1.8;
+        var half = W * (0.15 + pr.s * 0.9);
+        ctx.beginPath(); for (var q = -1; q <= 1.001; q += 0.1) { var xx = G.cx + q * half, yy2 = pr.y + Math.sin(q * 9 + j + now / 500) * 3 * pr.s; if (q === -1) ctx.moveTo(xx, yy2); else ctx.lineTo(xx, yy2); } ctx.stroke();
+      }
+      // pemandu lajur: titik emas putus-putus
+      ctx.fillStyle = 'rgba(240,210,140,.5)';
+      [-0.5, 0.5].forEach(function (o) { for (var m = 0; m < 14; m++) { var z3 = 1 - ((m / 14 + spd) % 1), p3 = proj(G, z3); ctx.globalAlpha = 0.25 + 0.6 * p3.s; ctx.fillRect(G.cx + o * G.lw * p3.s - 1.5 * p3.s - 0.5, p3.y, 3 * p3.s + 1, 8 * p3.s + 1); } });
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = '#06040e'; ctx.fillRect(0, G.hy, W, H - G.hy);
+      // bintang di bawah titian (jurang langit)
+      var rr = rng(5); for (var i = 0; i < 70; i++) { ctx.fillStyle = 'rgba(220,220,255,' + (0.3 + 0.5 * Math.abs(Math.sin(now / 700 + i))).toFixed(3) + ')'; ctx.fillRect(rr() * W, G.hy + rr() * (H - G.hy), 1.5, 1.5); }
+      var b0 = proj(G, -0.2), t0 = proj(G, 1);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (var c = 0; c < 7; c++) {
+        var o0 = -1.6 + c * (3.2 / 7), o1 = o0 + 3.2 / 7, sh = 0.6 + 0.3 * Math.sin(now / 500 - c * 0.7);
+        var gg = ctx.createLinearGradient(0, t0.y, 0, b0.y); gg.addColorStop(0, 'rgba(' + RAIN[c] + ',.15)'); gg.addColorStop(1, 'rgba(' + RAIN[c] + ',' + (0.55 * sh).toFixed(3) + ')');
+        ctx.fillStyle = gg; ctx.beginPath(); ctx.moveTo(G.cx + o0 * G.lw * b0.s, b0.y); ctx.lineTo(G.cx + o1 * G.lw * b0.s, b0.y); ctx.lineTo(G.cx + o1 * G.lw * t0.s, t0.y); ctx.lineTo(G.cx + o0 * G.lw * t0.s, t0.y); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      // tepi titian bercahaya
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+      [-1.6, 1.6].forEach(function (o) { ctx.beginPath(); ctx.moveTo(G.cx + o * G.lw * b0.s, b0.y); ctx.lineTo(G.cx + o * G.lw * t0.s, t0.y); ctx.stroke(); });
+      for (var m2 = 0; m2 < 18; m2++) {
+        var z4 = 1 - ((m2 / 18 + now / P.lead) % 1), pp = proj(G, z4);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.06 + 0.22 * pp.s).toFixed(3) + ')'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(G.cx - 1.6 * G.lw * pp.s, pp.y); ctx.lineTo(G.cx + 1.6 * G.lw * pp.s, pp.y); ctx.stroke();
+      }
+    }
+  }
+
+  function rintangan(ctx, G, P, w, simT, now) {
+    var z0 = (w.t - simT) / P.lead, z1 = (w.t + w.len - simT) / P.lead;
+    if (z0 > 1.05 || z1 < -0.25) return;
+    var laut = P.kulit !== 'pelangi', a = Math.min(1, (1.05 - z0) * 4);
+    for (var lane = 0; lane < 3; lane++) {
+      if (!(w.m & (1 << lane))) continue;
+      var f = proj(G, Math.max(z0, -0.2)), bk = proj(G, Math.min(z1, 1.05)), s = f.s, x = lajurX(G, lane, s), xb = lajurX(G, lane, bk.s), hw = G.lw * 0.46 * s;
+      ctx.save(); ctx.globalAlpha = a;
+      if (laut) {
+        if (w.j === 'k') {   // karang: gugus batu runcing
+          ctx.fillStyle = '#14100c'; ctx.strokeStyle = 'rgba(240,200,120,.55)'; ctx.lineWidth = 1 + s;
+          ctx.beginPath(); ctx.moveTo(x - hw, f.y); ctx.lineTo(x - hw * 0.6, f.y - hw * 0.9); ctx.lineTo(x - hw * 0.15, f.y - hw * 0.5); ctx.lineTo(x + hw * 0.15, f.y - hw * 1.3);
+          ctx.lineTo(x + hw * 0.6, f.y - hw * 0.6); ctx.lineTo(x + hw, f.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = 'rgba(200,220,240,.25)'; ctx.beginPath(); ctx.ellipse(x, f.y, hw * 1.1, hw * 0.12, 0, 0, 6.2832); ctx.fill();
+        } else if (w.j === 'y') {   // kayu hanyut: batang melintang dengan cabang
+          ctx.fillStyle = '#3a2614'; ctx.strokeStyle = 'rgba(240,200,120,.5)'; ctx.lineWidth = 1 + s;
+          ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - hw, f.y - hw * 0.32, hw * 2, hw * 0.3, hw * 0.15) : ctx.rect(x - hw, f.y - hw * 0.32, hw * 2, hw * 0.3); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x - hw * 0.3, f.y - hw * 0.3); ctx.lineTo(x - hw * 0.5, f.y - hw * 0.75); ctx.moveTo(x + hw * 0.4, f.y - hw * 0.3); ctx.lineTo(x + hw * 0.65, f.y - hw * 0.62); ctx.stroke();
+        } else {   // ombak: dinding air melengkung dengan buih
+          var top = f.y - hw * 1.1;
+          var g = ctx.createLinearGradient(0, top, 0, f.y); g.addColorStop(0, 'rgba(220,236,255,.85)'); g.addColorStop(0.35, 'rgba(40,70,110,.95)'); g.addColorStop(1, 'rgba(8,14,26,.95)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - hw * 1.08, f.y);
+          ctx.quadraticCurveTo(x - hw * 0.9, top, x, top + Math.sin(now / 120 + lane) * 2); ctx.quadraticCurveTo(x + hw * 0.9, top - hw * 0.15, x + hw * 1.08, f.y); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1 + s; ctx.beginPath(); ctx.moveTo(x - hw * 0.7, top + hw * 0.2); ctx.quadraticCurveTo(x, top - hw * 0.1, x + hw * 0.8, top + hw * 0.1); ctx.stroke();
+        }
+      } else {
+        if (w.j === 'k') {   // retakan: celah gelap bergerigi di titian
+          ctx.fillStyle = '#020104'; ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1 + s * 1.2;
+          ctx.beginPath(); ctx.moveTo(x - hw, f.y);
+          for (var i = 1; i <= 6; i++) ctx.lineTo(x - hw + i * hw / 3, (i % 2 ? bk.y : f.y - (bk.y - f.y) * 0.1));
+          ctx.lineTo(xb + hw * 0.4, bk.y); ctx.lineTo(xb - hw * 0.4, bk.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+        } else if (w.j === 'y') {   // kepingan cahaya melayang
+          for (var q = 0; q < 3; q++) {
+            var qx = x + (q - 1) * hw * 0.6, qy = f.y - hw * (0.5 + 0.2 * Math.sin(now / 200 + q)), r = hw * 0.32;
+            ctx.save(); ctx.translate(qx, qy); ctx.rotate(now / 400 + q); ctx.fillStyle = 'rgba(' + RAIN[(q * 2 + lane) % 7] + ',.85)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 0.6, 0); ctx.lineTo(0, r); ctx.lineTo(-r * 0.6, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+          }
+        } else {   // kilat: tirai petir
+          ctx.strokeStyle = 'rgba(230,240,255,.95)'; ctx.lineWidth = 1.5 + s * 2; ctx.shadowColor = '#9cc8ff'; ctx.shadowBlur = 12;
+          for (var b = 0; b < 2; b++) {
+            ctx.beginPath(); var bx = x - hw * 0.4 + b * hw * 0.8, by = f.y - hw * 1.4; ctx.moveTo(bx, by);
+            for (var n = 1; n <= 5; n++) ctx.lineTo(bx + ((n * 37 + Math.floor(now / 90)) % 7 - 3) * hw * 0.08, by + n * hw * 0.28);
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  function kapal(ctx, G, P, xs, kebal, now) {
+    var pr = proj(G, 0), x = xs, y = pr.y, s = G.lw * 0.62, ayun = REDUCE ? 0 : Math.sin(now / 300) * 2;
+    ctx.save(); if (kebal && Math.floor(now / 90) % 2) ctx.globalAlpha = 0.45;
+    ctx.translate(x, y + ayun);
+    var lg0 = ctx.createRadialGradient(0, -s * 0.2, 0, 0, -s * 0.2, s * 1.1); lg0.addColorStop(0, 'rgba(255,200,110,.28)'); lg0.addColorStop(1, 'rgba(255,200,110,0)');
+    ctx.fillStyle = lg0; ctx.fillRect(-s * 1.1, -s * 1.3, s * 2.2, s * 2.2);
+    // buih belakang
+    ctx.fillStyle = 'rgba(220,236,255,.35)'; ctx.beginPath(); ctx.ellipse(0, s * 0.18, s * 0.6, s * 0.12, 0, 0, 6.2832); ctx.fill();
+    // buritan dari belakang
+    ctx.fillStyle = '#2a1a0e'; ctx.strokeStyle = '#e8c060'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-s * 0.46, -s * 0.3); ctx.lineTo(s * 0.46, -s * 0.3); ctx.lineTo(s * 0.34, s * 0.12); ctx.lineTo(-s * 0.34, s * 0.12); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,200,110,.9)'; ctx.fillRect(-s * 0.2, -s * 0.22, s * 0.12, s * 0.1); ctx.fillRect(s * 0.08, -s * 0.22, s * 0.12, s * 0.1);
+    // tiang & layar
+    ctx.fillStyle = '#1a1008'; ctx.fillRect(-2, -s * 1.25, 4, s * 0.95);
+    var lg = ctx.createLinearGradient(0, -s * 1.2, 0, -s * 0.4); lg.addColorStop(0, '#f6ead0'); lg.addColorStop(1, '#c8b48a');
+    ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(-s * 0.4, -s * 1.12); ctx.quadraticCurveTo(0, -s * 1.02, s * 0.4, -s * 1.12); ctx.lineTo(s * 0.44, -s * 0.48); ctx.quadraticCurveTo(0, -s * 0.38, -s * 0.44, -s * 0.48); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function pengejar(ctx, G, P, rasio, now) {
+    if (!P.kejar) return;
+    var W = G.W, H = G.H, k = 1 - rasio, y = H - 6 - k * H * 0.18, sx = G.cx;
+    ctx.save();
+    if (P.kejar === 'valkyrie') {
+      for (var i = 0; i < 3; i++) {
+        var x = sx + (i - 1) * W * 0.28, fl = Math.sin(now / 140 + i) * 10, sc = 1 + k * 0.6;
+        ctx.fillStyle = 'rgba(230,236,255,' + (0.55 + 0.35 * k).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(x, y - 20 * sc); ctx.quadraticCurveTo(x - 40 * sc, y - 60 * sc - fl, x - 80 * sc, y - 30 * sc - fl); ctx.quadraticCurveTo(x - 40 * sc, y - 18 * sc, x, y);
+        ctx.quadraticCurveTo(x + 40 * sc, y - 18 * sc, x + 80 * sc, y - 30 * sc - fl); ctx.quadraticCurveTo(x + 40 * sc, y - 60 * sc - fl, x, y - 20 * sc); ctx.fill();
+        ctx.fillStyle = 'rgba(255,210,120,.9)'; ctx.beginPath(); ctx.arc(x, y - 22 * sc, 4 * sc, 0, 6.2832); ctx.fill();
+      }
+    } else if (P.kejar === 'hafgufa') {
+      var g = ctx.createLinearGradient(0, y - H * 0.2, 0, H); g.addColorStop(0, 'rgba(10,14,22,0)'); g.addColorStop(0.4, 'rgba(10,14,22,.9)'); g.addColorStop(1, '#000');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, y - 20); for (var a = 0; a <= W; a += 20) ctx.lineTo(a, y - 30 - Math.sin(a * 0.02 + now / 300) * 18 * (0.5 + k)); ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,200,90,' + (0.4 + 0.5 * k).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(W * 0.3, y - 10, 4 + k * 4, 0, 6.2832); ctx.arc(W * 0.7, y - 10, 4 + k * 4, 0, 6.2832); ctx.fill();
+    } else {
+      var hx = sx + Math.sin(now / 500) * W * 0.2, sc2 = 1 + k * 0.8;
+      ctx.strokeStyle = 'rgba(16,40,44,.95)'; ctx.lineWidth = 18 * sc2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(hx - 120 * sc2, H + 40); ctx.quadraticCurveTo(hx - 60 * sc2, y - 10, hx, y - 30 * sc2); ctx.stroke();
+      ctx.fillStyle = 'rgba(16,40,44,.98)'; ctx.beginPath(); ctx.ellipse(hx, y - 34 * sc2, 26 * sc2, 16 * sc2, -0.3, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = 'rgba(255,220,120,.95)'; ctx.beginPath(); ctx.arc(hx + 10 * sc2, y - 40 * sc2, 3 * sc2, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* ---------- sesi ---------- */
+  function main(o, cb) {
+    if (cur) return;
+    o = o || {};
+    var el = document.createElement('div'); el.className = 's5o'; el.setAttribute('role', 'dialog');
+    el.innerHTML = '<canvas></canvas><div class="s5o-top"><div><div class="k">' + (o.kicker || 'Susur Ombak') + '</div><div class="t">' + (o.title || 'Susur Ombak') + '</div></div>' +
+      '<button class="x" type="button">Nanti dulu</button></div>' +
+      '<div class="s5o-bars"><div class="s5o-lbl"><span class="ld">Jarak aman</span><span></span></div><div class="s5o-bar daya"><i></i></div><div class="s5o-bar jalan"><i style="width:0"></i></div></div>' +
+      '<div class="s5o-mid"><div class="big"></div><div class="say"></div></div><div class="s5o-acts"></div>' +
+      '<div class="s5o-hint">Ketuk sisi kiri atau kanan layar (atau tombol panah) untuk pindah lajur.</div>';
+    document.body.appendChild(el); cur = el;
+    requestAnimationFrame(function () { el.classList.add('on'); });
+    var cv = el.querySelector('canvas'), ctx = cv.getContext('2d'), big = el.querySelector('.big'), say = el.querySelector('.say'), acts = el.querySelector('.s5o-acts');
+    var barD = el.querySelector('.s5o-bar.daya'), barDi = barD.querySelector('i'), barJ = el.querySelector('.s5o-bar.jalan i'), lblD = el.querySelector('.ld');
+    var G = { W: 0, H: 0, ringan: false }, dead = false, raf = 0, finished = false;
+    var P = null, sim = null, sid = null, fase = 'siap', t0 = 0, jedaMulai = 0, jedaTotal = 0, hitung = 0, xs = null, lastDetak = 0, fps = [];
+    function ukur() {
+      var r = el.getBoundingClientRect(), d = Math.min(G.ringan ? 1.25 : 2, window.devicePixelRatio || 1);
+      cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); ctx.setTransform(d, 0, 0, d, 0, 0);
+      G.dpr = d; G.W = r.width; G.H = r.height; G.hy = G.H * 0.34; G.sy = G.H * 0.8; G.cx = G.W / 2; G.lw = Math.min(G.W * 0.3, G.H * 0.2);
+    }
+    ukur(); window.addEventListener('resize', ukur);
+    function tombol(list) { acts.innerHTML = ''; list.forEach(function (b) { var e = document.createElement('button'); e.type = 'button'; e.textContent = b.l; if (b.u) e.className = 'utama'; e.onclick = b.fn; acts.appendChild(e); }); }
+    function simT() { return fase === 'main' ? Math.round(performance.now() - t0 - jedaTotal) : (fase === 'jeda' ? Math.round(jedaMulai - t0 - jedaTotal) : 0); }
+    function tutup(res) {
+      if (finished) return; finished = true; dead = true; cancelAnimationFrame(raf);
+      window.removeEventListener('resize', ukur); document.removeEventListener('visibilitychange', vis); document.removeEventListener('keydown', key);
+      el.classList.remove('on'); setTimeout(function () { el.remove(); }, 380); cur = null; if (cb) setTimeout(function () { cb(res); }, 400);
+    }
+    el.querySelector('.x').onclick = function () { tutup({ cancelled: true }); };
+
+    function ketuk(dir) {
+      if (fase !== 'main' || !sim || sim.selesai) return;
+      var t = simT(); if (t < 0 || t > P.dur) return;
+      if (!sim.terima(t, dir)) return;
+      sim.ketuk(t, dir); desir(0.18, 1400, 0.22);
+    }
+    el.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('button')) return; audio();
+      var r = el.getBoundingClientRect(); ketuk(e.clientX - r.left < r.width / 2 ? -1 : 1);
+    });
+    function key(e) {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { e.preventDefault(); ketuk(-1); }
+      else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); ketuk(1); }
+    }
+    document.addEventListener('keydown', key);
+    function vis() {
+      if (document.hidden && fase === 'main') { fase = 'jeda'; jedaMulai = performance.now(); }
+      else if (!document.hidden && fase === 'jeda') { hitungMundur(function () { jedaTotal += performance.now() - jedaMulai; fase = 'main'; }); }
+    }
+    document.addEventListener('visibilitychange', vis);
+    function hitungMundur(done) {
+      var n = 3; big.textContent = n; say.textContent = ''; var iv = setInterval(function () {
+        if (dead) { clearInterval(iv); return; } n--; if (n <= 0) { clearInterval(iv); big.textContent = ''; done(); } else big.textContent = n; }, 1000);
+    }
+
+    function frame(now) {
+      if (dead) return; raf = requestAnimationFrame(frame);
+      fps.push(now); while (fps.length && now - fps[0] > 2000) fps.shift();
+      if (!G.ringan && fps.length > 20 && fps.length / 2 < 45 && now - (t0 || now) > 3000) { G.ringan = true; ukur(); }
+      ctx.clearRect(0, 0, G.W, G.H);
+      if (!P) { latar(ctx, G, { kulit: o.kulit || 'laut', lead: 1500 }, now); return; }
+      var T = simT();
+      if (fase === 'main' && sim && !sim.selesai) {
+        sim.maju(T);
+        if (sim.baruTabrak != null) { sim.baruTabrak = null; dentum(0.5); vib(60); G.guncang = now; }
+        if (sim.selesai) selesai();
+        if (T >= P.dur) sim.maju(P.dur);
+      }
+      var rasio = sim ? Math.max(0, sim.daya) / P.daya_maks : 1;
+      ctx.save();
+      if (G.guncang && now - G.guncang < 260 && !REDUCE) ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6);
+      latar(ctx, G, P, now);
+      var c = P.course; for (var i = c.length - 1; i >= 0; i--) rintangan(ctx, G, P, c[i], T, now);
+      var lane = sim ? sim.lajurPada() : 1, tx = lajurX(G, lane, 1);
+      xs = xs == null ? tx : xs + (tx - xs) * Math.min(1, 0.28);
+      kapal(ctx, G, P, xs, sim && T < sim.kebal, now);
+      pengejar(ctx, G, P, rasio, now);
+      {   // vinyet gelap, merah saat jarak aman tipis
+        var vg = ctx.createRadialGradient(G.cx, G.H * 0.55, Math.min(G.W, G.H) * 0.3, G.cx, G.H * 0.55, Math.max(G.W, G.H) * 0.8);
+        vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, rasio < 0.35 ? 'rgba(90,0,0,.55)' : 'rgba(0,0,0,.55)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, G.W, G.H);
+      }
+      ctx.restore();
+      barDi.style.width = (rasio * 100).toFixed(1) + '%'; barD.classList.toggle('rendah', rasio < 0.35);
+      barJ.style.width = Math.min(100, Math.max(0, T / P.dur * 100)).toFixed(1) + '%';
+      if (fase === 'main' && rasio < 0.35 && now - lastDetak > (rasio < 0.2 ? 380 : 620)) { lastDetak = now; detak(); }
+    }
+    raf = requestAnimationFrame(frame);
+
+    function selesai() {
+      if (fase !== 'main') return; fase = 'kirim';
+      var log = { taps: sim.taps.slice() };
+      say.className = 'say'; say.textContent = sim.won ? 'Selamat sampai di ujung…' : 'Tertangkap…';
+      if (sim.won) for (var i = 0; i < 4; i++) setTimeout(function (j) { return function () { denting(j); }; }(i), i * 120);
+      rpc('api_mg_finish', [sid, log]).then(function (h) {
+        if (dead) return;
+        if (h.status === 'won') { say.className = 'say good'; say.textContent = P.kulit === 'pelangi' ? 'Titian bertahan.' : 'Lolos.'; setTimeout(function () { tutup({ win: true, efek: h.efek, result: h.result }); }, 900); return; }
+        say.className = 'say bad';
+        say.textContent = h.status === 'expired' ? (h.pesan || 'Kesempatan berlalu. Coba lagi, tanpa kerugian.') : (P.kulit === 'pelangi' ? 'Titian retak di bawahmu. Coba lagi, tanpa kerugian.' : 'Mereka menyusul. Coba lagi, tanpa kerugian.');
+        tombol([{ l: 'Coba lagi', u: true, fn: mulai }, { l: 'Nanti dulu', fn: function () { tutup({ win: false }); } }]);
+      }, function (e) {
+        if (dead) return; say.className = 'say bad'; say.textContent = (e && e.message) || 'Gagal menghubungi server.';
+        tombol([{ l: 'Coba lagi', u: true, fn: mulai }, { l: 'Nanti dulu', fn: function () { tutup({ win: false }); } }]);
+      });
+    }
+    function mulai() {
+      tombol([]); big.textContent = ''; say.className = 'say'; say.textContent = 'Menyiapkan…'; fase = 'siap'; sim = null; xs = null; jedaTotal = 0;
+      audio();
+      rpc('api_mg_start', ['wave', o.ctx || 'quest', o.preset, o.step == null ? '' : o.step]).then(function (r) {
+        if (dead) return;
+        P = r.params; sid = r.session_id; sim = new S5OmbakNilai.Sim(P);
+        lblD.textContent = P.kulit === 'pelangi' ? 'Keutuhan titian' : (P.kejar ? 'Jarak aman' : 'Lambung');
+        if (o.onInfo && r.info) try { o.onInfo(r.info); } catch (e) { }
+        say.textContent = P.kulit === 'pelangi' ? 'Hindari retakan. Titian hanya menahan beberapa benturan.' : 'Hindari karang, kayu, dan ombak.';
+        hitungMundur(function () { say.textContent = ''; t0 = performance.now(); fase = 'main'; });
+      }, function (e) {
+        if (dead) return; say.className = 'say bad'; say.textContent = (e && e.message) || 'Gagal menghubungi server.';
+        tombol([{ l: 'Coba lagi', u: true, fn: mulai }, { l: 'Nanti dulu', fn: function () { tutup({ cancelled: true }); } }]);
+      });
+    }
+    mulai();
+  }
+  function open(kind, opts, cb) { main(Object.assign({ preset: kind }, opts || {}), cb); }
+  return { main: main, open: open, isOpen: function () { return !!cur; } };
+})();
+</script>

@@ -49,9 +49,12 @@
       '<div class="mtp-acts"><button type="button" id="s5gUji">Nyalakan mode uji cerita</button>' +
       '<input id="s5gN" type="number" min="1" max="20" value="1" style="width:70px" aria-label="Langkah">' +
       '<button type="button" class="alt" id="s5gLompat">Lompat ke langkah</button></div>' +
-      '<div class="mtp-acts"><select id="s5gPre" aria-label="Preset Dengar Tanah"><option value="cari_lereng">Dengar Tanah: lereng</option>' +
+      '<div class="mtp-acts"><select id="s5gPre" aria-label="Preset mini game"><option value="cari_lereng">Dengar Tanah: lereng</option>' +
       '<option value="lagu_tidur">Dengar Tanah: lagu tidur</option><option value="lagu_tidur_pendek">Dengar Tanah: lagu pendek</option>' +
-      '<option value="akar_selatan">Dengar Tanah: akar selatan</option></select>' +
+      '<option value="akar_selatan">Dengar Tanah: akar selatan</option>' +
+      '<option value="w:pelangi">Susur Ombak: titian pertama</option><option value="w:pelangi_ulang">Susur Ombak: titian ulang</option>' +
+      '<option value="w:valkyrie">Susur Ombak: kejaran sayap</option><option value="w:ular_muda">Susur Ombak: ular muda</option>' +
+      '<option value="w:hafgufa">Susur Ombak: pulau bernapas</option><option value="w:lari_biasa">Susur Ombak: lari</option></select>' +
       '<button type="button" class="alt" id="s5gCoba">Coba main (tanpa efek)</button></div>' +
       '<div class="mtp-msg" id="s5gMsg" aria-live="polite"></div>';
     if (hint) box.insertBefore(sec, hint); else box.appendChild(sec);
@@ -65,11 +68,12 @@
     $('s5gUji').onclick = function () { act(['gm_uji', D && D.uji ? '0' : '1'], 'Mode uji diubah. Muat ulang game.'); };
     $('s5gLompat').onclick = function () { act(['gm_langkah', String($('s5gN').value || '1')], 'Langkah diatur. Muat ulang game.'); };
     $('s5gCoba').onclick = function () {
-      if (!window.MTGames9) { msg('Mini game belum termuat.', true); return; }
+      var v = $('s5gPre').value, ombak = v.indexOf('w:') === 0, L = ombak ? window.MTGames10 : window.MTGames9, nm = ombak ? 'Susur Ombak' : 'Dengar Tanah';
+      if (!L) { msg('Mini game belum termuat.', true); return; }
       if (!D || !D.uji) { msg('Nyalakan mode uji cerita dulu.', true); return; }
       try { closeModal(); } catch (e) { }
-      MTGames9.main({ ctx: 'trial', preset: $('s5gPre').value, title: 'Uji Dengar Tanah', kicker: 'Panel GM' }, function (r) {
-        showToast(r && r.win ? 'Uji Dengar Tanah: menang.' : 'Uji Dengar Tanah selesai.', r && r.win ? 'success' : 'info');
+      L.main({ ctx: 'trial', preset: ombak ? v.slice(2) : v, title: 'Uji ' + nm, kicker: 'Panel GM' }, function (r) {
+        showToast(r && r.win ? 'Uji ' + nm + ': menang.' : 'Uji ' + nm + ' selesai.', r && r.win ? 'success' : 'info');
       });
     };
     var btn = $('mtGmBtn'); if (btn) btn.addEventListener('click', function () { load(); });
