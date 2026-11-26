@@ -29,6 +29,7 @@ var S5Peta = (function () {
     s5_p4: { x: 1300, y: 625, r: 60, ciri: 'barak', seed: 41 },
     s5_p5: { x: 1075, y: 165, r: 66, ciri: 'aula', seed: 53 },
     s5_p6: { x: 470, y: 815, r: 56, ciri: 'menara', seed: 67 },
+    s5_t0: { x: 150, y: 470, r: 22, titik: 'kaki' },
     s5_t1: { x: 905, y: 700, r: 26, titik: 'akar' },
     s5_t2: { x: 1140, y: 815, r: 30, titik: 'selatan' },
     s5_t3: { x: 1290, y: 915, r: 64, titik: 'palung' }
@@ -181,7 +182,7 @@ var S5Peta = (function () {
     function akar(c, t) {
       var cepat = O.fase >= 5 ? 0.06 : O.fase >= 4 ? 0.32 : O.fase >= 3 ? 0.22 : 0.14, redup = O.fase >= 5 ? 0.5 : 1;
       Object.keys(GEO).forEach(function (id, n) {
-        var g = GEO[id]; if (g.titik === 'palung') return;
+        var g = GEO[id]; if (g.titik === 'palung' || g.titik === 'kaki') return;
         var q = akarKe(g);
         c.strokeStyle = 'rgba(214,176,92,' + (0.16 * redup).toFixed(3) + ')'; c.lineWidth = g.titik ? 1.4 : 2.4;
         c.beginPath(); c.moveTo(q.a.x, q.a.y); c.quadraticCurveTo(q.c.x, q.c.y, q.b.x, q.b.y); c.stroke();
@@ -329,7 +330,7 @@ var S5Peta = (function () {
         }
       });
       // titik laut
-      ['s5_t1', 's5_t2'].forEach(function (id) {
+      ['s5_t0', 's5_t1', 's5_t2'].forEach(function (id) {
         var g = GEO[id], T = O.titik[id] || {}; if (!T.terbuka) return;
         var a = 0.6 + 0.4 * Math.sin(t * 2 + g.x);
         c.save(); c.strokeStyle = 'rgba(240,210,140,' + a.toFixed(3) + ')'; c.lineWidth = 1.4;
@@ -341,7 +342,7 @@ var S5Peta = (function () {
       if (P3.terbuka && P3.nama) { c.save(); c.font = 'italic 14px "EB Garamond", Georgia, serif'; c.textAlign = 'center'; c.fillStyle = '#b8c8e0'; c.fillText(P3.nama, GEO.s5_t3.x, GEO.s5_t3.y + 52); c.restore(); }
     }
     function penanda(c, t) {
-      var g = GEO[O.di]; if (g) {
+      var g = O.jalan ? null : GEO[O.di]; if (g) {
         var py = g.y - (g.titik ? 22 : g.r * 0.15);
         c.save(); c.strokeStyle = 'rgba(255,240,200,' + (0.8 - ((t * 0.6) % 1) * 0.8).toFixed(3) + ')'; c.lineWidth = 1.6;
         c.beginPath(); c.arc(g.x, py, 10 + ((t * 0.6) % 1) * 26, 0, TAU); c.stroke();
@@ -350,6 +351,14 @@ var S5Peta = (function () {
         c.beginPath(); c.moveTo(-9, 2); c.lineTo(9, 2); c.lineTo(6, 6); c.lineTo(-6, 6); c.closePath(); c.fill();
         c.beginPath(); c.moveTo(0, 1); c.lineTo(0, -12); c.lineTo(7, -2); c.closePath(); c.fill();
         c.restore();
+      }
+      if (O.jalan && GEO[O.jalan.dari] && GEO[O.jalan.ke]) {   // kapal sedang berlayar
+        var a0 = GEO[O.jalan.dari], b0 = GEO[O.jalan.ke], k = Math.max(0, Math.min(1, O.jalan.p || 0));
+        c.save(); c.strokeStyle = 'rgba(255,230,170,.55)'; c.setLineDash([3, 7]); c.lineWidth = 1.6; c.beginPath(); c.moveTo(a0.x, a0.y); c.lineTo(b0.x, b0.y); c.stroke(); c.setLineDash([]);
+        var sx = lerp(a0.x, b0.x, k), sy = lerp(a0.y, b0.y, k) + Math.sin(t * 2) * 2;
+        var gl = c.createRadialGradient(sx, sy, 0, sx, sy, 26); gl.addColorStop(0, 'rgba(255,220,140,.5)'); gl.addColorStop(1, 'rgba(255,220,140,0)'); c.fillStyle = gl; c.fillRect(sx - 26, sy - 26, 52, 52);
+        c.translate(sx, sy); c.fillStyle = '#fff0c8'; c.beginPath(); c.moveTo(-9, 2); c.lineTo(9, 2); c.lineTo(6, 6); c.lineTo(-6, 6); c.closePath(); c.fill();
+        c.beginPath(); c.moveTo(0, 1); c.lineTo(0, -12); c.lineTo(7, -2); c.closePath(); c.fill(); c.restore();
       }
       var d = GEO[O.tuju]; if (d) {
         c.save(); c.strokeStyle = 'rgba(255,214,120,.9)'; c.setLineDash([4, 6]); c.lineDashOffset = -t * 20; c.lineWidth = 1.6;

@@ -222,9 +222,15 @@ var MTSky = (function () {
       KEYS.forEach(function (k) { p[k] = H(MM[k]); });
       p.night = 0.72;
     }
+    if (mood === 'seberang') {
+      // S5: dunia seberang - malam abadi hitam-biru berkilau emas (tak ikut siang/malam)
+      var SB = { top: '#02030c', mid: '#0b1230', hor: '#2a325c', seaH: '#1a2240', seaD: '#020409', tint: '#d8c8a0', cloudL: '#384064', cloudD: '#0a0c18' };
+      KEYS.forEach(function (k) { p[k] = H(SB[k]); });
+      p.night = 0.9;
+    }
     p.mood = mood || null;
     // Warna turunan
-    p.sun = frac > -0.03 && frac < 0.72 && mood !== 'gloom' && mood !== 'maelstrom';
+    p.sun = frac > -0.03 && frac < 0.72 && mood !== 'gloom' && mood !== 'maelstrom' && mood !== 'seberang';
     p.sunP = (frac + 0.03) / 0.75;
     p.moonP = frac >= 0.66 ? (frac - 0.66) / 0.42 : (frac < 0.04 ? (frac + 0.34) / 0.42 : -1);
     p.mountain = U.mix(p.hor, U.mix(p.top, [30, 45, 60], 0.3), 0.42);
@@ -3106,7 +3112,7 @@ var MTScene = (function () {
   function island(ctx, cx, base, w, h, col, seed, townCol, p, t) {
     if (w < 3) return;
     ridge(ctx, cx - w / 2, cx + w / 2, base, h, seed, col, 1.5);
-    if (townCol && w > 60) {
+    if (townCol && w > 60 && window.MT_SEA_MOOD !== 'seberang') {   // S5: pulau seberang tanpa kota Mare
       var r = U.rng(seed + 7);
       for (var i = 0; i < Math.floor(w / 14); i++) {
         var bx = cx - w * 0.25 + r() * w * 0.4, bh = h * (0.12 + r() * 0.18);
@@ -3171,7 +3177,7 @@ var MTScene = (function () {
       if (!pal || ts - palAt > 400) {
         var w = inst.weather;
         if (inst.mode === 'sea' && inst.encounter) w = 'encounter';
-        pal = MTSky.palette(frac(), w, inst.mode === 'port' && window.MTCities ? MTCities.mood(inst.cityId) : null);
+        pal = MTSky.palette(frac(), w, inst.mode === 'port' && window.MTCities ? MTCities.mood(inst.cityId) : (inst.mode === 'sea' ? (window.MT_SEA_MOOD || null) : null));
         palAt = ts;
         if (inst.mode === 'port' && inst.land && inst.W) {
           var bk = MTBXW.key();   // Tide v25: poster/Garuda berubah -> gambar ulang kota
@@ -3712,7 +3718,7 @@ var MTScene = (function () {
     MTSky.paintSea(ctx, W + 44, H + 30, hy, p, t, { glitter: inst.glitter, rough: p.weather === 'storm_surge' ? 2.2 : 1, drift: 6 });
 
     setLayer(inst, 0.3, 1);
-    for (var bs = 0; bs < inst.bgShips.length; bs++) {
+    for (var bs = 0; window.MT_SEA_MOOD !== 'seberang' && bs < inst.bgShips.length; bs++) {
       var sh = inst.bgShips[bs];
       sh.x += sh.v * dt * sh.dir; if (sh.x > 1.08) sh.x = 0.7; if (sh.x < 0.7) sh.x = 1.08;
       MTShip.draw(ctx, sh.x * W, hy + 1.5, H * 0.0017 * sh.s, { dir: sh.dir, t: t, masts: 2, hull: '#3a2a1e', sail: '#d8d0c0', lit: function (h, a) { return U.css(U.mix(U.mul(U.hex(h), p.tint), p.hor, 0.55), a); }, lanterns: p.lights });
@@ -4659,17 +4665,17 @@ var MTScene = (function () {
     MTSky.paintSea(ctx, W, H, hy, p, t, { glitter: inst.glitter, rough: inst.encounter ? 1.8 : 1.2, drift: title ? 18 : 42 });
 
     // kapal lain di cakrawala
-    for (var bs = 0; bs < inst.bgShips.length; bs++) {
+    for (var bs = 0; window.MT_SEA_MOOD !== 'seberang' && bs < inst.bgShips.length; bs++) {
       var sh = inst.bgShips[bs];
       sh.x -= dt * 0.000012; if (sh.x < -0.05) sh.x = 1.05;
       MTShip.draw(ctx, sh.x * W, hy + 1.5, H * 0.0015 * sh.s, { dir: sh.dir, t: t, masts: 2, hull: '#3a2a1e', sail: '#d8d0c0', lit: function (h, a) { return U.css(U.mix(U.mul(U.hex(h), p.tint), p.hor, 0.6), a); } });
     }
 
-    if (!title && !inst.encounter) seaLife(inst, p, dt, ctx, W, H, hy, t);
+    if (!title && !inst.encounter && window.MT_SEA_MOOD !== 'seberang') seaLife(inst, p, dt, ctx, W, H, hy, t);
 
     // lumba-lumba sesekali
     inst._dl = (inst._dl == null ? 6 : inst._dl) - dt / 1000;
-    if (inst._dl <= 0 && !inst.dolphin) { inst.dolphin = { x: W * (0.2 + Math.random() * 0.5), y: hy + (H - hy) * (0.2 + Math.random() * 0.2), u: 0, n: 1 + Math.floor(Math.random() * 3) }; inst._dl = 9 + Math.random() * 12; }
+    if (inst._dl <= 0 && !inst.dolphin && window.MT_SEA_MOOD !== 'seberang') { inst.dolphin = { x: W * (0.2 + Math.random() * 0.5), y: hy + (H - hy) * (0.2 + Math.random() * 0.2), u: 0, n: 1 + Math.floor(Math.random() * 3) }; inst._dl = 9 + Math.random() * 12; }
     if (inst.dolphin) {
       var dp = inst.dolphin; dp.u += dt / 1400;
       for (var dn = 0; dn < dp.n; dn++) {
