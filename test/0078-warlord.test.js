@@ -27,7 +27,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
 
   let w = await wl(a);
   assert(w && w.buka === true && w.komponen.length === 4 && w.komponen.every((k) => !k.punya && !k.siap), 'Garasi terbuka, belum ada komponen');
-  assert(w.komponen.find((k) => k.grup === 'speed').bahanId === 'qi_mk_gigi' && w.komponen.find((k) => k.grup === 'condition').bahanId === 'qi_mk_rantai', 'bahan khusus');
+  assert(w.komponen.find((k) => k.grup === 'speed').bahanId === 'qi_mk_gigi' && w.komponen.find((k) => k.grup === 'condition').bahan.some((b) => b.id === 'qi_mk_rantai'), 'bahan khusus (syarat per komponen: 0112)');
 
   // syarat: grup harus mentok + di Zentul + bahan
   await taruh(a, 'zentul');
@@ -37,7 +37,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const mentokShip = await ship(a);
   assert(mentokShip.TierNum === 5, 'Tier V sebelum Warlord');
   await H.expectError(() => a.call('api_warlord', ['bangun', 'speed']), /Oli Hitam/);
-  await H.sql(`select game.adjust_inventory($1, 'oli_hitam', 40)`, [a.id]);
+  await H.sql(`select game.adjust_inventory($1, 'oli_hitam', 100)`, [a.id]);
   await H.expectError(() => a.call('api_warlord', ['bangun', 'speed']), /Gigi Jaring/);
   await H.sql(`select game.item_adjust($1, 'qi_mk_gigi', 6)`, [a.id]);
   await taruh(a, 'ikn');
@@ -48,7 +48,7 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   const g0 = Number((await one('select gold from game.players where player_id = $1', [a.id])).gold);
   let r = await a.call('api_warlord', ['bangun', 'speed']);
   assert(r.grup === 'speed' && Number(r.newGold) === g0 - 2500000, 'bayar 2,5 juta');
-  assert(Number((await one(`select qty from game.inventory where player_id = $1 and item_id = 'oli_hitam'`, [a.id])).qty) === 30, 'Oli Hitam terpakai 10');
+  assert(Number((await one(`select qty from game.inventory where player_id = $1 and item_id = 'oli_hitam'`, [a.id])).qty) === 90, 'Oli Hitam terpakai 10');
   assert((await H.sql(`select 1 from game.inventory where player_id = $1 and item_id = 'qi_mk_gigi' and qty > 0`, [a.id])).length === 0, 'Gigi Jaring terpakai 6');
   let s = await ship(a);
   assert(Number(s.SpeedMultiplier) === 0.2 && Number(mentokShip.SpeedMultiplier) === 0.24, 'batas waktu tempuh 25 -> 20 detik');
@@ -56,9 +56,10 @@ const assert = (c, m) => { if (!c) { console.error('GAGAL:', m); process.exit(1)
   await H.expectError(() => a.call('api_warlord', ['bangun', 'speed']), /sudah terpasang/);
 
   // tiga komponen lain
-  await H.sql(`select game.item_adjust($1, 'qi_mk_rantai', 6)`, [a.id]);
-  await H.sql(`select game.adjust_inventory($1, 'besi', 6)`, [a.id]);
-  await H.sql(`select game.adjust_inventory($1, 'mesiu', 6)`, [a.id]);
+  // syarat item per komponen (0112): Palka 60 Besi + 12 Rantai, Lambung 30 Besi + 12 Rantai, Meriam 30 Mesiu + 10 Besi
+  await H.sql(`select game.item_adjust($1, 'qi_mk_rantai', 24)`, [a.id]);
+  await H.sql(`select game.adjust_inventory($1, 'besi', 100)`, [a.id]);
+  await H.sql(`select game.adjust_inventory($1, 'mesiu', 30)`, [a.id]);
   for (const g of ['cargo', 'condition', 'cannons']) await a.call('api_warlord', ['bangun', g]);
   s = await ship(a);
   assert(s.TierNum === 6 && s.Tier === 'VI' && (s.Warlord || []).length === 4, 'Tier VI setelah empat komponen');

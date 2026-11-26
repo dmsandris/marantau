@@ -2032,22 +2032,26 @@ var MKW = (function () {
       '<div class="wl-ship' + (penuh ? '' : ' draft') + '"><canvas></canvas><div class="cap">' + (penuh ? 'Panglima Laut &middot; lengkap' : 'Rancangan &middot; ' + jml + ' dari 4 komponen terpasang') + '</div></div>' +
       '<p class="wl-quote">' + (penuh
         ? 'Keempat komponen terpasang. Yaptob menepuk lambungmu sekali: <i>"Sudah. Sekarang kapalmu bukan kapal dagang yang cepat &mdash; ini kapal panglima laut."</i>'
-        : 'Yaptob hanya mau memasang di atas yang sudah terbaik. Tiap komponen butuh <b>' + fmt(k0.gold) + ' gold</b>, <b>' + k0.oli + ' Oli Hitam</b>, dan bahannya sendiri.') + '</p>' +
+        : 'Yaptob hanya mau memasang di atas yang sudah terbaik. Tiap komponen butuh <b>' + fmt(k0.gold) + ' gold</b>, Oli Hitam, dan bahannya sendiri. Meriam baru dipasang setelah Mesin dan Lambung.') + '</p>' +
       '<div class="wl-seals" role="img" aria-label="' + jml + ' dari 4 komponen terpasang">' + seals + '<span class="wl-count">' + jml + ' / 4</span></div>' +
       '<div class="wl-invest">' + (penuh ? 'Seluruh investasi telah dibayar lunas.' : 'Sisa investasi <b>' + fmt(sisa) + ' gold</b>') + '</div>' +
       '</section>';
     html += '<div class="wl-grid">' + kom.map(function (k, idx) {
-      var bisa = !k.punya && k.siap && gold() >= k.gold && k.punyaOli >= k.oli && k.punyaBahan >= k.bahanN;
-      var kurangGold = gold() < k.gold, kurangOli = k.punyaOli < k.oli, kurangBahan = k.punyaBahan < k.bahanN;
+      var bhn = (k.bahan && k.bahan.length) ? k.bahan : [{ nama: k.bahanNama || 'Bahan', n: k.bahanN || 0, punya: k.punyaBahan || 0 }];
+      var pras = k.prasyarat || [], prasOk = k.prasyaratOk !== false;
+      var bahanOk = bhn.every(function (b) { return b.punya >= b.n; });
+      var bisa = !k.punya && k.siap && prasOk && gold() >= k.gold && k.punyaOli >= k.oli && bahanOk;
+      var kurangGold = gold() < k.gold, kurangOli = k.punyaOli < k.oli;
       function req(ok, teks) { return '<li class="wl-req ' + (ok ? 'ok' : 'no') + '">' + (ok ? CENTANG : SILANG) + teks + '</li>'; }
       var reqs = k.punya ? '' : '<ul class="wl-reqs">' +
         req(!kurangGold, fmt(k.gold) + ' gold') +
         req(!kurangOli, 'Oli Hitam ' + k.punyaOli + '/' + k.oli) +
-        req(!kurangBahan, esc_(k.bahanNama || 'Bahan') + ' ' + k.punyaBahan + '/' + k.bahanN) + '</ul>';
+        bhn.map(function (b) { return req(b.punya >= b.n, esc_(b.nama || 'Bahan') + ' ' + b.punya + '/' + b.n); }).join('') +
+        pras.map(function (p) { return req(!!p.ok, esc_(p.nama) + ' terpasang'); }).join('') + '</ul>';
       var note = (!k.punya && !k.siap) ? '<p class="wl-note">Grup ini harus mentok dulu di Level V Tier IV.</p>' : '';
       var aksi = k.punya ? '<div class="wl-done">' + CENTANG + 'Terpasang</div>'
         : '<button type="button" class="wl-act" data-w="' + k.grup + '" data-gold="' + fmt(k.gold) + '"' + (bisa ? '' : ' disabled') + '>' +
-          (bisa ? 'Pasang &middot; ' + fmt(k.gold) + ' gold' : (k.siap ? 'Belum lengkap' : 'Belum bisa dipasang')) + '</button>';
+          (bisa ? 'Pasang &middot; ' + fmt(k.gold) + ' gold' : (k.siap ? (prasOk ? 'Belum lengkap' : 'Pasang prasyarat dulu') : 'Belum bisa dipasang')) + '</button>';
       return '<article class="wl-card' + (k.punya ? ' on' : bisa ? ' siap' : (!k.siap ? ' kunci' : '')) + '">' +
         '<div class="wl-head"><span class="wl-med">' + (GLIF[k.grup] || MAHKOTA) + '</span><div style="min-width:0">' +
         '<div class="wl-tag">' + (NAMA_TAG[k.grup] || '') + ' &middot; ' + ROMAWI[idx] + '</div><div class="wl-name" role="heading" aria-level="3">' + esc_(k.nama) + '</div></div></div>' +
