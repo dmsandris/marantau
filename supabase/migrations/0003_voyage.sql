@@ -774,6 +774,12 @@ language sql as $$
   insert into game.combat_log(player_id, enemy_level, action, result, loot) values (p_pid, p_level, p_action, p_result, coalesce(p_loot, ''))
 $$;
 
+-- Tide v89: batas atas peluang kena meriam (92). Pemilik Meriam Warlord +5 supaya bonus +5% tidak habis di batas.
+create or replace function game.voy_hit_max(ship jsonb) returns numeric
+language sql immutable as $$
+  select 92 + case when jsonb_typeof(ship -> 'Warlord') = 'array' and (ship -> 'Warlord') ? 'cannons' then 5 else 0 end
+$$;
+
 -- ---------------------------------------------------------------------
 -- CombatService.resolveRound_ (murni kalkulasi, tidak mengubah tabel)
 -- ---------------------------------------------------------------------
@@ -807,7 +813,7 @@ begin
     end if;
     chance := 50 + game.voy_stat_bonus(stats -> 'Combat') * 2 + game.voy_num(ship -> 'CannonBonusPercent') - lvl * 5
       - case when smoky then 15 else 0 end;
-    chance := game.voy_clamp(chance, 10, 92);
+    chance := game.voy_clamp(chance, 10, game.voy_hit_max(ship));
     if random() * 100 < chance then
       dmg := game.voy_round(max_hp * (0.18 + random() * 0.14) * coalesce(nullif(game.voy_num(enc -> 'dmgTaken'), 0), 1)
         * case when coalesce((enc ->> 'shield')::boolean, false) then coalesce(nullif(game.voy_num(enc -> 'shieldMul'), 0), 0.25) else 1 end);

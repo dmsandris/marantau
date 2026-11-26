@@ -291,7 +291,7 @@ begin
     if ammo <= 0 then raise exception 'Meriam kosong - isi ulang dulu sebelum menembak lagi.'; end if;
     ammo := ammo - 1;
     tgt := game.tony_target(mhp, hp);
-    chance := game.voy_clamp(50 + game.voy_stat_bonus(stats -> 'Combat') * 2 + game.voy_num(ship -> 'CannonBonusPercent') - lvl * 5, 10, 92);
+    chance := game.voy_clamp(50 + game.voy_stat_bonus(stats -> 'Combat') * 2 + game.voy_num(ship -> 'CannonBonusPercent') - lvl * 5, 10, game.voy_hit_max(ship));
     hit := random() * 100 < chance;
     if hit then
       -- Tide v67: damage ikut upgrade Cannons / Meriam Warlord, dikali kenop pencegatan
