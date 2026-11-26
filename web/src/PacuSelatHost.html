@@ -53,9 +53,10 @@ var MTPacuSelat = (function () {
   // ------------------------------------------------------------ state ke modul
   var pesanN = 0;
   function pesan(teks, jenis) { if (!L) { toast(teks, jenis === 'error' ? 'error' : 'info'); return; } L.pesan = { teks: teks, jenis: jenis || 'info', id: ++pesanN + '-' + Date.now() }; dorong(); }
+  function jempol() { try { return localStorage.getItem('mt_pacu_jempol') === 'kiri' ? 'kiri' : 'kanan'; } catch (e) { return 'kanan'; } }
   function dorong() {
     if (!L || !window.PacuSelat) return;
-    var s = Object.assign({}, L.ps || {}, { audioMati: L.mati, sibuk: L.sibuk, pesan: L.pesan, balapan: L.balapan, hasil: L.hasil });
+    var s = Object.assign({}, L.ps || {}, { audioMati: L.mati, sibuk: L.sibuk, pesan: L.pesan, balapan: L.balapan, hasil: L.hasil, tataJempol: jempol() });
     try { PacuSelat.update(s); } catch (e) { }
   }
   function terima(res) {
@@ -96,6 +97,7 @@ var MTPacuSelat = (function () {
       onStart: onStart, onInput: function () { }, onFinish: onFinish, onKeluarBalapan: onKeluarBalapan,
       onBuy: function (id) { L.sibuk = { beli: id }; dorong(); api(['beli', id], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
       onUpgrade: function (id) { L.sibuk = { upgrade: id }; dorong(); api(['pasang', id], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
+      onJempol: function (v) { try { localStorage.setItem('mt_pacu_jempol', v === 'kiri' ? 'kiri' : 'kanan'); } catch (e) { } },
       onRasio: function (k) { api(['rasio', k], terima, function (m) { pesan(m, 'error'); }); },
       onTantang: function (pub) { L.sibuk = { tantang: pub }; dorong(); api(['ajak', pub], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
       onTerima: function (id) { jawab(id, true); },
@@ -221,7 +223,7 @@ var MTPacuSelat = (function () {
         var ch = MTSB.channel('pacu:' + id, { config: { private: true, broadcast: { self: false } } });
         ch.on('broadcast', { event: 'pos' }, function (p) {
           var m = p && p.payload; if (!m || L !== X || !window.PacuSelat) return;
-          PacuSelat.posisiLawan(m.id, m.p, m.v, m.g, m.t);
+          PacuSelat.posisiLawan(m.id, m.p, m.v, m.g, m.t, m.f, m.j);
         });
         X.chan = ch;
         var go = function () { ch.subscribe(function (s) { if (L === X) X.live = s === 'SUBSCRIBED'; }); };
@@ -235,6 +237,8 @@ var MTPacuSelat = (function () {
       var t = PacuSelat.telemetriPemain();
       if (!t || t.balapanId !== id) return;
       var msg = { id: myPub, p: t.posMm, v: t.speedMmPerSec, g: t.gear, t: t.tms };
+      if (t.finish != null) msg.f = t.finish;
+      if (t.jebol) msg.j = 1;
       if (X.live && X.chan) { try { X.chan.send({ type: 'broadcast', event: 'pos', payload: msg }); } catch (e) { } }
       relayT += 100;
       if ((!X.live && relayT >= 400) || relayT >= 3000) {

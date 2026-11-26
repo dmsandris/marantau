@@ -1488,6 +1488,9 @@
         kendang('dung', 0.5);
         saron(9, 0.16);
       },
+      hissSound() {
+        noiseHit(0.55, 3800, 0.22, 'highpass');
+      },
       coughSound() {
         noiseHit(0.5, 300, 0.5);
       },
@@ -1553,6 +1556,7 @@
       isOpponent = false,
       isPlayer = false,
       captainName = '',
+      labelCol = null,
       nowSec = 0,
       showCallout = false,
       reducedMotion = false
@@ -1622,12 +1626,12 @@
       g.fillStyle = isPlayer ? 'rgba(23, 14, 9, 0.92)' : 'rgba(12, 22, 34, 0.92)';
       roundRect(g, pxCenter - tw / 2, py - 9, tw, 18, 6);
       g.fill();
-      g.strokeStyle = isPlayer ? '#f0cf78' : '#7cc3dc';
+      g.strokeStyle = labelCol || (isPlayer ? '#f0cf78' : '#7cc3dc');
       g.lineWidth = 1.15;
       roundRect(g, pxCenter - tw / 2, py - 9, tw, 18, 6);
       g.stroke();
 
-      g.fillStyle = isPlayer ? '#fff1c4' : '#bae6fd';
+      g.fillStyle = labelCol || (isPlayer ? '#fff1c4' : '#bae6fd');
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText(labelTxt, pxCenter, py + 0.5);
@@ -2616,6 +2620,54 @@
       color: var(--pcs-brass-900);
     }
 
+    /* Gelombang 1: tombol ringkas, jempol kiri/kanan, panel kanan di PC */
+    .pcs-root .pcs-action-strip.pcs-kiri .pcs-tactile-btn[data-pcs="btn-semburan"] { order: -1; }
+    .pcs-root .pcs-tactile-btn { min-height: 46px; }
+    .pcs-root .pcs-tactile-btn[data-pcs="btn-semburan"] { position: relative; overflow: hidden; }
+    .pcs-root .pcs-tahan-isi {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 0; pointer-events: none;
+      background: linear-gradient(90deg, rgba(255, 140, 40, 0.55), rgba(255, 200, 90, 0.35));
+    }
+    .pcs-root .pcs-tactile-btn > span { position: relative; }
+    .pcs-root .pcs-tactile-btn.pcs-panas {
+      border-color: #ff7a5a;
+      box-shadow: 0 0 18px rgba(255, 90, 50, 0.75);
+      animation: pcsPanas 0.32s ease-in-out infinite alternate;
+    }
+    @keyframes pcsPanas { from { background: linear-gradient(180deg, #4a1d12, #1d0b06); } to { background: linear-gradient(180deg, #7a2a16, #2b0e07); } }
+    .pcs-root .pcs-jempol-btn { font-size: 11px; padding: 4px 8px; }
+    .pcs-root .pcs-res-grafik { margin-top: 9px; background: rgba(15, 9, 6, 0.82); border: 1px solid rgba(143, 101, 34, 0.5); border-radius: 9px; padding: 6px 8px 4px; }
+    .pcs-root .pcs-result-card .pcs-res-actions {
+      position: sticky; bottom: -16px; margin: 10px -18px -16px; padding: 10px 18px 12px;
+      background: linear-gradient(180deg, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0.99) 30%);
+    }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-result-card { width: min(640px, 100%); }
+    .pcs-root .pcs-kbd-hint { font-weight: 600; opacity: 0.7; }
+    @media (hover: none) { .pcs-root .pcs-kbd-hint { display: none; } }
+    .pcs-root .pcs-res-grafik svg { display: block; width: 100%; height: auto; max-height: 130px; }
+    .pcs-root .pcs-res-rincian { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 7px; }
+    .pcs-root .pcs-res-kiat { margin-top: 8px; padding: 8px 11px; border-radius: 9px; text-align: left; font-size: 12.5px;
+      background: rgba(124, 195, 220, 0.1); border: 1px solid rgba(124, 195, 220, 0.4); color: #d8eef6; }
+    .pcs-root .pcs-res-kiat b { color: var(--pcs-sea-300); }
+    .pcs-root .pcs-jempol {
+      position: absolute; top: 44px; right: 8px; z-index: 6; appearance: none; cursor: pointer;
+      border: 1px solid rgba(211, 163, 66, 0.6); background: rgba(18, 11, 7, 0.78); color: var(--pcs-brass-100);
+      border-radius: 8px; font-size: 10.5px; font-weight: 700; padding: 4px 7px;
+    }
+    .pcs-root .pcs-action-strip.pcs-kiri { grid-template-columns: 1.15fr 1fr; }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-jempol { display: none; }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-race-canvas { height: clamp(420px, 68vh, 660px); }
+    .pcs-root .pcs-race-stage.pcs-lebar {
+      --pcs-lebar-on: 1;
+    }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-action-strip {
+        position: absolute; right: 12px; bottom: 12px; width: 232px; z-index: 5;
+        grid-template-columns: 1fr; gap: 7px; background: none; border: 0; padding: 0;
+      }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-tactile-btn { min-height: 50px; font-size: 11.5px; padding: 5px 9px; }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-tactile-sub { font-size: 10px; }
+    .pcs-root .pcs-race-stage.pcs-lebar .pcs-action-strip.pcs-kiri .pcs-tactile-btn[data-pcs="btn-semburan"] { order: 0; }
+
     .pcs-root .pcs-tactile-btn.pcs-semburan-ready {
       background: linear-gradient(180deg, #ffb347, #b8322a);
       color: #fff1c4;
@@ -3241,7 +3293,7 @@
         grid-template-columns: repeat(2, 1fr);
       }
       .pcs-root .pcs-action-strip {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1.15fr;
       }
       .pcs-root .pcs-times-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -3260,7 +3312,7 @@
         grid-template-columns: repeat(2, 1fr);
       }
       .pcs-root .pcs-action-strip {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1.15fr;
       }
       .pcs-root .pcs-times-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -3348,6 +3400,7 @@
       mesinJebol: Boolean(s.mesinJebol || pemain.mesinJebol),
       rasioPreset: String(s.rasioPreset || pemain.rasioPreset || '800'),
       autoShift: Boolean(s.autoShift || pemain.autoShift),
+      tataJempol: s.tataJempol === 'kiri' ? 'kiri' : 'kanan',
       audioMati: typeof s.audioMati === 'boolean' ? s.audioMati : null,
       sibuk: s.sibuk && typeof s.sibuk === 'object' ? s.sibuk : {},
       pesan: s.pesan && typeof s.pesan === 'object' ? s.pesan : null,
@@ -3437,7 +3490,14 @@
       fb: null,
       needleRpm: 0,
       needleSpeed: 0,
-      camX: -10
+      camX: -10,
+      efek: null,                // { t, kind } guncangan + kilatan sesudah oper gigi / batuk
+      grafik: [],                // [[ms balapan, knot, gigi], ...] tiap 100 ms untuk kartu hasil
+      operLog: [],               // [{ t, gear, q }] saat oper gigi
+      rekorAwal: null,           // rekor pribadi jarak ini sebelum balapan (detik)
+      urutFinish: [],            // urutan lawan langsung yang tiba di garis Finish
+      panasT: 0,                 // terakhir desis peringatan panas
+      pemainXY: null             // posisi layar kapal pemain (callout melayang)
     };
 
     let hostState = normalizeState(callbacks.initialState || {});
@@ -3526,15 +3586,17 @@
 
           <div data-pcs="arena-race" style="display:none;flex-direction:column;gap:8px">
             <div class="pcs-top-bar" data-pcs="race-top-bar"></div>
-            <div class="pcs-race-stage">
+            <div class="pcs-race-stage" data-pcs="race-stage">
               <canvas class="pcs-race-canvas" data-pcs="race-canvas"></canvas>
-              <div class="pcs-action-strip">
+              <button type="button" class="pcs-jempol" data-pcs="btn-jempol" title="Pindah tombol Semburan ke sisi jempol">⇄ jempol</button>
+              <div class="pcs-action-strip" data-pcs="action-strip">
                 <button type="button" class="pcs-tactile-btn" data-pcs="btn-main-tap">
-                  <span data-pcs="btn-main-tap-title">KETUK / SPASI · LEPAS START &amp; OPER GIGI</span>
+                  <span data-pcs="btn-main-tap-title">KETUK / SPASI · START &amp; OPER</span>
                   <span class="pcs-tactile-sub" data-pcs="btn-main-tap-sub">Tunggu 3 obor &amp; meriam, lalu naikkan gigi di daun hijau ✓</span>
                 </button>
                 <button type="button" class="pcs-tactile-btn" data-pcs="btn-semburan">
-                  <span>SEMBURAN OLI HITAM</span>
+                  <i class="pcs-tahan-isi" data-pcs="btn-semburan-isi"></i>
+                  <span>🛢 SEMBURAN OLI</span>
                   <span class="pcs-tactile-sub" data-pcs="btn-semburan-sub">Tahan ±½ detik di Gigi 5</span>
                 </button>
               </div>
@@ -3565,13 +3627,16 @@
                   </div>
 
                   <div data-pcs="res-standings"></div>
+                  <div class="pcs-res-grafik" data-pcs="res-grafik"></div>
                   <div class="pcs-qs-row" data-pcs="res-shifts"></div>
+                  <div class="pcs-res-rincian" data-pcs="res-rincian"></div>
+                  <div class="pcs-res-kiat" data-pcs="res-kiat"></div>
                   <div class="pcs-reward-box" data-pcs="res-reward">Menunggu juru tulis Rayan Bazzy…</div>
 
                   <div class="pcs-res-actions">
+                    <button type="button" class="pcs-btn" data-pcs="btn-res-again">↻ PACU LAGI <span class="pcs-kbd-hint">(Enter)</span></button>
                     <button type="button" class="pcs-btn pcs-ghost pcs-sm" data-pcs="btn-res-lobby">← PILIH MODE</button>
                     <button type="button" class="pcs-btn pcs-ghost pcs-sm" data-pcs="btn-res-bengkel">⚙️ BENGKEL MESIN</button>
-                    <button type="button" class="pcs-btn pcs-sm" data-pcs="btn-res-again">↻ PACU LAGI</button>
                   </div>
                 </div>
               </div>
@@ -3897,6 +3962,13 @@
         live.needleRpm = 0;
         live.needleSpeed = 0;
         live.camX = -10;
+        live.efek = null;
+        live.grafik = [];
+        live.operLog = [];
+        live.urutFinish = [];
+        live.panasT = 0;
+        live.rekorAwal = (hostState.rekorPribadi && hostState.rekorPribadi[String(Math.round(jarakMm / 1000))] != null)
+          ? Number(hostState.rekorPribadi[String(Math.round(jarakMm / 1000))]) : null;
 
         // Sinkronisasi jam awal bila mulaiServerMs diberikan host
         if (typeof balapan.mulaiServerMs === 'number') {
@@ -3957,6 +4029,52 @@
       }
     }
 
+    const WARNA_PEMAIN = '#e8b84a';
+    const WARNA_LAWAN = ['#7cc3dc', '#f472b6', '#a78bfa'];
+
+    // Peringatan dini: perkiraan detik menuju batuk mesin (rumus sama persis dengan simulasi suhu).
+    function peringatanPanas(boat) {
+      const PB = CONFIG.PANAS_DAN_BATUK;
+      const st = boat && boat.spec;
+      if (!st || !boat.launched || boat.exploded || boat.finishWaktuMs != null) return null;
+      if (boat.coughTimerMs > 0 || st.antiBatukPermil >= PB.ANTI_BATUK_MAKS_PERMIL) return null;
+      const bisaPanas = boat.gear < CONFIG.TRANSMISI.JUMLAH_GIGI || boat.boostLeftMs > 0;
+      if (!bisaPanas || boat.rpmPermil <= PB.AMBANG_RPM_PANAS_PERMIL) return null;
+      const resist = 1000 + Math.trunc((st.antiBatukPermil * PB.FAKTOR_TAHAN_PANAS_PERMIL) / 1000);
+      const laju = boat.rpmPermil >= PB.AMBANG_RPM_MERAH_PENUH_PERMIL ? PB.LAJU_PANAS_MERAH_PENUH : PB.LAJU_PANAS_ZONA_KUNING;
+      const perDetik = (laju * 1000) / resist;
+      const sisa = (CONFIG.SIMULASI.SKALA_JUTA - (boat.heatMikro || 0)) / Math.max(1, perDetik);
+      return sisa <= 0.6 ? { sisaDetik: Math.max(0, sisa) } : null;
+    }
+
+    // Urutan balapan untuk menara peringkat: yang sudah Finish diurut waktu, sisanya jarak.
+    function urutanBalap(pemain, lawanList, nowMs) {
+      const rows = [{ id: pemain.id, nama: pemain.nama || hostState.namaKapten, posMm: pemain.posMm,
+        fin: pemain.finishWaktuMs, jebol: pemain.exploded, col: WARNA_PEMAIN, saya: true }];
+      lawanList.forEach((lv, idx) => {
+        let pos = lv.posMm;
+        let fin = lv.finishWaktuMs;
+        let jebol = lv.exploded;
+        if (live.lawanLangsung && live.liveOpponents[lv.id]) {
+          const op = live.liveOpponents[lv.id];
+          const dtOp = Math.min(0.25, Math.max(0, (nowMs - op.lastUpdatePerfMs) / 1000));
+          pos = op.posMm + Math.round(op.speedMmPerSec * dtOp);
+          fin = op.finish != null ? op.finish : null;
+          jebol = !!op.jebol;
+        }
+        rows.push({ id: lv.id, nama: lv.nama, posMm: Math.min(live.jarakMm, pos), fin, jebol,
+          col: WARNA_LAWAN[idx % WARNA_LAWAN.length], saya: false });
+      });
+      rows.sort((a, b) => {
+        if (a.jebol !== b.jebol) return a.jebol ? 1 : -1;
+        const af = a.fin != null, bf = b.fin != null;
+        if (af && bf) return a.fin - b.fin;
+        if (af !== bf) return af ? -1 : 1;
+        return b.posMm - a.posMm;
+      });
+      return rows;
+    }
+
     function getPemainBoat() {
       return live.boats.find(b => b.isPemain) || live.boats[0] || null;
     }
@@ -3997,6 +4115,30 @@
       live.antre.length = 0;
     }
 
+    // Guncangan kamera, kilatan warna, dan getar HP sesudah oper gigi / semburan / batuk.
+    const EFEK = {
+      sempurna: { amp: 4, col: '255, 214, 90', getar: [14, 40, 14] },
+      tepat: { amp: 2, col: '140, 224, 130', getar: 16 },
+      awal: { amp: 5, col: '240, 160, 70', getar: 45 },
+      telat: { amp: 6, col: '255, 100, 70', getar: 60 },
+      semburan: { amp: 5, col: '255, 150, 50', getar: [20, 30, 40] },
+      batuk: { amp: 7, col: '255, 90, 60', getar: [60, 40, 60] },
+      jebol: { amp: 12, col: '255, 60, 40', getar: [120, 60, 200] }
+    };
+    function bonusKnotTeks(mmS) {
+      const pm = getPemainBoat();
+      const acc = pm && pm.spec ? pm.spec.accelPermil : 1000;
+      return '+' + (((mmS * acc) / 1000) / CONFIG.SIMULASI.MM_PER_DETIK_PER_KNOT).toFixed(1).replace('.', ',') + ' knot';
+    }
+    function efekOper(kind, nowMs, gear) {
+      live.efek = { t: nowMs, kind };
+      const pm = getPemainBoat();
+      if (pm && /sempurna|tepat|awal|telat/.test(kind)) {
+        live.operLog.push({ t: pm.elapsedRaceMs, gear: Math.max(1, gear - 1), q: kind });
+      }
+      try { if (!isReducedMotion() && navigator.vibrate) navigator.vibrate(EFEK[kind].getar); } catch (e) {}
+    }
+
     function processBoatEvents(events, pemainId, gearNow, nowMs) {
       for (let e = 0; e < events.length; e++) {
         const ev = events[e];
@@ -4010,22 +4152,28 @@
             live.fb = { txt: ev.label, col: '#ff9a5a', sub: ev.sub || '', t: nowMs };
           } else if (ev.jenis === 'oper_sempurna') {
             audio.shiftSound(gearNow, 'sempurna');
-            live.fb = { txt: ev.label, col: '#ffd65a', sub: '', t: nowMs };
+            live.fb = { txt: '★ ' + ev.label, col: '#ffd65a', sub: bonusKnotTeks(CONFIG.TRANSMISI.BONUS_KECEPATAN_SEMPURNA_MM_S), t: nowMs };
+            efekOper('sempurna', nowMs, gearNow);
           } else if (ev.jenis === 'oper_tepat') {
             audio.shiftSound(gearNow, 'tepat');
-            live.fb = { txt: ev.label, col: '#9fe08a', sub: '', t: nowMs };
+            live.fb = { txt: '✓ ' + ev.label, col: '#9fe08a', sub: bonusKnotTeks(CONFIG.TRANSMISI.BONUS_KECEPATAN_TEPAT_MM_S), t: nowMs };
+            efekOper('tepat', nowMs, gearNow);
           } else if (ev.jenis === 'oper_awal' || ev.jenis === 'oper_telat') {
             audio.shiftSound(gearNow, 'awal');
             live.fb = { txt: ev.label, col: '#f0cf78', sub: ev.sub || '', t: nowMs };
+            efekOper(ev.jenis === 'oper_awal' ? 'awal' : 'telat', nowMs, gearNow);
           } else if (ev.jenis === 'semburan') {
             audio.boostSound();
             live.fb = { txt: ev.label, col: '#ffb347', sub: ev.sub || '', t: nowMs };
+            efekOper('semburan', nowMs, gearNow);
           } else if (ev.jenis === 'batuk') {
             audio.coughSound();
             live.fb = { txt: ev.label, col: '#ff7a5a', sub: ev.sub || '', t: nowMs };
+            efekOper('batuk', nowMs, gearNow);
           } else if (ev.jenis === 'jebol') {
             audio.explodeSound();
             live.fb = { txt: ev.label, col: '#ff5a42', sub: ev.sub || '', t: nowMs };
+            efekOper('jebol', nowMs, gearNow);
           } else if (ev.jenis === 'finis') {
             audio.gongHit(0.45, 0);
           }
@@ -4176,8 +4324,14 @@
         if (tickEvents.length > 0) {
           processBoatEvents(tickEvents, pemain.id, pemain.gear, nowMs);
         }
+        if (pemain.launched && pemain.finishWaktuMs === null && !pemain.exploded && live.tick % 12 === 0) {
+          live.grafik.push([pemain.elapsedRaceMs, mmPerSecToKnot(pemain.speedMmPerSec), pemain.gear]);
+        }
 
         if (pemain.finishWaktuMs !== null || pemain.exploded) {
+          if (pemain.finishWaktuMs !== null && (!live.grafik.length || live.grafik[live.grafik.length - 1][0] < pemain.finishWaktuMs)) {
+            live.grafik.push([pemain.finishWaktuMs, mmPerSecToKnot(pemain.speedMmPerSec), pemain.gear]);
+          }
           if (!live.finishNotified) notifyFinishIfNeeded(pemain);
           // Lawan AI / bayangan tetap berlayar sampai garis Finish supaya waktunya tercatat
           const masihJalan = live.boats.some(b => b !== pemain && !(live.lawanLangsung && !b.isPemain) &&
@@ -4261,6 +4415,7 @@
       const gear = boat.gear || 1;
       const rpmRatio = (boat.rpmPermil || 0) / 1000;
       let jewelState = 'off';
+      let lampu = 0;
 
       // Bug #3: Zona hijau memakai jendelaGigi(spec, gear) persis dari spec balapan.rasioPreset
       if (gear < CONFIG.TRANSMISI.JUMLAH_GIGI) {
@@ -4274,6 +4429,8 @@
         if (boat.rpmPermil > win.greenEndPermil) jewelState = 'red';
         else if (inStar) jewelState = 'star';
         else if (inGreen) jewelState = 'green';
+        const lo = Math.max(0, win.greenStartPermil - 260);
+        lampu = boat.launched ? Math.max(0, Math.min(4, Math.floor(((boat.rpmPermil - lo) / Math.max(1, win.greenStartPermil - lo)) * 5))) : 0;
 
         const pulse = (inGreen && !reducedMotion) ? (0.25 + 0.75 * ((Math.sin(nowMs / 60) + 1) / 2)) : 0;
         g.strokeStyle = 'rgba(42, 106, 59, ' + (0.82 + pulse * 0.18) + ')';
@@ -4300,28 +4457,43 @@
         g.fillText('★', gx + Math.cos(as) * R, gy + Math.sin(as) * R);
       }
 
-      const jx = gx;
-      const jy = gy - R * 1.18;
-      const jr = Math.max(5, R * 0.11);
+      // Lampu oper: 5 lampu kuningan menyala bertahap, hijau penuh di daun ✓,
+      // emas berkedip di bintang ★, merah sesudah zona hijau.
+      const jr = Math.max(4, R * 0.085);
+      const jy = gy - R * 1.2 - jr * 0.4;
+      const jgap = jr * 2.55;
+      const kedip = reducedMotion ? true : (Math.floor(nowMs / 70) % 2 === 0);
       g.save();
-      g.fillStyle = '#2e1c10';
-      g.beginPath();
-      g.arc(jx, jy, jr + 2.5, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(46, 28, 16, 0.95)';
+      roundRect(g, gx - jgap * 2 - jr * 1.6, jy - jr * 1.6, jgap * 4 + jr * 3.2, jr * 3.2, jr * 1.4);
       g.fill();
-      if (jewelState === 'star') g.fillStyle = '#fff1c4';
-      else if (jewelState === 'green') g.fillStyle = '#6ee787';
-      else if (jewelState === 'red') g.fillStyle = '#ff6b52';
-      else g.fillStyle = '#4f331e';
-      g.beginPath();
-      g.arc(jx, jy, jr, 0, Math.PI * 2);
-      g.fill();
+      g.strokeStyle = '#8f6522';
+      g.lineWidth = 1;
+      roundRect(g, gx - jgap * 2 - jr * 1.6, jy - jr * 1.6, jgap * 4 + jr * 3.2, jr * 3.2, jr * 1.4);
+      g.stroke();
+      for (let li = 0; li < 5; li++) {
+        let c = '#4f331e';
+        let glow = null;
+        if (jewelState === 'red') { c = '#ff5a42'; glow = 'rgba(255, 90, 66, 0.9)'; }
+        else if (jewelState === 'star') { c = kedip ? '#ffe27a' : '#b88a2c'; glow = kedip ? 'rgba(255, 226, 122, 0.95)' : null; }
+        else if (jewelState === 'green') { c = '#6ee787'; glow = 'rgba(110, 231, 135, 0.8)'; }
+        else if (li < lampu) { c = li < 2 ? '#c99a3a' : '#9fd88a'; }
+        if (glow) { g.shadowColor = glow; g.shadowBlur = jr * 2.2; } else { g.shadowBlur = 0; }
+        g.fillStyle = c;
+        g.beginPath();
+        g.arc(gx - jgap * 2 + li * jgap, jy, jr, 0, Math.PI * 2);
+        g.fill();
+      }
       g.restore();
 
       const heat = (boat.heatMikro || 0) / CONFIG.SIMULASI.SKALA_JUTA;
+      const awasPanas = !!live.panasAktif;
       if (heat > 0.01) {
-        const hc = heat < 0.5 ? 'rgba(224, 165, 60, 0.95)' : (heat < 0.8 ? 'rgba(230, 110, 40, 1)' : 'rgba(207, 75, 51, 1)');
+        const hc = awasPanas
+          ? ('rgba(255, ' + (reducedMotion ? 70 : Math.round(60 + 60 * (0.5 + 0.5 * Math.sin(nowMs / 45)))) + ', 40, 1)')
+          : (heat < 0.5 ? 'rgba(224, 165, 60, 0.95)' : (heat < 0.8 ? 'rgba(230, 110, 40, 1)' : 'rgba(207, 75, 51, 1)'));
         g.strokeStyle = hc;
-        g.lineWidth = R * 0.07;
+        g.lineWidth = R * (awasPanas ? 0.11 : 0.07);
         g.lineCap = 'round';
         g.beginPath();
         g.arc(gx, gy, R * 1.195, A0, A0 + SW * Math.min(1, heat));
@@ -4468,6 +4640,15 @@
       const nowSec = nowMs / 1000;
       const reducedMotion = isReducedMotion();
       const portrait = H > W * 1.05;
+      const lebar = W >= 740 && !portrait;
+      const stageEl = q('race-stage');
+      if (stageEl && stageEl.classList.contains('pcs-lebar') !== lebar) stageEl.classList.toggle('pcs-lebar', lebar);
+      const ef = live.efek;
+      const efAge = ef ? (nowMs - ef.t) / 1000 : 9;
+      if (ef && efAge < 0.22 && !reducedMotion) {
+        const amp = EFEK[ef.kind].amp * (1 - efAge / 0.22);
+        raceCtx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp * 0.6);
+      }
       const trackH = Math.round(H * (portrait ? 0.55 : 0.61));
       const hudH = Math.max(100, H - trackH);
       const horizon = Math.round(trackH * 0.36);
@@ -4677,12 +4858,14 @@
           isGhost: lv.isBayangan,
           isOpponent: !lv.isBayangan,
           captainName: lv.nama,
+          labelCol: WARNA_LAWAN[idx % WARNA_LAWAN.length],
           nowSec,
           reducedMotion
         });
       }
 
       // Kapal Pemain
+      live.pemainXY = { x: wx(pemainPosM), y: laneP };
       const playerShip = CONFIG.KELAS_KAPAL[pemain.kelas] || CONFIG.KELAS_KAPAL.sekoci_standar;
       drawNusantaraBoat(raceCtx, {
         x: wx(pemainPosM),
@@ -4718,7 +4901,7 @@
       roundRect(raceCtx, barX, barY + 2, barW, 4, 2);
       raceCtx.fill();
 
-      const rvCols = ['#7cc3dc', '#f472b6', '#a78bfa'];
+      const rvCols = WARNA_LAWAN;
       for (let idx = 0; idx < lawanList.length; idx++) {
         const lv = lawanList[idx];
         const opPosMm = (live.lawanLangsung && live.liveOpponents[lv.id]) ? live.liveOpponents[lv.id].posMm : lv.posMm;
@@ -4798,16 +4981,103 @@
         }
       }
 
-      // Callout Feedback
+      // Kilatan warna sesudah oper gigi
+      if (ef && efAge < 0.28) {
+        raceCtx.fillStyle = 'rgba(' + EFEK[ef.kind].col + ', ' + (0.26 * (1 - efAge / 0.28)).toFixed(3) + ')';
+        raceCtx.fillRect(0, 0, W, trackH);
+      }
+
+      // Peringatan panas ±½ detik sebelum batuk
+      const panas = peringatanPanas(pemain);
+      live.panasAktif = !!panas;
+      if (panas) {
+        const pul = reducedMotion ? 0.6 : (0.5 + 0.5 * Math.sin(nowMs / 55));
+        const vg = raceCtx.createRadialGradient(W / 2, trackH / 2, Math.min(W, trackH) * 0.32, W / 2, trackH / 2, Math.max(W, trackH) * 0.72);
+        vg.addColorStop(0, 'rgba(255, 60, 30, 0)');
+        vg.addColorStop(1, 'rgba(255, 60, 30, ' + (0.18 + 0.22 * pul).toFixed(3) + ')');
+        raceCtx.fillStyle = vg;
+        raceCtx.fillRect(0, 0, W, trackH);
+        if (nowMs - live.panasT > 380) { live.panasT = nowMs; audio.hissSound(); }
+        raceCtx.save();
+        raceCtx.font = '800 ' + (lebar ? 15 : 13) + 'px system-ui, sans-serif';
+        raceCtx.textAlign = 'center';
+        raceCtx.textBaseline = 'middle';
+        const ptx = pemain.gear < CONFIG.TRANSMISI.JUMLAH_GIGI ? '♨ PANAS — OPER GIGI SEKARANG!' : '♨ PANAS — LEPAS SEMBURAN!';
+        const pw = raceCtx.measureText(ptx).width + 24;
+        const pcx = lebar ? (W - 256) / 2 + 8 : W / 2;
+        raceCtx.globalAlpha = 0.7 + 0.3 * pul;
+        raceCtx.fillStyle = 'rgba(60, 12, 6, 0.88)';
+        roundRect(raceCtx, pcx - pw / 2, trackH - 34, pw, 24, 7);
+        raceCtx.fill();
+        raceCtx.strokeStyle = '#ff7a5a';
+        raceCtx.lineWidth = 1.2;
+        roundRect(raceCtx, pcx - pw / 2, trackH - 34, pw, 24, 7);
+        raceCtx.stroke();
+        raceCtx.fillStyle = '#ffd8c8';
+        raceCtx.fillText(ptx, pcx, trackH - 22);
+        raceCtx.restore();
+      }
+
+      // Menara peringkat P1–P4 (Adu & Pacu Gugur)
+      if (lawanList.length > 0 && live.fase !== 'hitung_mundur') {
+        const rows = urutanBalap(pemain, lawanList, nowMs);
+        const tw = Math.min(196, W * 0.42);
+        const rh = 19;
+        const tx = 8;
+        const ty = 40;
+        raceCtx.save();
+        raceCtx.fillStyle = 'rgba(18, 11, 7, 0.78)';
+        roundRect(raceCtx, tx, ty, tw, rows.length * rh + 6, 8);
+        raceCtx.fill();
+        raceCtx.strokeStyle = 'rgba(211, 163, 66, 0.45)';
+        raceCtx.lineWidth = 1;
+        roundRect(raceCtx, tx, ty, tw, rows.length * rh + 6, 8);
+        raceCtx.stroke();
+        raceCtx.textBaseline = 'middle';
+        rows.forEach((r, i) => {
+          const yy = ty + 3 + i * rh + rh / 2;
+          if (r.saya) {
+            raceCtx.fillStyle = 'rgba(232, 184, 74, 0.16)';
+            raceCtx.fillRect(tx + 2, yy - rh / 2 + 1, tw - 4, rh - 2);
+          }
+          raceCtx.fillStyle = r.col;
+          raceCtx.fillRect(tx + 5, yy - 6, 3, 12);
+          raceCtx.font = '800 10.5px ui-monospace, monospace';
+          raceCtx.textAlign = 'left';
+          raceCtx.fillStyle = '#fff1c4';
+          raceCtx.fillText('P' + (i + 1), tx + 12, yy);
+          raceCtx.font = (r.saya ? '800 ' : '600 ') + '10.5px system-ui, sans-serif';
+          raceCtx.fillStyle = r.col;
+          let nm = String(r.nama || '?');
+          if (nm.length > 13) nm = nm.slice(0, 12) + '…';
+          raceCtx.fillText(nm, tx + 34, yy);
+          raceCtx.textAlign = 'right';
+          raceCtx.font = '600 10px ui-monospace, monospace';
+          let ket;
+          if (r.jebol) ket = 'JEBOL';
+          else if (r.fin != null) ket = (r.fin / 1000).toFixed(2).replace('.', ',') + 's';
+          else if (i === 0) ket = Math.round(r.posMm / 1000) + 'm';
+          else ket = '−' + Math.max(0, (rows[i - 1].posMm - r.posMm) / 1000).toFixed(1).replace('.', ',') + 'm';
+          raceCtx.fillStyle = r.jebol ? '#ff7a5a' : 'rgba(251, 234, 187, 0.85)';
+          raceCtx.fillText(ket, tx + tw - 7, yy);
+        });
+        raceCtx.restore();
+      }
+
+      // Callout Feedback — melayang naik dari kapal pemain
       if (live.fb) {
         const age = (nowMs - live.fb.t) / 1000;
-        if (age > 0.9) {
+        if (age > 0.95) {
           live.fb = null;
         } else {
           raceCtx.save();
-          raceCtx.translate(W / 2, trackH - 56);
-          raceCtx.globalAlpha = Math.min(1, (0.9 - age) / 0.3);
-          raceCtx.font = '700 28px Georgia, serif';
+          const ax = live.pemainXY ? Math.max(90, Math.min(W - 90, live.pemainXY.x - 40)) : W / 2;
+          const ay = live.pemainXY ? live.pemainXY.y - 88 : trackH - 56;
+          const pop = age < 0.12 ? (0.7 + age * 2.5) : 1;
+          raceCtx.translate(ax, ay - age * 46);
+          raceCtx.scale(pop, pop);
+          raceCtx.globalAlpha = Math.min(1, (0.95 - age) / 0.3);
+          raceCtx.font = '700 ' + (lebar ? 32 : 26) + 'px Georgia, serif';
           raceCtx.textAlign = 'center';
           raceCtx.lineWidth = 4;
           raceCtx.strokeStyle = 'rgba(18, 11, 7, 0.9)';
@@ -4823,7 +5093,8 @@
         }
       }
 
-      // Dek Instrumen Kayu Jati & Kawung
+      // Dek Instrumen Kayu Jati & Kawung (tanpa guncangan)
+      raceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const y0 = trackH;
       const bg = raceCtx.createLinearGradient(0, y0, 0, H);
       bg.addColorStop(0, '#24170f');
@@ -4834,19 +5105,35 @@
       raceCtx.fillRect(0, y0, W, 2);
 
       const isNarrow = W < 560;
-      const R = Math.max(28, Math.min(hudH * (isNarrow ? 0.30 : 0.35), W * 0.145, 60));
-      const gy = y0 + hudH * (isNarrow ? 0.64 : 0.54);
-      const tachoX = W * 0.5 - R * (isNarrow ? 1.30 : 1.46);
-      const speedoX = W * 0.5 + R * (isNarrow ? 1.30 : 1.46);
+      let R, gy, tachoX, speedoX, leftPlaqueX, rightPlaqueX, plaqueY, plaqueW, plaqueH;
+      if (lebar) {
+        // PC: jarum besar di kiri-tengah, panel tombol ringkas di kanan bawah (HTML).
+        const avail = W - 256;
+        R = Math.max(44, Math.min(100, (hudH - 14) / 2.66, (avail - 150) / 5.3));
+        gy = y0 + 8 + R * 1.42;
+        const grp = 126 + R * 5.3;
+        const gx0 = Math.max(10, (avail - grp) / 2);
+        leftPlaqueX = gx0 + 56;
+        tachoX = gx0 + 126 + R * 1.2;
+        speedoX = tachoX + R * 2.9;
+        rightPlaqueX = -999;
+        plaqueY = gy;
+        plaqueW = 112;
+        plaqueH = 46;
+      } else {
+        R = Math.max(28, Math.min(hudH * (isNarrow ? 0.30 : 0.35), W * 0.145, 60));
+        gy = y0 + hudH * (isNarrow ? 0.64 : 0.54);
+        tachoX = W * 0.5 - R * (isNarrow ? 1.30 : 1.46);
+        speedoX = W * 0.5 + R * (isNarrow ? 1.30 : 1.46);
+        leftPlaqueX = isNarrow ? Math.max(64, W * 0.26) : Math.max(64, tachoX - R * 1.24 - 62);
+        rightPlaqueX = isNarrow ? Math.min(W - 64, W * 0.74) : Math.min(W - 64, speedoX + R * 1.24 + 62);
+        plaqueY = isNarrow ? (y0 + 23) : gy;
+        plaqueW = isNarrow ? Math.min(138, W * 0.44) : 112;
+        plaqueH = isNarrow ? 32 : 42;
+      }
 
       drawKawungTachometer(raceCtx, tachoX, gy, R, dt, nowMs, pemain.spec, pemain, reducedMotion);
       drawKawungSpeedometer(raceCtx, speedoX, gy, R, dt, pemainSpeedKnot, pemain.boostLeftMs > 0);
-
-      const leftPlaqueX = isNarrow ? Math.max(64, W * 0.26) : Math.max(64, tachoX - R * 1.24 - 62);
-      const rightPlaqueX = isNarrow ? Math.min(W - 64, W * 0.74) : Math.min(W - 64, speedoX + R * 1.24 + 62);
-      const plaqueY = isNarrow ? (y0 + 23) : gy;
-      const plaqueW = isNarrow ? Math.min(138, W * 0.44) : 112;
-      const plaqueH = isNarrow ? 32 : 42;
 
       drawBrassPlaque(raceCtx, leftPlaqueX, plaqueY, 0, plaqueW, plaqueH);
       const tSec = (pemain.finishWaktuMs != null ? pemain.finishWaktuMs : pemain.elapsedRaceMs) / 1000;
@@ -4868,6 +5155,7 @@
       const holdProg = (pemain.tombolDitahan && pemain.tahanGigi5SejakMs >= 0 && semReady)
         ? Math.min(1, Math.max(0, (tmsNow - pemain.tahanGigi5SejakMs) / CONFIG.SKILL_SEMBURAN.DURASI_TAHAN_AKTIVASI_MS))
         : 0;
+      if (!lebar) {
       drawBrassPlaque(raceCtx, rightPlaqueX, plaqueY, semReady ? 0.35 : 0, plaqueW, plaqueH);
       if (holdProg > 0) {
         raceCtx.fillStyle = 'rgba(255, 140, 40, 0.58)';
@@ -4879,11 +5167,12 @@
       raceCtx.fillText('SEMBURAN', rightPlaqueX, plaqueY - (isNarrow ? 4 : 5));
       raceCtx.font = '500 10px system-ui, sans-serif';
       raceCtx.fillText(pemain.boostLeftMs > 0 ? 'menyembur!' : (semReady ? 'tahan jarimu' : 'di gigi lima'), rightPlaqueX, plaqueY + (isNarrow ? 8 : 10));
+      }
 
-      updateActionStrip(pemain);
+      updateActionStrip(pemain, holdProg);
     }
 
-    function updateActionStrip(pemain) {
+    function updateActionStrip(pemain, holdProg) {
       const tapBtn = q('btn-main-tap');
       const tapTitle = q('btn-main-tap-title');
       const tapSub = q('btn-main-tap-sub');
@@ -4901,23 +5190,102 @@
       semBtn.classList.toggle('pcs-semburan-ready', semReady);
       semBtn.disabled = gear !== CONFIG.TRANSMISI.JUMLAH_GIGI && !pemain.boostUsed;
 
+      const setT = (el, t) => { if (el && el.textContent !== t) el.textContent = t; };
+      let tt, ts;
       if (pemain.exploded || hostState.mesinJebol) {
-        tapTitle.textContent = '💥 MESIN KAPAL JEBOL';
-        tapSub.textContent = 'Perbaiki mesin di Bengkel Mesin sebelum berlomba';
+        tt = '💥 MESIN JEBOL'; ts = 'Perbaiki di Bengkel Mesin';
       } else if (!pemain.launched) {
-        tapTitle.textContent = live.fase === 'hitung_mundur' ? 'TUNGGU MERIAM BERDENTUM...' : '🔥 KETUK SEKARANG! LEPAS START!';
-        tapSub.textContent = 'Ketuk < 80 ms setelah meriam dihitung curi start';
+        tt = live.fase === 'hitung_mundur' ? 'TUNGGU MERIAM…' : '🔥 KETUK! LEPAS START';
+        ts = 'Spasi / ketuk layar · < 80 ms = curi start';
       } else if (gear < CONFIG.TRANSMISI.JUMLAH_GIGI) {
-        tapTitle.textContent = inGreen ? ('⚡ OPER GIGI SEKARANG! (' + gear + '→' + (gear + 1) + ')') : ('NAIKKAN GIGI (' + gear + ' → ' + (gear + 1) + ')');
-        tapSub.textContent = 'Ketuk layar atau Spasi di daun hijau ✓ / bintang emas ★';
+        tt = inGreen ? ('⚡ OPER! ' + gear + '→' + (gear + 1)) : ('OPER GIGI ' + gear + '→' + (gear + 1));
+        ts = 'Spasi / ketuk · daun ✓ atau bintang ★';
       } else {
-        tapTitle.textContent = 'GIGI PUNCAK (GIGI 5)';
-        tapSub.textContent = pemain.boostLeftMs > 0 ? 'Semburan oli hitam aktif menuju Finish!' : 'Tahan tombol atau Spasi ±½ detik untuk menyembur';
+        tt = 'GIGI 5 · PUNCAK';
+        ts = pemain.boostLeftMs > 0 ? 'Semburan aktif!' : 'Tahan Spasi ±½ dtk = Semburan';
+      }
+      setT(tapTitle, tt);
+      setT(tapSub, ts);
+      tapBtn.classList.toggle('pcs-panas', !!live.panasAktif);
+
+      setT(semSub, pemain.boostLeftMs > 0
+        ? 'Oli Hitam menyembur!'
+        : (pemain.boostUsed ? 'Sudah dipakai' : (semReady ? 'Tahan ±½ detik sekarang!' : 'Hanya di Gigi 5')));
+      const isi = q('btn-semburan-isi');
+      if (isi) isi.style.width = Math.round((holdProg || 0) * 100) + '%';
+      const strip = q('action-strip');
+      if (strip) strip.classList.toggle('pcs-kiri', hostState.tataJempol === 'kiri');
+    }
+
+    // Kartu hasil kaya: grafik kecepatan, reaksi, selisih rekor, kiat Yaptob.
+    const WARNA_MUTU = { sempurna: '#ffd65a', tepat: '#9fe08a', awal: '#f0a046', telat: '#ff6b52' };
+    function renderAnalisisHasil(pemain, exploded, myMs) {
+      const gEl = q('res-grafik');
+      const rEl = q('res-rincian');
+      const kEl = q('res-kiat');
+      if (!gEl || !rEl || !kEl) return;
+      const data = live.grafik || [];
+      if (data.length > 2) {
+        const tMax = Math.max(1, data[data.length - 1][0]);
+        const vMax = Math.max(20, Math.ceil(Math.max.apply(null, data.map(d => d[1])) / 20) * 20);
+        const X = (t) => (8 + (t / tMax) * 464).toFixed(1);
+        const Y = (v) => (88 - (v / vMax) * 78).toFixed(1);
+        const pts = data.map(d => X(d[0]) + ',' + Y(d[1])).join(' ');
+        const area = '8,88 ' + pts + ' ' + X(data[data.length - 1][0]) + ',88';
+        const marks = (live.operLog || []).map((o, i) => {
+          const c = WARNA_MUTU[o.q] || '#fff';
+          return `<line x1="${X(o.t)}" x2="${X(o.t)}" y1="12" y2="88" stroke="${c}" stroke-width="1.4" stroke-dasharray="2 2" opacity="0.9"/>` +
+            `<circle cx="${X(o.t)}" cy="${i % 2 ? 14 : 7}" r="2.4" fill="${c}"/>` +
+            `<text x="${(Number(X(o.t)) + 4).toFixed(1)}" y="${i % 2 ? 16.5 : 9.5}" fill="${c}" font-size="8" font-weight="700">${o.gear}→${o.gear + 1}</text>`;
+        }).join('');
+        gEl.innerHTML = `<svg viewBox="0 0 480 98" aria-label="Grafik kecepatan">
+          <polygon points="${area}" fill="rgba(124,195,220,0.16)"/>
+          <polyline points="${pts}" fill="none" stroke="#7cc3dc" stroke-width="1.8" stroke-linejoin="round"/>
+          ${marks}
+          <text x="8" y="96" fill="rgba(251,234,187,0.6)" font-size="8">0 s · kecepatan (knot)</text>
+          <text x="472" y="96" fill="rgba(251,234,187,0.6)" font-size="8" text-anchor="end">${(tMax / 1000).toFixed(1).replace('.', ',')} s</text>
+          <text x="472" y="26" fill="rgba(251,234,187,0.6)" font-size="8" text-anchor="end">${vMax} kt</text>
+        </svg>`;
+        gEl.style.display = '';
+      } else {
+        gEl.innerHTML = '';
+        gEl.style.display = 'none';
       }
 
-      semSub.textContent = pemain.boostLeftMs > 0
-        ? 'Oli Hitam sedang menyembur!'
-        : (semReady ? 'Tahan ±½ detik sekarang!' : 'Hanya aktif di Gigi 5');
+      const chip = (t, cls) => `<span class="pcs-q-badge ${cls || ''}">${t}</span>`;
+      const chips = [];
+      if (pemain && pemain.jumpStart) chips.push(chip('⚠ Curi start', 'pcs-telat'));
+      else if (pemain && pemain.reaksiMs != null) {
+        chips.push(chip('Reaksi ' + Math.round(pemain.reaksiMs) + ' ms', pemain.reaksiMs <= CONFIG.START.AMBANG_REAKSI_KILAT_MS ? 'pcs-sempurna' : (pemain.reaksiMs <= 350 ? 'pcs-tepat' : 'pcs-awal')));
+      }
+      if (!exploded && myMs != null && live.rekorAwal != null) {
+        const d = myMs / 1000 - live.rekorAwal;
+        chips.push(d < 0
+          ? chip('🏆 Rekor baru −' + Math.abs(d).toFixed(2).replace('.', ',') + ' s', 'pcs-sempurna')
+          : chip('Rekor pribadi +' + d.toFixed(2).replace('.', ',') + ' s', d < 0.3 ? 'pcs-tepat' : 'pcs-awal'));
+      } else if (!exploded && myMs != null && live.rekorAwal == null) {
+        chips.push(chip('🏆 Catatan pertama di jarak ini', 'pcs-sempurna'));
+      }
+      if (pemain && pemain.gear === CONFIG.TRANSMISI.JUMLAH_GIGI) {
+        chips.push(chip(pemain.boostUsed ? '🛢 Semburan dipakai' : '🛢 Semburan tak dipakai', pemain.boostUsed ? 'pcs-tepat' : 'pcs-awal'));
+      }
+      rEl.innerHTML = chips.join('');
+
+      // Kiat Yaptob: satu saran paling berharga
+      const sh = pemain && Array.isArray(pemain.shifts) ? pemain.shifts : [];
+      const nAwal = sh.filter(x => x.kualitas === 'awal').length;
+      const nTelat = sh.filter(x => x.kualitas === 'telat').length;
+      const nSemp = sh.filter(x => x.kualitas === 'sempurna').length;
+      let kiat;
+      if (exploded) kiat = 'Mesinmu kepanasan. Begitu lampu merah dan tulisan ♨ PANAS muncul, langsung oper — atau pasang ECU/busi di Bengkel supaya lebih tahan panas.';
+      else if (pemain && pemain.jumpStart) kiat = 'Kau mendahului meriam. Tunggu dentumannya dulu, baru ketuk — curi start memotong dorongan awalmu separuh.';
+      else if (nTelat > 0 && nTelat >= nAwal) kiat = 'Oper gigimu ' + nTelat + '× terlambat sampai garis merah. Ketuk begitu kelima lampu jadi hijau, jangan tunggu merah.';
+      else if (nAwal > 0) kiat = 'Oper gigimu ' + nAwal + '× terlalu awal. Tunggu kelima lampu menyala hijau, lebih baik lagi saat berkedip emas ★.';
+      else if (pemain && pemain.reaksiMs != null && pemain.reaksiMs > CONFIG.START.AMBANG_REAKSI_KILAT_MS) kiat = 'Reaksi startmu ' + Math.round(pemain.reaksiMs) + ' ms. Di bawah ' + CONFIG.START.AMBANG_REAKSI_KILAT_MS + ' ms kau dapat dorongan kilat — dengarkan meriamnya, bukan menebak dari obor.';
+      else if (pemain && pemain.gear === CONFIG.TRANSMISI.JUMLAH_GIGI && !pemain.boostUsed) kiat = 'Semburan Oli Hitam tak kau pakai. Tahan Spasi ±½ detik begitu masuk gigi 5.';
+      else if (nSemp < sh.length) kiat = 'Bagus! Kejar bintang emas ★ di setiap gigi — Sempurna memberi dorongan dua kali lipat Tepat.';
+      else kiat = 'Semua oper Sempurna. Sisanya tinggal kapal dan mesin — mampir ke Galangan dan Bengkel.';
+      kEl.innerHTML = '<b>Yaptob:</b> ' + kiat;
     }
 
     function renderResultOverlay() {
@@ -5010,6 +5378,7 @@
         badgesHtml += `<span class="pcs-q-badge">${i + 1}→${i + 2} —</span>`;
       }
       shiftsEl.innerHTML = badgesHtml;
+      renderAnalisisHasil(pemain, exploded, myMs);
 
       // Bug #2: Tampilkan "Menunggu juru tulis…" sampai state.hasil dengan balapanId cocok tiba
       if (hasilCocok && hasil.keteranganHadiah) {
@@ -6042,6 +6411,17 @@
 
     // Bug #6: Spasi hanya ditangkap bila modal terpasang, tab Arena aktif, sedang balap, dan fokus bukan di elemen input
     const onKeyDown = (e) => {
+      if ((e.code === 'Enter' || e.code === 'NumpadEnter') && activeInstance && ui.tab === 'arena' &&
+          q('result-overlay').classList.contains('pcs-show') && !e.repeat) {
+        const again = q('btn-res-again');
+        const ae0 = document.activeElement;
+        if (again && !again.disabled && !(ae0 && /INPUT|TEXTAREA|SELECT/.test(ae0.tagName))) {
+          e.preventDefault();
+          e.stopPropagation();
+          again.click();
+        }
+        return;
+      }
       if (e.code !== 'Space' || !activeInstance) return;
       const ae = document.activeElement;
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) {
@@ -6065,6 +6445,15 @@
     };
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
+
+    q('btn-jempol').addEventListener('click', (e) => {
+      e.stopPropagation();
+      hostState.tataJempol = hostState.tataJempol === 'kiri' ? 'kanan' : 'kiri';
+      const strip = q('action-strip');
+      if (strip) strip.classList.toggle('pcs-kiri', hostState.tataJempol === 'kiri');
+      if (typeof callbacks.onJempol === 'function') callbacks.onJempol(hostState.tataJempol);
+    });
+    q('btn-jempol').addEventListener('pointerdown', (e) => e.stopPropagation());
 
     q('btn-res-lobby').addEventListener('click', () => {
       q('result-overlay').classList.remove('pcs-show');
@@ -6181,13 +6570,16 @@
         return { balapanId: live.raceId, posMm: pm.posMm, speedMmPerSec: pm.speedMmPerSec, gear: pm.gear, rpmPermil: pm.rpmPermil, launched: pm.launched,
           tms: getCurrentRelTms(), fase: live.fase, finish: pm.finishWaktuMs, jebol: pm.exploded };
       },
-      posisiLawan(id, posMm, speed, gear, tms) {
+      posisiLawan(id, posMm, speed, gear, tms, finish, jebol) {
         const key = String(id);
+        const lama = live.liveOpponents[key];
         live.liveOpponents[key] = {
           posMm: Math.trunc(Number(posMm) || 0),
-          speedMmPerSec: Math.trunc(Number(speed) || 0),
+          speedMmPerSec: (finish != null || jebol) ? 0 : Math.trunc(Number(speed) || 0),
           gear: Math.trunc(Number(gear) || 1),
           tms: Math.trunc(Number(tms) || 0),
+          finish: finish != null ? Math.trunc(Number(finish)) : (lama ? lama.finish : null),
+          jebol: !!jebol || !!(lama && lama.jebol),
           lastUpdatePerfMs: performance.now()
         };
       },
