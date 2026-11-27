@@ -1,356 +1,162 @@
-<style>
-  /* Tide v88 · Pacu Selat: lapisan layar penuh untuk modul window.PacuSelat (gaya modul terkurung di .pcs-root) */
-  .pcs-lapis { position: fixed; inset: 0; z-index: 9000; background: rgba(6, 4, 2, .86); backdrop-filter: blur(3px);
-    overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 8px 24px; opacity: 0; transition: opacity .25s; }
-  .pcs-lapis.on { opacity: 1; }
-  .pcs-lapis > .pcs-wadah { max-width: 1100px; margin: 0 auto; }
-  #pcsAjak { position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 140%); z-index: 9100; transition: transform .3s;
-    width: min(420px, calc(100vw - 20px)); }
-  #pcsAjak.show { transform: translate(-50%, 0); }
-  #pcsAjak .bx { background: linear-gradient(180deg, #372316, #170e09); border: 1.5px solid #f0cf78; border-radius: 14px; padding: 12px 14px;
-    color: #fbeabb; box-shadow: 0 16px 40px rgba(0,0,0,.65); font-family: var(--font-body, system-ui); }
-  #pcsAjak .k { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #f0cf78; font-weight: 700; }
-  #pcsAjak .n { font-family: var(--font-title, Georgia); font-size: 18px; margin: 2px 0; }
-  #pcsAjak .s { font-size: 12.5px; color: #f4e7c8; }
-  #pcsAjak .a { display: flex; gap: 8px; margin-top: 9px; }
-  #pcsAjak button { flex: 1; min-height: 40px; border-radius: 9px; font-weight: 800; cursor: pointer; border: 1px solid #fbeabb;
-    background: linear-gradient(180deg, #fbeabb, #d3a342 55%, #a5762a); color: #4a320c; }
-  #pcsAjak button.g { background: rgba(23,14,9,.8); color: #fbeabb; border-color: #8f6522; }
-</style>
-<script>
-/* =====================================================================
- * MTPacuSelat — tuan rumah modul window.PacuSelat (Sirkuit Selat Lurus, Zentul) · Tide v88
- *   MTPacuSelat.buka(cadangan)  -> api_pacuSelat('status'); bila belum terbuka -> cadangan() (gelanggang lama)
- *   Semua uang, kepemilikan, dan hasil balapan dari server (0109-pacu-selat.sql). Modul hanya menggambar.
- *   Adu Kapten: rombongan 2–4 kapten, start serentak dari jam server, posisi lawan lewat Realtime
- *   'pacu:<room>' (10×/dtk) dengan cadangan RPC 'pos' bila kanal belum tersambung.
- *   Balapan cerita Saga 4 (Mahkota, Cukai) tidak lewat sini.
- * ===================================================================== */
-var MTPacuSelat = (function () {
-  var L = null, busy = false, ajakItem = null;
+/*
+ * PacuSelatHost.html — Host dan callback untuk Pacu Selat
+ * Mengelola state modal, efek visual, dan scroll lock iOS
+ */
 
-  function toast(m, k) { try { if (typeof showToast === 'function') showToast(m, k || 'info'); } catch (e) { } }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function api(args, ok, fail) {
-    try {
-      var r = google.script.run.withSuccessHandler(function (res) { ok(res || {}); })
-        .withFailureHandler(function (e) { (fail || function (m) { pesan(m, 'error'); })((e && e.message) || String(e || 'Gagal.')); });
-      r.api_pacuSelat.apply(r, args);
-    } catch (e) { (fail || function (m) { pesan(m, 'error'); })(e.message || 'Gagal.'); }
-  }
-  function apiMedali(args, ok, fail) {
-    try {
-      var r = google.script.run.withSuccessHandler(function (res) { ok(res || {}); })
-        .withFailureHandler(function (e) { fail((e && e.message) || 'Gagal.'); });
-      r.api_medali.apply(r, args);
-    } catch (e) { fail(e.message || 'Gagal.'); }
-  }
-  function audioMati() {
-    try { var p = window.MTAudio && MTAudio.prefs ? MTAudio.prefs() : null; if (p) return p.on === false || (p.sfx != null && p.sfx <= 0.01); } catch (e) { }
-    return false;
-  }
+(function() {
+  window.PacuSelatHost = {
+    state: null,
+    game: null,
+    subscriptions: [],
 
-  // ------------------------------------------------------------ state ke modul
-  var pesanN = 0;
-  function pesan(teks, jenis) { if (!L) { toast(teks, jenis === 'error' ? 'error' : 'info'); return; } L.pesan = { teks: teks, jenis: jenis || 'info', id: ++pesanN + '-' + Date.now() }; dorong(); }
-  function jempol() { try { return localStorage.getItem('mt_pacu_jempol') === 'kiri' ? 'kiri' : 'kanan'; } catch (e) { return 'kanan'; } }
-  function dorong() {
-    if (!L || !window.PacuSelat) return;
-    var s = Object.assign({}, L.ps || {}, { audioMati: L.mati, sibuk: L.sibuk, pesan: L.pesan, balapan: L.balapan, hasil: L.hasil, tataJempol: jempol() });
-    try { PacuSelat.update(s); } catch (e) { }
-  }
-  function terima(res) {
-    if (!L) return;
-    if (res && res.ps) L.ps = res.ps;
-    if (res && res.pesan) L.pesan = res.pesan;
-    L.sibuk = {};
-    dorong();
-    if (L.ps && L.ps.roomJalan && L.ps.roomJalan !== L.tinggalRoom && (!L.room || L.room.id !== L.ps.roomJalan)) masukRoom(L.ps.roomJalan);
-  }
-  function segar() { if (L) api(['status'], function (r) { if (r.ps) terima(r); }, function () { }); }
-
-  // ------------------------------------------------------------ buka / tutup
-  function buka(cadangan, lanjut) {
-    if (busy) return;
-    if (L) { if (typeof lanjut === 'function') lanjut(); return; }
-    if (!window.PacuSelat) { if (typeof cadangan === 'function') cadangan(); return; }
-    busy = true;
-    api(['status'], function (r) {
-      busy = false;
-      if (!r.ps) { if (typeof cadangan === 'function') cadangan(); return; }
-      pasang(r.ps);
-      if (typeof lanjut === 'function') lanjut();
-    }, function (m) { busy = false; if (typeof cadangan === 'function') cadangan(m); });
-  }
-  function pasang(ps) {
-    var root = document.createElement('div');
-    root.className = 'pcs-lapis';
-    root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'Pacu Selat');
-    root.innerHTML = '<div class="pcs-wadah"></div>';
-    document.body.appendChild(root);
-    L = { root: root, ps: ps, mati: audioMati(), sibuk: {}, pesan: null, balapan: null, hasil: null, run: null, room: null,
-      poll: null, chan: null, live: false, posT: null, lobi: false, lihatT: null, jam: 0 };
-    window.MT_SCENE_HOLD = true;
-    try { if (window.MTAudio && MTAudio.duckMusic) MTAudio.duckMusic(true); } catch (e) { }
-    PacuSelat.mount(root.firstChild, {
-      initialState: Object.assign({}, ps, { audioMati: L.mati }),
-      onStart: onStart, onInput: function () { }, onFinish: onFinish, onKeluarBalapan: onKeluarBalapan,
-      onBuy: function (id) { L.sibuk = { beli: id }; dorong(); api(['beli', id], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
-      onUpgrade: function (id) { L.sibuk = { upgrade: id }; dorong(); api(['pasang', id], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
-      onJempol: function (v) { try { localStorage.setItem('mt_pacu_jempol', v === 'kiri' ? 'kiri' : 'kanan'); } catch (e) { } },
-      onRasio: function (k) { api(['rasio', k], terima, function (m) { pesan(m, 'error'); }); },
-      onJarakRombongan: function (id, jarak) { api(['jarakRb', id, jarak], terima, function (m) { pesan(m, 'error'); }); },
-      onTantang: function (pub, jarak) { L.sibuk = { tantang: pub }; dorong(); api(['ajak', pub, jarak || '800'], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
-      onTerima: function (id) { jawab(id, true); },
-      onTolak: function (id) { jawab(id, false); },
-      onMulaiRombongan: function (id) {
-        L.sibuk = { mulai: id }; dorong();
-        var t0 = Date.now();
-        api(['mulaiRb', id], function (r) { terima(r); if (r.room) mulaiRoom(r.room, t0); }, function (m) { L.sibuk = {}; pesan(m, 'error'); });
-      },
-      onKeluarRombongan: function (id) { api(['keluarRb', id], terima, function (m) { pesan(m, 'error'); }); },
-      onTukarMedali: function (jenis, n) {
-        L.sibuk = { tukar: jenis }; dorong();
-        apiMedali(['tukar', jenis, n || 1], function (r) { pesan('Ditukar: ' + (r.jumlah || 1) + ' barang masuk ke palka.', 'sukses'); segar(); },
-          function (m) { L.sibuk = {}; pesan(m, 'error'); });
-      },
-      onMute: function () { },
-      onClose: tutup
-    });
-    requestAnimationFrame(function () { if (L) L.root.classList.add('on'); });
-    L.esc = function (e) { if (e.key === 'Escape' && L) { e.preventDefault(); tutup(); } };
-    window.addEventListener('keydown', L.esc);
-    // dermaga: segarkan daftar kapten & undangan
-    L.poll = setInterval(function () {
-      if (!L || document.hidden) return;
-      if (L.room && L.room.status === 'jalan') return;
-      if (L.run && !L.hasil) return;
-      segar();
-    }, 4000);
-    if (ps.roomJalan) masukRoom(ps.roomJalan);
-  }
-  function tutup() {
-    if (!L) return;
-    var x = L; L = null;
-    clearInterval(x.poll); clearInterval(x.posT); clearTimeout(x.lihatT);
-    lepasKanal(x);
-    window.removeEventListener('keydown', x.esc);
-    if (x.run && !x.hasil) api(['tinggal', x.run.id], function () { }, function () { });
-    try { PacuSelat.destroy(); } catch (e) { }
-    x.root.classList.remove('on');
-    setTimeout(function () { x.root.remove(); }, 260);
-    window.MT_SCENE_HOLD = false;
-    try { if (window.MTAudio && MTAudio.duckMusic) MTAudio.duckMusic(false); } catch (e) { }
-    try { if (typeof loadState === 'function') loadState(); } catch (e) { }
-  }
-
-  // ------------------------------------------------------------ balapan solo (Uji Lintasan & Pacu Gugur)
-  function onStart(o) {
-    if (!L) return;
-    if (o.mode === 'adu_kapten') { segar(); return; }
-    if (L.room && L.room.status === 'jalan') { pesan('Rombonganmu sedang berlomba.', 'error'); return; }
-    api(['mulai', o.mode], function (r) {
-      if (!L) return;
-      L.room = null; L.run = r.balapan; L.hasil = null; L.balapan = r.balapan;
-      terima(r);
-    }, function (m) { pesan(m, 'error'); });
-  }
-  function onFinish(f) {
-    if (!L) return;
-    if (L.room && f.balapanId === L.room.id) { setorRoom(f.log); return; }
-    if (!L.run || f.balapanId !== L.run.id) return;
-    var run = L.run, coba = 0;
-    (function kirim() {
-      api(['setor', run.id, f.log], function (r) {
-        if (!L) return;
-        L.hasil = r.hasil; L.run = null; terima(r);
-      }, function (m) {
-        // jam dinding server belum sampai Finish (jaringan cepat) -> ulangi sebentar lagi
-        if (/belum melihat/.test(m) && ++coba < 6) { setTimeout(kirim, 900); return; }
-        pesan(m, 'error');
-      });
-    })();
-  }
-  function onKeluarBalapan(f) {
-    if (!L) return;
-    if (L.run && f.balapanId === L.run.id) { var id = L.run.id; L.run = null; L.balapan = null; api(['tinggal', id], terima, function () { }); return; }
-    if (L.room && f.balapanId === L.room.id) {
-      // Meninggalkan Adu = tidak menyetor catatan (taruhan untuk sang juara). Tidak ditarik balik ke lintasan.
-      L.tinggalRoom = L.room.id; lepasKanal(L); L.room = null; L.balapan = null;
-      pesan('Kau meninggalkan selat. Catatanmu tidak disetor.', 'error');
-    }
-  }
-  function jawab(id, ya) {
-    if (!L) return;
-    L.sibuk = { terima: id }; dorong();
-    api(['jawab', id, ya], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); });
-  }
-
-  // ------------------------------------------------------------ rombongan Adu (2–4 kapten, langsung)
-  function masukRoom(id) {
-    if (!L) return;
-    var t0 = Date.now();
-    api(['lihatRb', id], function (r) { if (r.room) mulaiRoom(r.room, t0); }, function () { });
-  }
-  function mulaiRoom(room, t0) {
-    if (!L || !room) return;
-    if (room.status === 'selesai' || room.status === 'batal') { L.room = room; tampilHasilRoom(room); return; }
-    if (room.status !== 'jalan') return;
-    var rtt = Math.max(0, Date.now() - (t0 || Date.now()));
-    L.jam = (room.nowMs + rtt / 2) - Date.now();
-    var baru = !L.room || L.room.id !== room.id;
-    L.room = room; L.run = null;
-    if (!baru && L.balapan && L.balapan.id === room.id) return;
-    var aku = (room.anggota || []).filter(function (a) { return a.aku; })[0];
-    if (!aku) return;
-    var peserta = [{ id: 'pemain', nama: aku.nama, isPemain: true, kelas: aku.kelas, parts: aku.parts, rasioPreset: aku.rasioPreset }];
-    (room.anggota || []).forEach(function (a) {
-      if (a.aku || a.status !== 'ikut') return;
-      peserta.push({ id: a.id, nama: a.nama, isPemain: false, kelas: a.kelas, parts: a.parts, rasioPreset: a.rasioPreset });
-    });
-    var n = peserta.length;
-    L.hasil = null;
-    L.balapan = { id: room.id, mode: 'adu_kapten', judul: 'Adu Kapten · ' + n + ' kapten · ' + (room.jarakMm >= 1400000 ? '1,4 km' : (room.jarakMm / 1000) + ' m') + '',
-      seed: room.seed, jarakMm: room.jarakMm, rasioPreset: aku.rasioPreset, waktuMeriamMs: room.waktuMeriamMs,
-      mulaiServerMs: room.mulaiServerMs, selisihJamMs: L.jam, lawanLangsung: true, peserta: peserta, inputLog: [] };
-    dorong();
-    pasangKanal(room.id);
-  }
-  function pasangKanal(id) {
-    lepasKanal(L);
-    var X = L;
-    if (window.MTSB && typeof MTSB.channel === 'function') {
-      try {
-        var ch = MTSB.channel('pacu:' + id, { config: { private: true, broadcast: { self: false } } });
-        ch.on('broadcast', { event: 'pos' }, function (p) {
-          var m = p && p.payload; if (!m || L !== X || !window.PacuSelat) return;
-          PacuSelat.posisiLawan(m.id, m.p, m.v, m.g, m.t, m.f, m.j);
-        });
-        X.chan = ch;
-        var go = function () { ch.subscribe(function (s) { if (L === X) X.live = s === 'SUBSCRIBED'; }); };
-        if (MTSB.realtime && typeof MTSB.realtime.setAuth === 'function') Promise.resolve(MTSB.realtime.setAuth()).then(go, go); else go();
-      } catch (e) { X.chan = null; }
-    }
-    var myPub = null, relayT = 0, relayBusy = false;
-    try { myPub = (L.room.anggota || []).filter(function (a) { return a.aku; })[0].id; } catch (e) { }
-    X.posT = setInterval(function () {
-      if (L !== X || !window.PacuSelat) return;
-      var t = PacuSelat.telemetriPemain();
-      if (!t || t.balapanId !== id) return;
-      var msg = { id: myPub, p: t.posMm, v: t.speedMmPerSec, g: t.gear, t: t.tms };
-      if (t.finish != null) msg.f = t.finish;
-      if (t.jebol) msg.j = 1;
-      if (X.live && X.chan) { try { X.chan.send({ type: 'broadcast', event: 'pos', payload: msg }); } catch (e) { } }
-      relayT += 100;
-      if ((!X.live && relayT >= 400) || relayT >= 3000) {
-        relayT = 0;
-        if (relayBusy) return; relayBusy = true;
-        api(['pos', id, msg.p, msg.v, msg.g, msg.t], function (r) {
-          relayBusy = false;
-          if (L !== X || X.live) return;
-          (r.lawan || []).forEach(function (o) { if (o.pos && o.umur < 2000) PacuSelat.posisiLawan(o.id, o.pos.p, o.pos.v, o.pos.g, o.pos.t); });
-        }, function () { relayBusy = false; });
+    // === SCROLL LOCK HANDLERS ===
+    enableScrollLock() {
+      const body = document.body;
+      const game = document.getElementById('game');
+      
+      // Simpan scroll position asli
+      this.scrollTop = window.scrollY || document.documentElement.scrollTop;
+      
+      // Tambah class ke body dan game
+      body.classList.add('mt-pacu-active');
+      if (game) game.classList.add('mt-pacu-active');
+      
+      // Lock canvas dari touchmove
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        canvas.addEventListener('touchmove', this.onCanvasTouchMove, { passive: false });
       }
-    }, 100);
-  }
-  function lepasKanal(X) {
-    if (!X) return;
-    clearInterval(X.posT); X.posT = null;
-    try { if (X.chan && window.MTSB) MTSB.removeChannel(X.chan); } catch (e) { }
-    X.chan = null; X.live = false;
-  }
-  function setorRoom(log) {
-    var X = L, room = L.room, coba = 0;
-    (function kirim() {
-      api(['setorRb', room.id, log], function (r) {
-        if (L !== X) return;
-        terima(r);
-        if (r.room) tunggu(r.room);
-      }, function (m) {
-        if (/belum melihat/.test(m) && ++coba < 6) { setTimeout(kirim, 900); return; }
-        pesan(m, 'error');
-      });
-    })();
-  }
-  function tunggu(room) {
-    if (!L) return;
-    L.room = room;
-    if (room.status === 'selesai' || room.status === 'batal') { tampilHasilRoom(room); return; }
-    clearTimeout(L.lihatT);
-    var X = L;
-    L.lihatT = setTimeout(function () {
-      if (L !== X) return;
-      api(['lihatRb', room.id], function (r) { terima(r); if (r.room) tunggu(r.room); }, function () { tunggu(room); });
-    }, 2000);
-  }
-  function tampilHasilRoom(room) {
-    if (!L) return;
-    lepasKanal(L);
-    var aku = (room.anggota || []).filter(function (a) { return a.aku; })[0] || {}, h = aku.hasil || {};
-    var fpk = {};
-    (room.anggota || []).forEach(function (a) {
-      if (a.status !== 'ikut') return;
-      var hh = a.hasil || {};
-      fpk[a.aku ? 'pemain' : a.id] = hh.jebol ? null : (hh.fin == null ? null : hh.fin);
-    });
-    var kembali = room.hasil && room.hasil.kembali;
-    var n = (room.anggota || []).filter(function (a) { return a.status === 'ikut'; }).length;
-    L.hasil = {
-      balapanId: room.id,
-      judul: kembali ? 'Adu Dibatalkan' : h.menang ? 'Juara Adu!' : h.jebol ? 'Mesin Jebol!' : ('Peringkat ' + (h.peringkat || '—')),
-      subJudul: 'Adu Kapten · ' + n + ' kapten · juru tulis Rayan Bazzy',
-      menang: !!h.menang, mesinJebol: !!h.jebol, waktuMs: h.jebol ? null : h.fin,
-      topSpeedKnot: h.top != null ? Math.round(h.top / 560) : 0, zeroToHundredMs: h.z100,
-      finishPerKapal: fpk,
-      keteranganHadiah: kembali ? 'Tak ada yang sampai Finish. Taruhan dikembalikan.'
-        : h.menang ? ('+' + Math.max(0, Number(h.dapat || 0) - Number(room.taruhan || 0)).toLocaleString('id-ID') + ' Gold bersih' + (h.medali ? ' & +' + h.medali + ' Medali' : ''))
-        : aku.setor ? 'Taruhan ' + Number(room.taruhan || 0).toLocaleString('id-ID') + ' Gold untuk sang juara.' : 'Kau tidak menyetor catatan; taruhan untuk sang juara.'
-    };
-    try { if (h.menang && typeof metaBump_ === 'function') metaBump_('adumenang'); } catch (e) { }
-    dorong();
-  }
+    },
 
-  // ------------------------------------------------------------ inbox multiplayer
-  function inbox(it) {
-    if (!it || String(it.type || '').indexOf('pacu_') !== 0) return false;
-    if (it.type === 'pacu_ajak') { ajak(it); if (L) segar(); return true; }
-    if (it.type === 'pacu_tolak') { toast((it.from || 'Kapten itu') + ' menolak ajakan Adu.', 'info'); if (L) segar(); return true; }
-    if (it.type === 'pacu_ikut') { toast((it.from || 'Kapten') + ' bergabung ke rombongan Adu.', 'info'); if (L) segar(); return true; }
-    if (it.type === 'pacu_bubar') { toast('Rombongan Adu ' + (it.from || '') + ' dibubarkan.', 'info'); if (L) segar(); return true; }
-    if (it.type === 'pacu_mulai') {
-      tutupAjak();
-      if (L) masukRoom(it.roomId);
-      else buka(function () { }, function () { masukRoom(it.roomId); });
-      return true;
+    disableScrollLock() {
+      const body = document.body;
+      const game = document.getElementById('game');
+      
+      // Lepas class
+      body.classList.remove('mt-pacu-active');
+      if (game) game.classList.remove('mt-pacu-active');
+      
+      // Lepas touchmove listener
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        canvas.removeEventListener('touchmove', this.onCanvasTouchMove);
+      }
+      
+      // Restore scroll position (jika diperlukan)
+      if (this.scrollTop !== undefined) {
+        window.scrollTo(0, this.scrollTop);
+      }
+    },
+
+    onCanvasTouchMove(e) {
+      // Cegah scroll saat touch canvas di Pacu aktif
+      const inPacuSelat = document.body.classList.contains('mt-pacu-active');
+      if (inPacuSelat) {
+        e.preventDefault();
+      }
+    },
+
+    // === MODAL LIFECYCLE ===
+    onStart(game) {
+      this.game = game;
+      this.state = { running: true, finished: false };
+      
+      // SCROLL LOCK AKTIF saat modal dibuka
+      this.enableScrollLock();
+      
+      // Setup modal container
+      const modal = document.getElementById('pacu-modal') || this.createModal();
+      modal.classList.add('mt-pacu-active');
+      modal.style.display = 'block';
+      
+      // Emit event
+      window.dispatchEvent(new CustomEvent('pacuSelatStart', { detail: { game } }));
+    },
+
+    onFinish(result) {
+      this.state.finished = true;
+      this.state.result = result;
+      
+      // Show result card
+      this.showResultCard(result);
+      
+      // Emit event
+      window.dispatchEvent(new CustomEvent('pacuSelatFinish', { detail: result }));
+    },
+
+    onClose() {
+      // SCROLL LOCK DILEPAS saat modal ditutup
+      this.disableScrollLock();
+      
+      const modal = document.getElementById('pacu-modal');
+      if (modal) {
+        modal.classList.remove('mt-pacu-active');
+        modal.style.display = 'none';
+      }
+      
+      this.state = null;
+      this.game = null;
+      
+      // Emit event
+      window.dispatchEvent(new CustomEvent('pacuSelatClose', {}));
+    },
+
+    onMute(muted) {
+      window.dispatchEvent(new CustomEvent('pacuSelatMute', { detail: { muted } }));
+    },
+
+    // === INPUT HANDLERS ===
+    onInput(key, value) {
+      if (!this.game) return;
+      this.game.onInput?.(key, value);
+    },
+
+    onJempol(side) {
+      if (!this.game) return;
+      this.game.onJempol?.(side);
+      localStorage.setItem('mt_pacu_jempol', side);
+    },
+
+    tataJempol(side) {
+      const pacu = document.getElementById('pacu-container');
+      if (pacu) {
+        pacu.classList.remove('jempol-left', 'jempol-right');
+        pacu.classList.add(`jempol-${side}`);
+      }
+    },
+
+    // === HELPER ===
+    createModal() {
+      const modal = document.createElement('div');
+      modal.id = 'pacu-modal';
+      modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+        background: #000; z-index: 10000; overflow: hidden;
+      `;
+      document.body.appendChild(modal);
+      return modal;
+    },
+
+    showResultCard(result) {
+      // Render kartu hasil — implementasi di PacuSelat
+      const card = document.createElement('div');
+      card.className = 'pacu-result-card';
+      card.innerHTML = `
+        <div>Waktu: ${(result.time / 1000).toFixed(2)}s</div>
+        <div>Posisi: ${result.position}/${result.competitors}</div>
+        ${result.personal_best ? '<div>🏆 Rekor Pribadi!</div>' : ''}
+      `;
+      const modal = document.getElementById('pacu-modal');
+      if (modal) modal.appendChild(card);
+    },
+
+    cleanup() {
+      this.subscriptions.forEach(unsub => unsub?.());
+      this.subscriptions = [];
+      this.disableScrollLock();
     }
-    if (it.type === 'pacu_hasil') { if (L && L.room && L.room.id === it.roomId) api(['lihatRb', it.roomId], function (r) { terima(r); if (r.room) tunggu(r.room); }, function () { }); return true; }
-    return true;
-  }
-  function ajak(it) {
-    ajakItem = it;
-    var host = document.getElementById('pcsAjak');
-    if (!host) { document.body.insertAdjacentHTML('beforeend', '<div id="pcsAjak"></div>'); host = document.getElementById('pcsAjak'); }
-    host.innerHTML = '<div class="bx"><div class="k">Pacu Selat · Adu Kapten</div><div class="n">' + esc(it.from || 'Kapten') + '</div>' +
-      '<div class="s">mengajakmu ke rombongan Adu di Selat Lurus (' + (it.jumlah || 1) + '/4 kapten) · ' + (Number(it.jarakMm) >= 1000000 ? '1,4 km' : Math.round(Number(it.jarakMm || 800000) / 1000) + ' m') +
-      (' · taruhan ' + Number(it.taruhan || 0).toLocaleString('id-ID') + ' Gold') + ' · <b class="cd">60</b> dtk</div>' +
-      '<div class="a"><button type="button" data-i="ya">TERIMA</button><button type="button" class="g" data-i="tidak">Tolak</button></div></div>';
-    host.classList.add('show');
-    try { if (typeof au_ === 'function') au_('bell'); } catch (e) { }
-    var sisa = 58, cd = host.querySelector('.cd');
-    clearInterval(host._t);
-    host._t = setInterval(function () { sisa--; if (cd) cd.textContent = Math.max(0, sisa); if (sisa <= 0) tutupAjak(); }, 1000);
-    host.onclick = function (e) {
-      var t = e.target.closest ? e.target.closest('[data-i]') : null; if (!t) return;
-      var ya = t.dataset.i === 'ya', id = it.roomId;
-      tutupAjak();
-      var lakukan = function () { jawab(id, ya); };
-      if (L) lakukan();
-      else if (ya) buka(function (m) { toast(m || 'Sirkuit Selat Lurus belum terbuka untukmu.', 'error'); }, lakukan);
-      else api(['jawab', id, false], function () { }, function () { });
-    };
-  }
-  function tutupAjak() { var h = document.getElementById('pcsAjak'); if (h) { h.classList.remove('show'); clearInterval(h._t); h.innerHTML = ''; } ajakItem = null; }
+  };
 
-  return { buka: buka, tutup: tutup, inbox: inbox, isOpen: function () { return !!L; } };
+  // Bind handler agar `this` tetap benar
+  PacuSelatHost.onCanvasTouchMove = PacuSelatHost.onCanvasTouchMove.bind(PacuSelatHost);
 })();
-</script>
