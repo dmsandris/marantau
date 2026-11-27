@@ -79,7 +79,7 @@ function create(dataDir, env = process.env) {
           let baseUrl = String(p.baseUrl || '').trim().replace(/\/+$/, '');
           if (baseUrl && !/^https:\/\/[a-z0-9.\-]+(:\d+)?(\/[\w.\-\/]*)?$/i.test(baseUrl)) baseUrl = '';
           const model = String(p.model || '').trim().replace(/^models\//, '');
-          if (!/^[a-z0-9][a-z0-9._:\-\/]{1,80}$/i.test(model)) continue;
+          if (model && !/^[a-z0-9][a-z0-9._:\-\/]{1,80}$/i.test(model)) continue;
           let key = old ? old.key : '';
           if (typeof p.key === 'string' && p.key.trim()) key = p.key.replace(/\s+/g, '').slice(0, 300);
           if (p.hapusKunci === true) key = '';

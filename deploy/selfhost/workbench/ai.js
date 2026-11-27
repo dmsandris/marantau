@@ -93,9 +93,45 @@ async function image(profile, prompt) {
 }
 
 async function test(profile) {
+  if (!profile.model) throw new Error('Pilih model dulu.');
   const t0 = Date.now();
   const r = await chat(profile, { system: 'Jawab satu kata.', messages: [{ role: 'user', content: 'Balas persis: siap' }], maxTokens: 20 });
   return { ok: true, ms: Date.now() - t0, balasan: r.text.slice(0, 60) };
 }
 
-module.exports = { chat, image, test, scrub };
+async function getJson(url, headers, key) {
+  let r;
+  try { r = await fetch(url, { headers, signal: AbortSignal.timeout(20000) }); } catch (e) { throw new Error('AI tidak terjangkau: ' + scrub(e.message, key)); }
+  const txt = await r.text(); let j; try { j = JSON.parse(txt); } catch { j = null; }
+  if (!r.ok || !j) { const m = (j && (j.error && (j.error.message || j.error) || j.message)) || txt; throw new Error(`AI ${r.status}: ${scrub(typeof m === 'string' ? m : JSON.stringify(m), key)}`); }
+  return j;
+}
+
+// Daftar model yang tersedia untuk kunci ini, langsung dari API penyedia. Mengembalikan [{id,nama}] terurut.
+async function listModels(profile) {
+  if (!profile || !profile.key) throw new Error('Isi kunci API dulu.');
+  const k = profile.key; let out = [];
+  if (profile.provider === 'anthropic') {
+    const j = await getJson(`${URLS.anthropic}/v1/models?limit=1000`, { 'x-api-key': k, 'anthropic-version': '2023-06-01' }, k);
+    out = (j.data || []).map(m => ({ id: m.id, nama: m.display_name || m.id }));
+  } else if (profile.provider === 'gemini') {
+    const base = profile.baseUrl || URLS.gemini;
+    for (let tok = '', n = 0; n < 5; n++) {
+      const j = await getJson(`${base}/v1beta/models?pageSize=1000${tok ? '&pageToken=' + encodeURIComponent(tok) : ''}`, { 'x-goog-api-key': k }, k);
+      for (const m of j.models || []) {
+        const g = m.supportedGenerationMethods;
+        if (Array.isArray(g) && !g.includes('generateContent')) continue;
+        out.push({ id: String(m.name || '').replace(/^models\//, ''), nama: m.displayName || m.name });
+      }
+      tok = j.nextPageToken || ''; if (!tok) break;
+    }
+  } else {
+    const base = profile.baseUrl || URLS.openai;
+    const j = await getJson(`${base}/models`, { authorization: 'Bearer ' + k }, k);
+    out = (j.data || []).map(m => ({ id: m.id, nama: m.id }));
+  }
+  const seen = new Set();
+  return out.filter(m => m.id && !seen.has(m.id) && seen.add(m.id)).sort((x, y) => x.id.localeCompare(y.id));
+}
+
+module.exports = { chat, image, test, listModels, scrub };

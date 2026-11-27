@@ -308,17 +308,33 @@ order by table_name, ordinal_position;</textarea></label>
   // ---------------- Pengaturan ----------------
   const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32);
   function newDraft() { const p = S.st.pengaturan; return { profiles: p.profiles.map(x => ({ ...x, key: '' })), roles: { ...p.roles }, github: { repo: p.github.repo, base: p.github.base, token: '' }, limits: { ...p.limits } }; }
+  // Daftar model per profil, diambil dari API penyedia (disimpan di memori halaman).
+  S.models = S.models || {};
+  function modelField(x, i) {
+    const m = S.models[x.id];
+    if (m && m.list) {
+      const ids = m.list.map(o => o.id); const extra = x.model && !ids.includes(x.model) ? [{ id: x.model, nama: x.model + ' (tidak ada di daftar)' }] : [];
+      return `<select class="in" data-p="${i}.model"><option value="" ${x.model ? '' : 'selected'}>(pilih model)</option>${[...extra, ...m.list].map(o => `<option value="${esc(o.id)}" ${x.model === o.id ? 'selected' : ''}>${esc(o.nama === o.id ? o.id : o.nama + ' · ' + o.id)}</option>`).join('')}</select><small>${m.list.length} model tersedia. <a href="#" data-act="muat-model" data-i="${i}">Muat ulang</a></small>`;
+    }
+    return `<input class="in" data-p="${i}.model" value="${esc(x.model)}" placeholder="ketik id model, atau muat daftar"><small>${m && m.err ? `<span class="dim">${esc(m.err)}</span> ` : ''}<a href="#" data-act="muat-model" data-i="${i}">${m && m.busy ? 'Memuat…' : 'Muat daftar model dari API'}</a></small>`;
+  }
+  async function muatModel(i) {
+    const x = S.draft.profiles[i]; if (!x) return;
+    S.models[x.id] = { ...(S.models[x.id] || {}), busy: true, err: '' }; vPengaturan();
+    const j = await api('/pengaturan/model', { id: x.id, provider: x.provider, baseUrl: x.baseUrl, key: x.key });
+    S.models[x.id] = j.ok ? { list: j.models } : { err: j.error || 'Gagal memuat daftar model.' };
+    vPengaturan();
+  }
   function vPengaturan() {
     if (!S.draft) S.draft = newDraft();
     const d = S.draft, p = S.st.pengaturan;
     setMain(`<section>
       <div class="head"><div><h1>Pengaturan</h1><p class="sub">Isi lebih dari satu profil AI, lalu tentukan profil mana untuk tiap fungsi. Kunci disimpan di server dan tidak pernah ditampilkan lagi.</p></div><div class="tools"><button class="btn btn--primary" data-act="simpan-set">Simpan semua</button></div></div>
-      <datalist id="models"><option>claude-opus-5-5</option><option>claude-sonnet-5-5</option><option>claude-haiku-5-5</option><option>claude-fable-5-2</option><option>gemini-2.5-pro</option><option>gemini-2.5-flash</option><option>gemini-2.5-flash-image</option></datalist>
       <div class="block block--first"><h2>1. Profil AI</h2><p class="note">Satu profil = satu penyedia + satu model + satu kunci. Contoh: "Claude Opus" (orkestrator), "Claude Sonnet" (coder), "Gemini Pro" (cerita), "Gemini Gambar". Penyedia OpenAI-kompatibel (OpenRouter, Groq, dll.) bisa dipakai lewat Base URL.</p>
         <div class="cards">${d.profiles.map((x, i) => `<div class="ai-card" data-i="${i}"><h3>${esc(x.label || 'Profil')}<span class="dim">${x.ada ? 'kunci …' + esc(x.akhir) : 'belum ada kunci'}</span></h3>
           <label class="lbl">Nama<input class="in" data-p="${i}.label" value="${esc(x.label)}"></label>
           <div class="row2"><label class="lbl">Penyedia<select class="in" data-p="${i}.provider">${p.providers.map(v => `<option value="${v}" ${x.provider === v ? 'selected' : ''}>${v === 'openai' ? 'openai / kompatibel' : v}</option>`).join('')}</select></label>
-          <label class="lbl">Model<input class="in" list="models" data-p="${i}.model" value="${esc(x.model)}"></label></div>
+          <label class="lbl">Model${modelField(x, i)}</label></div>
           <label class="lbl">Kunci API<input class="in" type="password" autocomplete="new-password" data-p="${i}.key" placeholder="${x.ada ? 'biarkan kosong untuk tetap memakai yang lama' : 'tempel kunci'}"></label>
           <label class="lbl">Base URL (opsional, https)<input class="in" data-p="${i}.baseUrl" value="${esc(x.baseUrl || '')}" placeholder="kosong = alamat resmi penyedia"></label>
           <div class="btns"><button class="btn btn--small" data-act="tes-profil" data-i="${i}">Simpan dan tes</button><button class="btn btn--small btn--danger" data-act="hapus-profil" data-i="${i}">Hapus</button><span class="msg" id="tp${i}"></span></div></div>`).join('')}</div>
@@ -335,6 +351,7 @@ order by table_name, ordinal_position;</textarea></label>
         <label class="lbl">Langkah alat per giliran<input class="in" type="number" data-l="langkahAlat" value="${esc(d.limits.langkahAlat)}"></label>
         <label class="chk"><input type="checkbox" data-l="jedaRencana" ${d.limits.jedaRencana ? 'checked' : ''}> Minta persetujuan rencana (bawaan)</label></div></div>
     </section>`);
+    d.profiles.forEach((x, i) => { if (x.ada && !S.models[x.id] && route().tab === 'pengaturan') muatModel(i); });
   }
   function collect() {
     const d = S.draft;
@@ -350,7 +367,7 @@ order by table_name, ordinal_position;</textarea></label>
   // ---------------- Aksi (delegasi klik) ----------------
   document.addEventListener('input', e => {
     const t = e.target, d = S.draft; if (!d) return;
-    if (t.dataset.p) { const [i, f] = t.dataset.p.split('.'); d.profiles[+i][f] = t.value; }
+    if (t.dataset.p) { const [i, f] = t.dataset.p.split('.'); d.profiles[+i][f] = t.value; if (f === 'provider' || f === 'baseUrl') { delete S.models[d.profiles[+i].id]; if (f === 'provider') { d.profiles[+i].model = ''; vPengaturan(); } } }
     else if (t.dataset.g) d.github[t.dataset.g] = t.value;
     else if (t.dataset.l) d.limits[t.dataset.l] = t.type === 'checkbox' ? t.checked : t.value;
     else if (t.dataset.r) d.roles[t.dataset.r] = t.value;
@@ -361,7 +378,7 @@ order by table_name, ordinal_position;</textarea></label>
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act, id = b.dataset.id;
-    if (['dir', 'file'].includes(act)) e.preventDefault();
+    if (['dir', 'file', 'muat-model'].includes(act)) e.preventDefault();
     try {
       switch (act) {
         case 'contoh': $('#rq').value = CONTOH[+b.dataset.i]; break;
@@ -414,6 +431,7 @@ order by table_name, ordinal_position;</textarea></label>
         }
         case 'doc-edit': { const j = await api('/dokumen?id=' + encodeURIComponent(id)); if (j.error) { toast(j.error); break; } $('#dId').value = j.id; $('#dNama').value = j.nama; $('#dTeks').value = j.teks; $$('.dtag').forEach(x => { x.checked = j.tags.includes(x.value); }); $('#dNama').scrollIntoView({ block: 'center' }); break; }
         case 'doc-hapus': { if (!confirm('Hapus dokumen ini?')) break; await api('/dokumen/hapus', { id }); await loadState(); render(); break; }
+        case 'muat-model': await muatModel(+b.dataset.i); break;
         case 'tambah-profil': S.draft.profiles.push({ id: 'p' + Math.random().toString(36).slice(2, 6), label: 'Profil ' + (S.draft.profiles.length + 1), provider: 'anthropic', model: '', baseUrl: '', key: '', ada: false, akhir: '' }); vPengaturan(); break;
         case 'hapus-profil': { if (!confirm('Hapus profil ini? Peran yang memakainya dikosongkan.')) break; S.draft.profiles.splice(+b.dataset.i, 1); vPengaturan(); break; }
         case 'simpan-set': { busy(b, true); const ok = await saveSettings(); busy(b, false); if (ok) { toast('Pengaturan tersimpan.'); vPengaturan(); } break; }
