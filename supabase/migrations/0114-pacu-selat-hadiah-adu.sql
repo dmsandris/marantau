@@ -1,45 +1,55 @@
 -- =====================================================================
--- 0114 · PACU SELAT — HADIAH TETAP ADU KAPTEN + KATEGORI JARAK
+-- 0114 · PACU SELAT — KATEGORI JARAK, TARUHAN & MEDALI ADU KAPTEN
 --   Tuan rombongan memilih kategori 400 m / 800 m / 1,4 km (saat mengajak, atau
 --   lewat aksi 'jarakRb' selagi rombongan masih di lobi).
---   Hadiah dasar (2 kapten):   400 m = 10.000 Gold + 2 Rantai Biru
---                              800 m = 15.000 Gold + 3 Rantai Biru
---                              1,4 km = 20.000 Gold + 5 Rantai Biru
---   Pengali jumlah kapten: 2 kapten x1, 3 kapten x2, 4 kapten x3 (= kapten - 1).
---   Contoh: 1,4 km dengan 4 kapten -> Juara 1 dapat 60.000 Gold + 15 Rantai Biru.
---   Hanya Juara 1 yang menerima hadiah (seri dibagi rata). Hadiah baru diberikan bila
---   minimal dua catatan masuk (menang WO tidak mendapat hadiah). Taruhan masuk-lomba
---   dihapus (PsAduTaruhan = 0, masih bisa diisi GM); Medali Adu di ruang ini dicabut.
---   Rantai Biru masuk langsung ke inventori (qi_mk_rantai), tanpa batas muatan.
---   Angka bisa diubah lewat game.config: PsAduHadiah{400,800,1400}, PsAduRantai{400,800,1400}.
+--   Taruhan masuk lomba (tiap kapten) dan Medali dasar Juara 1 (2 kapten):
+--        400 m = 10.000 Gold, 2 Medali
+--        800 m = 15.000 Gold, 3 Medali
+--        1,4 km = 20.000 Gold, 5 Medali
+--   Juara 1 membawa seluruh pot taruhan (= taruhan x jumlah kapten; untung bersih
+--   taruhan x (kapten - 1)) dan Medali dasar x (kapten - 1): 2 kapten x1, 3 x2, 4 x3.
+--   Contoh: 1,4 km dengan 4 kapten -> pot 80.000 (untung 60.000 Gold) + 15 Medali.
+--   Hanya Juara 1 yang menerima. Medali baru diberikan bila minimal dua catatan
+--   masuk (menang WO hanya mendapat pot). Seri: pot dan Medali dibagi rata.
+--   Tanpa catatan sama sekali: taruhan dikembalikan.
+--   Angka bisa diubah GM lewat game.config: PsAduTaruhan{400,800,1400}, PsAduMedali{400,800,1400}.
 -- Aman diulang.
 -- =====================================================================
 
 insert into game.config(key, value) values
-  ('PsAduHadiah400', '10000'), ('PsAduHadiah800', '15000'), ('PsAduHadiah1400', '20000'),
-  ('PsAduRantai400', '2'),     ('PsAduRantai800', '3'),     ('PsAduRantai1400', '5'),
-  ('PsAduTaruhan', '0')
+  ('PsAduTaruhan400', '10000'), ('PsAduTaruhan800', '15000'), ('PsAduTaruhan1400', '20000'),
+  ('PsAduMedali400', '2'),      ('PsAduMedali800', '3'),      ('PsAduMedali1400', '5')
 on conflict (key) do nothing;
 
+create or replace function game.ps_adu_kat(p_jarak_mm int) returns text
+language sql immutable as $$ select case when p_jarak_mm <= 400000 then '400' when p_jarak_mm >= 1400000 then '1400' else '800' end $$;
+
+create or replace function game.ps_adu_taruhan(p_jarak_mm int) returns int
+language sql stable as $$
+  select greatest(0, game.cfg_num('PsAduTaruhan' || game.ps_adu_kat(p_jarak_mm),
+           case game.ps_adu_kat(p_jarak_mm) when '400' then 10000 when '800' then 15000 else 20000 end))::int
+$$;
+
+-- hg = untung bersih Gold Juara 1, hr = Medali Juara 1, untuk jarak & jumlah kapten tertentu
 create or replace function game.ps_adu_hadiah(p_jarak_mm int, p_kapten int, out hg bigint, out hr int)
 language sql stable as $$
-  select (game.cfg_num('PsAduHadiah' || k, case k when '400' then 10000 when '800' then 15000 else 20000 end))::bigint * pg,
-         (game.cfg_num('PsAduRantai' || k, case k when '400' then 2 when '800' then 3 else 5 end))::int * pg
-    from (select case when p_jarak_mm <= 400000 then '400' when p_jarak_mm >= 1400000 then '1400' else '800' end as k,
-                 greatest(1, least(4, coalesce(p_kapten, 2)) - 1)::int as pg) x
+  select game.ps_adu_taruhan(p_jarak_mm)::bigint * pg,
+         (greatest(0, game.cfg_num('PsAduMedali' || game.ps_adu_kat(p_jarak_mm),
+            case game.ps_adu_kat(p_jarak_mm) when '400' then 2 when '800' then 3 else 5 end)))::int * pg
+    from (select greatest(1, least(4, coalesce(p_kapten, 2)) - 1)::int as pg) x
 $$;
 
 create or replace function game.ps_adu_hadiah_tabel() returns jsonb
 language sql stable as $$
-  select jsonb_object_agg(k, jsonb_build_object('gold', (select hg from game.ps_adu_hadiah(k::int * 1000, 2)),
-                                                 'rantai', (select hr from game.ps_adu_hadiah(k::int * 1000, 2))))
+  select jsonb_object_agg(k, jsonb_build_object('taruhan', game.ps_adu_taruhan(k::int * 1000),
+                                                 'medali', (select hr from game.ps_adu_hadiah(k::int * 1000, 2))))
     from unnest(array['400', '800', '1400']) k
 $$;
 
 create or replace function game.ps_room_hitung(p_id text) returns void
 language plpgsql as $$
 declare r game.ps_room; m record; v_h jsonb; v_best int; v_log int := 0; v_fin int := 0; v_pot bigint := 0;
-  v_win int; v_bagi bigint; v_sisa bigint; v_gold_h bigint := 0; v_rantai_h int := 0; v_br int; v_sr int; v_ikut int;
+  v_win int; v_bagi bigint; v_sisa bigint; v_gold_h bigint := 0; v_medali_h int := 0; v_br int; v_sr int; v_ikut int;
   v_rank int; v_res jsonb := '{}'::jsonb; v_sp game.ps_sp; v_habis boolean; v_n int;
 begin
   select * into r from game.ps_room where id = p_id for update;
@@ -56,9 +66,9 @@ begin
     return;
   end if;
 
-  -- Hadiah tetap Juara 1 (sesuai jarak dan jumlah kapten yang bersaing) hanya bila minimal dua catatan masuk.
+  -- Medali Juara 1 (sesuai jarak dan jumlah kapten yang bersaing) hanya bila minimal dua catatan masuk.
   select count(*) into v_ikut from game.ps_room_anggota where room_id = r.id and status = 'ikut';
-  select hg, hr into v_gold_h, v_rantai_h from game.ps_adu_hadiah(r.jarak_mm, v_ikut);
+  select hg, hr into v_gold_h, v_medali_h from game.ps_adu_hadiah(r.jarak_mm, v_ikut);
 
   -- hitung tiap catatan
   for m in select * from game.ps_room_anggota where room_id = r.id and status = 'ikut' order by urut loop
@@ -87,9 +97,9 @@ begin
      where room_id = r.id and status = 'ikut' and (hasil ->> 'fin') is not null and not coalesce((hasil ->> 'jebol')::boolean, false);
     select count(*) into v_win from game.ps_room_anggota
      where room_id = r.id and status = 'ikut' and (hasil ->> 'fin')::int = v_best and not coalesce((hasil ->> 'jebol')::boolean, false);
-    if v_log < 2 then v_gold_h := 0; v_rantai_h := 0; end if;
-    v_bagi := (v_pot + v_gold_h) / greatest(1, v_win); v_sisa := (v_pot + v_gold_h) - v_bagi * v_win;
-    v_br := v_rantai_h / greatest(1, v_win); v_sr := v_rantai_h - v_br * v_win; v_rank := 0;
+    if v_log < 2 then v_medali_h := 0; end if;
+    v_bagi := v_pot / greatest(1, v_win); v_sisa := v_pot - v_bagi * v_win;
+    v_br := v_medali_h / greatest(1, v_win); v_sr := v_medali_h - v_br * v_win; v_rank := 0;
     for m in select a.*, (a.hasil ->> 'fin')::int as f from game.ps_room_anggota a
               where a.room_id = r.id and a.status = 'ikut'
               order by case when (a.hasil ->> 'fin') is null or coalesce((a.hasil ->> 'jebol')::boolean, false) then 1 else 0 end,
@@ -97,13 +107,16 @@ begin
       v_rank := v_rank + 1;
       if m.f = v_best and not coalesce((m.hasil ->> 'jebol')::boolean, false) then
         if v_bagi + v_sisa > 0 then perform game.ps_kas_catat(m.player_id, v_bagi + v_sisa, 'adu_pot', r.id); end if;
-        if v_br + v_sr > 0 then perform game.item_adjust(m.player_id, 'qi_mk_rantai', v_br + v_sr); end if;
+        if v_br + v_sr > 0 then
+          insert into game.medali(player_id, jumlah, total) values (m.player_id, v_br + v_sr, v_br + v_sr)
+            on conflict (player_id) do update set jumlah = game.medali.jumlah + (v_br + v_sr), total = game.medali.total + (v_br + v_sr);
+        end if;
         update game.ps_room_anggota set hasil = hasil || jsonb_build_object('peringkat', 1, 'menang', true, 'dapat', v_bagi + v_sisa,
-               'rantai', v_br + v_sr, 'medali', 0)
+               'medali', v_br + v_sr)
          where room_id = r.id and player_id = m.player_id;
         v_sisa := 0; v_sr := 0;
       else
-        update game.ps_room_anggota set hasil = hasil || jsonb_build_object('peringkat', v_rank, 'menang', false, 'dapat', 0, 'rantai', 0, 'medali', 0)
+        update game.ps_room_anggota set hasil = hasil || jsonb_build_object('peringkat', v_rank, 'menang', false, 'dapat', 0, 'medali', 0)
          where room_id = r.id and player_id = m.player_id;
       end if;
       if m.f is not null and not coalesce((m.hasil ->> 'jebol')::boolean, false) then
@@ -111,7 +124,7 @@ begin
       end if;
     end loop;
     update game.ps_room set status = 'selesai', hasil = jsonb_build_object('pot', v_pot, 'terbaik', v_best, 'pemenang', v_win, 'catatan', v_log,
-                                                                         'hadiahGold', v_gold_h, 'hadiahRantai', v_rantai_h, 'kapten', v_ikut) where id = r.id;
+                                                                         'hadiahMedali', v_medali_h, 'kapten', v_ikut) where id = r.id;
   end if;
 
   for m in select * from game.ps_room_anggota where room_id = r.id and status = 'ikut' loop
@@ -370,7 +383,7 @@ begin
     if v_rid is null then
       v_rid := game.mp_uid('psb');
       insert into game.ps_room(id, tuan, created, game_day, taruhan, jarak_mm)
-      values (v_rid, v_id, v_now, game.game_day(), greatest(0, game.cfg_num('PsAduTaruhan', 0))::int, v_jarak);
+      values (v_rid, v_id, v_now, game.game_day(), game.ps_adu_taruhan(v_jarak), v_jarak);
       insert into game.ps_room_anggota(room_id, player_id, nama, status, urut, diundang)
       values (v_rid, v_id, game.ps_nama(v_id), 'ikut', 1, v_now);
     end if;
@@ -378,7 +391,7 @@ begin
     if v_room.tuan <> v_id then raise exception 'Hanya tuan rombongan yang boleh mengajak.'; end if;
     if v_room.status <> 'lobi' then raise exception 'Rombongan sudah berangkat.'; end if;
     if game.arg(a, 2) is not null and v_room.jarak_mm <> v_jarak then
-      update game.ps_room set jarak_mm = v_jarak where id = v_rid returning * into v_room;
+      update game.ps_room set jarak_mm = v_jarak, taruhan = game.ps_adu_taruhan(v_jarak) where id = v_rid returning * into v_room;
     end if;
     select count(*) into v_n from game.ps_room_anggota where room_id = v_rid
        and (status = 'ikut' or (status = 'diundang' and v_now - diundang < greatest(10, game.cfg_num('PsUndanganDetik', 60))::bigint * 1000));
@@ -403,7 +416,7 @@ begin
     select * into v_room from game.ps_room where id = v_rid for update;
     if v_room.id is null or v_room.status <> 'lobi' then raise exception 'Rombongan itu sudah tidak menunggu.'; end if;
     if v_room.tuan <> v_id then raise exception 'Hanya tuan rombongan yang boleh memilih jarak.'; end if;
-    update game.ps_room set jarak_mm = v_jarak where id = v_rid;
+    update game.ps_room set jarak_mm = v_jarak, taruhan = game.ps_adu_taruhan(v_jarak) where id = v_rid;
     return jsonb_build_object('ok', true, 'ps', game.ps_state(v_id));
   end if;
 

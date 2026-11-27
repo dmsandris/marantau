@@ -229,8 +229,8 @@ const Q = { awal: 'a', tepat: 't', sempurna: 's', telat: 'l' };
   r = await A.call('api_pacuSelat', ['mulaiRb', rid]);
   const room = r.room;
   ok(room.status === 'jalan' && room.anggota.length === 4 && room.mulaiServerMs > room.nowMs && room.waktuMeriamMs === P.S.waktuMeriam(room.seed), 'obor dipasang: start serentak dari jam server');
-  for (const u of [A, B, C, D]) ok(await gold(u) === goldAwal[u.id], 'tanpa taruhan masuk: Gold tidak dipotong');
-  ok(room.jarakMm === 800000, 'tanpa pilihan, kategori 800 m');
+  for (const u of [A, B, C, D]) ok(await gold(u) === goldAwal[u.id] - 15000, 'taruhan masuk 800 m = 15.000 dipotong');
+  ok(room.jarakMm === 800000 && room.taruhan === 15000, 'tanpa pilihan, kategori 800 m');
   ok((await one(`select count(*)::int n from game.mp_inbox where item ->> 'type' = 'pacu_mulai'`)).n === 4, 'empat kapten dibangunkan');
   // akses kanal realtime
   await H.sql(`select set_config('request.jwt.claim.sub', $1, false)`, [B.id]);
@@ -256,38 +256,37 @@ const Q = { awal: 'a', tepat: 't', sempurna: 's', telat: 'l' };
   const by = Object.fromEntries(r.room.anggota.map(x => [x.nama, x.hasil]));
   ok(by['Kapten Cici'].menang === true && by['Kapten Cici'].peringkat === 1 && by['Kapten Cici'].fin === hc.s.finishWaktuMs, 'Cici juara, waktu = klien');
   ok(by['Kapten Dodi'].jebol === true && by['Kapten Dodi'].menang === false, 'Dodi jebol');
-  ok(await gold(C) === goldAwal[C.id] + 45000, '800 m, 4 kapten: 15.000 x3 = 45.000 Gold untuk Juara 1');
-  const rantai = async (u) => ((await one(`select coalesce(sum(qty), 0)::int q from game.inventory where player_id = $1 and item_id = 'qi_mk_rantai'`, [u.id])).q);
-  ok(await rantai(C) === 9 && by['Kapten Cici'].rantai === 9, '800 m, 4 kapten: 3 x3 = 9 Rantai Biru untuk Juara 1');
-  for (const u of [A, B, D]) ok(await gold(u) === goldAwal[u.id] && await rantai(u) === 0, 'selain Juara 1 tidak mendapat hadiah');
-  ok((await one(`select coalesce(sum(jumlah), 0)::int j from game.medali`)).j === 0, 'Medali Adu tidak diberikan lagi di ruang ini');
-  ok(by['Kapten Ana'].dapat === 0 && by['Kapten Ana'].rantai === 0, 'hasil peringkat lain: dapat 0');
+  ok(await gold(C) === goldAwal[C.id] - 15000 + 60000, '800 m, 4 kapten: pot 60.000 ke Juara 1 (untung 45.000)');
+  const medali = async (u) => ((await one(`select coalesce(sum(jumlah), 0)::int q from game.medali where player_id = $1`, [u.id])).q);
+  ok(await medali(C) === 9 && by['Kapten Cici'].medali === 9, '800 m, 4 kapten: 3 x3 = 9 Medali untuk Juara 1');
+  for (const u of [A, B, D]) ok(await gold(u) === goldAwal[u.id] - 15000 && await medali(u) === 0, 'selain Juara 1 kehilangan taruhan, tanpa Medali');
+  ok(by['Kapten Ana'].dapat === 0 && by['Kapten Ana'].medali === 0, 'hasil peringkat lain: dapat 0');
   ok((await one(`select jebol from game.ps_pemain where player_id = $1`, [D.id])).jebol === true, 'mesin Dodi jebol tersimpan');
   ok((await one(`select count(*)::int n from game.mp_inbox where item ->> 'type' = 'pacu_hasil'`)).n === 4, 'hasil dikirim ke semua');
   st = (await C.call('api_pacuSelat', ['status'])).ps;
   ok(st.adu.sisaAduHariIni === 9 && st.riwayat[0].keterangan === 'Juara Adu', 'jatah adu berkurang, riwayat juara');
 
   // taruhan masuk bisa diaktifkan GM; tanpa catatan -> taruhan kembali. Sekalian uji ganti kategori jarak.
-  await H.sql(`update game.config set value = '15000' where key = 'PsAduTaruhan'`);
   await D.call('api_pacuSelat', ['pasang', 'reparasi_mesin']);
   const pubB = await pub(B);
   await H.expectError(() => A.call('api_pacuSelat', ['ajak', pubB, '999']), /Kategori jarak/);
   await A.call('api_pacuSelat', ['ajak', await pub(B), '1400']);
   ok((await one(`select jarak_mm from game.ps_room where status = 'lobi' and tuan = $1`, [A.id])).jarak_mm === 1400000, 'rombongan dibuat dengan kategori 1,4 km');
+  ok((await one(`select taruhan from game.ps_room where status = 'lobi' and tuan = $1`, [A.id])).taruhan === 20000, 'taruhan 1,4 km = 20.000');
   const rid2 = (await B.call('api_pacuSelat', ['status'])).ps.adu.undanganMasuk[0].id;
   ok((await B.call('api_pacuSelat', ['status'])).ps.adu.undanganMasuk[0].jarakMm === 1400000, 'undangan memuat kategori jarak');
   await H.expectError(() => B.call('api_pacuSelat', ['jarakRb', rid2, '400']), /Hanya tuan/);
   await H.expectError(() => A.call('api_pacuSelat', ['jarakRb', rid2, '700']), /Kategori jarak/);
   await A.call('api_pacuSelat', ['jarakRb', rid2, '400']);
   ok((await one(`select jarak_mm from game.ps_room where id = $1`, [rid2])).jarak_mm === 400000, 'tuan mengganti kategori jadi 400 m');
+  ok((await one(`select taruhan from game.ps_room where id = $1`, [rid2])).taruhan === 10000, 'taruhan ikut berubah jadi 10.000');
   await B.call('api_pacuSelat', ['jawab', rid2, true]);
   const gA = await gold(A), gB = await gold(B);
   await A.call('api_pacuSelat', ['mulaiRb', rid2]);
-  ok(await gold(A) === gA - 15000, 'taruhan rombongan kedua');
+  ok(await gold(A) === gA - 10000, 'taruhan rombongan kedua (400 m)');
   await H.sql(`update game.ps_room set mulai = mulai - 400000 where id = $1`, [rid2]);
   r = await B.call('api_pacuSelat', ['lihatRb', rid2]);
   ok(r.room.status === 'selesai' && r.room.hasil.kembali === true && await gold(A) === gA && await gold(B) === gB, 'tanpa catatan: taruhan kembali');
-  await H.sql(`update game.config set value = '0' where key = 'PsAduTaruhan'`);
 
   // ---- hadiah per kategori & jumlah kapten (2 kapten: pengali x1) ----
   const duel = async (jarak, tuan, lawan, setorSemua) => {
@@ -302,26 +301,27 @@ const Q = { awal: 'a', tepat: 't', sempurna: 's', telat: 'l' };
     return { id, rm, lg, mm };
   };
   {
-    const g0 = { A: await gold(A), B: await gold(B) }, r0 = { A: await rantai(A), B: await rantai(B) };
+    const g0 = { A: await gold(A), B: await gold(B) }, m0 = { A: await medali(A), B: await medali(B) };
     const d = await duel(1400, A, B);
     const la = d.lg('Kapten Ana', P.SKILL.jago), lb = d.lg('Kapten Budi', P.SKILL.pemula);
-    ok(d.rm.jarakMm === 1400000, 'kategori 1,4 km terbawa ke balapan');
+    ok(d.rm.jarakMm === 1400000 && d.rm.taruhan === 20000, 'kategori 1,4 km terbawa ke balapan, taruhan 20.000');
     await A.call('api_pacuSelat', ['setorRb', d.id, la.log]);
     r = await B.call('api_pacuSelat', ['setorRb', d.id, lb.log]);
-    ok(r.room.status === 'selesai' && r.room.hasil.hadiahGold === 20000 && r.room.hasil.hadiahRantai === 5, '1,4 km, 2 kapten: 20.000 Gold + 5 Rantai Biru');
-    ok(await gold(A) === g0.A + 20000 && await rantai(A) === r0.A + 5 && await gold(B) === g0.B && await rantai(B) === r0.B, 'hanya Juara 1 yang menerima hadiah');
+    ok(r.room.status === 'selesai' && r.room.hasil.pot === 40000 && r.room.hasil.hadiahMedali === 5, '1,4 km, 2 kapten: pot 40.000 + 5 Medali');
+    ok(await gold(A) === g0.A + 20000 && await medali(A) === m0.A + 5 && await gold(B) === g0.B - 20000 && await medali(B) === m0.B, 'hanya Juara 1 yang menerima: untung 20.000 + 5 Medali');
   }
   {
-    const g0 = await gold(B), r0 = await rantai(B);
+    const g0 = await gold(B), m0 = await medali(B);
     const d = await duel(400, B, A);
     const lb = d.lg('Kapten Budi', P.SKILL.biasa);
     await B.call('api_pacuSelat', ['setorRb', d.id, lb.log]);
     await H.sql(`update game.ps_room set mulai = mulai - 400000 where id = $1`, [d.id]);
     r = await A.call('api_pacuSelat', ['lihatRb', d.id]);
-    ok(r.room.status === 'selesai' && r.room.hasil.hadiahGold === 0 && await gold(B) === g0 && await rantai(B) === r0, 'menang WO (lawan tak menyetor) tanpa hadiah');
+    ok(r.room.status === 'selesai' && r.room.hasil.hadiahMedali === 0 && await gold(B) === g0 + 10000 && await medali(B) === m0, 'menang WO: hanya pot (untung 10.000), tanpa Medali');
   }
-  ok(JSON.stringify((await one(`select game.ps_adu_hadiah_tabel() t`)).t) === JSON.stringify({ '400': { gold: 10000, rantai: 2 }, '800': { gold: 15000, rantai: 3 }, '1400': { gold: 20000, rantai: 5 } }), 'tabel hadiah dasar');
-  ok(JSON.stringify((await one(`select hg, hr from game.ps_adu_hadiah(1400000, 4)`))) === JSON.stringify({ hg: '60000', hr: 15 }) || (await one(`select hg, hr from game.ps_adu_hadiah(1400000, 4)`)).hr === 15, '1,4 km, 4 kapten: 60.000 Gold + 15 Rantai Biru');
+  const tb = (await one(`select game.ps_adu_hadiah_tabel() t`)).t;
+  ok(tb['400'].taruhan === 10000 && tb['400'].medali === 2 && tb['800'].taruhan === 15000 && tb['800'].medali === 3 && tb['1400'].taruhan === 20000 && tb['1400'].medali === 5, 'tabel dasar taruhan & Medali');
+  ok((await one(`select hg, hr from game.ps_adu_hadiah(1400000, 4)`)).hr === 15 && Number((await one(`select hg from game.ps_adu_hadiah(1400000, 4)`)).hg) === 60000, '1,4 km, 4 kapten: untung 60.000 Gold + 15 Medali');
   // menolak & bubar
   await A.call('api_pacuSelat', ['ajak', await pub(E)]);
   const rid3 = (await E.call('api_pacuSelat', ['status'])).ps.adu.undanganMasuk[0].id;
