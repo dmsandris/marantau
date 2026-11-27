@@ -2649,6 +2649,18 @@
     .pcs-root .pcs-res-kiat { margin-top: 8px; padding: 8px 11px; border-radius: 9px; text-align: left; font-size: 12.5px;
       background: rgba(124, 195, 220, 0.1); border: 1px solid rgba(124, 195, 220, 0.4); color: #d8eef6; }
     .pcs-root .pcs-res-kiat b { color: var(--pcs-sea-300); }
+    .pcs-root .pcs-kat-box { margin: 4px 0 8px; padding: 10px 12px; border-radius: 10px; background: rgba(15, 9, 6, 0.6); border: 1px solid rgba(143, 101, 34, 0.45); }
+    .pcs-root .pcs-kat-judul { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pcs-brass-300); margin-bottom: 7px; }
+    .pcs-root .pcs-kat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pcs-root .pcs-kat-btn { appearance: none; cursor: pointer; text-align: center; padding: 8px 6px; border-radius: 9px; color: var(--pcs-brass-100);
+      background: linear-gradient(180deg, #2a1a0f, #170d07); border: 1px solid rgba(143, 101, 34, 0.6); display: flex; flex-direction: column; gap: 2px; }
+    .pcs-root .pcs-kat-btn b { font-family: var(--pcs-font-display); font-size: 15px; }
+    .pcs-root .pcs-kat-btn span { font-size: 10.5px; opacity: 0.8; }
+    .pcs-root .pcs-kat-btn.pcs-on { border-color: #e8b84a; box-shadow: 0 0 12px rgba(232, 184, 74, 0.45); background: linear-gradient(180deg, #4a3214, #2b1b0b); }
+    .pcs-root .pcs-kat-btn:disabled { cursor: default; opacity: 0.75; }
+    .pcs-root .pcs-kat-hadiah { margin-top: 8px; font-size: 13px; color: #fff1c4; }
+    .pcs-root .pcs-kat-hadiah b { color: #ffd65a; }
+    .pcs-root .pcs-kat-hadiah span { display: block; font-size: 11px; color: rgba(244, 231, 200, 0.7); margin-top: 2px; }
     .pcs-root .pcs-jempol {
       position: absolute; top: 44px; right: 8px; z-index: 6; appearance: none; cursor: pointer;
       border: 1px solid rgba(211, 163, 66, 0.6); background: rgba(18, 11, 7, 0.78); color: var(--pcs-brass-100);
@@ -3421,7 +3433,8 @@
         undanganMasuk: Array.isArray(rawAdu.undanganMasuk) ? rawAdu.undanganMasuk : [],
         undanganKeluar: rawAdu.undanganKeluar && typeof rawAdu.undanganKeluar === 'object' ? rawAdu.undanganKeluar : null,
         sisaAduHariIni: rawAdu.sisaAduHariIni != null ? Number(rawAdu.sisaAduHariIni) : null,
-        rombongan: rawAdu.rombongan && typeof rawAdu.rombongan === 'object' ? rawAdu.rombongan : null
+        rombongan: rawAdu.rombongan && typeof rawAdu.rombongan === 'object' ? rawAdu.rombongan : null,
+        hadiah: rawAdu.hadiah && typeof rawAdu.hadiah === 'object' ? rawAdu.hadiah : null
       } : null,
       balapan: s.balapan && typeof s.balapan === 'object' ? s.balapan : null,
       hasil: s.hasil && typeof s.hasil === 'object' ? s.hasil : null
@@ -3448,6 +3461,7 @@
       tab: 'arena',
       arenaSubView: 'hub',       // 'hub' | 'adu_lobby' | 'race'
       selectedMode: 'uji_800',
+      aduJarak: '800',           // kategori Adu Kapten yang dipilih tuan sebelum rombongan dibuat
       selectedKelas: 'sekoci_standar',
       previewShipId: 'sekoci_standar',
       hoveredPartId: null,
@@ -3576,6 +3590,7 @@
                 </div>
               </div>
               <div class="pcs-orn"></div>
+              <div data-pcs="adu-kategori-box"></div>
               <div data-pcs="adu-invites-box"></div>
               <div style="font-size:12px;font-weight:700;letter-spacing:0.06em;color:var(--pcs-brass-300);text-transform:uppercase;margin-top:4px">
                 Kapten Siaga di Dermaga Zentul
@@ -5613,7 +5628,7 @@
           id: 'adu_kapten',
           title: '⚔️ Adu Kapten (2–4 Kapten)',
           badge: incomingCount > 0 ? (incomingCount + ' Tantangan Masuk!') : (hostState.infoMode.adu_kapten || 'Duel 1 Lawan 1'),
-          desc: 'Ajak sampai tiga kapten lain di Dermaga Zentul. Semua berangkat dari obor yang sama, secara langsung.'
+          desc: 'Pilih 400 m / 800 m / 1,4 km, ajak sampai tiga kapten lain di Dermaga Zentul. Semua berangkat serentak; hanya Juara 1 yang membawa pulang Gold + Rantai Biru.'
         },
         {
           id: 'pacu_gugur',
@@ -5672,6 +5687,42 @@
           ? ('Sisa Adu Hari Ini: ' + adu.sisaAduHariIni)
           : 'Dermaga Aktif';
 
+        // Kategori jarak + hadiah Juara 1 (tetap, dikali jumlah kapten − 1)
+        {
+          const rbK = adu.rombongan;
+          const tabel = adu.hadiah || { '400': { gold: 10000, rantai: 2 }, '800': { gold: 15000, rantai: 3 }, '1400': { gold: 20000, rantai: 5 } };
+          const jarakRb = rbK && rbK.jarakMm ? String(Math.round(Number(rbK.jarakMm) / 1000)) : null;
+          const aktif = jarakRb || ui.aduJarak;
+          const bolehPilih = !rbK || rbK.tuan;
+          const nIkut = rbK && Array.isArray(rbK.anggota) ? Math.max(2, rbK.anggota.filter(a => a.status === 'ikut').length) : 2;
+          const kali = Math.max(1, Math.min(4, nIkut) - 1);
+          const dasar = tabel[aktif] || tabel['800'];
+          const namaJarak = { '400': '400 m', '800': '800 m', '1400': '1,4 km' };
+          const kat = ['400', '800', '1400'].map(k => {
+            const t = tabel[k] || { gold: 0, rantai: 0 };
+            return `<button type="button" class="pcs-kat-btn ${aktif === k ? 'pcs-on' : ''}" data-pcs-kat="${k}" ${bolehPilih ? '' : 'disabled'}>
+              <b>${namaJarak[k]}</b><span>${fmtAngka(t.gold)} Gold + ${t.rantai} Rantai Biru</span></button>`;
+          }).join('');
+          q('adu-kategori-box').innerHTML = `
+            <div class="pcs-kat-box">
+              <div class="pcs-kat-judul">Kategori Adu${bolehPilih ? '' : ' (dipilih tuan rombongan)'}</div>
+              <div class="pcs-kat-row">${kat}</div>
+              <div class="pcs-kat-hadiah">🏆 Juara 1 saja: <b>${fmtAngka(dasar.gold * kali)} Gold + ${dasar.rantai * kali} Rantai Biru</b>
+                <span>(${nIkut} kapten × ${kali}) · 2 kapten ×1 · 3 kapten ×2 · 4 kapten ×3 · butuh minimal 2 catatan masuk</span></div>
+            </div>`;
+          q('adu-kategori-box').querySelectorAll('[data-pcs-kat]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const k = btn.getAttribute('data-pcs-kat');
+              if (rbK && rbK.tuan) {
+                if (k !== jarakRb && typeof callbacks.onJarakRombongan === 'function') callbacks.onJarakRombongan(rbK.id, k);
+              } else if (!rbK) {
+                ui.aduJarak = k;
+                renderArenaTab();
+              }
+            });
+          });
+        }
+
         const invBox = q('adu-invites-box');
         let invHtml = '';
 
@@ -5721,7 +5772,7 @@
             <div class="pcs-adu-invite" style="flex-direction:column;align-items:stretch">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
                 <b style="color:#fff1c4">⚑ Rombongan ${rb.tuan ? 'Milikmu' : ('Kapten ' + (rb.namaTuan || ''))}</b>
-                <span class="pcs-pill pcs-mono">${ikut}/${maks} kapten${rb.taruhan ? ' · taruhan ' + fmtAngka(rb.taruhan) + ' Gold' : ''}</span>
+                <span class="pcs-pill pcs-mono">${ikut}/${maks} kapten · ${Math.round(Number(rb.jarakMm || 800000) / 100) / 10 >= 1 && Number(rb.jarakMm) >= 1000000 ? (Number(rb.jarakMm) / 1000000).toString().replace('.', ',') + ' km' : Math.round(Number(rb.jarakMm || 800000) / 1000) + ' m'}${rb.taruhan ? ' · taruhan ' + fmtAngka(rb.taruhan) + ' Gold' : ''}</span>
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">
                 ${rb.anggota.map(a => `<span class="pcs-pill ${a.status === 'ikut' ? 'pcs-good' : ''}">${a.status === 'ikut' ? '⚓' : '⏳'} ${a.nama}</span>`).join('')}
@@ -5787,7 +5838,7 @@
           capGrid.querySelectorAll('[data-pcs-tantang]').forEach(btn => {
             btn.addEventListener('click', () => {
               const kaptenId = btn.getAttribute('data-pcs-tantang');
-              if (typeof callbacks.onTantang === 'function') callbacks.onTantang(kaptenId);
+              if (typeof callbacks.onTantang === 'function') callbacks.onTantang(kaptenId, ui.aduJarak);
             });
           });
         }
