@@ -113,6 +113,13 @@ const server = http.createServer(async (req, res) => {
       if (b.github && (b.github.repo || b.github.base)) syncRepo(true).catch(() => {});
       return json(res, 200, r);
     }
+    if (req.method === 'POST' && p === '/api/pengaturan/model') {
+      const b = await readBody(req); const old = settings.profile(String(b.id || '')) || {};
+      const pr = { provider: ['anthropic', 'gemini', 'openai'].includes(b.provider) ? b.provider : old.provider || 'anthropic',
+        baseUrl: /^https:\/\/[a-z0-9.\-]+(:\d+)?(\/[\w.\-\/]*)?$/i.test(String(b.baseUrl || '').trim()) ? String(b.baseUrl).trim().replace(/\/+$/, '') : '',
+        key: typeof b.key === 'string' && b.key.trim() ? b.key.replace(/\s+/g, '') : old.key || '' };
+      try { return json(res, 200, { ok: true, models: await ai.listModels(pr) }); } catch (e) { return json(res, 200, { ok: false, error: ai.scrub(e.message, pr.key) }); }
+    }
     if (req.method === 'POST' && p === '/api/pengaturan/tes-profil') {
       const b = await readBody(req); const pr = settings.profile(String(b.id || ''));
       if (!pr) return json(res, 404, { error: 'Profil tidak ada. Simpan dulu.' });
