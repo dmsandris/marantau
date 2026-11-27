@@ -78,3 +78,17 @@ Tidak ada perintah restart/ubah data - restart hanya lewat Panel Ops (2FA).
 - `DB_TARGET=vps`: `deploy-db` hanya ke VM (`tools/vps/migrate-vps.sh` + `fixups-vps.sql`), `deploy-web` membangun `config.js` dari `API_EXTERNAL_URL` & `ANON_KEY` di `.env` VM, jadwal backup Supabase berhenti (backup VM 03:47 tetap).
 - Mode **PINDAH** di Supabase (`game.config` `PindahKe`): semua API ditolak `MT_MAINT` (termasuk GM), `api_gmStatus` melaporkan "buka" → klien di layar maintenis memuat ulang (`?mtv=`) → build baru → Biznet.
 - **Token server lama** (rencana 1.4) di `web/mt-supabase.js`: `iss` token ≠ server sekarang → `refreshSession()` sekali; 401/JWT ditolak → refresh + ulangi panggilan sekali.
+
+## Workbench (ops.marantau.web.id/wb/)
+
+Ruang kerja agent AI di dalam Panel Ops. Alur: **prompt → Manager menyusun rencana → (Anda setujui) → tim agent mengerjakan → Manager menelaah (revisi bila perlu) → laporan → Anda pilih berkas → PR**.
+
+- Baca DB (`mt_ops_ro`, read-only) dan baca repo (mirror git lokal) langsung dari server, tanpa PR. PR hanya untuk menulis, ke branch `workbench/*`, tidak pernah ke `main`.
+- Login memakai cookie Panel Ops (`mt_ops`). Tanpa docker.sock. Data di volume `wb-data` (pengaturan, kunci API, dokumen, riwayat tugas).
+- Lokasi kode: `deploy/selfhost/workbench/`. Tes unit: `node --test test/unit.test.js`.
+
+Setup sekali:
+1. Deploy lewat workflow "VPS deploy" (build container `workbench`).
+2. Buka Ops → Workbench → Pengaturan. Tambah profil AI (boleh banyak: Claude, Gemini, OpenAI/kompatibel), lalu petakan ke peran: orkestrator, coder, cerita, desain, gambar, analis.
+3. Isi token GitHub fine-grained (Contents + Pull requests saja; tanpa Workflows/Administration). Lindungi branch `main`.
+4. Halaman Tim: impor `agents.json` (persona lengkap). Halaman Dokumen: unggah GDD/lore. Keduanya hanya tersimpan di server, bukan di repo.

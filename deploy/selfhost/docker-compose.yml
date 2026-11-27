@@ -245,6 +245,34 @@ services:
       - /opt/marantau/backup:/backup:ro
       - /opt/marantau/backup/req:/backup-req
 
+  # Workbench (agent kerja nyata). Terpisah dari Panel Ops: tanpa docker.sock, database hanya baca,
+  # rahasia AI/GitHub di volume wb-data. Login memakai sesi Panel Ops. Hanya terjangkau lewat Caddy (/wb/).
+  workbench:
+    container_name: marantau-workbench
+    build: ./workbench
+    image: marantau-workbench:local
+    restart: unless-stopped
+    <<: *log
+    mem_limit: 192m
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    tmpfs: ["/tmp"]
+    depends_on:
+      db: { condition: service_healthy }
+      ops: { condition: service_started }
+    environment:
+      OPS_SESSION_SECRET: ${OPS_SESSION_SECRET}
+      OPS_DOMAIN: ${OPS_DOMAIN}
+      OPS_PG_HOST: db
+      OPS_PG_USER: mt_ops_ro
+      OPS_PG_PASSWORD: ${MT_OPS_RO_PASSWORD}
+      OPS_MCP_TOKEN: ${OPS_MCP_TOKEN:-}
+      WB_OPS_URL: http://ops:8080
+      WB_DATA: /data
+    volumes:
+      - wb-data:/data
+
   caddy:
     container_name: marantau-caddy
     image: caddy:2.10
@@ -269,6 +297,7 @@ services:
 
 volumes:
   ops-data:
+  wb-data:
   db-config:
   caddy-data:
   caddy-config:
