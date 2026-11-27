@@ -5555,7 +5555,35 @@
       toastEl.className = 'pcs-toast' + (show ? (' pcs-show pcs-' + ui.toastType) : '');
     }
 
-    function renderAll() {
+    // Membangun ulang isi tab mengubah tinggi halaman sesaat; Safari iOS lalu melempar gulir ke atas.
+    // Bungkus tiap render: catat posisi gulir, render, kembalikan.
+    let gulirDalam = 0;
+    function penggulirInduk() {
+      let n = el.parentElement;
+      while (n && n !== document.body) {
+        const oy = getComputedStyle(n).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+        n = n.parentElement;
+      }
+      return null;
+    }
+    function jagaGulir(fn) {
+      if (gulirDalam > 0) { fn(); return; }
+      const sp = penggulirInduk();
+      const y = sp ? sp.scrollTop : 0;
+      const wy = window.pageYOffset || 0;
+      gulirDalam++;
+      try { fn(); } finally { gulirDalam--; }
+      if (sp && Math.abs(sp.scrollTop - y) > 1) sp.scrollTop = y;
+      if (Math.abs((window.pageYOffset || 0) - wy) > 1) window.scrollTo(0, wy);
+    }
+    function renderAll() { jagaGulir(renderAll_); }
+    function renderArenaTab() { jagaGulir(renderArenaTab_); }
+    function renderGalanganTab() { jagaGulir(renderGalanganTab_); }
+    function renderBengkelTab() { jagaGulir(renderBengkelTab_); }
+    function renderRekorTab() { jagaGulir(renderRekorTab_); }
+
+    function renderAll_() {
       const kapalAktif = CONFIG.KELAS_KAPAL[hostState.kelasAktif] || CONFIG.KELAS_KAPAL.sekoci_standar;
 
       renderToast();
@@ -5581,7 +5609,7 @@
       renderRekorTab();
     }
 
-    function renderArenaTab() {
+    function renderArenaTab_() {
       const hubEl = q('arena-hub');
       const aduLobbyEl = q('arena-adu-lobby');
       const raceEl = q('arena-race');
@@ -5879,7 +5907,7 @@
       }
     }
 
-    function renderGalanganTab() {
+    function renderGalanganTab_() {
       const prevShip = CONFIG.KELAS_KAPAL[ui.previewShipId] || CONFIG.KELAS_KAPAL.sekoci_standar;
       const accX = prevShip.pengaliAkselPermil / 1000;
       q('sy-title').textContent = prevShip.nama;
@@ -6086,7 +6114,7 @@
       });
     }
 
-    function renderBengkelTab() {
+    function renderBengkelTab_() {
       const kapalAktif = CONFIG.KELAS_KAPAL[hostState.kelasAktif] || CONFIG.KELAS_KAPAL.sekoci_standar;
       const semuaKomponen = Object.values(CONFIG.KOMPONEN);
 
@@ -6252,7 +6280,7 @@
       });
     }
 
-    function renderRekorTab() {
+    function renderRekorTab_() {
       // Kotak Penukaran Medali (Gigi, Rantai, Oli)
       q('medal-wallet-pill').textContent = 'Saldo: ' + fmtAngka(hostState.medaliJumlah) + ' 🏅';
       const itemsMedali = [
@@ -6603,7 +6631,8 @@
         if (hostState.audioMati !== null) {
           audio.setEnabled(!hostState.audioMati);
         }
-        if (!hostState.kapalDimiliki.includes(ui.previewShipId)) {
+        // Boleh menyorot kapal yang belum dimiliki (untuk dibeli); reset hanya bila id tidak dikenal.
+        if (!CONFIG.KELAS_KAPAL[ui.previewShipId]) {
           ui.previewShipId = hostState.kelasAktif;
         }
         if (hostState.balapan) {
