@@ -19,7 +19,7 @@ const DEFAULTS = {
   profiles: [], // { id, label, provider, baseUrl, model, key }
   roles: { orkestrator: '', coder: '', cerita: '', desain: '', gambar: '', analis: '' },
   github: { repo: 'dmsandris/marantau', base: 'main', token: '' }, // token = tulis PR (Contents + Pull requests)
-  limits: { panggilanPerTugas: 60, maksToken: 6000, revisi: 2, langkahAlat: 6, jedaRencana: true },
+  limits: { panggilanPerTugas: 60, maksToken: 6000, revisi: 2, langkahAlat: 6, jedaRencana: true, prDraft: true },
   agents: {}, // override per agent: { aktif, profil, persona }
 };
 
@@ -33,6 +33,19 @@ function merge(base, over) {
 }
 const clamp = (v, lo, hi, d) => { v = +v; return Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; };
 const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32);
+
+// Penyedia berformat OpenAI (chat/completions). Isi Base URL otomatis; kunci dan model tetap dari pemilik.
+const PRESETS = [
+  { id: 'openrouter', label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', contoh: 'anthropic/claude-sonnet-4.5' },
+  { id: 'groq', label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', contoh: 'llama-3.3-70b-versatile' },
+  { id: 'cloudflare', label: 'Cloudflare Workers AI', baseUrl: 'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1', contoh: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', butuhAkun: true },
+  { id: 'together', label: 'Together AI', baseUrl: 'https://api.together.xyz/v1', contoh: 'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
+  { id: 'mistral', label: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', contoh: 'mistral-large-latest' },
+  { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', contoh: 'deepseek-chat' },
+  { id: 'xai', label: 'xAI (Grok)', baseUrl: 'https://api.x.ai/v1', contoh: 'grok-4' },
+  { id: 'fireworks', label: 'Fireworks AI', baseUrl: 'https://api.fireworks.ai/inference/v1', contoh: 'accounts/fireworks/models/llama-v3p3-70b-instruct' },
+  { id: 'cerebras', label: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', contoh: 'llama-3.3-70b' },
+];
 
 function create(dataDir, env = process.env) {
   const FILE = path.join(dataDir, 'wb-settings.json');
@@ -58,7 +71,7 @@ function create(dataDir, env = process.env) {
     },
     publik() {
       return {
-        providers: PROVIDERS, roleList: ROLES, roles: s.roles, limits: s.limits,
+        providers: PROVIDERS, presets: PRESETS, roleList: ROLES, roles: s.roles, limits: s.limits,
         profiles: s.profiles.map(p => ({ id: p.id, label: p.label, provider: p.provider, baseUrl: p.baseUrl || '', model: p.model, ada: !!p.key, akhir: tail(p.key) })),
         github: { repo: s.github.repo, base: s.github.base, ada: !!s.github.token, akhir: tail(s.github.token) },
         agents: s.agents,
@@ -79,7 +92,7 @@ function create(dataDir, env = process.env) {
           let baseUrl = String(p.baseUrl || '').trim().replace(/\/+$/, '');
           if (baseUrl && !/^https:\/\/[a-z0-9.\-]+(:\d+)?(\/[\w.\-\/]*)?$/i.test(baseUrl)) baseUrl = '';
           const model = String(p.model || '').trim().replace(/^models\//, '');
-          if (model && !/^[a-z0-9][a-z0-9._:\-\/]{1,80}$/i.test(model)) continue;
+          if (model && !/^[a-z0-9@][a-z0-9._:@\-\/]{1,120}$/i.test(model)) continue;
           let key = old ? old.key : '';
           if (typeof p.key === 'string' && p.key.trim()) key = p.key.replace(/\s+/g, '').slice(0, 300);
           if (p.hapusKunci === true) key = '';
@@ -104,6 +117,7 @@ function create(dataDir, env = process.env) {
       if ('revisi' in l) n.limits.revisi = clamp(l.revisi, 0, 4, 2);
       if ('langkahAlat' in l) n.limits.langkahAlat = clamp(l.langkahAlat, 0, 12, 6);
       if ('jedaRencana' in l) n.limits.jedaRencana = !!l.jedaRencana;
+      if ('prDraft' in l) n.limits.prDraft = !!l.prDraft;
       if (b.agents && typeof b.agents === 'object') {
         const ids = new Set(n.profiles.map(p => p.id));
         for (const [id, o] of Object.entries(b.agents)) {
@@ -122,4 +136,4 @@ function create(dataDir, env = process.env) {
   return api;
 }
 
-module.exports = { create, ROLES, PROVIDERS };
+module.exports = { create, ROLES, PROVIDERS, PRESETS };

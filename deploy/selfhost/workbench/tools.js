@@ -178,6 +178,99 @@ async function opsTool(name, args = {}) {
 // ---------------- Tulis: branch + PR (satu-satunya jalur ubah repo) ----------------
 const DENY_PATH = [/^\.github\//i, /(^|\/)\.env/i, /(^|\/)node_modules\//, /\.(pem|key|p12|pfx)$/i, /^deploy\/selfhost\/volumes\//i];
 const SECRET_RE = /(-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-ant-[A-Za-z0-9_\-]{20,}|AIza[A-Za-z0-9_\-]{35}|sk-[A-Za-z0-9]{40,}|OPS_(PASSWORD|TOTP_SECRET|SESSION_SECRET|MCP_TOKEN)\s*=\s*\S{8,})/;
+// ---- Pemeriksaan isi berkas (mencegah PR yang merusak game, mis. #124) ----
+const LEAK_RE = /<alat\s|<antml|<berkas\s|<\/berkas>|<tambal\s|<hasil\s+alat=/i;
+const PLACEHOLDER_RE = /(\.\.\.|…)\s*(existing|kode\s+(yang\s+)?(ada|lama|lain|sebelumnya)|sisa|rest\s+of|unchanged|tidak\s+berubah)|\/\/\s*(\.\.\.\s*)?(existing\s+code|kode\s+(yang\s+)?(ada|lama)|sisa\s+(kode|berkas)|rest\s+of\s+(the\s+)?(code|file))|\bexisting\s+code\b/i;
+function readRepoText(p) {
+  try {
+    const abs = path.join(REPO_DIR, p); if (!abs.startsWith(REPO_DIR + path.sep)) return null;
+    const st = fs.statSync(abs); if (!st.isFile() || st.size > 2 * 1024 * 1024) return null;
+    return fs.readFileSync(abs, 'utf8');
+  } catch { return null; }
+}
+// Tambalan: ganti teks <cari> (harus ada persis satu kali) dengan <ganti> pada berkas yang SUDAH ada di repo.
+function applyEdits(p, ops) {
+  const old = readRepoText(p);
+  if (old == null) throw new Error(`Berkas ${p} tidak ada di repo. <tambal> hanya untuk berkas yang sudah ada; berkas baru pakai <berkas>.`);
+  const crlf = old.includes('\r\n'); const fix = s => crlf ? String(s).replace(/\r?\n/g, '\r\n') : String(s);
+  let t = old;
+  ops.forEach((o, i) => {
+    const cari = fix(o.cari), ganti = fix(o.ganti);
+    if (!cari.trim()) throw new Error(`Tambalan #${i + 1} untuk ${p}: <cari> kosong.`);
+    const n = t.split(cari).length - 1;
+    if (n === 0) throw new Error(`Tambalan #${i + 1} untuk ${p}: teks <cari> tidak ditemukan persis di berkas (salin dari hasil repo_read TANPA nomor baris; spasi dan tab harus sama).`);
+    if (n > 1) throw new Error(`Tambalan #${i + 1} untuk ${p}: teks <cari> muncul ${n} kali. Perluas dengan baris di sekitarnya agar unik.`);
+    t = t.replace(cari, () => ganti);
+  });
+  return t;
+}
+const vm = require('vm');
+// Kembalikan pesan galat sintaks (string kosong = aman). Hanya JS, JSON, dan <script> di HTML.
+function syntaxIssue(p, c) {
+  const esm = /^\s*(import\s[^;]*from|export\s)/m.test(c);
+  const js = (src, nama) => { try { new vm.Script(src.replace(/^#!.*/, ''), { filename: nama }); return ''; } catch (e) { return /import statement|Unexpected token 'export'|await is only valid|Cannot use import/.test(e.message) ? '' : `${nama}: ${e.message}`; } };
+  if (/\.json$/i.test(p)) { try { JSON.parse(c); return ''; } catch (e) { return `${p}: JSON tidak valid (${e.message})`; } }
+  if (/\.(js)$/i.test(p)) return esm ? '' : js(c, p);
+  if (/\.html$/i.test(p)) {
+    const s = c.replace(/<!--[\s\S]*?-->/g, '');
+    for (const tag of ['script', 'style']) {
+      // Setiap tag pembuka harus punya penutup sesudahnya (isi tag dilewati, jadi "<script>" di dalam string JS tidak dihitung).
+      const open = new RegExp('<' + tag + '\\b[^>]*>', 'gi'), close = new RegExp('</' + tag + '\\s*>', 'i'); let m, from = 0;
+      while ((open.lastIndex = from, m = open.exec(s))) {
+        const rest = s.slice(open.lastIndex), c = close.exec(rest);
+        if (!c) return `${p}: tag <${tag}> dibuka tapi tidak pernah ditutup. Berkas kemungkinan terpotong.`;
+        from = open.lastIndex + c.index + c[0].length;
+      }
+      if ((s.slice(from).match(close) || []).length) return `${p}: ada </${tag}> berlebih. Berkas kemungkinan rusak.`;
+    }
+    const re = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi; let m, i = 0;
+    while ((m = re.exec(s))) {
+      i++; const attr = m[1] || '';
+      if (/\bsrc\s*=/i.test(attr) || (/\btype\s*=/i.test(attr) && !/\btype\s*=\s*["']?(text\/javascript|application\/javascript)/i.test(attr))) continue;
+      if (/^\s*(import\s[^;]*from|export\s)/m.test(m[2])) continue;
+      const e = js(m[2].replace(/<\?[=!]?[\s\S]*?\?>/g, '0'), `${p} (<script> #${i})`); if (e) return e;
+    }
+  }
+  return '';
+}
+function diffStat(a, b) {
+  return new Promise(resolve => {
+    let d; try { d = fs.mkdtempSync(path.join(require('os').tmpdir(), 'wbd-')); fs.writeFileSync(d + '/a', a); fs.writeFileSync(d + '/b', b); } catch { return resolve({ plus: 0, minus: 0 }); }
+    execFile('git', ['diff', '--no-index', '--numstat', '--', 'a', 'b'], { cwd: d, timeout: 15000, env: { ...ENV, GIT_CONFIG_NOSYSTEM: '1' } }, (err, out) => {
+      try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
+      const m = String(out || '').match(/^(\d+|-)\t(\d+|-)\t/); resolve(m ? { plus: +m[1] || 0, minus: +m[2] || 0 } : { plus: 0, minus: 0 });
+    });
+  });
+}
+const nLines = s => s ? s.split('\n').length : 0;
+// Pemeriksaan per berkas terhadap repo SEKARANG. f = {path, content} atau {path, ops:[{cari,ganti}]}.
+// Mengembalikan [{path, content, ops, baru, sebelum, sesudah, plus, minus, masalah[]}]. izinkanHapus = jalur yang boleh dipangkas besar.
+async function inspect(files, { izinkanHapus = [] } = {}) {
+  const out = [];
+  for (const f0 of checkFiles(files)) {
+    const f = files.find(x => safePath(x.path) === f0.path) || {};
+    const r = { path: f0.path, ops: f.ops || null, content: f0.content, baru: false, sebelum: 0, sesudah: 0, plus: 0, minus: 0, masalah: [] };
+    const old = readRepoText(r.path); r.baru = old == null;
+    if (r.ops) { try { r.content = applyEdits(r.path, r.ops); } catch (e) { r.masalah.push(e.message); } }
+    else if (!r.baru && !/\.(md|txt)$/i.test(r.path)) r.masalah.push(`${r.path} sudah ada di repo. Mengganti seluruh isi berkas dilarang; ubah dengan <tambal> (cari/ganti) saja.`);
+    if (!r.masalah.length) {
+      if (r.content.length > 300000) r.masalah.push('Berkas terlalu besar: ' + r.path);
+      if (SECRET_RE.test(r.content)) r.masalah.push(`Berkas ${r.path} berisi pola rahasia (kunci/token/sandi).`);
+      if (LEAK_RE.test(r.content)) r.masalah.push(`${r.path} berisi sisa tag Workbench/alat (<alat>, <antml>, <berkas>…). Isi berkas tercampur dengan percakapan agent.`);
+      if (PLACEHOLDER_RE.test(r.content)) r.masalah.push(`${r.path} berisi penanda "kode lama/existing code/sisa kode". Berkas harus lengkap, bukan kerangka.`);
+      const sx = syntaxIssue(r.path, r.content); if (sx) r.masalah.push('Galat sintaks: ' + sx);
+    }
+    r.sebelum = old == null ? 0 : old.length; r.sesudah = r.content.length;
+    if (!r.masalah.length) {
+      const st = await diffStat(old == null ? '' : old, r.content); r.plus = st.plus; r.minus = st.minus;
+      const lamaBaris = nLines(old);
+      if (old != null && !izinkanHapus.includes(r.path) && ((old.length > 2000 && r.sesudah < old.length * 0.8) || (r.minus > 150 && r.minus > lamaBaris * 0.25)))
+        r.masalah.push(`${r.path} memangkas besar: −${r.minus} baris (+${r.plus}), ${old.length} → ${r.sesudah} karakter. Biasanya tanda berkas terpotong. Periksa diff di GitHub, lalu izinkan hanya jika memang disengaja.`);
+    }
+    out.push(r);
+  }
+  return out;
+}
 function checkFiles(files) {
   if (!Array.isArray(files) || !files.length) throw new Error('Tidak ada berkas.');
   if (files.length > 12) throw new Error('Maksimal 12 berkas per PR.');
@@ -201,10 +294,13 @@ async function gh(token, method, url, body) {
   if (!r.ok) throw new Error(`GitHub ${r.status}: ${((j && j.message) || t).toString().replace(token, '[token]').slice(0, 300)}`);
   return j;
 }
-async function createPr(cfg, { title, body, files, runId }) {
+async function createPr(cfg, { title, body, files, runId, izinkanHapus }) {
   const { repo, base, token } = cfg;
   if (!token) throw new Error('Token GitHub belum diisi di Pengaturan.');
-  const fs_ = checkFiles(files);
+  const rep = await inspect(files, { izinkanHapus: izinkanHapus || [] });
+  const bad = rep.filter(r => r.masalah.length);
+  if (bad.length) throw new Error('Pemeriksaan menolak, tidak ada PR dibuat: ' + bad.map(r => r.masalah.join(' ')).join(' | '));
+  const fs_ = rep;
   title = String(title || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120);
   if (!title) throw new Error('Judul PR kosong.');
   const ref = await gh(token, 'GET', `/repos/${repo}/git/ref/heads/${encodeURIComponent(base).replace(/%2F/g, '/')}`);
@@ -218,8 +314,11 @@ async function createPr(cfg, { title, body, files, runId }) {
     await gh(token, 'PUT', `/repos/${repo}/contents/${f.path.split('/').map(encodeURIComponent).join('/')}`, {
       message: `${title}\n\nBerkas: ${f.path}`, content: Buffer.from(f.content, 'utf8').toString('base64'), branch, ...(exist && exist.sha ? { sha: exist.sha } : {}) });
   }
-  const pr = await gh(token, 'POST', `/repos/${repo}/pulls`, { title, head: branch, base, body: `${String(body || '').slice(0, 6000)}\n\n---\nDibuat oleh Workbench (run ${runId || '-'}). Tidak otomatis merge: periksa lalu merge sendiri.` });
-  return { url: pr.html_url, nomor: pr.number, branch, berkas: fs_.map(f => f.path) };
+  const prBody = { title, head: branch, base, body: `${String(body || '').slice(0, 6000)}\n\nPerubahan: ${fs_.map(f => `${f.path} (${f.baru ? 'baru' : 'ubah'}, +${f.plus} −${f.minus})`).join('; ')}\n\n---\nDibuat oleh Workbench (run ${runId || '-'}). Tidak otomatis merge: periksa lalu merge sendiri.` };
+  let pr;
+  if (cfg.prDraft !== false) { try { pr = await gh(token, 'POST', `/repos/${repo}/pulls`, { ...prBody, draft: true }); } catch (e) { if (!/draft/i.test(e.message)) throw e; } }
+  if (!pr) pr = await gh(token, 'POST', `/repos/${repo}/pulls`, prBody);
+  return { url: pr.html_url, nomor: pr.number, branch, draft: !!pr.draft, berkas: fs_.map(f => f.path) };
 }
 
-module.exports = { dbQuery, dbSchema, dbFunctions, repoSync, repoStatus, repoTree, repoRead, repoGrep, opsTool, createPr, checkFiles, safePath, REPO_DIR };
+module.exports = { dbQuery, dbSchema, dbFunctions, repoSync, repoStatus, repoTree, repoRead, repoGrep, opsTool, createPr, checkFiles, inspect, applyEdits, syntaxIssue, safePath, REPO_DIR };

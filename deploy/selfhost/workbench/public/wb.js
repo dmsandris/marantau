@@ -183,9 +183,10 @@
       const bs = j.hasil;
       body += `<div class="block"><h2>Laporan akhir</h2>${md(r.report.teks)}</div>`;
       body += `<div class="block"><h2>Pull request</h2>${r.pr ? `<div class="empty"><b>PR dibuat:</b> <a href="${esc(r.pr.url)}" target="_blank" rel="noopener">#${esc(r.pr.nomor)}</a> (${esc(r.pr.berkas.join(', '))}). Periksa dan merge sendiri di GitHub.</div>` : bs.length ? `<p class="note">Pilih berkas yang layak masuk. PR dibuat sebagai branch baru; Anda yang merge.</p>
-        <div class="tw"><table><thead><tr><th></th><th>Berkas</th><th>Dari</th><th class="num">Ukuran</th></tr></thead><tbody>${bs.map(f => `<tr><td><input type="checkbox" class="prf" value="${esc(f.path)}" checked></td><td class="name">${esc(f.path)}</td><td>${esc(agentOf(f.agent).nama)} (${esc(f.tugas)})</td><td class="num">${kb(f.ukuran)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="tw"><table><thead><tr><th></th><th>Berkas</th><th>Dari</th><th class="num">Perubahan</th></tr></thead><tbody>${bs.map(f => `<tr><td><input type="checkbox" class="prf" value="${esc(f.path)}" ${f.belumLolos ? '' : 'checked'}></td><td class="name">${esc(f.path)}${f.belumLolos ? '<br><span class="msg" data-level="bad">Manager menolak hasil ini tetapi batas revisi habis. Periksa dulu.</span>' : ''}</td><td>${esc(agentOf(f.agent).nama)} (${esc(f.tugas)})</td><td class="num">${f.baru ? 'baru, ' : ''}+${f.plus} −${f.minus}${f.minus > 100 ? ' ⚠' : ''}</td></tr>`).join('')}</tbody></table></div>
+        <div id="prCek"></div>
         <label class="lbl" for="prj">Judul PR<input id="prj" class="in" value="${esc(r.report.judulPr || '')}"></label>
-        <div class="btns"><button class="btn btn--primary" data-act="pr" data-id="${r.id}" ${S.st.siap.github ? '' : 'disabled'}>Buat PR</button>${S.st.siap.github ? '' : '<span class="msg" data-level="bad">Token GitHub belum diisi (Pengaturan).</span>'}<span class="msg" id="prMsg"></span></div>` : '<div class="empty">Tidak ada berkas untuk diajukan. Run ini hanya analisis.</div>'}</div>`;
+        <div class="btns"><button class="btn" data-act="periksa-pr" data-id="${r.id}">Periksa terhadap repo sekarang</button><button class="btn btn--primary" data-act="pr" data-id="${r.id}" ${S.st.siap.github ? '' : 'disabled'}>Buat PR</button>${S.st.siap.github ? '' : '<span class="msg" data-level="bad">Token GitHub belum diisi (Pengaturan).</span>'}<span class="msg" id="prMsg"></span></div>` : '<div class="empty">Tidak ada berkas untuk diajukan. Run ini hanya analisis.</div>'}</div>`;
     }
     const act = [];
     if (busy) act.push(`<button class="btn btn--danger" data-act="batal" data-id="${r.id}">Batalkan</button>`);
@@ -316,13 +317,38 @@ order by table_name, ordinal_position;</textarea></label>
       const ids = m.list.map(o => o.id); const extra = x.model && !ids.includes(x.model) ? [{ id: x.model, nama: x.model + ' (tidak ada di daftar)' }] : [];
       return `<select class="in" data-p="${i}.model"><option value="" ${x.model ? '' : 'selected'}>(pilih model)</option>${[...extra, ...m.list].map(o => `<option value="${esc(o.id)}" ${x.model === o.id ? 'selected' : ''}>${esc(o.nama === o.id ? o.id : o.nama + ' · ' + o.id)}</option>`).join('')}</select><small>${m.list.length} model tersedia. <a href="#" data-act="muat-model" data-i="${i}">Muat ulang</a></small>`;
     }
-    return `<input class="in" data-p="${i}.model" value="${esc(x.model)}" placeholder="ketik id model, atau muat daftar"><small>${m && m.err ? `<span class="dim">${esc(m.err)}</span> ` : ''}<a href="#" data-act="muat-model" data-i="${i}">${m && m.busy ? 'Memuat…' : 'Muat daftar model dari API'}</a></small>`;
+    return `<input class="in" data-p="${i}.model" value="${esc(x.model)}" placeholder="${esc(modelContoh(x))}"><small>${m && m.err ? `<span class="dim">${esc(m.err)}</span> ` : ''}<a href="#" data-act="muat-model" data-i="${i}">${m && m.busy ? 'Memuat…' : 'Muat daftar model dari API'}</a></small>`;
   }
+  function modelContoh(x) { const v = provValue(x), pr = v.startsWith('p:') && S.st.pengaturan.presets.find(q => 'p:' + q.id === v); return pr ? 'contoh: ' + pr.contoh : 'ketik id model, atau muat daftar'; }
   async function muatModel(i) {
     const x = S.draft.profiles[i]; if (!x) return;
     S.models[x.id] = { ...(S.models[x.id] || {}), busy: true, err: '' }; vPengaturan();
     const j = await api('/pengaturan/model', { id: x.id, provider: x.provider, baseUrl: x.baseUrl, key: x.key });
     S.models[x.id] = j.ok ? { list: j.models } : { err: j.error || 'Gagal memuat daftar model.' };
+    vPengaturan();
+  }
+  // Pilihan penyedia: bawaan (Anthropic, Gemini, OpenAI) + preset OpenAI-kompatibel + Lainnya (Base URL sendiri).
+  function provValue(x) {
+    if (x.provider !== 'openai') return x.provider;
+    if (!x.baseUrl) return 'openai';
+    const pr = S.st.pengaturan.presets.find(q => q.baseUrl === x.baseUrl || (q.butuhAkun && x.baseUrl.startsWith(q.baseUrl.split('{')[0]) && /\/ai\/v1$/.test(x.baseUrl)));
+    return pr ? 'p:' + pr.id : 'kustom';
+  }
+  function provOpts(x) {
+    const v = provValue(x), o = (val, lbl) => `<option value="${esc(val)}" ${v === val ? 'selected' : ''}>${esc(lbl)}</option>`;
+    return o('anthropic', 'Anthropic (Claude)') + o('gemini', 'Google Gemini') + o('openai', 'OpenAI') +
+      `<optgroup label="OpenAI-kompatibel">${S.st.pengaturan.presets.map(q => o('p:' + q.id, q.label)).join('')}${o('kustom', 'Lainnya (isi Base URL sendiri)')}</optgroup>`;
+  }
+  function pilihPenyedia(i, val) {
+    const x = S.draft.profiles[i]; delete S.models[x.id]; x.model = '';
+    if (val === 'anthropic' || val === 'gemini' || val === 'openai') { x.provider = val; x.baseUrl = ''; }
+    else if (val === 'kustom') { x.provider = 'openai'; x.baseUrl = ''; }
+    else {
+      const pr = S.st.pengaturan.presets.find(q => 'p:' + q.id === val); if (!pr) return;
+      let u = pr.baseUrl;
+      if (pr.butuhAkun) { const a = (prompt('Cloudflare Account ID (dari dashboard Cloudflare → Workers AI):') || '').trim(); if (!/^[a-f0-9]{32}$/i.test(a)) { toast('Account ID tidak valid (32 karakter heksadesimal).'); return vPengaturan(); } u = u.replace('{ACCOUNT_ID}', a); }
+      x.provider = 'openai'; x.baseUrl = u; if (/^Profil \d+$/.test(x.label)) x.label = pr.label;
+    }
     vPengaturan();
   }
   function vPengaturan() {
@@ -333,7 +359,7 @@ order by table_name, ordinal_position;</textarea></label>
       <div class="block block--first"><h2>1. Profil AI</h2><p class="note">Satu profil = satu penyedia + satu model + satu kunci. Contoh: "Claude Opus" (orkestrator), "Claude Sonnet" (coder), "Gemini Pro" (cerita), "Gemini Gambar". Penyedia OpenAI-kompatibel (OpenRouter, Groq, dll.) bisa dipakai lewat Base URL.</p>
         <div class="cards">${d.profiles.map((x, i) => `<div class="ai-card" data-i="${i}"><h3>${esc(x.label || 'Profil')}<span class="dim">${x.ada ? 'kunci …' + esc(x.akhir) : 'belum ada kunci'}</span></h3>
           <label class="lbl">Nama<input class="in" data-p="${i}.label" value="${esc(x.label)}"></label>
-          <div class="row2"><label class="lbl">Penyedia<select class="in" data-p="${i}.provider">${p.providers.map(v => `<option value="${v}" ${x.provider === v ? 'selected' : ''}>${v === 'openai' ? 'openai / kompatibel' : v}</option>`).join('')}</select></label>
+          <div class="row2"><label class="lbl">Penyedia<select class="in" data-pv="${i}">${provOpts(x)}</select></label>
           <label class="lbl">Model${modelField(x, i)}</label></div>
           <label class="lbl">Kunci API<input class="in" type="password" autocomplete="new-password" data-p="${i}.key" placeholder="${x.ada ? 'biarkan kosong untuk tetap memakai yang lama' : 'tempel kunci'}"></label>
           <label class="lbl">Base URL (opsional, https)<input class="in" data-p="${i}.baseUrl" value="${esc(x.baseUrl || '')}" placeholder="kosong = alamat resmi penyedia"></label>
@@ -349,7 +375,8 @@ order by table_name, ordinal_position;</textarea></label>
         <label class="lbl">Maks token per jawaban<input class="in" type="number" data-l="maksToken" value="${esc(d.limits.maksToken)}"></label>
         <label class="lbl">Revisi per tugas<input class="in" type="number" data-l="revisi" value="${esc(d.limits.revisi)}"><small>0 = Manager tidak minta revisi.</small></label>
         <label class="lbl">Langkah alat per giliran<input class="in" type="number" data-l="langkahAlat" value="${esc(d.limits.langkahAlat)}"></label>
-        <label class="chk"><input type="checkbox" data-l="jedaRencana" ${d.limits.jedaRencana ? 'checked' : ''}> Minta persetujuan rencana (bawaan)</label></div></div>
+        <label class="chk"><input type="checkbox" data-l="jedaRencana" ${d.limits.jedaRencana ? 'checked' : ''}> Minta persetujuan rencana (bawaan)</label>
+        <label class="chk"><input type="checkbox" data-l="prDraft" ${d.limits.prDraft !== false ? 'checked' : ''}> PR dibuat sebagai draft (tidak bisa ter-merge sebelum Anda tandai "Ready for review")</label></div></div>
     </section>`);
     d.profiles.forEach((x, i) => { if (x.ada && !S.models[x.id] && route().tab === 'pengaturan') muatModel(i); });
   }
@@ -367,6 +394,7 @@ order by table_name, ordinal_position;</textarea></label>
   // ---------------- Aksi (delegasi klik) ----------------
   document.addEventListener('input', e => {
     const t = e.target, d = S.draft; if (!d) return;
+    if (t.dataset.pv) { pilihPenyedia(+t.dataset.pv, t.value); return; }
     if (t.dataset.p) { const [i, f] = t.dataset.p.split('.'); d.profiles[+i][f] = t.value; if (f === 'provider' || f === 'baseUrl') { delete S.models[d.profiles[+i].id]; if (f === 'provider') { d.profiles[+i].model = ''; vPengaturan(); } } }
     else if (t.dataset.g) d.github[t.dataset.g] = t.value;
     else if (t.dataset.l) d.limits[t.dataset.l] = t.type === 'checkbox' ? t.checked : t.value;
@@ -393,13 +421,19 @@ order by table_name, ordinal_position;</textarea></label>
         case 'batal': { if (!confirm('Batalkan run ini? Pekerjaan yang sudah jalan berhenti setelah panggilan AI berikutnya.')) break; await api(`/runs/${id}/batal`, {}); render(); break; }
         case 'lanjut': { const j = await api(`/runs/${id}/lanjut`, {}); if (j.error) toast(j.error); render(); break; }
         case 'hapus': { if (!confirm('Hapus run ini dari riwayat?')) break; const j = await api(`/runs/${id}/hapus`, {}); if (j.error) { toast(j.error); break; } location.hash = '#/tugas'; break; }
+        case 'periksa-pr': {
+          const berkas = $$('.prf:checked').map(x => x.value); if (!berkas.length) { toast('Pilih minimal satu berkas.'); break; }
+          busy(b, true); const j = await api(`/runs/${id}/periksa`, { berkas, izinkanHapus: $$('.izin:checked').map(x => x.value) }); busy(b, false);
+          if (j.error) { $('#prCek').innerHTML = `<div class="errbox"><span>${esc(j.error)}</span></div>`; break; }
+          $('#prCek').innerHTML = `<ul class="plain">${j.berkas.map(f => `<li><b>${esc(f.path)}</b>: ${f.masalah.length ? `<span class="msg" data-level="bad">${esc(f.masalah.join(' '))}</span>${/memangkas besar/.test(f.masalah.join(' ')) ? `<br><label class="chk"><input type="checkbox" class="izin" value="${esc(f.path)}"> Saya sudah memeriksa diff-nya, izinkan pemangkasan ini</label>` : ''}` : `<span class="msg" data-level="ok">lolos (${f.baru ? 'baru' : 'ubah'}, +${f.plus} −${f.minus})</span>`}</li>`).join('')}</ul>`; break;
+        }
         case 'pr': {
           const berkas = $$('.prf:checked').map(x => x.value); if (!berkas.length) { toast('Pilih minimal satu berkas.'); break; }
           if (!confirm(`Buat PR berisi ${berkas.length} berkas ke GitHub?\n\n${berkas.join('\n')}\n\nPR tidak otomatis di-merge.`)) break;
           busy(b, true); $('#prMsg').textContent = 'Membuat branch dan PR…';
-          const j = await api(`/runs/${id}/pr`, { berkas, judul: $('#prj').value }); busy(b, false);
+          const j = await api(`/runs/${id}/pr`, { berkas, judul: $('#prj').value, izinkanHapus: $$('.izin:checked').map(x => x.value) }); busy(b, false);
           if (j.error) { $('#prMsg').textContent = j.error; $('#prMsg').dataset.level = 'bad'; break; }
-          toast('PR dibuat: #' + j.nomor); render(); break;
+          toast('PR dibuat: #' + j.nomor + (j.draft ? ' (draft)' : '')); render(); break;
         }
         case 'schema': case 'fungsi': busy(b, true); await doSchema(act); busy(b, false); break;
         case 'sql': {
