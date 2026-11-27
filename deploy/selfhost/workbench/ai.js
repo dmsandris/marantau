@@ -125,6 +125,15 @@ async function listModels(profile) {
       }
       tok = j.nextPageToken || ''; if (!tok) break;
     }
+  } else if (/^https:\/\/api\.cloudflare\.com\/client\/v4\/accounts\/[^/]+\/ai\/v1$/i.test(profile.baseUrl || '')) {
+    // Cloudflare Workers AI tidak punya /models gaya OpenAI; daftar model teks lewat API katalognya.
+    const root = profile.baseUrl.replace(/\/v1$/, '');
+    for (let page = 1; page <= 5; page++) {
+      const j = await getJson(`${root}/models/search?task=${encodeURIComponent('Text Generation')}&per_page=100&page=${page}`, { authorization: 'Bearer ' + k }, k);
+      const rows = Array.isArray(j.result) ? j.result : [];
+      for (const m of rows) out.push({ id: m.name, nama: m.name });
+      if (rows.length < 100) break;
+    }
   } else {
     const base = profile.baseUrl || URLS.openai;
     const j = await getJson(`${base}/models`, { authorization: 'Bearer ' + k }, k);

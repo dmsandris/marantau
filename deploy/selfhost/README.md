@@ -84,6 +84,7 @@ Tidak ada perintah restart/ubah data - restart hanya lewat Panel Ops (2FA).
 Ruang kerja agent AI di dalam Panel Ops. Alur: **prompt → Manager menyusun rencana → (Anda setujui) → tim agent mengerjakan → Manager menelaah (revisi bila perlu) → laporan → Anda pilih berkas → PR**.
 
 - Baca DB (`mt_ops_ro`, read-only) dan baca repo (mirror git lokal) langsung dari server, tanpa PR. PR hanya untuk menulis, ke branch `workbench/*`, tidak pernah ke `main`.
+- Pengaman PR (kasus #124): berkas yang sudah ada hanya boleh diubah lewat tambalan cari/ganti yang diterapkan server pada isi repo terbaru; sintaks JS/HTML/JSON diperiksa, berkas terpotong/placeholder/tag bocor/pemangkasan besar ditolak, PR dibuat sebagai draft, dan hasil yang ditolak Manager tidak tercentang otomatis.
 - Login memakai cookie Panel Ops (`mt_ops`). Tanpa docker.sock. Data di volume `wb-data` (pengaturan, kunci API, dokumen, riwayat tugas).
 - Lokasi kode: `deploy/selfhost/workbench/`. Tes unit: `node --test test/unit.test.js`.
 

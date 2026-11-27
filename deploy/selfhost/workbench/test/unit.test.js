@@ -42,3 +42,52 @@ test('pengaturan: kunci tak pernah keluar utuh, kunci lama dipertahankan, peran 
   s.ubah({ profiles: [{ id: 'x', label: 'X', provider: 'openai', model: 'm1', baseUrl: 'http://evil', key: 'k' }] });
   assert.strictEqual(s.profile('x').baseUrl, '');           // hanya https
 });
+
+// ---- Pengaman PR (kasus #124: berkas ditulis ulang terpotong, tag alat bocor ke isi berkas) ----
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-repo-'));
+fs.mkdirSync(path.join(dataDir, 'repo/web/src'), { recursive: true });
+const big = '<style>\n' + Array.from({ length: 300 }, (_, i) => `.k${i}{color:red}`).join('\n') + '\n</style>\n';
+fs.writeFileSync(path.join(dataDir, 'repo/web/src/Gaya.html'), big);
+fs.writeFileSync(path.join(dataDir, 'repo/web/src/Dobel.html'), '<script>\nvar a=1;\nvar a=1;\n</script>\n');
+fs.writeFileSync(path.join(dataDir, 'repo/catatan.md'), '# Catatan\nlama\n');
+test('inspect: pengaman berkas (jalankan terpisah karena REPO_DIR dibaca saat load)', async () => {
+  const sp = require('child_process').spawnSync(process.execPath, ['-e', `
+    process.env.WB_DATA=${JSON.stringify(dataDir)}; process.env.OPS_PG_HOST='x';
+    const t=require(${JSON.stringify(path.resolve(__dirname, '../tools.js'))}); const assert=require('assert'); const fs=require('fs'); const big=${JSON.stringify(big)};
+    (async()=>{
+      const m=async(f,o)=>(await t.inspect([f],o))[0];
+      // 1. tulis ulang berkas ada (seperti #124) ditolak
+      let r=await m({path:'web/src/Gaya.html',content:'<style>\\n.a{}\\n</style>\\n'}); assert(/Mengganti seluruh isi.*dilarang/.test(r.masalah.join()), 'timpa ditolak');
+      // 2. tambalan kecil lolos, dan hasil = berkas asli + 1 perubahan
+      r=await m({path:'web/src/Gaya.html',ops:[{cari:'.k5{color:red}',ganti:'.k5{color:blue}'}]}); assert(!r.masalah.length && r.plus===1 && r.minus===1 && !r.baru,'tambal ok '+JSON.stringify(r.masalah));
+      // 3. cari yang tidak ada / ganda ditolak
+      r=await m({path:'web/src/Gaya.html',ops:[{cari:'.tidak-ada{}',ganti:'x'}]}); assert(/tidak ditemukan/.test(r.masalah.join()));
+      r=await m({path:'web/src/Dobel.html',ops:[{cari:'var a=1;',ganti:'var a=2;'}]}); assert(/muncul 2 kali/.test(r.masalah.join()));
+      // 4. tambalan yang merusak sintaks / tag ditolak
+      r=await m({path:'web/src/Dobel.html',ops:[{cari:'var a=1;\\nvar a=1;',ganti:'function ('}]}); assert(/Galat sintaks/.test(r.masalah.join()));
+      r=await m({path:'web/src/Gaya.html',ops:[{cari:'</style>',ganti:''}]}); assert(/tidak pernah ditutup/.test(r.masalah.join()));
+      // 5. pemangkasan besar lewat tambalan ditolak kecuali diizinkan
+      r=await m({path:'web/src/Gaya.html',ops:[{cari:big.split('\\n').slice(1,260).join('\\n'),ganti:'.z{}'}]}); assert(/memangkas besar/.test(r.masalah.join()),'pangkas ditolak');
+      r=await m({path:'web/src/Gaya.html',ops:[{cari:big.split('\\n').slice(1,260).join('\\n'),ganti:'.z{}'}]},{izinkanHapus:['web/src/Gaya.html']}); assert(!r.masalah.length,'pangkas diizinkan');
+      // 6. placeholder dan tag bocor ditolak (berkas baru)
+      r=await m({path:'web/src/Baru.html',content:'<script>\\nfunction a(){}\\n// ... existing code\\n</script>'}); assert(/existing code|kode lama/.test(r.masalah.join()));
+      r=await m({path:'web/src/Baru.html',content:'<script>\\nvar x=1;\\n</script>\\n<antml nama="repo_read">a</antml>'}); assert(/sisa tag/.test(r.masalah.join()));
+      // 7. berkas baru valid lolos; .md boleh ditulis ulang
+      r=await m({path:'supabase/migrations/0200-x.sql',content:'select 1;'}); assert(!r.masalah.length && r.baru);
+      r=await m({path:'catatan.md',content:'# Catatan\\nbaru\\n'}); assert(!r.masalah.length && !r.baru);
+      // 8. berkas CRLF
+      fs.writeFileSync(${JSON.stringify(path.join(dataDir, 'repo/crlf.js'))}, 'var a = 1;\\r\\nvar b = 2;\\r\\n');
+      r=await m({path:'crlf.js',ops:[{cari:'var a = 1;\\nvar b = 2;',ganti:'var a = 9;\\nvar b = 2;'}]}); assert(!r.masalah.length,'crlf '+r.masalah);
+      console.log('OK');
+    })().catch(e=>{console.log('GAGAL',e.message);process.exit(1)});
+  `], { encoding: 'utf8' }); const out = sp.stdout + sp.stderr;
+  assert.match(out, /OK/, out.slice(0, 600));
+});
+test('settings: preset penyedia tersedia dan model gaya Cloudflare diterima', () => {
+  assert.ok(['openrouter', 'groq', 'cloudflare'].every(id => settings.PRESETS.some(p => p.id === id)));
+  assert.strictEqual(settings.PRESETS.find(p => p.id === 'groq').baseUrl, 'https://api.groq.com/openai/v1');
+  const s = settings.create(fs.mkdtempSync(path.join(os.tmpdir(), 'wb-')), {});
+  s.ubah({ profiles: [{ id: 'cf', label: 'CF', provider: 'openai', baseUrl: 'https://api.cloudflare.com/client/v4/accounts/' + 'a'.repeat(32) + '/ai/v1', model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', key: 'k' }] });
+  assert.strictEqual(s.profile('cf').model, '@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+  assert.ok(s.profile('cf').baseUrl.endsWith('/ai/v1'));
+});

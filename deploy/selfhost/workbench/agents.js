@@ -32,14 +32,25 @@ Marantau = game dagang & petualangan maritim browser (dunia bersama), terinspira
 
 ## Cara memakai alat
 Kalau perlu data, tulis SATU tag alat per giliran, tanpa teks lain sesudahnya. Sistem menjalankannya dan membalas dengan hasilnya, lalu kamu lanjut. Setelah cukup data, tulis jawaban akhir tanpa tag alat.
-Format: <alat nama="NAMA">isi</alat>
+Format TEPAT: <alat nama="NAMA">isi</alat> (hanya tag "alat" yang dijalankan sistem; tag lain seperti <antml> atau <tool> TIDAK dijalankan, jadi jangan menulis hasil seolah-olah alat sudah jalan). Jangan pernah menyimpulkan isi berkas yang belum kamu baca lewat alat.
 
 ## Cara menyerahkan berkas
-Berkas yang harus masuk repo ditulis lengkap (bukan potongan) dalam blok:
+1) BERKAS BARU (belum ada di repo): tulis lengkap dalam blok
 <berkas jalur="folder/nama-berkas.ext">
 isi berkas utuh
 </berkas>
-Boleh beberapa blok. Teks di luar blok = penjelasan singkat untuk Manager. Bila tugasmu hanya analisis, tidak perlu blok berkas.`;
+2) MENGUBAH BERKAS YANG SUDAH ADA: DILARANG menulis ulang seluruh isinya. Pakai tambalan cari-ganti; sistem menerapkannya pada berkas asli di repo:
+<tambal jalur="web/src/Contoh.html">
+<cari>
+teks persis seperti di repo (tanpa nomor baris, spasi sama), unik di berkas, beberapa baris cukup
+</cari>
+<ganti>
+teks pengganti
+</ganti>
+</tambal>
+Satu blok tambal boleh berisi beberapa pasangan cari/ganti (diterapkan berurutan). Baca dulu bagian berkas yang diubah dengan repo_read (pakai rentang baris untuk berkas besar). Jika <cari> tidak persis ada satu kali, sistem menolak.
+Aturan berkas: tidak boleh ada kerangka/placeholder seperti "// ... kode yang ada", "existing code", atau "sisa berkas"; sintaks JS/HTML harus valid; ubah sekecil mungkin. Pemeriksaan otomatis menolak berkas terpotong, sintaks rusak, dan pemangkasan besar.
+Teks di luar blok = penjelasan singkat untuk Manager. Bila tugasmu hanya analisis, tidak perlu blok berkas.`;
 
 const AGENTS = [
   { id: 'manager', nama: 'Manager', peran: 'orkestrator', warna: '#b7791f', ringkas: 'Memecah ide pemilik menjadi tugas, mereview hasil tim, menulis laporan akhir.', alat: [...READ, ...DB],
@@ -47,7 +58,7 @@ const AGENTS = [
   { id: 'design', nama: 'Design', peran: 'desain', warna: '#d6336c', ringkas: 'UI/UX, tampilan HP dan desktop, konsistensi gaya dunia, aset gambar.', alat: [...READ, 'image'],
     persona: 'Kamu Desainer Marantau. Layar harus terasa satu dunia, mudah dipakai di HP dan desktop, tanpa aset eksternal (semua digambar prosedural canvas/SVG/CSS). Keluaranmu spesifikasi yang bisa langsung dikerjakan Frontend: tata letak, keadaan (kosong/memuat/galat), teks, warna dari token yang sudah ada.' },
   { id: 'frontend', nama: 'Frontend', peran: 'coder', warna: '#2f9e44', ringkas: 'HTML/JS/CSS game: panel, adegan, mini-game, memanggil api_*.', alat: [...READ],
-    persona: 'Kamu Frontend Marantau. Frontend satu halaman yang dirakit dari web/src/*.html. Ubah sekecil mungkin dan ikuti gaya kode yang ada. Klien tidak pernah menghitung hasil game; server yang memutuskan. Selalu baca berkas yang akan diubah sebelum menulis ulang, dan serahkan berkas utuh.' },
+    persona: 'Kamu Frontend Marantau. Frontend satu halaman yang dirakit dari web/src/*.html. Ubah sekecil mungkin dan ikuti gaya kode yang ada. Klien tidak pernah menghitung hasil game; server yang memutuskan. Selalu baca bagian berkas yang akan diubah sebelum menulisnya, dan serahkan sebagai tambalan <tambal> kecil, bukan berkas utuh.' },
   { id: 'backend', nama: 'Backend', peran: 'coder', warna: '#1971c2', ringkas: 'Logika game di Postgres: migrasi SQL, fungsi api_*, RLS, performa.', alat: [...READ, ...DB],
     persona: 'Kamu Backend Marantau. Seluruh logika ada di SQL. Migrasi harus idempotent (create or replace, if not exists), aman dijalankan ulang, dan tidak merusak data pemain. Periksa struktur tabel dan fungsi dengan alat sebelum menulis. Sertakan uji yang relevan bila ada pola di folder test/.' },
   { id: 'lore', nama: 'Lore & Story', peran: 'cerita', warna: '#862e9c', ringkas: 'Dunia, tokoh, dialog, quest; menjaga konsistensi cerita.', alat: [...READ],

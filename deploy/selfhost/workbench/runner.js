@@ -71,13 +71,25 @@ function create({ settings, tools, ai, dataDir }) {
     for (let b = t.lastIndexOf('}'); b > a; b = t.lastIndexOf('}', b - 1)) { try { return JSON.parse(t.slice(a, b + 1)); } catch {} }
     return null;
   }
-  const parseTool = t => { const m = String(t).match(/<alat\s+nama="(\w+)">([\s\S]*?)<\/alat>/); return m ? { nama: m[1], arg: m[2].trim(), akhir: m.index + m[0].length } : null; };
+  // Tag resmi <alat>; model kadang menulis <antml nama=…> atau <tool nama=…>, itu diterima juga supaya alat benar-benar dijalankan (bukan dikarang).
+  const parseTool = t => { const m = String(t).match(/<(alat|antml|tool)\s+nama="(\w+)">([\s\S]*?)<\/\1>/); return m ? { nama: m[2], arg: m[3].trim(), akhir: m.index + m[0].length } : null; };
+  // Tambalan: <tambal jalur="x"><cari>..</cari><ganti>..</ganti>[...]</tambal>  -> { path, ops:[{cari,ganti}] }
+  function parseEdits(t) {
+    const out = []; const re = /<tambal\s+jalur="([^"]+)">([\s\S]*?)<\/tambal>/g; let m;
+    const trim1 = s => s.replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+    while ((m = re.exec(String(t)))) {
+      const ops = []; const pr = /<cari>([\s\S]*?)<\/cari>\s*<ganti>([\s\S]*?)<\/ganti>/g; let p;
+      while ((p = pr.exec(m[2]))) ops.push({ cari: trim1(p[1]), ganti: trim1(p[2]) });
+      out.push({ path: m[1].trim(), ops });
+    }
+    return out;
+  }
   function parseFiles(t) {
     const out = []; const re = /<berkas\s+jalur="([^"]+)">\n?([\s\S]*?)\n?<\/berkas>/g; let m;
     while ((m = re.exec(String(t)))) out.push({ path: m[1].trim(), content: m[2] });
     return out;
   }
-  const stripFiles = t => String(t).replace(/<berkas\s+jalur="([^"]+)">[\s\S]*?<\/berkas>/g, (_, p) => `[berkas: ${p}]`).replace(/<alat[\s\S]*?<\/alat>/g, '').trim();
+  const stripFiles = t => String(t).replace(/<berkas\s+jalur="([^"]+)">[\s\S]*?<\/berkas>/g, (_, p) => `[berkas: ${p}]`).replace(/<tambal\s+jalur="([^"]+)">[\s\S]*?<\/tambal>/g, (_, p) => `[tambal: ${p}]`).replace(/<(alat|antml|tool)[\s\S]*?<\/\1>/g, '').trim();
   function fmtRows(r) {
     if (!r.rows.length) return '(0 baris)';
     const cols = r.columns;
@@ -128,7 +140,7 @@ function create({ settings, tools, ai, dataDir }) {
     } catch (e) { out = 'GAGAL: ' + ai.scrub(e.message); }
     run.toolLog.push({ t: now(), task: taskId || 'rencana', agent: agent.id, alat: name, arg: cap(arg, 160), ms: now() - t0, galat: /^GAGAL/.test(out) });
     if (run.toolLog.length > 400) run.toolLog.shift();
-    return cap(out, 12000);
+    return cap(out, name === 'repo_read' ? 30000 : 12000);
   }
 
   // Satu agent bekerja: bisa memanggil alat berulang (maks langkahAlat), lalu menyerahkan jawaban akhir.
@@ -144,7 +156,7 @@ function create({ settings, tools, ai, dataDir }) {
       last = text;
       const tl = parseTool(text);
       if (!tl) return text;
-      if (used >= maxStep) { messages.push({ role: 'assistant', content: text }, { role: 'user', content: `Batas ${maxStep} pemakaian alat tercapai. Tulis jawaban akhir sekarang dari data yang sudah ada, tanpa tag alat. Sebutkan apa yang belum sempat diperiksa.` }); const fin = await callAI(run, profile, system, messages, agent.nama); return fin.replace(/<alat[\s\S]*?<\/alat>/g, ''); }
+      if (used >= maxStep) { messages.push({ role: 'assistant', content: text }, { role: 'user', content: `Batas ${maxStep} pemakaian alat tercapai. Tulis jawaban akhir sekarang dari data yang sudah ada, tanpa tag alat. Sebutkan apa yang belum sempat diperiksa.` }); const fin = await callAI(run, profile, system, messages, agent.nama); return fin.replace(/<(alat|antml|tool)[\s\S]*?<\/\1>/g, ''); }
       used++;
       const res = await execTool(run, agent, tl.nama, tl.arg, taskId);
       messages.push({ role: 'assistant', content: text.slice(0, tl.akhir) }, { role: 'user', content: `<hasil alat="${tl.nama}">\n${res}\n</hasil>\nLanjutkan.` });
@@ -192,18 +204,31 @@ function create({ settings, tools, ai, dataDir }) {
       const msg = `TUGAS ${t.id}: ${t.judul}\n\nPERMINTAAN ASLI PEMILIK (konteks):\n${cap(run.prompt, 3000)}\n\nINSTRUKSI MANAGER:\n${t.instruksi}\n${dep ? '\nHASIL TUGAS YANG KAMU BUTUHKAN:\n' + dep + '\n' : ''}${st.review && st.review.putusan === 'revisi' ? `\nCATATAN REVISI DARI MANAGER (perbaiki ini):\n${st.review.catatan}\n\nHASIL SEBELUMNYA:\n${cap(st.output, 6000)}\n` : ''}\nKerjakan sekarang. Periksa data nyata dengan alat sebelum menyimpulkan; jangan menebak. Akhiri dengan ringkasan hasil dan hal yang belum pasti.`;
       const text = await agentLoop(run, agent, msg, t.id);
       st.output = stripFiles(text);
-      let files = parseFiles(text);
-      const bad = [];
-      try { files = tools.checkFiles(files.length ? files : [{ path: 'x.txt', content: '' }]).filter(f => f.path !== 'x.txt'); } catch (e) { bad.push(e.message); files = []; }
-      st.files = files; if (bad.length) st.output += `\n\n[Peringatan sistem: berkas ditolak: ${bad.join('; ')}]`;
+      // Kumpulkan berkas baru (<berkas>) dan tambalan (<tambal>); periksa tiap berkas sendiri-sendiri terhadap repo.
+      const cand = new Map();
+      for (const f of parseFiles(text)) cand.set(tools.safePath(f.path), { path: f.path, content: f.content });
+      for (const e of parseEdits(text)) { const k = tools.safePath(e.path); const cur = cand.get(k); cand.set(k, { path: e.path, ops: [...((cur && cur.ops) || []), ...e.ops] }); }
+      const files = [], bad = [];
+      for (const f of cand.values()) {
+        try {
+          const [rep] = await tools.inspect([f]);
+          if (rep.masalah.length) bad.push(rep.masalah.join(' '));
+          else files.push({ path: rep.path, content: rep.content, ...(rep.ops ? { ops: rep.ops } : {}), baru: rep.baru, plus: rep.plus, minus: rep.minus });
+        } catch (e) { bad.push(e.message); }
+      }
+      st.files = files; if (bad.length) st.output += `\n\n[Peringatan sistem: berkas ditolak pemeriksaan otomatis: ${bad.join(' | ')}]`;
+      if (bad.length && st.revisi < lim.revisi) {
+        st.review = { putusan: 'revisi', catatan: `Pemeriksaan otomatis menolak berkas: ${bad.join(' | ')}`.slice(0, 1200) };
+        st.revisi++; log(run, `${t.id}: berkas ditolak pemeriksaan otomatis, diminta revisi.`); continue;
+      }
       st.ringkasToolLog = run.toolLog.filter(x => x.task === t.id).map(x => `${x.alat}${x.galat ? ' (gagal)' : ''}`);
       // Review Manager
       st.status = 'direview'; log(run, `Manager mereview ${t.id}…`);
-      const rv = await agentLoop(run, { ...mgr, alat: [] }, `REVIEW HASIL TUGAS ${t.id}: ${t.judul} (oleh ${agent.nama})\n\nPERMINTAAN PEMILIK:\n${cap(run.prompt, 2000)}\n\nINSTRUKSI YANG DIBERIKAN:\n${t.instruksi}\n\nALAT YANG DIPAKAI AGENT: ${st.ringkasToolLog.join(', ') || '(tidak ada)'}\n\nHASIL:\n${cap(st.output, 12000)}\n${st.files.length ? '\nBERKAS DISERAHKAN:\n' + st.files.map(f => `--- ${f.path} (${f.content.length} karakter)\n${cap(f.content, 3500)}`).join('\n') : ''}\n\nNilai dengan kritis. Putusan "revisi" bila: hasil menebak tanpa data dari alat padahal data tersedia, nama tabel/kolom/fungsi tidak diperiksa, berkas tidak sesuai instruksi, ada kontradiksi, atau ada rahasia di berkas. Balas HANYA JSON: {"putusan":"ok" atau "revisi","catatan":"alasan singkat dan perbaikan yang diminta"}`, t.id);
+      const rv = await agentLoop(run, { ...mgr, alat: [] }, `REVIEW HASIL TUGAS ${t.id}: ${t.judul} (oleh ${agent.nama})\n\nPERMINTAAN PEMILIK:\n${cap(run.prompt, 2000)}\n\nINSTRUKSI YANG DIBERIKAN:\n${t.instruksi}\n\nALAT YANG DIPAKAI AGENT: ${st.ringkasToolLog.join(', ') || '(tidak ada)'}\n\nHASIL:\n${cap(st.output, 12000)}\n${st.files.length ? '\nBERKAS DISERAHKAN (sudah lolos pemeriksaan otomatis: sintaks, tidak terpotong, tambalan cocok dengan repo):\n' + st.files.map(f => `--- ${f.path} (${f.baru ? 'BARU' : 'UBAH'}, +${f.plus} −${f.minus} baris)\n${cap(f.ops ? f.ops.map(o => `- ${cap(o.cari, 600)}\n+ ${cap(o.ganti, 1200)}`).join('\n…\n') : f.content, 3500)}`).join('\n') : ''}\n\nNilai dengan kritis. Putusan "revisi" bila: perubahan lebih besar dari yang diminta (bandingkan +/− baris dengan instruksi), alat yang dibutuhkan tidak dijalankan sehingga isi berkas hanya dugaan, hasil menebak tanpa data dari alat padahal data tersedia, nama tabel/kolom/fungsi tidak diperiksa, berkas tidak sesuai instruksi, ada kontradiksi, atau ada rahasia di berkas. Balas HANYA JSON: {"putusan":"ok" atau "revisi","catatan":"alasan singkat dan perbaikan yang diminta"}`, t.id);
       const rj = extractJson(rv) || { putusan: 'ok', catatan: 'Review tidak terbaca; diterima apa adanya.' };
       st.review = { putusan: rj.putusan === 'revisi' ? 'revisi' : 'ok', catatan: String(rj.catatan || '').slice(0, 1200) };
       if (st.review.putusan === 'ok') { st.status = 'selesai'; log(run, `${t.id} diterima.`); return; }
-      if (st.revisi >= lim.revisi) { st.status = 'selesai'; st.diterimaDenganCatatan = true; log(run, `${t.id} diterima dengan catatan (batas revisi).`); return; }
+      if (st.revisi >= lim.revisi) { st.status = 'selesai'; st.diterimaDenganCatatan = true; st.files.forEach(f => { f.belumLolos = true; }); log(run, `${t.id} diterima dengan catatan (batas revisi).`); return; }
       st.revisi++;
     }
   }
@@ -276,7 +301,7 @@ function create({ settings, tools, ai, dataDir }) {
     deliverables(id) {
       const r = runs.get(id); if (!r || !r.plan) return [];
       const m = new Map();
-      for (const t of r.plan.tugas) { const s = r.tasks[t.id]; if (s && s.status === 'selesai') for (const f of s.files) m.set(f.path, { path: f.path, content: f.content, tugas: t.id, agent: t.agent }); }
+      for (const t of r.plan.tugas) { const s = r.tasks[t.id]; if (s && s.status === 'selesai') for (const f of s.files) m.set(f.path, { path: f.path, content: f.content, ops: f.ops || null, baru: !!f.baru, plus: f.plus || 0, minus: f.minus || 0, belumLolos: !!f.belumLolos, tugas: t.id, agent: t.agent }); }
       return [...m.values()];
     },
     notePr(id, pr) { const r = runs.get(id); if (r) { r.pr = pr; persist(r); } },

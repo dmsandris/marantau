@@ -177,7 +177,7 @@ const server = http.createServer(async (req, res) => {
       const id = m[1], act = m[2];
       const r = runner.get(id);
       if (!r) return json(res, 404, { error: 'Run tidak ada.' });
-      if (req.method === 'GET' && !act) return json(res, 200, { run: publicRun(r, true), hasil: runner.deliverables(id).map(f => ({ path: f.path, tugas: f.tugas, agent: f.agent, ukuran: f.content.length })) });
+      if (req.method === 'GET' && !act) return json(res, 200, { run: publicRun(r, true), hasil: runner.deliverables(id).map(f => ({ path: f.path, tugas: f.tugas, agent: f.agent, ukuran: f.content.length, baru: f.baru, plus: f.plus, minus: f.minus, belumLolos: f.belumLolos })) });
       if (req.method === 'GET' && act === 'berkas') { const f = runner.deliverables(id).find(x => x.path === url.searchParams.get('path')); return f ? json(res, 200, f) : json(res, 404, { error: 'Berkas tidak ada.' }); }
       if (req.method === 'GET' && act === 'img') {
         const fp = runner.imagePath(id, +m[3]); if (!fp) { res.writeHead(404); return res.end(); }
@@ -189,15 +189,22 @@ const server = http.createServer(async (req, res) => {
         if (req.method === 'POST' && act === 'lanjut') { await runner.resume(id); return json(res, 200, { ok: true }); }
         if (req.method === 'POST' && act === 'batal') { runner.cancel(id); return json(res, 200, { ok: true }); }
         if (req.method === 'POST' && act === 'hapus') { runner.remove(id); return json(res, 200, { ok: true }); }
-        if (req.method === 'POST' && act === 'pr') {
+        if (req.method === 'POST' && (act === 'pr' || act === 'periksa')) {
           const b = await readBody(req, 8 * 1024);
           if (r.status !== 'done') return json(res, 400, { error: 'Run belum selesai.' });
           const pilih = new Set((Array.isArray(b.berkas) ? b.berkas : []).map(String));
           const files = runner.deliverables(id).filter(f => pilih.has(f.path));
           if (!files.length) return json(res, 400, { error: 'Pilih minimal satu berkas.' });
-          audit(`buat PR dari run ${id}: ${files.map(f => f.path).join(', ')}`);
           const g = settings.get().github;
-          const out = await tools.createPr(g, { title: b.judul || (r.report && r.report.judulPr) || 'Perubahan dari Workbench', body: `${(r.report && r.report.teks) || r.prompt}`, files, runId: id });
+          await tools.repoSync(g.repo, g.base).catch(() => {});   // periksa terhadap isi repo TERBARU, bukan saat agent bekerja
+          const izin = (Array.isArray(b.izinkanHapus) ? b.izinkanHapus : []).map(String);
+          const kirim = files.map(f => ({ path: f.path, ...(f.ops ? { ops: f.ops } : { content: f.content }) }));
+          if (act === 'periksa') {
+            const rep = await tools.inspect(kirim, { izinkanHapus: izin });
+            return json(res, 200, { berkas: rep.map(x => ({ path: x.path, baru: x.baru, plus: x.plus, minus: x.minus, masalah: x.masalah })) });
+          }
+          audit(`buat PR dari run ${id}: ${files.map(f => f.path).join(', ')}`);
+          const out = await tools.createPr({ ...g, prDraft: settings.get().limits.prDraft }, { title: b.judul || (r.report && r.report.judulPr) || 'Perubahan dari Workbench', body: `${(r.report && r.report.teks) || r.prompt}`, files: kirim, runId: id, izinkanHapus: izin });
           runner.notePr(id, out); return json(res, 200, out);
         }
       } catch (e) { return json(res, 400, { error: ai.scrub(e.message) }); }
