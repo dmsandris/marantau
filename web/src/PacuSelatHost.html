@@ -99,7 +99,8 @@ var MTPacuSelat = (function () {
       onUpgrade: function (id) { L.sibuk = { upgrade: id }; dorong(); api(['pasang', id], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
       onJempol: function (v) { try { localStorage.setItem('mt_pacu_jempol', v === 'kiri' ? 'kiri' : 'kanan'); } catch (e) { } },
       onRasio: function (k) { api(['rasio', k], terima, function (m) { pesan(m, 'error'); }); },
-      onTantang: function (pub) { L.sibuk = { tantang: pub }; dorong(); api(['ajak', pub], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
+      onJarakRombongan: function (id, jarak) { api(['jarakRb', id, jarak], terima, function (m) { pesan(m, 'error'); }); },
+      onTantang: function (pub, jarak) { L.sibuk = { tantang: pub }; dorong(); api(['ajak', pub, jarak || '800'], terima, function (m) { L.sibuk = {}; pesan(m, 'error'); }); },
       onTerima: function (id) { jawab(id, true); },
       onTolak: function (id) { jawab(id, false); },
       onMulaiRombongan: function (id) {
@@ -209,7 +210,7 @@ var MTPacuSelat = (function () {
     });
     var n = peserta.length;
     L.hasil = null;
-    L.balapan = { id: room.id, mode: 'adu_kapten', judul: 'Adu Kapten · ' + n + ' kapten · ' + (room.jarakMm / 1000) + 'm',
+    L.balapan = { id: room.id, mode: 'adu_kapten', judul: 'Adu Kapten · ' + n + ' kapten · ' + (room.jarakMm >= 1400000 ? '1,4 km' : (room.jarakMm / 1000) + ' m') + '',
       seed: room.seed, jarakMm: room.jarakMm, rasioPreset: aku.rasioPreset, waktuMeriamMs: room.waktuMeriamMs,
       mulaiServerMs: room.mulaiServerMs, selisihJamMs: L.jam, lawanLangsung: true, peserta: peserta, inputLog: [] };
     dorong();
@@ -302,8 +303,8 @@ var MTPacuSelat = (function () {
       topSpeedKnot: h.top != null ? Math.round(h.top / 560) : 0, zeroToHundredMs: h.z100,
       finishPerKapal: fpk,
       keteranganHadiah: kembali ? 'Tak ada yang sampai Finish. Taruhan dikembalikan.'
-        : h.menang ? ('+' + Number(h.dapat || 0).toLocaleString('id-ID') + ' Gold' + (h.medali ? ' & +' + h.medali + ' Medali' : ''))
-        : aku.setor ? 'Taruhan ' + Number(room.taruhan || 0).toLocaleString('id-ID') + ' Gold untuk sang juara.' : 'Kau tidak menyetor catatan.'
+        : h.menang ? ('+' + Math.max(0, Number(h.dapat || 0) - Number(room.taruhan || 0)).toLocaleString('id-ID') + ' Gold bersih' + (h.medali ? ' & +' + h.medali + ' Medali' : ''))
+        : aku.setor ? 'Taruhan ' + Number(room.taruhan || 0).toLocaleString('id-ID') + ' Gold untuk sang juara.' : 'Kau tidak menyetor catatan; taruhan untuk sang juara.'
     };
     try { if (h.menang && typeof metaBump_ === 'function') metaBump_('adumenang'); } catch (e) { }
     dorong();
@@ -330,8 +331,8 @@ var MTPacuSelat = (function () {
     var host = document.getElementById('pcsAjak');
     if (!host) { document.body.insertAdjacentHTML('beforeend', '<div id="pcsAjak"></div>'); host = document.getElementById('pcsAjak'); }
     host.innerHTML = '<div class="bx"><div class="k">Pacu Selat · Adu Kapten</div><div class="n">' + esc(it.from || 'Kapten') + '</div>' +
-      '<div class="s">mengajakmu ke rombongan Adu di Selat Lurus (' + (it.jumlah || 1) + '/4 kapten) · taruhan ' +
-      Number(it.taruhan || 0).toLocaleString('id-ID') + ' Gold · <b class="cd">60</b> dtk</div>' +
+      '<div class="s">mengajakmu ke rombongan Adu di Selat Lurus (' + (it.jumlah || 1) + '/4 kapten) · ' + (Number(it.jarakMm) >= 1000000 ? '1,4 km' : Math.round(Number(it.jarakMm || 800000) / 1000) + ' m') +
+      (' · taruhan ' + Number(it.taruhan || 0).toLocaleString('id-ID') + ' Gold') + ' · <b class="cd">60</b> dtk</div>' +
       '<div class="a"><button type="button" data-i="ya">TERIMA</button><button type="button" class="g" data-i="tidak">Tolak</button></div></div>';
     host.classList.add('show');
     try { if (typeof au_ === 'function') au_('bell'); } catch (e) { }
