@@ -1,7 +1,7 @@
 # HTTPS otomatis (Let's Encrypt) untuk server Marantau.
 # api.<domain> : hanya jalur yang dipakai game (auth, rest, realtime) + /uji/ (versi uji game, Fase 2).
 #                Selain itu 404.
-# ops.<domain> : Panel Ops (1.5), login sandi + 2FA.
+# ops.<domain> : Panel Ops (1.5), login sandi + 2FA. /wb/* = Workbench (container terpisah, sesi yang sama).
 {
 	email {$ACME_EMAIL}
 	servers {
@@ -47,7 +47,18 @@
 
 {$OPS_DOMAIN} {
 	encode zstd gzip
-	reverse_proxy ops:8080
+
+	# Workbench: container terpisah. Login memakai cookie sesi Panel Ops (diperiksa oleh Workbench sendiri).
+	redir /wb /wb/ 308
+	handle_path /wb/* {
+		reverse_proxy workbench:8080 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		reverse_proxy ops:8080
+	}
 	header {
 		-Server
 		Strict-Transport-Security "max-age=31536000"
